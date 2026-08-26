@@ -1,0 +1,15 @@
+# Dependencies
+node_modules/
+
+# Next.js
+.next/
+
+# OpenNext / Cloudflare
+.open-next/
+.wrangler/
+
+# Secrets (nie committen)
+.dev.vars
+
+# macOS
+.DS_Store
