@@ -1,0 +1,12 @@
+packages:
+  - "apps/*"
+  - "packages/*"
+# Nur diese Pakete dürfen beim Install ihre Build-Skripte ausführen
+# (workerd/esbuild laden dabei ihre plattformspezifischen Binaries).
+allowBuilds:
+  esbuild: true
+  workerd: true
+minimumReleaseAgeExclude:
+  - '@opennextjs/cloudflare@1.20.3'
+  - miniflare@5.20260825.0-alpha
+  - wrangler@4.126.0

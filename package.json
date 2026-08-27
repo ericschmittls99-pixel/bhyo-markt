@@ -1,0 +1,10 @@
+{
+  "name": "bhyo-markt",
+  "private": true,
+  "packageManager": "pnpm@11.24.0",
+  "scripts": {
+    "dev": "pnpm --filter web dev",
+    "build": "pnpm --filter web build",
+    "test": "pnpm --filter @bhyo/rechenkern test"
+  }
+}
