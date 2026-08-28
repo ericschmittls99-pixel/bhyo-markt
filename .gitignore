@@ -5,6 +5,9 @@ node_modules/
 .next/
 next-env.d.ts
 
+# TypeScript
+*.tsbuildinfo
+
 # OpenNext / Cloudflare
 .open-next/
 .wrangler/

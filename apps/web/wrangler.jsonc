@@ -12,14 +12,21 @@
     "enabled": true
   },
   "vars": {
-    "ENVIRONMENT": "production"
+    "ENVIRONMENT": "production",
+    "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
+    // AUD-Tag der Access-App "bhyo-markt" (Production). Kein Secret, aber pro App
+    // verschieden.
+    "ACCESS_AUD": "e41cb1bf78c4a982bd0aff5a40997c3c7b5a3a8f77f06b6c9df121b6cb9b03cd"
   },
   // Zweite Umgebung für Preview-Deployments (Pull Requests).
   "env": {
     "preview": {
       "name": "bhyo-markt-preview",
       "vars": {
-        "ENVIRONMENT": "preview"
+        "ENVIRONMENT": "preview",
+        "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
+        // AUD-Tag der Access-App "bhyo-markt-preview".
+        "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd"
       }
     }
   }

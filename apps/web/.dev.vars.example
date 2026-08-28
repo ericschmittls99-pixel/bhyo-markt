@@ -1,0 +1,10 @@
+# Vorlage für apps/web/.dev.vars (die echte Datei ist gitignored).
+# Enthält bewusst keine Secrets — nur lokale Entwickler-Schalter.
+
+# Access-Prüfung lokal umgehen (kein echtes Token vorhanden).
+# Wirkt ausschließlich lokal: In Production ist NODE_ENV=production und der
+# Bypass greift nie, egal wie diese Variable gesetzt ist.
+DEV_AUTH_BYPASS=true
+
+# E-Mail, die im Bypass-Modus als eingeloggte Identität ausgegeben wird.
+DEV_AUTH_EMAIL=dev@bhyo.de
