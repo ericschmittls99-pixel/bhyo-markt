@@ -1,0 +1,55 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Pro Ziel-Ref nur ein Deploy gleichzeitig; laufende überholte Deploys abbrechen.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build (OpenNext)
+        working-directory: apps/web
+        env:
+          # Echter Commit-SHA statt "dev" in /api/health. Bei PRs der Head-Commit,
+          # sonst der gepushte Commit.
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: pnpm exec opennextjs-cloudflare build
+
+      # Push auf main -> Production (Top-Level-Umgebung).
+      - name: Deploy Production
+        if: github.event_name == 'push'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --env=""
+
+      # Pull Request -> Preview-Umgebung.
+      - name: Deploy Preview
+        if: github.event_name == 'pull_request'
+        working-directory: apps/web
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: pnpm exec wrangler deploy --env preview
