@@ -1,0 +1,73 @@
+name: Backup
+
+on:
+  schedule:
+    # Taeglich 02:00 UTC.
+    - cron: "0 2 * * *"
+  # Manuelles Ausloesen (zum Testen, ohne bis zum naechsten Cron zu warten).
+  workflow_dispatch:
+
+# Backups nie parallel/abbrechen — laufende Sicherung immer zu Ende bringen.
+concurrency:
+  group: backup
+  cancel-in-progress: false
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    env:
+      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.r2.cloudflarestorage.com
+      R2_BUCKET: bhyogenics-backups
+      # R2 (S3-kompatibel) vertraegt die neuen aws-cli-v2-Default-Checksummen nicht
+      # zuverlaessig — nur bei Bedarf berechnen, sonst schlaegt der Upload fehl.
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - name: PostgreSQL-17-Client installieren
+        # Nicht auf die Runner-Default-Version verlassen: pg_dump muss >= der
+        # Neon-Server-Version sein. PGDG liefert einen aktuellen Client.
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Tools verifizieren
+        run: |
+          set -euo pipefail
+          pg_dump --version
+          aws --version
+
+      - name: Dump erstellen
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: |
+          set -euo pipefail
+          FILE="bhyogenics-$(date -u +%Y-%m-%d).dump"
+          echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
+          # Custom-Format (komprimiert), portabel restorebar; ohne Owner/Rechte,
+          # damit sich der Dump gegen einen frischen Neon-Branch zurueckspielen laesst.
+          pg_dump --format=custom --no-owner --no-privileges \
+            --dbname "$DATABASE_URL" --file "$FILE"
+          ls -lh "$FILE"
+
+      - name: Upload nach R2
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          aws s3 cp "$BACKUP_FILE" "s3://$R2_BUCKET/$BACKUP_FILE" \
+            --endpoint-url "$R2_ENDPOINT"
+          echo "Hochgeladen nach s3://$R2_BUCKET/$BACKUP_FILE"
+          echo "--- Bucket-Inhalt ---"
+          aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT"
