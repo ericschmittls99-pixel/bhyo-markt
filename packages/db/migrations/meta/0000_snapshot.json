@@ -1,0 +1,50 @@
+{
+  "id": "608949da-522c-4f3b-b758-6a584bcba313",
+  "prevId": "00000000-0000-0000-0000-000000000000",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {},
+  "enums": {
+    "public.beleg_typ": {
+      "name": "beleg_typ",
+      "schema": "public",
+      "values": [
+        "dokument_link",
+        "gespraech",
+        "angebot",
+        "absichtserklaerung",
+        "vertrag"
+      ]
+    },
+    "public.bereitschaft_stufe": {
+      "name": "bereitschaft_stufe",
+      "schema": "public",
+      "values": [
+        "kein_kontakt",
+        "erstgespraech",
+        "positives_signal",
+        "absichtserklaerung"
+      ]
+    },
+    "public.datensatz_status": {
+      "name": "datensatz_status",
+      "schema": "public",
+      "values": [
+        "entwurf",
+        "in_pruefung",
+        "geprueft",
+        "verworfen"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

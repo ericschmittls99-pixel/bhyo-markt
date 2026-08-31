@@ -1,4 +1,4 @@
-# AP0b – Handoff: Worker-Skeleton
+# AP0a – Handoff: Worker-Skeleton
 
 Übergabe für den ersten Umsetzungsschritt in AP0. Ziel ist ausschließlich ein leeres,
 deploybares Gerüst – keine Fachlogik, keine Datenbank, kein Design.

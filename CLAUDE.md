@@ -144,6 +144,7 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
 
 - `docs/ap0-schema-entscheidungen.md` — Enums, Felder, Lauf-ID, verbindlich
 - `docs/ap0a-worker-skeleton.md` — Handoff für das Grundgerüst
+- `docs/ap0b-handoff-datenbank-grundgeruest.md` — Handoff für Neon/Hyperdrive und die erste Migration
 
 Die Konzept- und Planungsebene (Hub-Note, Arbeitspakete, To-do-Liste) liegt
 außerhalb dieses Repos im Obsidian-Vault und ist die Quelle der Wahrheit für
