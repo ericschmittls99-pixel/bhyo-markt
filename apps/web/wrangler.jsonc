@@ -13,9 +13,10 @@
   },
   // Neon (Production-Branch) ueber Hyperdrive. Die ID ist kein Zugriffsgeheimnis;
   // der echte Connection-String liegt in der Hyperdrive-Config, nie im Repo.
-  // localConnectionString wird ausschliesslich in `next dev`/Miniflare genutzt
-  // (beim Deploy ignoriert) — ohne ihn wirft getCloudflareContext lokal, weil die
-  // Bindung nicht materialisiert werden kann. Kein Secret: nur ein localhost-Ziel.
+  // localConnectionString ist ein reines localhost-Ziel (kein Secret): lokal
+  // materialisiert es die Bindung fuer getCloudflareContext, und OpenNext verlangt
+  // es ueber getPlatformProxy auch beim Deploy. Zur Laufzeit im Worker nutzt
+  // Cloudflare die echte Hyperdrive-Config, nicht diesen Wert.
   "hyperdrive": [
     {
       "binding": "HYPERDRIVE",
@@ -35,8 +36,14 @@
     "preview": {
       "name": "bhyo-markt-preview",
       // Neon (Preview-Branch) ueber die separate Hyperdrive-Config.
+      // localConnectionString wie oben nur lokal genutzt; wird auch beim Deploy
+      // von OpenNext (getPlatformProxy) verlangt, daher an beiden Bindings noetig.
       "hyperdrive": [
-        { "binding": "HYPERDRIVE", "id": "7bf0712cc8224c32a061ef0abea561f9" }
+        {
+          "binding": "HYPERDRIVE",
+          "id": "7bf0712cc8224c32a061ef0abea561f9",
+          "localConnectionString": "postgres://user:pass@localhost:5432/bhyo"
+        }
       ],
       "vars": {
         "ENVIRONMENT": "preview",
