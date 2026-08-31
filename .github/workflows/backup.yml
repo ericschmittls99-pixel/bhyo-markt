@@ -18,7 +18,8 @@ jobs:
     permissions:
       contents: read
     env:
-      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.r2.cloudflarestorage.com
+      # Bucket liegt in der Jurisdiction 'European Union' -> eigener .eu-Endpoint.
+      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.eu.r2.cloudflarestorage.com
       R2_BUCKET: bhyogenics-backups
       # R2 (S3-kompatibel) vertraegt die neuen aws-cli-v2-Default-Checksummen nicht
       # zuverlaessig — nur bei Bedarf berechnen, sonst schlaegt der Upload fehl.
