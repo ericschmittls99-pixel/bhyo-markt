@@ -12,5 +12,10 @@ const nextConfig: NextConfig = {
 export default nextConfig;
 
 // Ermöglicht den Zugriff auf `getCloudflareContext()` bereits in `next dev`.
+// Nur im Dev-Modus initialisieren: Beim `next build` (NODE_ENV=production) würde
+// der lokale Miniflare-Kontext wegen der Hyperdrive-Bindung sonst einen lokalen
+// Postgres-String verlangen und den Build (und die CI) abbrechen.
 import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
-initOpenNextCloudflareForDev();
+if (process.env.NODE_ENV === "development") {
+  initOpenNextCloudflareForDev();
+}
