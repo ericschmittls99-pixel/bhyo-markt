@@ -28,6 +28,18 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
+      # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
+      # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
+      # werden muessen. Production wird bewusst NICHT automatisch migriert – das
+      # bleibt ein manueller Schritt mit Freigabe. Der direkte Neon-Connection-
+      # String kommt aus dem Repo-Secret, nie aus dem Repo.
+      - name: Migrate Preview-DB
+        if: github.event_name == 'pull_request'
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm exec drizzle-kit migrate
+
       - name: Build (OpenNext)
         working-directory: apps/web
         env:
