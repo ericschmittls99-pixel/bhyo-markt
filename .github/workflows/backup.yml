@@ -18,7 +18,8 @@ jobs:
     permissions:
       contents: read
     env:
-      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.r2.cloudflarestorage.com
+      # Bucket liegt in der Jurisdiction 'European Union' -> eigener .eu-Endpoint.
+      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.eu.r2.cloudflarestorage.com
       R2_BUCKET: bhyogenics-backups
       # R2 (S3-kompatibel) vertraegt die neuen aws-cli-v2-Default-Checksummen nicht
       # zuverlaessig — nur bei Bedarf berechnen, sonst schlaegt der Upload fehl.
@@ -26,9 +27,10 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       AWS_DEFAULT_REGION: auto
     steps:
-      - name: PostgreSQL-17-Client installieren
-        # Nicht auf die Runner-Default-Version verlassen: pg_dump muss >= der
-        # Neon-Server-Version sein. PGDG liefert einen aktuellen Client.
+      - name: PostgreSQL-18-Client installieren
+        # Neon-Server laeuft auf Postgres 18; pg_dump muss >= Server-Version sein.
+        # Nicht auf die Runner-Default-Version (16) verlassen — PGDG liefert 18.
+        # Der versionierte bin-Pfad muss vor /usr/bin, sonst gewinnt das Default-16.
         run: |
           set -euo pipefail
           sudo apt-get update
@@ -39,7 +41,8 @@ jobs:
           echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
             | sudo tee /etc/apt/sources.list.d/pgdg.list
           sudo apt-get update
-          sudo apt-get install -y postgresql-client-17
+          sudo apt-get install -y postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
 
       - name: Tools verifizieren
         run: |
