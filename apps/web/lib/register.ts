@@ -1,5 +1,6 @@
 import {
   akteur,
+  beleg,
   biomassestrom,
   materialart,
   outputBedarf,
@@ -61,7 +62,15 @@ export interface RegisterZeile {
   mengeNum: number | null;
   qualitaet: string | null;
   status: string;
-  hatBeleg: boolean;
+  beleg: BelegRef | null;
+}
+
+/** Beleg-Referenz fuer die Uebersicht: Quellenangabe als Linktext, Ziel-URL. */
+export interface BelegRef {
+  /** Anzeigetext = beleg.quellenangabe, Fallback "Beleg". */
+  quelle: string;
+  /** Datei-Route oder externer Link; null, wenn keiner vorliegt. */
+  href: string | null;
 }
 
 export function listRegionen(): Promise<RegionOption[]> {
@@ -145,10 +154,14 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
         qualitaet: biomassestrom.qualitaet,
         status: biomassestrom.status,
         belegId: biomassestrom.belegId,
+        belegQuelle: sql<string | null>`${beleg.metadata} ->> 'quellenangabe'`,
+        belegDateiKey: beleg.dateiKey,
+        belegLinkUrl: beleg.linkUrl,
       })
       .from(biomassestrom)
       .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
       .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+      .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(biomassestrom.createdAt))
       .limit(500);
@@ -166,7 +179,7 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
       mengeNum: r.mengeAtro != null ? Number(r.mengeAtro) : null,
       qualitaet: r.qualitaet,
       status: r.status,
-      hatBeleg: r.belegId != null,
+      beleg: belegRef(r.belegId, r.belegQuelle, r.belegDateiKey, r.belegLinkUrl),
     }));
   });
 }
@@ -207,9 +220,13 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
         qualitaet: outputBedarf.qualitaet,
         status: outputBedarf.status,
         belegId: outputBedarf.belegId,
+        belegQuelle: sql<string | null>`${beleg.metadata} ->> 'quellenangabe'`,
+        belegDateiKey: beleg.dateiKey,
+        belegLinkUrl: beleg.linkUrl,
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(outputBedarf.createdAt))
       .limit(500);
@@ -230,7 +247,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       mengeNum: r.mengeWert != null ? Number(r.mengeWert) : null,
       qualitaet: r.qualitaet,
       status: r.status,
-      hatBeleg: r.belegId != null,
+      beleg: belegRef(r.belegId, r.belegQuelle, r.belegDateiKey, r.belegLinkUrl),
     }));
   });
 }
@@ -238,6 +255,19 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
 export function vektorLabel(v: string | null): string | null {
   if (!v) return null;
   return { waerme: "Wärme", h2: "H₂", co2: "CO₂" }[v] ?? v;
+}
+
+function belegRef(
+  belegId: string | null,
+  quelle: string | null,
+  dateiKey: string | null,
+  linkUrl: string | null,
+): BelegRef | null {
+  if (!belegId) return null;
+  return {
+    quelle: quelle?.trim() || "Beleg",
+    href: dateiKey ? `/api/belege/${dateiKey}` : (linkUrl ?? null),
+  };
 }
 
 function formatZahl(wert: string): string {

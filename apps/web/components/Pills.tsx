@@ -19,10 +19,25 @@ export function StatusPill({ status }: { status: string }) {
   );
 }
 
-export function BelegPill({ vorhanden }: { vorhanden: boolean }) {
-  return vorhanden ? (
-    <span className="pill pill--accent">Beleg</span>
-  ) : (
-    <span className="pill pill--muted">kein Beleg</span>
+/**
+ * Beleg-Zelle: zeigt die Quellenangabe als Linktext. Der Link oeffnet den Beleg
+ * (Datei-Route oder externer Link). Ohne Ziel bleibt es Text, ohne Beleg "kein Beleg".
+ */
+export function BelegLink({
+  beleg,
+}: {
+  beleg: { quelle: string; href: string | null } | null;
+}) {
+  if (!beleg) return <span className="pill pill--muted">kein Beleg</span>;
+  if (!beleg.href) return <span className="pill pill--accent">{beleg.quelle}</span>;
+  return (
+    <a
+      className="pill pill--accent"
+      href={beleg.href}
+      target="_blank"
+      rel="noopener noreferrer"
+    >
+      {beleg.quelle}
+    </a>
   );
 }

@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { BelegPill, QualitaetPill, StatusPill } from "@/components/Pills";
+import { BelegLink, QualitaetPill, StatusPill } from "@/components/Pills";
 import {
   listBiomasse,
   listMaterialarten,
@@ -224,7 +224,7 @@ function RegisterTabelle({
                 <QualitaetPill stufe={z.qualitaet} />
               </td>
               <td>
-                <BelegPill vorhanden={z.hatBeleg} />
+                <BelegLink beleg={z.beleg} />
               </td>
               <td>
                 <StatusPill status={z.status} />
