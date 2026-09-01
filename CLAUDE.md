@@ -145,6 +145,8 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
 - `docs/ap0-schema-entscheidungen.md` — Enums, Felder, Lauf-ID, verbindlich
 - `docs/ap0a-worker-skeleton.md` — Handoff für das Grundgerüst
 - `docs/ap0b-handoff-datenbank-grundgeruest.md` — Handoff für Neon/Hyperdrive und die erste Migration
+- `docs/ap0c-handoff-backup-restore.md` — Handoff für den täglichen Backup-Job und den Restore-Test
+- `docs/ap1a-handoff-datenmodell.md` — Handoff für die Kernentitäten-Migration (Region, Akteur, Beleg, Biomassestrom, Output-Bedarf, Akteur-Interesse, Analyse-Lauf, Entfernung)
 
 Die Konzept- und Planungsebene (Hub-Note, Arbeitspakete, To-do-Liste) liegt
 außerhalb dieses Repos im Obsidian-Vault und ist die Quelle der Wahrheit für

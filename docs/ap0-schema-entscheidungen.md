@@ -48,17 +48,18 @@ einer Kommune ändert sich nicht je Baureihen-Variante.
 
 Enum `beleg_typ`: `dokument_link` · `gespraech` · `angebot` · `absichtserklaerung` · `vertrag`
 
-| Beleg-Typ | Verbindlichkeit | Vorschlag Gültigkeit | Vorschlag Qualität |
-| --- | --- | --- | --- |
-| `vertrag` | höchste | Vertragslaufzeit | B |
-| `absichtserklaerung` | hoch | 12 Monate | B |
-| `angebot` | mittel | 6 Monate bzw. Angebotsfrist | B |
-| `dokument_link` | variabel | 24 Monate | B bei amtlicher Quelle, sonst C |
-| `gespraech` | niedrig | 12 Monate | C, ohne belastbare Menge D |
+| Beleg-Typ | Verbindlichkeit | Gültigkeit | Qualität vollständig | Qualität unvollständig |
+| --- | --- | --- | --- | --- |
+| `vertrag` | höchste | Vertragslaufzeit | **A** | B |
+| `absichtserklaerung` | hoch | 12 Monate | B | C |
+| `angebot` | mittel | 6 Monate bzw. Angebotsfrist | C | D |
+| `dokument_link` | variabel | 24 Monate | B bei amtlicher Quelle/Betreiberdaten, sonst C | D |
+| `gespraech` | niedrig | 12 Monate | C | D |
 
-Gültigkeitsdauern und Qualitätszuordnung sind Vorschlag – verbindlich mit der
-vollständigen Qualitäts-Ableitungsmatrix A–D in AP1. Stufe `A` bleibt gemessenen
-Betriebsdaten vorbehalten und ist über keinen Beleg-Typ erreichbar.
+**Verbindlich seit 31.08.2026** (Eric): Ein vollständig belegter, rechtsverbindlicher
+Vertrag erreicht ebenfalls A – gleichwertig zu gemessenen Betriebsdaten. `A` ist damit
+über zwei Wege erreichbar. Details: `docs/` Second-Brain-Note „AP1 – Struktur und
+Qualitäts-Ableitungsmatrix“.
 
 ## 4. Lauf-ID – `BW-JJJJ-NNN`
 
@@ -75,6 +76,7 @@ Betriebsdaten vorbehalten und ist über keinen Beleg-Typ erreichbar.
 
 ## Noch offen – nicht raten
 
-Vollständige Qualitäts-Ableitungsmatrix A–D, Gültigkeitsdauern je Beleg-Typ,
-Teilscore-Mapping der Bereitschaftsstufen. Diese Punkte sind Geschäftsentscheidungen
-und werden von Eric entschieden, nicht im Code festgelegt.
+Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
+31.08.2026 verbindlich (siehe Abschnitt 3). Weiterhin offen: Teilscore-Mapping der
+Bereitschaftsstufen – Geschäftsentscheidung, wird von Eric entschieden, nicht im
+Code festgelegt.
