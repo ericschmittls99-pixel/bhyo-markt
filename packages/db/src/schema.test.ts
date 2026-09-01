@@ -26,7 +26,7 @@ describe("Enum datensatz_status", () => {
 });
 
 describe("Enum beleg_typ", () => {
-  it("hat den festgelegten Namen und die fuenf Belegtypen in Reihenfolge", () => {
+  it("hat den festgelegten Namen und die sechs Belegtypen in Reihenfolge", () => {
     expect(belegTyp.enumName).toBe("beleg_typ");
     expect(belegTyp.enumValues).toEqual([
       "dokument_link",
@@ -34,6 +34,7 @@ describe("Enum beleg_typ", () => {
       "angebot",
       "absichtserklaerung",
       "vertrag",
+      "betriebsdaten",
     ]);
   });
 });
