@@ -24,6 +24,18 @@
       "localConnectionString": "postgres://user:pass@localhost:5432/bhyo"
     }
   ],
+  // Beleg-Dateien. EU-Jurisdiction wie beim Backup-Bucket (AP0c). Ausgabe laeuft
+  // ueber eine Worker-Route hinter Access, die per Bindung streamt – keine
+  // langlebigen S3-Credentials im Repo. Preview teilt sich denselben Bucket;
+  // die Belege-Route praefixt Keys mit der Umgebung, damit sich Test-Uploads
+  // aus Preview nicht mit Production-Belegen vermischen.
+  "r2_buckets": [
+    {
+      "binding": "BELEGE",
+      "bucket_name": "bhyogenics-belege",
+      "jurisdiction": "eu"
+    }
+  ],
   "vars": {
     "ENVIRONMENT": "production",
     "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
@@ -43,6 +55,13 @@
           "binding": "HYPERDRIVE",
           "id": "7bf0712cc8224c32a061ef0abea561f9",
           "localConnectionString": "postgres://user:pass@localhost:5432/bhyo"
+        }
+      ],
+      "r2_buckets": [
+        {
+          "binding": "BELEGE",
+          "bucket_name": "bhyogenics-belege",
+          "jurisdiction": "eu"
         }
       ],
       "vars": {
