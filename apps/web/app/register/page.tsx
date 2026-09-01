@@ -1,7 +1,9 @@
 import Link from "next/link";
 
-import { BelegLink, QualitaetPill, StatusPill } from "@/components/Pills";
+import { DetailPanel } from "@/components/DetailPanel";
+import { RegisterRow } from "@/components/RegisterRow";
 import {
+  getDetail,
   listBiomasse,
   listMaterialarten,
   listOutput,
@@ -52,6 +54,23 @@ export default async function RegisterPage({
           100,
       )
     : 0;
+
+  // Detail-Panel: URL-getrieben ueber ?detail=<id> (im aktuellen Tab).
+  const detailId = ersterWert(sp.detail);
+  const detail = detailId ? await getDetail(tab, detailId) : null;
+
+  // Basis-Query (Tab + aktive Filter), um Detail beim Oeffnen/Schliessen zu
+  // setzen bzw. zu entfernen, ohne Filter/Tab zu verlieren.
+  const basis = new URLSearchParams();
+  basis.set("tab", tab);
+  if (filter.regionId) basis.set("region", filter.regionId);
+  if (filter.suche) basis.set("q", filter.suche);
+  if (filter.materialart) basis.set("materialart", filter.materialart);
+  if (filter.qualitaet) basis.set("qualitaet", filter.qualitaet);
+  if (filter.status) basis.set("status", filter.status);
+  const basisStr = basis.toString();
+  const detailHref = (id: string) => `?${basisStr}&detail=${id}`;
+  const closeHref = `?${basisStr}`;
 
   const query = (extra: Record<string, string>) => {
     const p = new URLSearchParams();
@@ -165,8 +184,15 @@ export default async function RegisterPage({
       </div>
 
       <div className="card">
-        <RegisterTabelle zeilen={zeilen} tab={tab} />
+        <RegisterTabelle
+          zeilen={zeilen}
+          tab={tab}
+          detailId={detailId}
+          detailHref={detailHref}
+        />
       </div>
+
+      {detail && <DetailPanel detail={detail} closeHref={closeHref} />}
     </main>
   );
 }
@@ -174,9 +200,13 @@ export default async function RegisterPage({
 function RegisterTabelle({
   zeilen,
   tab,
+  detailId,
+  detailHref,
 }: {
   zeilen: RegisterZeile[];
   tab: "biomasse" | "output";
+  detailId: string | undefined;
+  detailHref: (id: string) => string;
 }) {
   if (!zeilen.length) {
     return (
@@ -202,34 +232,12 @@ function RegisterTabelle({
         </thead>
         <tbody>
           {zeilen.map((z) => (
-            <tr key={z.id}>
-              <td>
-                <div className="stack">
-                  <strong>{z.bezeichnung ?? z.akteurName ?? "—"}</strong>
-                  <span className="muted">
-                    {[z.akteurName, z.ort, z.landkreis]
-                      .filter(Boolean)
-                      .join(" · ") || "—"}
-                  </span>
-                </div>
-              </td>
-              <td>{z.kategorie ?? "—"}</td>
-              <td className="muted">
-                {z.zeitraumVon && z.zeitraumBis
-                  ? `${z.zeitraumVon} – ${z.zeitraumBis}`
-                  : "—"}
-              </td>
-              <td>{z.menge ?? "—"}</td>
-              <td>
-                <QualitaetPill stufe={z.qualitaet} />
-              </td>
-              <td>
-                <BelegLink beleg={z.beleg} />
-              </td>
-              <td>
-                <StatusPill status={z.status} />
-              </td>
-            </tr>
+            <RegisterRow
+              key={z.id}
+              zeile={z}
+              detailHref={detailHref(z.id)}
+              aktiv={z.id === detailId}
+            />
           ))}
         </tbody>
       </table>

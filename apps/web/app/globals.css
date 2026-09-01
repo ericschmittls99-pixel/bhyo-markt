@@ -293,6 +293,16 @@ table.register tr:last-child td {
 table.register tr:hover td {
   background: color-mix(in srgb, var(--lime) 7%, transparent);
 }
+tr.klickbar {
+  cursor: pointer;
+}
+tr.klickbar:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--lime) 60%, transparent);
+  outline-offset: -2px;
+}
+tr.klickbar.aktiv td {
+  background: color-mix(in srgb, var(--lime) 14%, transparent);
+}
 .empty {
   padding: 40px 12px;
   text-align: center;
@@ -452,6 +462,73 @@ input[readonly],
 .saison .bar .m {
   font-size: 10px;
   color: var(--text-muted);
+}
+
+/* --- Detail-Panel (read-only Drawer) ------------------------------------- */
+
+.detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(31, 46, 56, 0.35);
+  backdrop-filter: blur(2px);
+}
+.detail-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  z-index: 41;
+  height: 100vh;
+  width: min(460px, 94vw);
+  overflow-y: auto;
+  padding: 20px 22px 64px;
+  background: var(--surface-solid);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow);
+}
+.detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.detail-sec {
+  padding: 16px 0;
+  border-top: 1px solid var(--border);
+}
+.dl {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.dl-row {
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: baseline;
+}
+.dl-row dt {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+.dl-row dd {
+  margin: 0;
+}
+.saison--mini {
+  height: 84px;
+}
+.historie {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.historie li {
+  font-size: 13.5px;
 }
 
 .stack {

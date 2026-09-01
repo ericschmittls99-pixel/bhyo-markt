@@ -1,4 +1,5 @@
 import {
+  aenderung,
   akteur,
   beleg,
   biomassestrom,
@@ -249,6 +250,240 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       status: r.status,
       beleg: belegRef(r.belegId, r.belegQuelle, r.belegDateiKey, r.belegLinkUrl),
     }));
+  });
+}
+
+// --- Detail-Panel (read-only) --------------------------------------------
+
+export interface DetailBeleg {
+  typ: string;
+  quellenangabe: string | null;
+  href: string | null;
+  externNachvollziehbar: boolean;
+  gueltigBis: string | null;
+  erhebungsdatum: string | null;
+  amtlich: boolean | null;
+  gespraechsdatum: string | null;
+  gespraechspartner: string | null;
+}
+
+export interface DetailDaten {
+  art: "biomasse" | "output";
+  id: string;
+  bezeichnung: string | null;
+  akteurName: string | null;
+  sektor: string | null;
+  ort: string | null;
+  landkreis: string | null;
+  kontaktperson: string | null;
+  kategorie: string | null;
+  zeitraumVon: string | null;
+  zeitraumBis: string | null;
+  mengen: { label: string; wert: string }[];
+  saisonalitaet: number[] | null;
+  preis: string | null;
+  qualitaet: string | null;
+  status: string;
+  beleg: DetailBeleg | null;
+  historie: { zeitpunkt: string; text: string }[];
+}
+
+const belegSelect = {
+  belegId: beleg.id,
+  belegTyp: beleg.typ,
+  belegDateiKey: beleg.dateiKey,
+  belegLinkUrl: beleg.linkUrl,
+  belegExtern: beleg.externNachvollziehbar,
+  belegGueltigBis: beleg.gueltigBis,
+  belegErstelltAm: beleg.erstelltAm,
+  belegMetadata: beleg.metadata,
+};
+
+type BelegRow = {
+  belegId: string | null;
+  belegTyp: string | null;
+  belegDateiKey: string | null;
+  belegLinkUrl: string | null;
+  belegExtern: boolean | null;
+  belegGueltigBis: string | null;
+  belegErstelltAm: Date | null;
+  belegMetadata: unknown;
+};
+
+function belegDetail(r: BelegRow): DetailBeleg | null {
+  if (!r.belegId || !r.belegTyp) return null;
+  const m = (r.belegMetadata ?? {}) as Record<string, unknown>;
+  const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
+  return {
+    typ: r.belegTyp,
+    quellenangabe: str(m.quellenangabe),
+    href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
+    externNachvollziehbar: r.belegExtern ?? false,
+    gueltigBis: r.belegGueltigBis,
+    erhebungsdatum: r.belegErstelltAm
+      ? r.belegErstelltAm.toISOString().slice(0, 10)
+      : null,
+    amtlich: typeof m.amtlich === "boolean" ? m.amtlich : null,
+    gespraechsdatum: str(m.gespraechsdatum),
+    gespraechspartner: str(m.gespraechspartner),
+  };
+}
+
+function parseSaison(j: unknown): number[] | null {
+  if (Array.isArray(j) && j.length === 12) return j.map((x) => Number(x) || 0);
+  return null;
+}
+
+function preisText(
+  min: string | null,
+  mittel: string | null,
+  max: string | null,
+  herkunft: string | null,
+): string | null {
+  if (min == null && mittel == null && max == null) return null;
+  const f = (v: string | null) => (v != null ? formatZahl(v) : "—");
+  const h = herkunft
+    ? { eigene_datenbank: "eigene Datenbank", marktdaten: "Marktdaten", schaetzung: "Schätzung" }[herkunft]
+    : null;
+  return `${f(min)} / ${f(mittel)} / ${f(max)} €/t${h ? ` · ${h}` : ""}`;
+}
+
+function pct(v: string | null): string {
+  return v != null ? `${formatZahl(v)} %` : "—";
+}
+
+async function ladeHistorie(
+  db: Parameters<Parameters<typeof withDb>[0]>[0],
+  entitaetTyp: string,
+  id: string,
+): Promise<{ zeitpunkt: string; text: string }[]> {
+  const rows = await db
+    .select({ zeitpunkt: aenderung.zeitpunkt, text: aenderung.text })
+    .from(aenderung)
+    .where(and(eq(aenderung.entitaetTyp, entitaetTyp), eq(aenderung.entitaetId, id)))
+    .orderBy(desc(aenderung.zeitpunkt))
+    .limit(50);
+  return rows.map((r) => ({
+    zeitpunkt: r.zeitpunkt.toLocaleString("de-DE"),
+    text: r.text,
+  }));
+}
+
+export function getDetail(
+  art: "biomasse" | "output",
+  id: string,
+): Promise<DetailDaten | null> {
+  return withDb(async (db) => {
+    if (art === "biomasse") {
+      const [r] = await db
+        .select({
+          id: biomassestrom.id,
+          bezeichnung: biomassestrom.bezeichnung,
+          akteurName: akteur.name,
+          sektor: akteur.sektor,
+          ort: biomassestrom.ort,
+          landkreis: biomassestrom.landkreis,
+          kontaktperson: biomassestrom.kontaktperson,
+          kategorie: materialart.label,
+          zeitraumVon: biomassestrom.zeitraumVon,
+          zeitraumBis: biomassestrom.zeitraumBis,
+          mengeRohFm: biomassestrom.mengeRohFm,
+          tsAnteilPct: biomassestrom.tsAnteilPct,
+          aschegehaltPct: biomassestrom.aschegehaltPct,
+          mengeAtro: biomassestrom.mengeAtro,
+          saisonalitaet: biomassestrom.saisonalitaet,
+          preisMin: biomassestrom.preisMin,
+          preisMittel: biomassestrom.preisMittel,
+          preisMax: biomassestrom.preisMax,
+          preisHerkunft: biomassestrom.preisHerkunft,
+          qualitaet: biomassestrom.qualitaet,
+          status: biomassestrom.status,
+          ...belegSelect,
+        })
+        .from(biomassestrom)
+        .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
+        .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+        .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
+        .where(eq(biomassestrom.id, id))
+        .limit(1);
+      if (!r) return null;
+      return {
+        art,
+        id: r.id,
+        bezeichnung: r.bezeichnung,
+        akteurName: r.akteurName,
+        sektor: r.sektor,
+        ort: r.ort,
+        landkreis: r.landkreis,
+        kontaktperson: r.kontaktperson,
+        kategorie: r.kategorie,
+        zeitraumVon: r.zeitraumVon,
+        zeitraumBis: r.zeitraumBis,
+        mengen: [
+          { label: "Rohmenge (FM)", wert: r.mengeRohFm != null ? formatZahl(r.mengeRohFm) : "—" },
+          { label: "TS-Anteil", wert: pct(r.tsAnteilPct) },
+          { label: "Aschegehalt", wert: pct(r.aschegehaltPct) },
+          { label: "Trockenmasse", wert: r.mengeAtro != null ? `${formatZahl(r.mengeAtro)} t atro` : "—" },
+        ],
+        saisonalitaet: parseSaison(r.saisonalitaet),
+        preis: preisText(r.preisMin, r.preisMittel, r.preisMax, r.preisHerkunft),
+        qualitaet: r.qualitaet,
+        status: r.status,
+        beleg: belegDetail(r),
+        historie: await ladeHistorie(db, "biomassestrom", id),
+      };
+    }
+
+    const [r] = await db
+      .select({
+        id: outputBedarf.id,
+        bezeichnung: outputBedarf.bezeichnung,
+        akteurName: akteur.name,
+        sektor: akteur.sektor,
+        ort: outputBedarf.ort,
+        landkreis: outputBedarf.landkreis,
+        kontaktperson: outputBedarf.kontaktperson,
+        vektor: outputBedarf.vektor,
+        zeitraumVon: outputBedarf.zeitraumVon,
+        zeitraumBis: outputBedarf.zeitraumBis,
+        mengeWert: outputBedarf.mengeWert,
+        mengeEinheit: outputBedarf.mengeEinheit,
+        saisonalitaet: outputBedarf.saisonalitaet,
+        qualitaet: outputBedarf.qualitaet,
+        status: outputBedarf.status,
+        ...belegSelect,
+      })
+      .from(outputBedarf)
+      .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
+      .where(eq(outputBedarf.id, id))
+      .limit(1);
+    if (!r) return null;
+    return {
+      art,
+      id: r.id,
+      bezeichnung: r.bezeichnung,
+      akteurName: r.akteurName,
+      sektor: r.sektor,
+      ort: r.ort,
+      landkreis: r.landkreis,
+      kontaktperson: r.kontaktperson,
+      kategorie: vektorLabel(r.vektor),
+      zeitraumVon: r.zeitraumVon,
+      zeitraumBis: r.zeitraumBis,
+      mengen: [
+        {
+          label: "Bedarfsmenge",
+          wert: r.mengeWert != null ? `${formatZahl(r.mengeWert)} ${r.mengeEinheit ?? ""}`.trim() : "—",
+        },
+      ],
+      saisonalitaet: parseSaison(r.saisonalitaet),
+      preis: null,
+      qualitaet: r.qualitaet,
+      status: r.status,
+      beleg: belegDetail(r),
+      historie: await ladeHistorie(db, "output_bedarf", id),
+    };
   });
 }
 
