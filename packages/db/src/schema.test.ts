@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 
-import { belegTyp, bereitschaftStufe, datensatzStatus } from "./schema";
+import {
+  belegTyp,
+  bereitschaftStufe,
+  datensatzStatus,
+  laufStatus,
+  outputVektor,
+  preisHerkunft,
+  qualitaetsStufe,
+} from "./schema";
 
 // Postgres-Enum-Werte lassen sich anhaengen, aber nicht umbenennen, entfernen
 // oder umsortieren. Diese Tests frieren Name, Werte und Reihenfolge exakt nach
@@ -39,5 +47,37 @@ describe("Enum bereitschaft_stufe", () => {
       "positives_signal",
       "absichtserklaerung",
     ]);
+  });
+});
+
+describe("Enum qualitaets_stufe", () => {
+  it("hat den festgelegten Namen und die vier Stufen A-D in Reihenfolge", () => {
+    expect(qualitaetsStufe.enumName).toBe("qualitaets_stufe");
+    expect(qualitaetsStufe.enumValues).toEqual(["A", "B", "C", "D"]);
+  });
+});
+
+describe("Enum preis_herkunft", () => {
+  it("hat den festgelegten Namen und die drei Herkuenfte in Reihenfolge", () => {
+    expect(preisHerkunft.enumName).toBe("preis_herkunft");
+    expect(preisHerkunft.enumValues).toEqual([
+      "eigene_datenbank",
+      "marktdaten",
+      "schaetzung",
+    ]);
+  });
+});
+
+describe("Enum output_vektor", () => {
+  it("hat den festgelegten Namen und die drei Vektoren in Reihenfolge", () => {
+    expect(outputVektor.enumName).toBe("output_vektor");
+    expect(outputVektor.enumValues).toEqual(["waerme", "h2", "co2"]);
+  });
+});
+
+describe("Enum lauf_status", () => {
+  it("hat den festgelegten Namen und die zwei Zustaende in Reihenfolge", () => {
+    expect(laufStatus.enumName).toBe("lauf_status");
+    expect(laufStatus.enumValues).toEqual(["arbeitsfassung", "eingefroren"]);
   });
 });
