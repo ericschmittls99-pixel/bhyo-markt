@@ -4,19 +4,11 @@ import Link from "next/link";
 import { useActionState, useState } from "react";
 
 import { AkteurCombobox } from "@/components/AkteurCombobox";
+import { MaterialartCombobox } from "@/components/MaterialartCombobox";
 import { QualitaetPill } from "@/components/Pills";
 import { SaisonEditor } from "@/components/SaisonEditor";
 import type { FormState } from "@/lib/actions";
 import { type BelegTyp, deriveQualitaet } from "@/lib/qualitaet";
-
-interface Option {
-  id: string;
-  name: string;
-}
-interface MaterialOption {
-  code: string;
-  label: string;
-}
 
 const BELEG_TYPEN: { typ: BelegTyp; label: string }[] = [
   { typ: "dokument_link", label: "Dokument/Link" },
@@ -27,15 +19,18 @@ const BELEG_TYPEN: { typ: BelegTyp; label: string }[] = [
   { typ: "betriebsdaten", label: "Betriebsdaten" },
 ];
 
+// Fester Enum output_vektor – Erweiterung braucht eine Migration, kein Add-Button.
+const VEKTOREN: { wert: string; label: string }[] = [
+  { wert: "waerme", label: "Wärme" },
+  { wert: "h2", label: "H₂" },
+  { wert: "co2", label: "CO₂" },
+];
+
 export function ErfassungFormular({
   art,
-  regionen,
-  materialarten,
   action,
 }: {
   art: "biomasse" | "output";
-  regionen: Option[];
-  materialarten: MaterialOption[];
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
 }) {
   const [state, formAction, pending] = useActionState(action, {});
@@ -95,19 +90,6 @@ export function ErfassungFormular({
         <div className="card-title">Quelle</div>
         <div className="field-row">
           <AkteurCombobox name="akteur_id" />
-          <div className="field">
-            <label>Region *</label>
-            <select name="region_id" defaultValue="" required>
-              <option value="" disabled>
-                Region wählen…
-              </option>
-              {regionen.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
         </div>
         <div className="field-row">
           <div className="field">
@@ -129,7 +111,8 @@ export function ErfassungFormular({
         </div>
         <p className="hint">
           Standort gehört zum einzelnen Strom, nicht zum Akteur – ein Akteur kann
-          mehrere Sites haben. Geocoding folgt in AP1c.
+          mehrere Sites haben. Die Region wird später räumlich aus dem Standort
+          abgeleitet, nicht manuell gewählt. Geocoding/Karten-Pin folgt in AP1c.
         </p>
       </div>
 
@@ -140,19 +123,7 @@ export function ErfassungFormular({
         </div>
         <div className="field-row">
           {art === "biomasse" ? (
-            <div className="field">
-              <label>Materialart *</label>
-              <select name="materialart_code" defaultValue="" required>
-                <option value="" disabled>
-                  wählen…
-                </option>
-                {materialarten.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
+            <MaterialartCombobox name="materialart_code" />
           ) : (
             <div className="field">
               <label>Output-Vektor *</label>
@@ -160,9 +131,11 @@ export function ErfassungFormular({
                 <option value="" disabled>
                   wählen…
                 </option>
-                <option value="waerme">Wärme</option>
-                <option value="h2">H₂</option>
-                <option value="co2">CO₂</option>
+                {VEKTOREN.map((v) => (
+                  <option key={v.wert} value={v.wert}>
+                    {v.label}
+                  </option>
+                ))}
               </select>
             </div>
           )}

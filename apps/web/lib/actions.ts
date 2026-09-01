@@ -163,7 +163,6 @@ export async function createBiomasse(
 
   try {
     const akteurId = pflicht(formData, "akteur_id", "Akteur");
-    const regionId = pflicht(formData, "region_id", "Region");
     const materialartCode = pflicht(formData, "materialart_code", "Materialart");
     const begruendung = pflicht(formData, "begruendung", "Begründung");
 
@@ -171,7 +170,6 @@ export async function createBiomasse(
     // hochladen/anlegen, damit ein Validierungsfehler keine R2-Waisen erzeugt.
     const werte = {
       akteurId,
-      regionId,
       materialartCode,
       bezeichnung: text(formData, "bezeichnung"),
       ort: text(formData, "ort"),
@@ -219,12 +217,10 @@ export async function createOutput(
 
   try {
     const akteurId = pflicht(formData, "akteur_id", "Akteur");
-    const regionId = pflicht(formData, "region_id", "Region");
     const begruendung = pflicht(formData, "begruendung", "Begründung");
 
     const werte = {
       akteurId,
-      regionId,
       bezeichnung: text(formData, "bezeichnung"),
       ort: text(formData, "ort"),
       landkreis: text(formData, "landkreis"),

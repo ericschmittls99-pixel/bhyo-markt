@@ -5,9 +5,23 @@ import {
   outputBedarf,
   region,
 } from "@bhyo/db/schema";
-import { and, desc, eq, ilike, or, type SQL } from "drizzle-orm";
+import { and, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { withDb } from "@/lib/db";
+
+/**
+ * Raeumliche Regionszuordnung: ein Strom/Bedarf gehoert zu einer Region, wenn
+ * sein Standort innerhalb des Einzugsradius um region.standort_geom liegt
+ * (ST_DWithin auf geography, Meter). Standorte ohne Pin fallen aus jeder
+ * Regionsfilterung heraus (Geocoding fehlt noch, bekannte Einschraenkung).
+ */
+function imEinzugsradius(geom: Column, regionId: string): SQL {
+  return sql`${geom} is not null and ST_DWithin(
+    ${geom}::geography,
+    (select ${region.standortGeom} from ${region} where ${region.id} = ${regionId})::geography,
+    coalesce((select ${region.einzugsradiusKm} from ${region} where ${region.id} = ${regionId}), 0) * 1000
+  )`;
+}
 
 export interface RegisterFilter {
   regionId?: string | undefined;
@@ -68,6 +82,18 @@ export function listMaterialarten(): Promise<MaterialartOption[]> {
   );
 }
 
+/** Live-Suche fuer die Materialart-Combobox (Label). */
+export function sucheMaterialarten(query: string): Promise<MaterialartOption[]> {
+  const q = query.trim();
+  return withDb((db) => {
+    const base = db
+      .select({ code: materialart.code, label: materialart.label })
+      .from(materialart);
+    const filtered = q ? base.where(ilike(materialart.label, `%${q}%`)) : base;
+    return filtered.orderBy(materialart.label).limit(20);
+  });
+}
+
 /** Live-Suche fuer die Akteur-Combobox (Name oder Sektor). */
 export function sucheAkteure(query: string): Promise<AkteurOption[]> {
   const q = query.trim();
@@ -85,7 +111,8 @@ export function sucheAkteure(query: string): Promise<AkteurOption[]> {
 export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
   return withDb(async (db) => {
     const conds: SQL[] = [];
-    if (filter.regionId) conds.push(eq(biomassestrom.regionId, filter.regionId));
+    if (filter.regionId)
+      conds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
     if (filter.materialart)
       conds.push(eq(biomassestrom.materialartCode, filter.materialart));
     if (filter.qualitaet)
@@ -147,7 +174,8 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
 export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
   return withDb(async (db) => {
     const conds: SQL[] = [];
-    if (filter.regionId) conds.push(eq(outputBedarf.regionId, filter.regionId));
+    if (filter.regionId)
+      conds.push(imEinzugsradius(outputBedarf.standortGeom, filter.regionId));
     if (filter.qualitaet)
       conds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
     if (filter.status)
