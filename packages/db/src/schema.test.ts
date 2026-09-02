@@ -5,6 +5,7 @@ import {
   bereitschaftStufe,
   datensatzStatus,
   laufStatus,
+  materialartGruppe,
   outputVektor,
   preisHerkunft,
   qualitaetsStufe,
@@ -80,5 +81,18 @@ describe("Enum lauf_status", () => {
   it("hat den festgelegten Namen und die zwei Zustaende in Reihenfolge", () => {
     expect(laufStatus.enumName).toBe("lauf_status");
     expect(laufStatus.enumValues).toEqual(["arbeitsfassung", "eingefroren"]);
+  });
+});
+
+describe("Enum materialart_gruppe", () => {
+  it("hat den festgelegten Namen und die fuenf Gruppen in Reihenfolge", () => {
+    expect(materialartGruppe.enumName).toBe("materialart_gruppe");
+    expect(materialartGruppe.enumValues).toEqual([
+      "gruenschnitt_landschaftspflege",
+      "holz_rebschnitt",
+      "bioabfall_kompost",
+      "klaerschlamm",
+      "agrar_lebensmittelreststoffe",
+    ]);
   });
 });

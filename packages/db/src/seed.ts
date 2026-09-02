@@ -74,17 +74,17 @@ async function main() {
   await sql`delete from akteur where name like 'Test:%'`;
   await sql`delete from region where name like 'Test:%'`;
 
-  // --- Materialart-Grundwerte (echte Referenzdaten, nur upsert) ---
+  // --- Materialart-Grundwerte (echte Referenzdaten, nur upsert) mit Gruppe ---
   const materialarten = [
-    ["guelle", "Gülle"],
-    ["mist", "Mist"],
-    ["bioabfall", "Bioabfall"],
-    ["gruenschnitt", "Grünschnitt"],
-    ["stroh", "Stroh"],
+    ["guelle", "Gülle", "agrar_lebensmittelreststoffe"],
+    ["mist", "Mist", "agrar_lebensmittelreststoffe"],
+    ["bioabfall", "Bioabfall", "bioabfall_kompost"],
+    ["gruenschnitt", "Grünschnitt", "gruenschnitt_landschaftspflege"],
+    ["stroh", "Stroh", "agrar_lebensmittelreststoffe"],
   ];
-  for (const [code, label] of materialarten) {
-    await sql`insert into materialart (code, label) values (${code}, ${label})
-      on conflict (code) do nothing`;
+  for (const [code, label, gruppe] of materialarten) {
+    await sql`insert into materialart (code, label, gruppe) values (${code}, ${label}, ${gruppe})
+      on conflict (code) do update set gruppe = excluded.gruppe`;
   }
 
   // --- Regionen (mit Einzugsradius, ohne region_id an den Stroemen) ---

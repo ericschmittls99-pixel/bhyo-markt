@@ -72,6 +72,18 @@ export const laufStatus = pgEnum("lauf_status", [
   "eingefroren",
 ]);
 
+/**
+ * Fachliche Gruppe einer Materialart (AP1c) – bestimmt u. a. die Kartenfarbe.
+ * Reihenfolge verbindlich, snake_case ohne Umlaute.
+ */
+export const materialartGruppe = pgEnum("materialart_gruppe", [
+  "gruenschnitt_landschaftspflege",
+  "holz_rebschnitt",
+  "bioabfall_kompost",
+  "klaerschlamm",
+  "agrar_lebensmittelreststoffe",
+]);
+
 // --- Kernentitaeten (Reihenfolge nach FK-Abhaengigkeiten) --------------------
 
 /**
@@ -81,6 +93,8 @@ export const laufStatus = pgEnum("lauf_status", [
 export const materialart = pgTable("materialart", {
   code: text("code").primaryKey(),
   label: text("label").notNull(),
+  // Fachliche Gruppe (AP1c). NOT NULL; bei Inline-Neuanlage Pflichtfeld.
+  gruppe: materialartGruppe("gruppe").notNull(),
 });
 
 /** Beleg (Nachweis) fuer einen Wert. Wird von Region, Biomassestrom, Output-Bedarf referenziert. */
