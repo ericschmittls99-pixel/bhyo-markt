@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 
+import { NavLinks } from "@/components/NavLinks";
 import { currentUserEmail } from "@/lib/db";
 import "./globals.css";
 
@@ -23,6 +24,7 @@ export default async function RootLayout({
             <span className="dot" aria-hidden />
             bhyo Markttool
           </a>
+          <NavLinks />
           <span className="user">{email ?? "nicht angemeldet"}</span>
         </header>
         {children}

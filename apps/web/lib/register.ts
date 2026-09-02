@@ -31,6 +31,14 @@ export interface RegisterFilter {
   materialart?: string | undefined;
   qualitaet?: string | undefined;
   status?: string | undefined;
+  landkreis?: string | undefined;
+  /** Datenjahr (zeitraum_von/bis ueberlappt dieses Jahr). */
+  jahr?: string | undefined;
+}
+
+/** Zeitraum [von,bis] ueberlappt das gegebene Jahr. */
+function jahrFilter(vonCol: Column, bisCol: Column, jahr: string): SQL {
+  return sql`${vonCol} <= ${`${jahr}-12-31`} and ${bisCol} >= ${`${jahr}-01-01`}`;
 }
 
 export interface RegionOption {
@@ -129,6 +137,12 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
       conds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
     if (filter.status)
       conds.push(eq(biomassestrom.status, filter.status as never));
+    if (filter.landkreis)
+      conds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
+    if (filter.jahr)
+      conds.push(
+        jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
+      );
     if (filter.suche) {
       const s = `%${filter.suche.trim()}%`;
       conds.push(
@@ -194,6 +208,12 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       conds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
     if (filter.status)
       conds.push(eq(outputBedarf.status, filter.status as never));
+    if (filter.landkreis)
+      conds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
+    if (filter.jahr)
+      conds.push(
+        jahrFilter(outputBedarf.zeitraumVon, outputBedarf.zeitraumBis, filter.jahr),
+      );
     if (filter.suche) {
       const s = `%${filter.suche.trim()}%`;
       conds.push(
@@ -484,6 +504,157 @@ export function getDetail(
       beleg: belegDetail(r),
       historie: await ladeHistorie(db, "output_bedarf", id),
     };
+  });
+}
+
+// --- Karte (AP1c) ---------------------------------------------------------
+
+export interface MapPunkt {
+  id: string;
+  art: "biomasse" | "output";
+  lng: number;
+  lat: number;
+  /** Farbschluessel: materialart.gruppe (Biomasse) bzw. vektor (Output). */
+  farbeKey: string;
+  /** Groessenbasis: menge_atro (Biomasse) bzw. menge_wert (Output). */
+  menge: number;
+  qualitaet: string | null;
+  label: string;
+}
+
+export interface RegionKreis {
+  lng: number;
+  lat: number;
+  radiusKm: number;
+}
+
+export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
+  return withDb(async (db) => {
+    const s = filter.suche ? `%${filter.suche.trim()}%` : null;
+
+    const bConds: SQL[] = [sql`${biomassestrom.standortGeom} is not null`];
+    if (filter.regionId)
+      bConds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
+    if (filter.materialart)
+      bConds.push(eq(biomassestrom.materialartCode, filter.materialart));
+    if (filter.qualitaet)
+      bConds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
+    if (filter.status)
+      bConds.push(eq(biomassestrom.status, filter.status as never));
+    if (filter.landkreis)
+      bConds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
+    if (filter.jahr)
+      bConds.push(
+        jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
+      );
+    if (s)
+      bConds.push(
+        or(
+          ilike(akteur.name, s),
+          ilike(biomassestrom.bezeichnung, s),
+          ilike(biomassestrom.landkreis, s),
+          ilike(biomassestrom.ort, s),
+        )!,
+      );
+
+    const bRows = await db
+      .select({
+        id: biomassestrom.id,
+        lng: sql<number>`ST_X(${biomassestrom.standortGeom})`,
+        lat: sql<number>`ST_Y(${biomassestrom.standortGeom})`,
+        gruppe: materialart.gruppe,
+        menge: biomassestrom.mengeAtro,
+        qualitaet: biomassestrom.qualitaet,
+        bezeichnung: biomassestrom.bezeichnung,
+        akteurName: akteur.name,
+      })
+      .from(biomassestrom)
+      .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
+      .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+      .where(and(...bConds))
+      .limit(2000);
+
+    const biomasse: MapPunkt[] = bRows.map((r) => ({
+      id: r.id,
+      art: "biomasse" as const,
+      lng: r.lng,
+      lat: r.lat,
+      farbeKey: r.gruppe ?? "unbekannt",
+      menge: r.menge != null ? Number(r.menge) : 0,
+      qualitaet: r.qualitaet,
+      label: r.bezeichnung ?? r.akteurName ?? "Biomassestrom",
+    }));
+
+    // Materialart-Filter aktiv -> Output ausblenden (Output hat keine Materialart).
+    if (filter.materialart) return biomasse;
+
+    const oConds: SQL[] = [sql`${outputBedarf.standortGeom} is not null`];
+    if (filter.regionId)
+      oConds.push(imEinzugsradius(outputBedarf.standortGeom, filter.regionId));
+    if (filter.qualitaet)
+      oConds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
+    if (filter.status)
+      oConds.push(eq(outputBedarf.status, filter.status as never));
+    if (filter.landkreis)
+      oConds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
+    if (filter.jahr)
+      oConds.push(
+        jahrFilter(outputBedarf.zeitraumVon, outputBedarf.zeitraumBis, filter.jahr),
+      );
+    if (s)
+      oConds.push(
+        or(
+          ilike(akteur.name, s),
+          ilike(outputBedarf.bezeichnung, s),
+          ilike(outputBedarf.landkreis, s),
+          ilike(outputBedarf.ort, s),
+        )!,
+      );
+
+    const oRows = await db
+      .select({
+        id: outputBedarf.id,
+        lng: sql<number>`ST_X(${outputBedarf.standortGeom})`,
+        lat: sql<number>`ST_Y(${outputBedarf.standortGeom})`,
+        vektor: outputBedarf.vektor,
+        menge: outputBedarf.mengeWert,
+        qualitaet: outputBedarf.qualitaet,
+        bezeichnung: outputBedarf.bezeichnung,
+        akteurName: akteur.name,
+      })
+      .from(outputBedarf)
+      .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .where(and(...oConds))
+      .limit(2000);
+
+    const output: MapPunkt[] = oRows.map((r) => ({
+      id: r.id,
+      art: "output" as const,
+      lng: r.lng,
+      lat: r.lat,
+      farbeKey: r.vektor,
+      menge: r.menge != null ? Number(r.menge) : 0,
+      qualitaet: r.qualitaet,
+      label: r.bezeichnung ?? r.akteurName ?? "Output-Bedarf",
+    }));
+
+    return [...biomasse, ...output];
+  });
+}
+
+export function getRegionKreis(regionId: string): Promise<RegionKreis | null> {
+  return withDb(async (db) => {
+    const [r] = await db
+      .select({
+        lng: sql<number>`ST_X(${region.standortGeom})`,
+        lat: sql<number>`ST_Y(${region.standortGeom})`,
+        radiusKm: region.einzugsradiusKm,
+      })
+      .from(region)
+      .where(eq(region.id, regionId))
+      .limit(1);
+    if (!r || r.radiusKm == null) return null;
+    return { lng: r.lng, lat: r.lat, radiusKm: Number(r.radiusKm) };
   });
 }
 
