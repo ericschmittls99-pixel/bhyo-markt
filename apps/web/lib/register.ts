@@ -41,6 +41,40 @@ function jahrFilter(vonCol: Column, bisCol: Column, jahr: string): SQL {
   return sql`${vonCol} <= ${`${jahr}-12-31`} and ${bisCol} >= ${`${jahr}-01-01`}`;
 }
 
+/**
+ * Gemeinsame WHERE-Bedingungen fuer Biomasse-Abfragen (Liste, Karte, Auswertung).
+ * Voraussetzung: die Abfrage joint `akteur` (fuer die Suche ueber den Namen).
+ */
+export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
+  const conds: SQL[] = [];
+  if (filter.regionId)
+    conds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
+  if (filter.materialart)
+    conds.push(eq(biomassestrom.materialartCode, filter.materialart));
+  if (filter.qualitaet)
+    conds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
+  if (filter.status)
+    conds.push(eq(biomassestrom.status, filter.status as never));
+  if (filter.landkreis)
+    conds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
+  if (filter.jahr)
+    conds.push(
+      jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
+    );
+  if (filter.suche) {
+    const s = `%${filter.suche.trim()}%`;
+    conds.push(
+      or(
+        ilike(akteur.name, s),
+        ilike(biomassestrom.bezeichnung, s),
+        ilike(biomassestrom.landkreis, s),
+        ilike(biomassestrom.ort, s),
+      )!,
+    );
+  }
+  return conds;
+}
+
 export interface RegionOption {
   id: string;
   name: string;
