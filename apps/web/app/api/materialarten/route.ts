@@ -1,4 +1,4 @@
-import { materialart } from "@bhyo/db/schema";
+import { materialart, materialartGruppe } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { currentUserEmail, withDb } from "@/lib/db";
@@ -33,16 +33,26 @@ export async function POST(req: Request) {
   if (!(await currentUserEmail())) {
     return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
   }
-  const body = (await req.json().catch(() => null)) as { label?: string } | null;
+  const body = (await req.json().catch(() => null)) as {
+    label?: string;
+    gruppe?: string;
+  } | null;
   const label = body?.label?.trim();
   const code = label ? toCode(label) : "";
+  const gruppe = body?.gruppe;
   if (!label || !code) {
     return Response.json({ error: "Label ist Pflicht" }, { status: 400 });
+  }
+  if (!gruppe || !(materialartGruppe.enumValues as string[]).includes(gruppe)) {
+    return Response.json({ error: "Gruppe ist Pflicht" }, { status: 400 });
   }
 
   const created = await withDb(async (db) => {
     // Bestehenden Code nie ueberschreiben – bei Kollision den vorhandenen zurueckgeben.
-    await db.insert(materialart).values({ code, label }).onConflictDoNothing();
+    await db
+      .insert(materialart)
+      .values({ code, label, gruppe: gruppe as never })
+      .onConflictDoNothing();
     const [row] = await db
       .select({ code: materialart.code, label: materialart.label })
       .from(materialart)

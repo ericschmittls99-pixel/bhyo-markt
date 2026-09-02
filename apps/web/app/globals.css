@@ -531,6 +531,66 @@ input[readonly],
   font-size: 13.5px;
 }
 
+/* --- Karte ---------------------------------------------------------------- */
+
+.karte {
+  height: 62vh;
+  min-height: 420px;
+  width: 100%;
+}
+.legende {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 24px;
+}
+.legende-grp {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.legende-grp strong {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+}
+.leg {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+}
+.leg i {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+}
+
+/* --- Header-Navigation ---------------------------------------------------- */
+
+.app-nav {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+.app-nav a {
+  color: rgba(239, 239, 238, 0.75);
+  font-weight: 600;
+  font-size: 14px;
+  padding: 6px 12px;
+  border-radius: var(--radius-pill);
+}
+.app-nav a:hover {
+  color: var(--hellgrau);
+  text-decoration: none;
+}
+.app-nav a[aria-current="page"] {
+  background: rgba(140, 198, 63, 0.18);
+  color: var(--hellgrau);
+}
+
 .stack {
   display: flex;
   flex-direction: column;

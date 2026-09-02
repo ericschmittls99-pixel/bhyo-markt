@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { DetailPanel } from "@/components/DetailPanel";
+import { FilterBar } from "@/components/FilterBar";
 import { RegisterRow } from "@/components/RegisterRow";
 import {
   getDetail,
@@ -20,8 +21,6 @@ function ersterWert(v: string | string[] | undefined): string | undefined {
   return s && s.length ? s : undefined;
 }
 
-const STATUS = ["entwurf", "in_pruefung", "geprueft", "verworfen"];
-
 export default async function RegisterPage({
   searchParams,
 }: {
@@ -35,6 +34,8 @@ export default async function RegisterPage({
     materialart: ersterWert(sp.materialart),
     qualitaet: ersterWert(sp.qualitaet),
     status: ersterWert(sp.status),
+    landkreis: ersterWert(sp.landkreis),
+    jahr: ersterWert(sp.jahr),
   };
 
   const [regionen, materialarten, zeilen] = await Promise.all([
@@ -68,6 +69,8 @@ export default async function RegisterPage({
   if (filter.materialart) basis.set("materialart", filter.materialart);
   if (filter.qualitaet) basis.set("qualitaet", filter.qualitaet);
   if (filter.status) basis.set("status", filter.status);
+  if (filter.landkreis) basis.set("landkreis", filter.landkreis);
+  if (filter.jahr) basis.set("jahr", filter.jahr);
   const basisStr = basis.toString();
   const detailHref = (id: string) => `?${basisStr}&detail=${id}`;
   const closeHref = `?${basisStr}`;
@@ -116,72 +119,12 @@ export default async function RegisterPage({
         </div>
       </div>
 
-      <div className="card">
-        <form method="get" className="field-row" style={{ marginBottom: 4 }}>
-          <input type="hidden" name="tab" value={tab} />
-          <div className="field">
-            <label>Region</label>
-            <select name="region" defaultValue={filter.regionId ?? ""}>
-              <option value="">Alle Regionen</option>
-              {regionen.map((r) => (
-                <option key={r.id} value={r.id}>
-                  {r.name}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Suche</label>
-            <input
-              type="search"
-              name="q"
-              defaultValue={filter.suche ?? ""}
-              placeholder="Quelle, Akteur, Landkreis"
-            />
-          </div>
-          {tab === "biomasse" && (
-            <div className="field">
-              <label>Materialart</label>
-              <select name="materialart" defaultValue={filter.materialart ?? ""}>
-                <option value="">Alle</option>
-                {materialarten.map((m) => (
-                  <option key={m.code} value={m.code}>
-                    {m.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-          <div className="field">
-            <label>Qualität</label>
-            <select name="qualitaet" defaultValue={filter.qualitaet ?? ""}>
-              <option value="">Alle</option>
-              {["A", "B", "C", "D"].map((q) => (
-                <option key={q} value={q}>
-                  {q}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field">
-            <label>Status</label>
-            <select name="status" defaultValue={filter.status ?? ""}>
-              <option value="">Alle</option>
-              {STATUS.map((s) => (
-                <option key={s} value={s}>
-                  {s}
-                </option>
-              ))}
-            </select>
-          </div>
-          <div className="field" style={{ justifyContent: "flex-end" }}>
-            <label>&nbsp;</label>
-            <button className="btn" type="submit">
-              Filtern
-            </button>
-          </div>
-        </form>
-      </div>
+      <FilterBar
+        filter={filter}
+        regionen={regionen}
+        materialarten={materialarten}
+        hidden={{ tab }}
+      />
 
       <div className="card">
         <RegisterTabelle
