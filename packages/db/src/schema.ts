@@ -1,5 +1,6 @@
 import { sql } from "drizzle-orm";
 import {
+  boolean,
   check,
   date,
   geometry,
@@ -26,13 +27,17 @@ export const datensatzStatus = pgEnum("datensatz_status", [
   "verworfen",
 ]);
 
-/** Belegtyp mit steigender Verbindlichkeit. */
+/**
+ * Belegtyp mit steigender Verbindlichkeit. `betriebsdaten` in Migration 0002
+ * angehaengt (Postgres-Enums lassen nur Anhaengen zu, kein Umsortieren).
+ */
 export const belegTyp = pgEnum("beleg_typ", [
   "dokument_link",
   "gespraech",
   "angebot",
   "absichtserklaerung",
   "vertrag",
+  "betriebsdaten",
 ]);
 
 /** Kommunale Bereitschaftsstufe (Feld an der Region). */
@@ -86,6 +91,14 @@ export const beleg = pgTable("beleg", {
   linkUrl: text("link_url"),
   notiz: text("notiz"),
   gueltigBis: date("gueltig_bis"),
+  // Bildet den "vollstaendige Pflichtfelder"-Teil der Qualitaetsmatrix ab
+  // (siehe deriveQualitaet). Default false: ohne Zusicherung nicht extern belegt.
+  externNachvollziehbar: boolean("extern_nachvollziehbar")
+    .notNull()
+    .default(false),
+  // Typ-spezifische Zusatzfelder (z. B. gespraech: Datum/Partner/Notiz,
+  // angebot: gueltig_bis-Vorbelegung). Struktur haengt am beleg_typ.
+  metadata: jsonb("metadata"),
   // Fachlicher Erstellungszeitpunkt des Belegs, getrennt vom technischen created_at.
   erstelltAm: timestamp("erstellt_am", { withTimezone: true })
     .notNull()
@@ -103,6 +116,9 @@ export const region = pgTable("region", {
     type: "point",
     srid: 4326,
   }).notNull(),
+  // Definiert die Flaeche der Region als Kreis um standort_geom. Ueberlappung
+  // zwischen Regionen ist gewollt (keine Constraint). Nullable, bis gesetzt.
+  einzugsradiusKm: numeric("einzugsradius_km"),
   bereitschaftStufe: bereitschaftStufe("bereitschaft_stufe")
     .notNull()
     .default("kein_kontakt"),
@@ -138,15 +154,23 @@ export const akteur = pgTable("akteur", {
     .defaultNow(),
 });
 
-/** Biomassestrom eines Akteurs in einer Region. */
+/**
+ * Biomassestrom eines Akteurs mit eigenem Standort. KEINE manuell zugewiesene
+ * Region – welche Region(en) den Strom erfassen, wird raeumlich aus standort_geom
+ * und region.einzugsradius_km abgeleitet (ST_DWithin), nicht ueber einen FK.
+ */
 export const biomassestrom = pgTable("biomassestrom", {
   id: uuid("id").primaryKey().defaultRandom(),
   akteurId: uuid("akteur_id")
     .notNull()
     .references(() => akteur.id),
-  regionId: uuid("region_id")
-    .notNull()
-    .references(() => region.id),
+  // Standort gehoert an den einzelnen Strom, nicht an den Akteur – ein Akteur
+  // kann mehrere Sites haben. Alle nullable, kein Geocoding in AP1b.
+  bezeichnung: text("bezeichnung"),
+  ort: text("ort"),
+  landkreis: text("landkreis"),
+  standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
+  kontaktperson: text("kontaktperson"),
   materialartCode: text("materialart_code")
     .notNull()
     .references(() => materialart.code),
@@ -176,15 +200,22 @@ export const biomassestrom = pgTable("biomassestrom", {
     .defaultNow(),
 });
 
-/** Output-Bedarf eines Akteurs in einer Region. */
+/**
+ * Output-Bedarf eines Akteurs mit eigenem Standort. Wie biomassestrom ohne
+ * region_id – die Regionszuordnung ist raeumlich (ST_DWithin), kein FK.
+ */
 export const outputBedarf = pgTable("output_bedarf", {
   id: uuid("id").primaryKey().defaultRandom(),
   akteurId: uuid("akteur_id")
     .notNull()
     .references(() => akteur.id),
-  regionId: uuid("region_id")
-    .notNull()
-    .references(() => region.id),
+  // Standort je Bedarf (analog biomassestrom): ein Akteur kann mehrere Sites
+  // haben. Alle nullable, kein Geocoding in AP1b.
+  bezeichnung: text("bezeichnung"),
+  ort: text("ort"),
+  landkreis: text("landkreis"),
+  standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
+  kontaktperson: text("kontaktperson"),
   vektor: outputVektor("vektor").notNull(),
   mengeWert: numeric("menge_wert").notNull(),
   mengeEinheit: text("menge_einheit").notNull(),
@@ -282,3 +313,18 @@ export const entfernung = pgTable(
     ),
   ],
 );
+
+/**
+ * Aenderungshistorie (read-only Log) fuer die Erfassungs-UI. Polymorpher Bezug
+ * auf die geloggte Entitaet – wie bei entfernung bewusst ohne FK-Constraint,
+ * damit ein Log-Eintrag auch einen spaeter verworfenen Datensatz ueberdauert.
+ */
+export const aenderung = pgTable("aenderung", {
+  id: uuid("id").primaryKey().defaultRandom(),
+  entitaetTyp: text("entitaet_typ").notNull(),
+  entitaetId: uuid("entitaet_id").notNull(),
+  zeitpunkt: timestamp("zeitpunkt", { withTimezone: true })
+    .notNull()
+    .defaultNow(),
+  text: text("text").notNull(),
+});

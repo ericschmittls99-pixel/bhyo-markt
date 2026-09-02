@@ -12,6 +12,7 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -22,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "drizzle-kit": "^0.31.10",
+    "tsx": "^4.19.2",
     "typescript": "^5.7.0",
     "vitest": "^4.1.11"
   }

@@ -15,6 +15,20 @@
       "when": 1788263980850,
       "tag": "0001_kernentitaeten",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788270574120,
+      "tag": "0002_erfassung",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1788294126782,
+      "tag": "0003_region_raeumlich",
+      "breakpoints": true
     }
   ]
 }
