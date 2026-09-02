@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { GRUPPE_LABEL } from "@/lib/farben";
+
 interface MaterialartOption {
   code: string;
   label: string;
@@ -19,6 +21,7 @@ export function MaterialartCombobox({ name }: { name: string }) {
   const [gewaehlt, setGewaehlt] = useState<MaterialartOption | null>(null);
   const [offen, setOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
+  const [gruppe, setGruppe] = useState("");
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,13 +58,13 @@ export function MaterialartCombobox({ name }: { name: string }) {
 
   async function neuAnlegen() {
     const label = query.trim();
-    if (!label) return;
+    if (!label || !gruppe) return;
     setLaedt(true);
     try {
       const res = await fetch("/api/materialarten", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label }),
+        body: JSON.stringify({ label, gruppe }),
       });
       if (!res.ok) return;
       const data = (await res.json()) as { materialart: MaterialartOption };
@@ -140,14 +143,24 @@ export function MaterialartCombobox({ name }: { name: string }) {
             </div>
           )}
           {!laedt && query.trim() && !exakt && (
-            <button
-              type="button"
-              className="btn btn--primary"
-              style={{ width: "100%", marginTop: 4 }}
-              onClick={neuAnlegen}
-            >
-              „{query.trim()}" neu anlegen
-            </button>
+            <div className="stack" style={{ padding: 8, gap: 8 }}>
+              <select value={gruppe} onChange={(e) => setGruppe(e.target.value)}>
+                <option value="">Gruppe wählen… (Pflicht)</option>
+                {Object.entries(GRUPPE_LABEL).map(([k, label]) => (
+                  <option key={k} value={k}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <button
+                type="button"
+                className="btn btn--primary"
+                onClick={neuAnlegen}
+                disabled={!gruppe}
+              >
+                „{query.trim()}" neu anlegen
+              </button>
+            </div>
           )}
         </div>
       )}
