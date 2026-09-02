@@ -68,8 +68,17 @@ Log, eigene Tabelle `aenderung(id, entitaet_typ, entitaet_id, zeitpunkt, text)`)
 Felder: Quellenangabe, Datei-Upload/Link, Erhebungsdatum, Toggle „Extern
 nachvollziehbar". Typ-spezifisch in `beleg.metadata`: `gespraech` →
 Gesprächsdatum, Gesprächspartner, Kernnotiz; `angebot` → „gültig bis"
-(vorbelegt aus der Matrix-Gültigkeitsdauer, editierbar). „Nächste
-Verifizierung" = `beleg.gueltig_bis`, read-only berechnet.
+(vorbelegt aus der Matrix-Gültigkeitsdauer, editierbar); `dokument_link` →
+Toggle „Amtliche Quelle oder Betreiberdaten" (ja/nein, bestimmt B vs. C bei
+vollständigen Feldern — manuell gesetzt, keine automatische Domain-Erkennung).
+„Nächste Verifizierung" = `beleg.gueltig_bis`, read-only berechnet.
+
+**Pflichtfelder je Typ zum Speichern** (reine Formularvalidierung,
+unabhängig von der Qualitätsableitung): Quellenangabe + Erhebungsdatum immer
+Pflicht, dazu `betriebsdaten`/`dokument_link` → Datei oder Link,
+`vertrag`/`absichtserklaerung` → Datei, `angebot` → Datei oder Link +
+„gültig bis", `gespraech` → Gesprächsdatum + Gesprächspartner (Kernnotiz
+empfohlen, nicht Pflicht). `betriebsdaten`-Gültigkeitsdauer: 12 Monate.
 
 ## 5. Akteur-Verknüpfung
 
@@ -80,10 +89,20 @@ in AP1b.
 
 ## 6. Backend: Beleg-Upload nach R2
 
-Eigener Bucket empfohlen (z. B. `bhyogenics-belege`), Jurisdiction **European
-Union**, EU-Endpoint wie bei AP0c (siehe docs/ap0c-handoff-backup-restore.md
-für die Endpoint-Falle). `beleg.datei_key` speichert nur den R2-Objekt-
-schlüssel, Ausgabe über zeitlich begrenzte signierte URL beim Anzeigen.
+Bucket `bhyogenics-belege`, Jurisdiction **European Union**, Storage-Klasse
+Standard (von Eric im Dashboard angelegt, kein Wrangler-Create nötig).
+
+**Wichtiger Unterschied zu AP0c:** Der Worker liegt im selben Account wie
+der Bucket → native R2-Bindung in wrangler.jsonc (Top-Level Production,
+env.preview für Preview, gleiches Muster wie die Hyperdrive-Bindung). Kein
+S3-API-Token, kein Access-Key-Secret, kein EU-spezifischer S3-Endpoint — die
+Endpoint-Falle aus AP0c betraf nur den GitHub-Actions-Backup-Job außerhalb
+von Cloudflare.
+
+`beleg.datei_key` speichert nur den R2-Objektschlüssel. Anzeigen/Download
+über eine eigene, Access-geschützte Worker-Route, die direkt über die
+Bindung liest (`env.BELEGE.get(key)`) und ausliefert — keine signierte URL,
+keine S3-Presign-Logik.
 
 ## Verifikation
 
