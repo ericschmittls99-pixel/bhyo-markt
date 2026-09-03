@@ -1,3 +1,5 @@
+"use client";
+
 import {
   GRUPPE_FARBE,
   GRUPPE_LABEL,
@@ -5,9 +7,22 @@ import {
   VEKTOR_FARBE,
   VEKTOR_LABEL,
 } from "@/lib/farben";
+import type { RegionUmriss } from "@/lib/register";
 
-/** Statische Kartenlegende: Fuellfarbe = Gruppe/Vektor, Rand = Qualitaet. */
-export function MapLegende() {
+/**
+ * Kartenlegende: Fuellfarbe = Gruppe/Vektor, Rand = Qualitaet. Optionaler
+ * Abschnitt „Regionen" mit Sichtbarkeits-Toggle je Fokusregion (nur Umriss ein-/
+ * ausblenden – unabhaengig vom Region-Filter, der die Datenpunkte bestimmt).
+ */
+export function MapLegende({
+  regionen,
+  versteckt,
+  onToggle,
+}: {
+  regionen?: RegionUmriss[];
+  versteckt?: Set<string>;
+  onToggle?: (id: string) => void;
+}) {
   return (
     <div className="card">
       <div className="card-title">Legende</div>
@@ -39,6 +54,33 @@ export function MapLegende() {
             </span>
           ))}
         </div>
+        {regionen && regionen.length > 0 && onToggle && (
+          <div className="legende-grp">
+            <strong>Regionen</strong>
+            {regionen.map((r) => {
+              const sichtbar = !versteckt?.has(r.id);
+              return (
+                <button
+                  type="button"
+                  key={r.id}
+                  className={`leg leg-toggle${sichtbar ? "" : " aus"}`}
+                  aria-pressed={sichtbar}
+                  onClick={() => onToggle(r.id)}
+                  title={sichtbar ? "Umriss ausblenden" : "Umriss einblenden"}
+                >
+                  <i
+                    style={{
+                      background: "transparent",
+                      border: "2px solid #1F2E38",
+                      opacity: sichtbar ? 1 : 0.3,
+                    }}
+                  />
+                  {r.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
       <p className="hint">
         Größe ~ Menge (t atro bzw. Bedarfsmenge). Datensätze ohne Standort-Pin

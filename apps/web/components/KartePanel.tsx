@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { Karte } from "@/components/Karte";
+import { MapLegende } from "@/components/MapLegende";
 import type { MapPunkt, RegionGebiet, RegionUmriss } from "@/lib/register";
 
 /**
@@ -24,6 +25,19 @@ export function KartePanel({
 }) {
   const router = useRouter();
   const [zeichnen, setZeichnen] = useState(false);
+  // Nur Karten-UI-Zustand: welche Region-Umrisse ausgeblendet sind (Default: alle
+  // sichtbar). Unabhaengig vom Region-Filter (der die Datenpunkte bestimmt).
+  const [versteckt, setVersteckt] = useState<Set<string>>(new Set());
+  const sichtbareUmrisse = regionUmrisse.filter((r) => !versteckt.has(r.id));
+
+  function toggle(id: string) {
+    setVersteckt((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
 
   async function erstellen(name: string, bbox: [number, number, number, number]) {
     const res = await fetch("/api/regionen", {
@@ -57,12 +71,18 @@ export function KartePanel({
         <Karte
           punkte={punkte}
           regionGebiet={regionGebiet}
-          regionUmrisse={regionUmrisse}
+          regionUmrisse={sichtbareUmrisse}
           basisStr={basisStr}
           zeichnenAktiv={zeichnen}
           onErstellen={erstellen}
         />
       </div>
+
+      <MapLegende
+        regionen={regionUmrisse}
+        versteckt={versteckt}
+        onToggle={toggle}
+      />
     </>
   );
 }

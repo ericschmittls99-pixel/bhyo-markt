@@ -1,7 +1,6 @@
 import { DetailPanel } from "@/components/DetailPanel";
 import { FilterBar } from "@/components/FilterBar";
 import { KartePanel } from "@/components/KartePanel";
-import { MapLegende } from "@/components/MapLegende";
 import {
   getDetail,
   getRegionGebiet,
@@ -81,8 +80,6 @@ export default async function KartePage({
         regionUmrisse={regionUmrisse}
         basisStr={basisStr}
       />
-
-      <MapLegende />
 
       {detail && <DetailPanel detail={detail} closeHref={`?${basisStr}`} />}
     </main>

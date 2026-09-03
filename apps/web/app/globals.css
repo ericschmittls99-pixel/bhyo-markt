@@ -601,6 +601,19 @@ input[readonly],
   display: inline-block;
   box-sizing: border-box;
 }
+button.leg-toggle {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  font: inherit;
+  color: var(--text);
+  text-align: left;
+}
+button.leg-toggle.aus {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
 
 /* --- Auswertung-Diagramme ------------------------------------------------- */
 
