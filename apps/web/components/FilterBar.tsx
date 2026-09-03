@@ -11,16 +11,25 @@ const STATUS = ["entwurf", "in_pruefung", "geprueft", "verworfen"];
  * laut AP1c/AP1d). Progressive GET-Form: sendet an die aktuelle URL. `hidden`
  * traegt view-spezifische Felder (z. B. Register-Tab).
  */
+const VEKTOREN: [string, string][] = [
+  ["waerme", "Wärme"],
+  ["h2", "H₂"],
+  ["co2", "CO₂"],
+];
+
 export function FilterBar({
   filter,
   regionen,
   materialarten,
   hidden = {},
+  kategorie = "materialart",
 }: {
   filter: RegisterFilter;
   regionen: RegionOption[];
   materialarten: MaterialartOption[];
   hidden?: Record<string, string>;
+  /** Kategorie-Filter: Materialart (Biomasse) oder Vektor (Output). */
+  kategorie?: "materialart" | "vektor";
 }) {
   return (
     <div className="card">
@@ -48,17 +57,31 @@ export function FilterBar({
             placeholder="Quelle, Akteur, Landkreis"
           />
         </div>
-        <div className="field">
-          <label>Materialart</label>
-          <select name="materialart" defaultValue={filter.materialart ?? ""}>
-            <option value="">Alle</option>
-            {materialarten.map((m) => (
-              <option key={m.code} value={m.code}>
-                {m.label}
-              </option>
-            ))}
-          </select>
-        </div>
+        {kategorie === "vektor" ? (
+          <div className="field">
+            <label>Vektor</label>
+            <select name="vektor" defaultValue={filter.vektor ?? ""}>
+              <option value="">Alle</option>
+              {VEKTOREN.map(([wert, label]) => (
+                <option key={wert} value={wert}>
+                  {label}
+                </option>
+              ))}
+            </select>
+          </div>
+        ) : (
+          <div className="field">
+            <label>Materialart</label>
+            <select name="materialart" defaultValue={filter.materialart ?? ""}>
+              <option value="">Alle</option>
+              {materialarten.map((m) => (
+                <option key={m.code} value={m.code}>
+                  {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <div className="field">
           <label>Qualität</label>
           <select name="qualitaet" defaultValue={filter.qualitaet ?? ""}>

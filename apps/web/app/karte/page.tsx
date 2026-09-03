@@ -1,6 +1,6 @@
-import { Karte } from "@/components/Karte";
 import { DetailPanel } from "@/components/DetailPanel";
 import { FilterBar } from "@/components/FilterBar";
+import { KartePanel } from "@/components/KartePanel";
 import { MapLegende } from "@/components/MapLegende";
 import {
   getDetail,
@@ -8,6 +8,7 @@ import {
   listMapPunkte,
   listMaterialarten,
   listRegionen,
+  listRegionGebiete,
   type RegisterFilter,
 } from "@/lib/register";
 
@@ -39,7 +40,7 @@ export default async function KartePage({
   const detailId = ersterWert(sp.detail);
   const detailArt = ersterWert(sp.art) === "output" ? "output" : "biomasse";
 
-  const [regionen, materialarten, punkte, regionGebiet, detail] =
+  const [regionen, materialarten, punkte, regionGebiet, regionUmrisse, detail] =
     await Promise.all([
       listRegionen(),
       listMaterialarten(),
@@ -47,6 +48,7 @@ export default async function KartePage({
       filter.regionId
         ? getRegionGebiet(filter.regionId)
         : Promise.resolve(null),
+      listRegionGebiete(),
       detailId ? getDetail(detailArt, detailId) : Promise.resolve(null),
     ]);
 
@@ -73,13 +75,12 @@ export default async function KartePage({
         materialarten={materialarten}
       />
 
-      <div className="card" style={{ padding: 0, overflow: "hidden" }}>
-        <Karte
-          punkte={punkte}
-          regionGebiet={regionGebiet}
-          basisStr={basisStr}
-        />
-      </div>
+      <KartePanel
+        punkte={punkte}
+        regionGebiet={regionGebiet}
+        regionUmrisse={regionUmrisse}
+        basisStr={basisStr}
+      />
 
       <MapLegende />
 

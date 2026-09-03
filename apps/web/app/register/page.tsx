@@ -36,6 +36,7 @@ export default async function RegisterPage({
     status: ersterWert(sp.status),
     landkreis: ersterWert(sp.landkreis),
     jahr: ersterWert(sp.jahr),
+    vektor: ersterWert(sp.vektor),
   };
 
   const [regionen, materialarten, zeilen] = await Promise.all([
@@ -71,6 +72,7 @@ export default async function RegisterPage({
   if (filter.status) basis.set("status", filter.status);
   if (filter.landkreis) basis.set("landkreis", filter.landkreis);
   if (filter.jahr) basis.set("jahr", filter.jahr);
+  if (filter.vektor) basis.set("vektor", filter.vektor);
   const basisStr = basis.toString();
   const detailHref = (id: string) => `?${basisStr}&detail=${id}`;
   const closeHref = `?${basisStr}`;
@@ -124,6 +126,7 @@ export default async function RegisterPage({
         regionen={regionen}
         materialarten={materialarten}
         hidden={{ tab }}
+        kategorie={tab === "output" ? "vektor" : "materialart"}
       />
 
       <div className="card">
