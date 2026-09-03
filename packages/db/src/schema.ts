@@ -122,17 +122,15 @@ export const beleg = pgTable("beleg", {
     .defaultNow(),
 });
 
-/** Region (Kommune/Standort) mit Bereitschaftsstufe. */
+/** Region ("Fokusregion") mit Flaechen-Geometrie und Bereitschaftsstufe. */
 export const region = pgTable("region", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  standortGeom: geometry("standort_geom", {
-    type: "point",
-    srid: 4326,
-  }).notNull(),
-  // Definiert die Flaeche der Region als Kreis um standort_geom. Ueberlappung
-  // zwischen Regionen ist gewollt (keine Constraint). Nullable, bis gesetzt.
-  einzugsradiusKm: numeric("einzugsradius_km"),
+  // Flaeche der Region als Polygon (AP1e, ersetzt Punkt+Radius aus 0003).
+  // Zugehoerigkeit = ST_Contains(gebiet, standort_geom). Mittelpunkt bei Bedarf
+  // per ST_Centroid(gebiet), keine eigene Spalte. Nie ueber Drizzle typisiert
+  // gelesen/geschrieben – Zugriff ausschliesslich per raw sql (ST_*).
+  gebiet: geometry("gebiet", { type: "point", srid: 4326 }).notNull(),
   bereitschaftStufe: bereitschaftStufe("bereitschaft_stufe")
     .notNull()
     .default("kein_kontakt"),

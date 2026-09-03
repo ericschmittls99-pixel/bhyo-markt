@@ -12,16 +12,15 @@ import { and, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-or
 import { withDb } from "@/lib/db";
 
 /**
- * Raeumliche Regionszuordnung: ein Strom/Bedarf gehoert zu einer Region, wenn
- * sein Standort innerhalb des Einzugsradius um region.standort_geom liegt
- * (ST_DWithin auf geography, Meter). Standorte ohne Pin fallen aus jeder
- * Regionsfilterung heraus (Geocoding fehlt noch, bekannte Einschraenkung).
+ * Raeumliche Regionszuordnung (AP1e): ein Strom/Bedarf gehoert zu einer Region,
+ * wenn sein Standort im Flaechen-Polygon der Region liegt (ST_Contains, kein
+ * geography-Cast mehr). Standorte ohne Pin fallen aus jeder Regionsfilterung
+ * heraus (Geocoding fehlt noch, bekannte Einschraenkung).
  */
-function imEinzugsradius(geom: Column, regionId: string): SQL {
-  return sql`${geom} is not null and ST_DWithin(
-    ${geom}::geography,
-    (select ${region.standortGeom} from ${region} where ${region.id} = ${regionId})::geography,
-    coalesce((select ${region.einzugsradiusKm} from ${region} where ${region.id} = ${regionId}), 0) * 1000
+function imGebiet(geom: Column, regionId: string): SQL {
+  return sql`${geom} is not null and ST_Contains(
+    (select ${region.gebiet} from ${region} where ${region.id} = ${regionId}),
+    ${geom}
   )`;
 }
 
@@ -48,7 +47,7 @@ function jahrFilter(vonCol: Column, bisCol: Column, jahr: string): SQL {
 export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
   const conds: SQL[] = [];
   if (filter.regionId)
-    conds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
+    conds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
   if (filter.materialart)
     conds.push(eq(biomassestrom.materialartCode, filter.materialart));
   if (filter.qualitaet)
@@ -164,7 +163,7 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
   return withDb(async (db) => {
     const conds: SQL[] = [];
     if (filter.regionId)
-      conds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
+      conds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
     if (filter.materialart)
       conds.push(eq(biomassestrom.materialartCode, filter.materialart));
     if (filter.qualitaet)
@@ -237,7 +236,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
   return withDb(async (db) => {
     const conds: SQL[] = [];
     if (filter.regionId)
-      conds.push(imEinzugsradius(outputBedarf.standortGeom, filter.regionId));
+      conds.push(imGebiet(outputBedarf.standortGeom, filter.regionId));
     if (filter.qualitaet)
       conds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
     if (filter.status)
@@ -556,10 +555,9 @@ export interface MapPunkt {
   label: string;
 }
 
-export interface RegionKreis {
-  lng: number;
-  lat: number;
-  radiusKm: number;
+/** Flaechen-Umriss einer Region als GeoJSON-Geometrie (Polygon) fuer die Karte. */
+export interface RegionGebiet {
+  geojson: unknown;
 }
 
 export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
@@ -568,7 +566,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
 
     const bConds: SQL[] = [sql`${biomassestrom.standortGeom} is not null`];
     if (filter.regionId)
-      bConds.push(imEinzugsradius(biomassestrom.standortGeom, filter.regionId));
+      bConds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
     if (filter.materialart)
       bConds.push(eq(biomassestrom.materialartCode, filter.materialart));
     if (filter.qualitaet)
@@ -624,7 +622,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
 
     const oConds: SQL[] = [sql`${outputBedarf.standortGeom} is not null`];
     if (filter.regionId)
-      oConds.push(imEinzugsradius(outputBedarf.standortGeom, filter.regionId));
+      oConds.push(imGebiet(outputBedarf.standortGeom, filter.regionId));
     if (filter.qualitaet)
       oConds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
     if (filter.status)
@@ -676,19 +674,15 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
   });
 }
 
-export function getRegionKreis(regionId: string): Promise<RegionKreis | null> {
+export function getRegionGebiet(regionId: string): Promise<RegionGebiet | null> {
   return withDb(async (db) => {
     const [r] = await db
-      .select({
-        lng: sql<number>`ST_X(${region.standortGeom})`,
-        lat: sql<number>`ST_Y(${region.standortGeom})`,
-        radiusKm: region.einzugsradiusKm,
-      })
+      .select({ geojson: sql<string>`ST_AsGeoJSON(${region.gebiet})` })
       .from(region)
       .where(eq(region.id, regionId))
       .limit(1);
-    if (!r || r.radiusKm == null) return null;
-    return { lng: r.lng, lat: r.lat, radiusKm: Number(r.radiusKm) };
+    if (!r?.geojson) return null;
+    return { geojson: JSON.parse(r.geojson) };
   });
 }
 
