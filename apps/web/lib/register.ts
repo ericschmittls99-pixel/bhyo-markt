@@ -33,6 +33,8 @@ export interface RegisterFilter {
   landkreis?: string | undefined;
   /** Datenjahr (zeitraum_von/bis ueberlappt dieses Jahr). */
   jahr?: string | undefined;
+  /** Nur Output: Filter nach Vektor (waerme|h2|co2). */
+  vektor?: string | undefined;
 }
 
 /** Zeitraum [von,bis] ueberlappt das gegebene Jahr. */
@@ -243,6 +245,8 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       conds.push(eq(outputBedarf.status, filter.status as never));
     if (filter.landkreis)
       conds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
+    if (filter.vektor)
+      conds.push(eq(outputBedarf.vektor, filter.vektor as never));
     if (filter.jahr)
       conds.push(
         jahrFilter(outputBedarf.zeitraumVon, outputBedarf.zeitraumBis, filter.jahr),
@@ -683,6 +687,31 @@ export function getRegionGebiet(regionId: string): Promise<RegionGebiet | null> 
       .limit(1);
     if (!r?.geojson) return null;
     return { geojson: JSON.parse(r.geojson) };
+  });
+}
+
+/** Umriss (id, name, Polygon-GeoJSON) aller Regionen fuer den Karten-Layer. */
+export interface RegionUmriss {
+  id: string;
+  name: string;
+  geojson: unknown;
+}
+
+export function listRegionGebiete(): Promise<RegionUmriss[]> {
+  return withDb(async (db) => {
+    const rows = await db
+      .select({
+        id: region.id,
+        name: region.name,
+        geojson: sql<string>`ST_AsGeoJSON(${region.gebiet})`,
+      })
+      .from(region)
+      .orderBy(region.name);
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      geojson: JSON.parse(r.geojson),
+    }));
   });
 }
 

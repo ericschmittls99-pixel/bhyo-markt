@@ -533,10 +533,44 @@ input[readonly],
 
 /* --- Karte ---------------------------------------------------------------- */
 
+.karte-wrap {
+  position: relative;
+}
 .karte {
   height: 62vh;
   min-height: 420px;
   width: 100%;
+}
+.karte-draw-layer {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  cursor: crosshair;
+}
+.karte-auswahl {
+  position: absolute;
+  border: 2px dashed var(--lime);
+  background: rgba(140, 198, 63, 0.12);
+  pointer-events: none;
+}
+/* Rahmen um den Ausschnitt + Scrim ueber den Rest (Spotlight-Technik). */
+.karte-auswahl-tile {
+  position: absolute;
+  z-index: 6;
+  border: 2px solid var(--lime);
+  border-radius: 12px;
+  box-shadow: 0 0 0 9999px rgba(31, 46, 56, 0.45);
+  pointer-events: none;
+}
+.karte-auswahl-panel {
+  position: absolute;
+  z-index: 7;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  width: 260px;
+  max-width: 80%;
 }
 .legende {
   display: flex;

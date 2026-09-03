@@ -7,6 +7,7 @@ const LINKS: [string, string][] = [
   ["/register", "Register"],
   ["/karte", "Karte"],
   ["/auswertung", "Auswertung"],
+  ["/bewertung", "Bewertung"],
 ];
 
 export function NavLinks() {
