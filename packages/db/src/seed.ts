@@ -87,17 +87,21 @@ async function main() {
       on conflict (code) do update set gruppe = excluded.gruppe`;
   }
 
-  // --- Regionen (mit Einzugsradius, ohne region_id an den Stroemen) ---
+  // --- Regionen als Flaechen-Polygon (gebiet), AP1e ---
+  // Aus Mittelpunkt + Radius (km) eine Bounding-Box bilden.
   const regionen = [
-    { name: "Test: Region Schwarzwald", lng: 8.24, lat: 48.0, radius: "40" },
-    { name: "Test: Region Schwäbische Alb", lng: 9.47, lat: 48.4, radius: "35" },
-    { name: "Test: Region Kraichgau", lng: 8.7, lat: 49.1, radius: "30" },
+    { name: "Test: Region Schwarzwald", lng: 8.24, lat: 48.0, radius: 40 },
+    { name: "Test: Region Schwäbische Alb", lng: 9.47, lat: 48.4, radius: 35 },
+    { name: "Test: Region Kraichgau", lng: 8.7, lat: 49.1, radius: 30 },
   ];
   for (const r of regionen) {
+    const dLat = r.radius / 111.0;
+    const dLng = r.radius / (111.0 * Math.cos((r.lat * Math.PI) / 180));
     await sql`
-      insert into region (id, name, standort_geom, einzugsradius_km)
-      values (${uuid()}, ${r.name},
-              ST_SetSRID(ST_MakePoint(${r.lng}, ${r.lat}), 4326), ${r.radius})`;
+      insert into region (id, name, gebiet)
+      values (${uuid()}, ${r.name}, ST_SetSRID(ST_MakeEnvelope(
+        ${r.lng - dLng}, ${r.lat - dLat}, ${r.lng + dLng}, ${r.lat + dLat}
+      ), 4326))`;
   }
 
   // --- Akteure ---

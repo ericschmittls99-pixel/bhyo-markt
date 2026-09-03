@@ -11,7 +11,7 @@ import { useEffect, useRef, useState } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import { farbeFuer, ringFuer } from "@/lib/farben";
-import type { MapPunkt, RegionKreis } from "@/lib/register";
+import type { MapPunkt, RegionGebiet } from "@/lib/register";
 
 // Keyless OSM-Raster-Style (keine Lizenzkosten, kein API-Key). Fuer das interne
 // Werkzeug mit wenigen Nutzern im Rahmen der OSM-Tile-Nutzungspolicy.
@@ -33,33 +33,6 @@ const OSM_STYLE = {
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
 
-/** Grosskreis-Polygon (km) fuer den Region-Radius. */
-function kreisPolygon(lng: number, lat: number, radiusKm: number, steps = 64) {
-  const R = 6371;
-  const coords: [number, number][] = [];
-  const lat1 = (lat * Math.PI) / 180;
-  const lon1 = (lng * Math.PI) / 180;
-  const d = radiusKm / R;
-  for (let i = 0; i <= steps; i++) {
-    const brng = (i / steps) * 2 * Math.PI;
-    const lat2 = Math.asin(
-      Math.sin(lat1) * Math.cos(d) + Math.cos(lat1) * Math.sin(d) * Math.cos(brng),
-    );
-    const lon2 =
-      lon1 +
-      Math.atan2(
-        Math.sin(brng) * Math.sin(d) * Math.cos(lat1),
-        Math.cos(d) - Math.sin(lat1) * Math.sin(lat2),
-      );
-    coords.push([(lon2 * 180) / Math.PI, (lat2 * 180) / Math.PI]);
-  }
-  return {
-    type: "Feature" as const,
-    geometry: { type: "Polygon" as const, coordinates: [coords] },
-    properties: {},
-  };
-}
-
 function markerGroesse(menge: number, maxMenge: number): number {
   if (maxMenge <= 0) return 14;
   return Math.round(12 + Math.sqrt(menge / maxMenge) * 26); // 12–38 px
@@ -67,11 +40,11 @@ function markerGroesse(menge: number, maxMenge: number): number {
 
 export function Karte({
   punkte,
-  regionKreis,
+  regionGebiet,
   basisStr,
 }: {
   punkte: MapPunkt[];
-  regionKreis: RegionKreis | null;
+  regionGebiet: RegionGebiet | null;
   basisStr: string;
 }) {
   const router = useRouter();
@@ -142,13 +115,17 @@ export function Karte({
     });
   }, [punkte, ready, basisStr, router]);
 
-  // Region-Radius als Kreis.
+  // Region-Umriss als Polygon (Flaeche der gefilterten Region).
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const src = "region-kreis";
-    const data = regionKreis
-      ? kreisPolygon(regionKreis.lng, regionKreis.lat, regionKreis.radiusKm)
+    const src = "region-gebiet";
+    const data = regionGebiet
+      ? {
+          type: "Feature" as const,
+          geometry: regionGebiet.geojson,
+          properties: {},
+        }
       : { type: "FeatureCollection" as const, features: [] };
 
     const bestehend = map.getSource(src) as GeoJSONSource | undefined;
@@ -158,18 +135,18 @@ export function Karte({
     }
     map.addSource(src, { type: "geojson", data: data as never });
     map.addLayer({
-      id: "region-kreis-fill",
+      id: "region-gebiet-fill",
       type: "fill",
       source: src,
       paint: { "fill-color": "#8CC63F", "fill-opacity": 0.1 },
     });
     map.addLayer({
-      id: "region-kreis-line",
+      id: "region-gebiet-line",
       type: "line",
       source: src,
       paint: { "line-color": "#3A5412", "line-width": 2, "line-dasharray": [2, 1] },
     });
-  }, [regionKreis, ready]);
+  }, [regionGebiet, ready]);
 
   return <div ref={containerRef} className="karte" />;
 }
