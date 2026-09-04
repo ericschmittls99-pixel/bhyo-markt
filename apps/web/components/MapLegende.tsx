@@ -49,7 +49,7 @@ export function MapLegende({
           <strong>Rand · Qualität</strong>
           {Object.entries(QUALITAET_RING).map(([k, c]) => (
             <span className="leg" key={k}>
-              <i style={{ background: "transparent", border: `3px solid ${c}` }} />
+              <i style={{ background: "transparent", border: `1.5px solid ${c}` }} />
               {k}
             </span>
           ))}
@@ -71,7 +71,7 @@ export function MapLegende({
                   <i
                     style={{
                       background: "transparent",
-                      border: "2px solid #1F2E38",
+                      border: "1.5px solid #1F2E38",
                       opacity: sichtbar ? 1 : 0.3,
                     }}
                   />
