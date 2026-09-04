@@ -118,7 +118,9 @@ export function Karte({
         el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;cursor:pointer;padding:0;background:${farbeFuer(
           p.art,
           p.farbeKey,
-        )};border:3px solid ${ringFuer(p.qualitaet)};box-shadow:0 1px 4px rgba(0,0,0,.35);`;
+        )};border:1px solid color-mix(in srgb, ${ringFuer(
+          p.qualitaet,
+        )} 55%, transparent);box-shadow:0 1px 3px rgba(31,46,56,0.22);`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           router.push(`?${basisStr}&detail=${p.id}&art=${p.art}`);

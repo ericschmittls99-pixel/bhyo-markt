@@ -11,6 +11,15 @@
   --waldgruen: #3a5412;
   --lime: #8cc63f;
   --hellgrau: #efefee;
+  /* Erweiterte CD-Palette (Vision Board bhyo_2.0). Noch ungenutzt – AP1f. */
+  --petrol: #3aa0a0;
+  --beige: #d8c6a0;
+  --braun: #6b4423;
+
+  /* Schriften: gesetzt via next/font (--font-display Manrope, --font-text Inter). */
+  --font-display-stack: var(--font-display), ui-sans-serif, system-ui, sans-serif;
+  --font-text-stack: var(--font-text), ui-sans-serif, system-ui, -apple-system,
+    "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 
   --bg: var(--hellgrau);
   --surface: rgba(255, 255, 255, 0.72);
@@ -30,6 +39,10 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    /* Erweiterte CD-Palette auch im Dark Mode (noch ungenutzt – AP1f). */
+    --petrol: #3aa0a0;
+    --beige: #d8c6a0;
+    --braun: #6b4423;
     --bg: #16222a;
     --surface: rgba(41, 58, 69, 0.55);
     --surface-solid: #24343d;
@@ -62,9 +75,7 @@ body {
     ),
     var(--bg);
   color: var(--text);
-  font-family:
-    ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, Helvetica,
-    Arial, sans-serif;
+  font-family: var(--font-text-stack);
   font-size: 15px;
   line-height: 1.5;
   min-height: 100vh;
@@ -82,6 +93,8 @@ h1,
 h2,
 h3 {
   color: var(--text);
+  font-family: var(--font-display-stack);
+  font-weight: 700;
   letter-spacing: -0.01em;
   margin: 0;
 }
@@ -230,10 +243,12 @@ h3 {
   letter-spacing: 0.05em;
 }
 .kpi .kpi-value {
+  font-family: var(--font-display-stack);
   font-size: 26px;
-  font-weight: 680;
+  font-weight: 700;
   margin-top: 4px;
   letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Tabs ---------------------------------------------------------------- */
@@ -286,6 +301,7 @@ table.register td {
   padding: 12px;
   border-bottom: 1px solid var(--border);
   vertical-align: middle;
+  font-variant-numeric: tabular-nums;
 }
 table.register tr:last-child td {
   border-bottom: none;
@@ -549,7 +565,7 @@ input[readonly],
 }
 .karte-auswahl {
   position: absolute;
-  border: 2px dashed var(--lime);
+  border: 1.5px dashed var(--lime);
   background: rgba(140, 198, 63, 0.12);
   pointer-events: none;
 }
@@ -557,7 +573,7 @@ input[readonly],
 .karte-auswahl-tile {
   position: absolute;
   z-index: 6;
-  border: 2px solid var(--lime);
+  border: 1.5px solid var(--lime);
   border-radius: 12px;
   box-shadow: 0 0 0 9999px rgba(31, 46, 56, 0.45);
   pointer-events: none;
