@@ -36,6 +36,13 @@ export interface RegisterFilter {
   jahr?: string | undefined;
   /** Nur Output: Filter nach Output-Gruppe. */
   outputGruppe?: string | undefined;
+  /** Nur Biomasse: Filter nach Feedstock-Cluster (ueber materialart.cluster). */
+  cluster?: string | undefined;
+}
+
+/** Biomassestrom gehoert zu einer Materialart des gegebenen Clusters. */
+function clusterFilter(clusterCode: string): SQL {
+  return sql`${biomassestrom.materialartCode} in (select code from materialart where cluster = ${clusterCode})`;
 }
 
 /** Zeitraum [von,bis] ueberlappt das gegebene Jahr. */
@@ -53,6 +60,7 @@ export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
     conds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
   if (filter.materialart)
     conds.push(eq(biomassestrom.materialartCode, filter.materialart));
+  if (filter.cluster) conds.push(clusterFilter(filter.cluster));
   if (filter.qualitaet)
     conds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
   if (filter.status)
@@ -147,13 +155,18 @@ export function listOutputProdukte(): Promise<OutputProduktOption[]> {
   );
 }
 
-export function listMaterialarten(): Promise<MaterialartOption[]> {
-  return withDb((db) =>
-    db
+export function listMaterialarten(
+  cluster?: string,
+): Promise<MaterialartOption[]> {
+  return withDb((db) => {
+    const base = db
       .select({ code: materialart.code, label: materialart.label })
-      .from(materialart)
-      .orderBy(materialart.label),
-  );
+      .from(materialart);
+    const filtered = cluster
+      ? base.where(eq(materialart.cluster, cluster as never))
+      : base;
+    return filtered.orderBy(materialart.label);
+  });
 }
 
 /** Live-Suche fuer die Materialart-Combobox (Label). */
@@ -184,32 +197,8 @@ export function sucheAkteure(query: string): Promise<AkteurOption[]> {
 
 export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
   return withDb(async (db) => {
-    const conds: SQL[] = [];
-    if (filter.regionId)
-      conds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
-    if (filter.materialart)
-      conds.push(eq(biomassestrom.materialartCode, filter.materialart));
-    if (filter.qualitaet)
-      conds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
-    if (filter.status)
-      conds.push(eq(biomassestrom.status, filter.status as never));
-    if (filter.landkreis)
-      conds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
-    if (filter.jahr)
-      conds.push(
-        jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
-      );
-    if (filter.suche) {
-      const s = `%${filter.suche.trim()}%`;
-      conds.push(
-        or(
-          ilike(akteur.name, s),
-          ilike(biomassestrom.bezeichnung, s),
-          ilike(biomassestrom.landkreis, s),
-          ilike(biomassestrom.ort, s),
-        )!,
-      );
-    }
+    // Gemeinsame Bedingungen (inkl. Cluster-Filter) – die Query joint akteur.
+    const conds = biomasseFilterConds(filter);
 
     const rows = await db
       .select({
@@ -596,6 +585,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
       bConds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
     if (filter.materialart)
       bConds.push(eq(biomassestrom.materialartCode, filter.materialart));
+    if (filter.cluster) bConds.push(clusterFilter(filter.cluster));
     if (filter.qualitaet)
       bConds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
     if (filter.status)

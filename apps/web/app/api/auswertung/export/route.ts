@@ -26,6 +26,7 @@ export async function GET(req: Request) {
     status: val("status"),
     landkreis: val("landkreis"),
     jahr: val("jahr"),
+    cluster: val("cluster"),
   };
 
   const rows = await listBiomasse(filter);

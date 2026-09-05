@@ -21,6 +21,10 @@ export interface MaterialartMenge {
   atro: number;
   fm: number;
 }
+export interface ClusterMenge {
+  cluster: string;
+  atro: number;
+}
 export interface QualitaetVerteilung {
   stufe: string;
   anzahl: number;
@@ -46,6 +50,7 @@ export interface AenderungLog {
 
 export interface AuswertungDaten {
   kpi: AuswertungKpi;
+  cluster: ClusterMenge[];
   materialart: MaterialartMenge[];
   qualitaet: QualitaetVerteilung[];
   landkreise: LandkreisAbdeckung[];
@@ -98,6 +103,22 @@ export function getAuswertung(
       label: r.label ?? "—",
       atro: r.atro,
       fm: r.fm,
+    }));
+
+    // 2b. Menge nach Cluster (eine Ebene ueber der Materialart)
+    const clusterRows = await db
+      .select({
+        cluster: materialart.cluster,
+        atro: sql<number>`coalesce(sum(${biomassestrom.mengeAtro}), 0)::float8`,
+      })
+      .from(biomassestrom)
+      .leftJoin(akteur, joinAkteur)
+      .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+      .where(w())
+      .groupBy(materialart.cluster);
+    const clusterMenge: ClusterMenge[] = clusterRows.map((r) => ({
+      cluster: r.cluster ?? "unbekannt",
+      atro: r.atro,
     }));
 
     // 3. Qualitaetsverteilung A–D
@@ -194,6 +215,14 @@ export function getAuswertung(
       entitaet: r.entitaet,
     }));
 
-    return { kpi, materialart: materialartMenge, qualitaet, landkreise, jahre, log };
+    return {
+      kpi,
+      cluster: clusterMenge,
+      materialart: materialartMenge,
+      qualitaet,
+      landkreise,
+      jahre,
+      log,
+    };
   });
 }

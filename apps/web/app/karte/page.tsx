@@ -34,6 +34,7 @@ export default async function KartePage({
     status: ersterWert(sp.status),
     landkreis: ersterWert(sp.landkreis),
     jahr: ersterWert(sp.jahr),
+    cluster: ersterWert(sp.cluster),
   };
 
   const detailId = ersterWert(sp.detail);
@@ -42,7 +43,7 @@ export default async function KartePage({
   const [regionen, materialarten, punkte, regionGebiet, regionUmrisse, detail] =
     await Promise.all([
       listRegionen(),
-      listMaterialarten(),
+      listMaterialarten(filter.cluster),
       listMapPunkte(filter),
       filter.regionId
         ? getRegionGebiet(filter.regionId)
@@ -59,6 +60,7 @@ export default async function KartePage({
   if (filter.status) basis.set("status", filter.status);
   if (filter.landkreis) basis.set("landkreis", filter.landkreis);
   if (filter.jahr) basis.set("jahr", filter.jahr);
+  if (filter.cluster) basis.set("cluster", filter.cluster);
   const basisStr = basis.toString();
 
   return (
