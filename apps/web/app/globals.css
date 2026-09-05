@@ -617,6 +617,11 @@ input[readonly],
   display: inline-block;
   box-sizing: border-box;
 }
+/* Output-Gruppe in der Legende als Raute (analog Kartenmarker). */
+.leg i.leg-raute {
+  border-radius: 2px;
+  transform: rotate(45deg);
+}
 button.leg-toggle {
   background: none;
   border: none;

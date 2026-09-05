@@ -1,4 +1,4 @@
-import { materialart, materialartGruppe } from "@bhyo/db/schema";
+import { feedstockCluster, materialart } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { currentUserEmail, withDb } from "@/lib/db";
@@ -35,23 +35,23 @@ export async function POST(req: Request) {
   }
   const body = (await req.json().catch(() => null)) as {
     label?: string;
-    gruppe?: string;
+    cluster?: string;
   } | null;
   const label = body?.label?.trim();
   const code = label ? toCode(label) : "";
-  const gruppe = body?.gruppe;
+  const cluster = body?.cluster;
   if (!label || !code) {
     return Response.json({ error: "Label ist Pflicht" }, { status: 400 });
   }
-  if (!gruppe || !(materialartGruppe.enumValues as string[]).includes(gruppe)) {
-    return Response.json({ error: "Gruppe ist Pflicht" }, { status: 400 });
+  if (!cluster || !(feedstockCluster.enumValues as string[]).includes(cluster)) {
+    return Response.json({ error: "Cluster ist Pflicht" }, { status: 400 });
   }
 
   const created = await withDb(async (db) => {
     // Bestehenden Code nie ueberschreiben – bei Kollision den vorhandenen zurueckgeben.
     await db
       .insert(materialart)
-      .values({ code, label, gruppe: gruppe as never })
+      .values({ code, label, cluster: cluster as never })
       .onConflictDoNothing();
     const [row] = await db
       .select({ code: materialart.code, label: materialart.label })

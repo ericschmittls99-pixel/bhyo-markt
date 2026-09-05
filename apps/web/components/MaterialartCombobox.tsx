@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { GRUPPE_LABEL } from "@/lib/farben";
+import { CLUSTER_LABEL } from "@/lib/farben";
 
 interface MaterialartOption {
   code: string;
@@ -21,7 +21,7 @@ export function MaterialartCombobox({ name }: { name: string }) {
   const [gewaehlt, setGewaehlt] = useState<MaterialartOption | null>(null);
   const [offen, setOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
-  const [gruppe, setGruppe] = useState("");
+  const [cluster, setCluster] = useState("");
   const box = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -58,13 +58,13 @@ export function MaterialartCombobox({ name }: { name: string }) {
 
   async function neuAnlegen() {
     const label = query.trim();
-    if (!label || !gruppe) return;
+    if (!label || !cluster) return;
     setLaedt(true);
     try {
       const res = await fetch("/api/materialarten", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ label, gruppe }),
+        body: JSON.stringify({ label, cluster }),
       });
       if (!res.ok) return;
       const data = (await res.json()) as { materialart: MaterialartOption };
@@ -144,9 +144,9 @@ export function MaterialartCombobox({ name }: { name: string }) {
           )}
           {!laedt && query.trim() && !exakt && (
             <div className="stack" style={{ padding: 8, gap: 8 }}>
-              <select value={gruppe} onChange={(e) => setGruppe(e.target.value)}>
-                <option value="">Gruppe wählen… (Pflicht)</option>
-                {Object.entries(GRUPPE_LABEL).map(([k, label]) => (
+              <select value={cluster} onChange={(e) => setCluster(e.target.value)}>
+                <option value="">Cluster wählen… (Pflicht)</option>
+                {Object.entries(CLUSTER_LABEL).map(([k, label]) => (
                   <option key={k} value={k}>
                     {label}
                   </option>
@@ -156,7 +156,7 @@ export function MaterialartCombobox({ name }: { name: string }) {
                 type="button"
                 className="btn btn--primary"
                 onClick={neuAnlegen}
-                disabled={!gruppe}
+                disabled={!cluster}
               >
                 „{query.trim()}" neu anlegen
               </button>

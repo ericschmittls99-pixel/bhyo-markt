@@ -225,7 +225,7 @@ export async function createOutput(
       ort: text(formData, "ort"),
       landkreis: text(formData, "landkreis"),
       kontaktperson: text(formData, "kontaktperson"),
-      vektor: pflicht(formData, "vektor", "Vektor") as never,
+      produktCode: pflicht(formData, "produkt_code", "Output-Produkt"),
       mengeWert: pflicht(formData, "menge_wert", "Bedarfsmenge"),
       mengeEinheit: pflicht(formData, "menge_einheit", "Einheit"),
       zeitraumVon: pflicht(formData, "zeitraum_von", "Zeitraum von"),

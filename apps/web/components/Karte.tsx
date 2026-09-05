@@ -112,15 +112,26 @@ export function Karte({
       const bounds = new ml.LngLatBounds();
       for (const p of punkte) {
         const size = markerGroesse(p.menge, maxMenge);
+        // Wrapper wird von maplibre positioniert (setzt transform); die Form
+        // liegt in einem inneren Element, damit die Rauten-Rotation nicht mit
+        // der Positionierung kollidiert.
         const el = document.createElement("button");
         el.type = "button";
         el.title = p.label;
-        el.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;cursor:pointer;padding:0;background:${farbeFuer(
-          p.art,
-          p.farbeKey,
-        )};border:1px solid color-mix(in srgb, ${ringFuer(
+        el.style.cssText = `width:${size}px;height:${size}px;padding:0;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;`;
+        const shape = document.createElement("span");
+        const gemein = `background:${farbeFuer(p.art, p.farbeKey)};border:1px solid color-mix(in srgb, ${ringFuer(
           p.qualitaet,
-        )} 55%, transparent);box-shadow:0 1px 3px rgba(31,46,56,0.22);`;
+        )} 55%, transparent);box-shadow:0 1px 3px rgba(31,46,56,0.22);box-sizing:border-box;`;
+        // Biomasse = Kreis, Output = Raute (rotiertes Quadrat, ~0.72*size, damit
+        // die Diagonale wieder ~size ergibt). markerGroesse/Rahmen unveraendert.
+        if (p.art === "output") {
+          const d = Math.round(size * 0.72);
+          shape.style.cssText = `width:${d}px;height:${d}px;border-radius:2px;transform:rotate(45deg);${gemein}`;
+        } else {
+          shape.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;${gemein}`;
+        }
+        el.appendChild(shape);
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           router.push(`?${basisStr}&detail=${p.id}&art=${p.art}`);
