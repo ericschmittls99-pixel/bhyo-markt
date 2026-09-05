@@ -43,6 +43,13 @@
       "when": 1788437033920,
       "tag": "0005_region_gebiet",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1788598219662,
+      "tag": "0006_taxonomie",
+      "breakpoints": true
     }
   ]
 }

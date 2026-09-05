@@ -4,9 +4,10 @@ import {
   belegTyp,
   bereitschaftStufe,
   datensatzStatus,
+  feedstockCluster,
   laufStatus,
-  materialartGruppe,
-  outputVektor,
+  outputArt,
+  outputGruppe,
   preisHerkunft,
   qualitaetsStufe,
 } from "./schema";
@@ -70,10 +71,22 @@ describe("Enum preis_herkunft", () => {
   });
 });
 
-describe("Enum output_vektor", () => {
-  it("hat den festgelegten Namen und die drei Vektoren in Reihenfolge", () => {
-    expect(outputVektor.enumName).toBe("output_vektor");
-    expect(outputVektor.enumValues).toEqual(["waerme", "h2", "co2"]);
+describe("Enum output_gruppe", () => {
+  it("hat den festgelegten Namen und die vier Gruppen in Reihenfolge", () => {
+    expect(outputGruppe.enumName).toBe("output_gruppe");
+    expect(outputGruppe.enumValues).toEqual([
+      "primaerprodukte",
+      "wasserstoff",
+      "derivate",
+      "add_ons",
+    ]);
+  });
+});
+
+describe("Enum output_art", () => {
+  it("hat den festgelegten Namen und die zwei Arten in Reihenfolge", () => {
+    expect(outputArt.enumName).toBe("output_art");
+    expect(outputArt.enumValues).toEqual(["target", "add_on"]);
   });
 });
 
@@ -84,15 +97,15 @@ describe("Enum lauf_status", () => {
   });
 });
 
-describe("Enum materialart_gruppe", () => {
-  it("hat den festgelegten Namen und die fuenf Gruppen in Reihenfolge", () => {
-    expect(materialartGruppe.enumName).toBe("materialart_gruppe");
-    expect(materialartGruppe.enumValues).toEqual([
-      "gruenschnitt_landschaftspflege",
-      "holz_rebschnitt",
-      "bioabfall_kompost",
-      "klaerschlamm",
-      "agrar_lebensmittelreststoffe",
+describe("Enum feedstock_cluster", () => {
+  it("hat den festgelegten Namen und die fuenf Cluster in Reihenfolge", () => {
+    expect(feedstockCluster.enumName).toBe("feedstock_cluster");
+    expect(feedstockCluster.enumValues).toEqual([
+      "organische_rest_abfallstoffe",
+      "lignozellulosische_reststoffe",
+      "nachwachsende_rohstoffe",
+      "lipide_spezialfeedstocks",
+      "polymere_synthetische_c_quellen",
     ]);
   });
 });

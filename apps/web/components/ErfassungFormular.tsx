@@ -8,7 +8,9 @@ import { MaterialartCombobox } from "@/components/MaterialartCombobox";
 import { QualitaetPill } from "@/components/Pills";
 import { SaisonEditor } from "@/components/SaisonEditor";
 import type { FormState } from "@/lib/actions";
+import { OUTPUT_LABEL } from "@/lib/farben";
 import { type BelegTyp, deriveQualitaet } from "@/lib/qualitaet";
+import type { OutputProduktOption } from "@/lib/register";
 
 const BELEG_TYPEN: { typ: BelegTyp; label: string }[] = [
   { typ: "dokument_link", label: "Dokument/Link" },
@@ -19,19 +21,14 @@ const BELEG_TYPEN: { typ: BelegTyp; label: string }[] = [
   { typ: "betriebsdaten", label: "Betriebsdaten" },
 ];
 
-// Fester Enum output_vektor – Erweiterung braucht eine Migration, kein Add-Button.
-const VEKTOREN: { wert: string; label: string }[] = [
-  { wert: "waerme", label: "Wärme" },
-  { wert: "h2", label: "H₂" },
-  { wert: "co2", label: "CO₂" },
-];
-
 export function ErfassungFormular({
   art,
   action,
+  outputProdukte = [],
 }: {
   art: "biomasse" | "output";
   action: (prev: FormState, fd: FormData) => Promise<FormState>;
+  outputProdukte?: OutputProduktOption[];
 }) {
   const [state, formAction, pending] = useActionState(action, {});
 
@@ -119,23 +116,32 @@ export function ErfassungFormular({
       {/* Kategorie & Zeitraum */}
       <div className="card">
         <div className="card-title">
-          {art === "biomasse" ? "Materialart & Zeitraum" : "Vektor & Zeitraum"}
+          {art === "biomasse" ? "Materialart & Zeitraum" : "Produkt & Zeitraum"}
         </div>
         <div className="field-row">
           {art === "biomasse" ? (
             <MaterialartCombobox name="materialart_code" />
           ) : (
             <div className="field">
-              <label>Output-Vektor *</label>
-              <select name="vektor" defaultValue="" required>
+              <label>Output-Produkt *</label>
+              <select name="produkt_code" defaultValue="" required>
                 <option value="" disabled>
                   wählen…
                 </option>
-                {VEKTOREN.map((v) => (
-                  <option key={v.wert} value={v.wert}>
-                    {v.label}
-                  </option>
-                ))}
+                {Object.keys(OUTPUT_LABEL).map((gruppe) => {
+                  const produkte = outputProdukte.filter(
+                    (p) => p.gruppe === gruppe,
+                  );
+                  return produkte.length ? (
+                    <optgroup key={gruppe} label={OUTPUT_LABEL[gruppe]}>
+                      {produkte.map((p) => (
+                        <option key={p.code} value={p.code}>
+                          {p.label}
+                        </option>
+                      ))}
+                    </optgroup>
+                  ) : null;
+                })}
               </select>
             </div>
           )}

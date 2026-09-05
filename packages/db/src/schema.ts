@@ -63,9 +63,6 @@ export const preisHerkunft = pgEnum("preis_herkunft", [
   "schaetzung",
 ]);
 
-/** Output-Vektor eines Bedarfs. */
-export const outputVektor = pgEnum("output_vektor", ["waerme", "h2", "co2"]);
-
 /** Lebenszyklus eines Analyse-Laufs. */
 export const laufStatus = pgEnum("lauf_status", [
   "arbeitsfassung",
@@ -73,16 +70,31 @@ export const laufStatus = pgEnum("lauf_status", [
 ]);
 
 /**
- * Fachliche Gruppe einer Materialart (AP1c) – bestimmt u. a. die Kartenfarbe.
- * Reihenfolge verbindlich, snake_case ohne Umlaute.
+ * Feedstock-Cluster (AP1f-a) – Ebene ueber der Materialart, chemische Systematik,
+ * Farbschluessel auf der Karte. Ersetzt materialart_gruppe. Reihenfolge
+ * verbindlich, snake_case ohne Umlaute.
  */
-export const materialartGruppe = pgEnum("materialart_gruppe", [
-  "gruenschnitt_landschaftspflege",
-  "holz_rebschnitt",
-  "bioabfall_kompost",
-  "klaerschlamm",
-  "agrar_lebensmittelreststoffe",
+export const feedstockCluster = pgEnum("feedstock_cluster", [
+  "organische_rest_abfallstoffe",
+  "lignozellulosische_reststoffe",
+  "nachwachsende_rohstoffe",
+  "lipide_spezialfeedstocks",
+  "polymere_synthetische_c_quellen",
 ]);
+
+/**
+ * Output-Gruppe (AP1f-a) – Ebene ueber dem Output-Produkt, Farbschluessel.
+ * Reihenfolge folgt der Wertschoepfung (Primaerprodukte vor H2, Derivate danach).
+ */
+export const outputGruppe = pgEnum("output_gruppe", [
+  "primaerprodukte",
+  "wasserstoff",
+  "derivate",
+  "add_ons",
+]);
+
+/** Ob ein Output-Produkt Zielprodukt oder Add-On (Koppelprodukt) ist. */
+export const outputArt = pgEnum("output_art", ["target", "add_on"]);
 
 // --- Kernentitaeten (Reihenfolge nach FK-Abhaengigkeiten) --------------------
 
@@ -93,8 +105,19 @@ export const materialartGruppe = pgEnum("materialart_gruppe", [
 export const materialart = pgTable("materialart", {
   code: text("code").primaryKey(),
   label: text("label").notNull(),
-  // Fachliche Gruppe (AP1c). NOT NULL; bei Inline-Neuanlage Pflichtfeld.
-  gruppe: materialartGruppe("gruppe").notNull(),
+  // Feedstock-Cluster (AP1f-a, ersetzt gruppe). NOT NULL; Inline-Neuanlage-Pflichtfeld.
+  cluster: feedstockCluster("cluster").notNull(),
+});
+
+/**
+ * Output-Produkt als Lookup-Tabelle (AP1f-a, analog materialart) – zweistufig
+ * wie die Feedstock-Seite: Produkt -> Gruppe. Die Liste waechst.
+ */
+export const outputProdukt = pgTable("output_produkt", {
+  code: text("code").primaryKey(),
+  label: text("label").notNull(),
+  gruppe: outputGruppe("gruppe").notNull(),
+  art: outputArt("art").notNull(),
 });
 
 /** Beleg (Nachweis) fuer einen Wert. Wird von Region, Biomassestrom, Output-Bedarf referenziert. */
@@ -228,7 +251,10 @@ export const outputBedarf = pgTable("output_bedarf", {
   landkreis: text("landkreis"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
   kontaktperson: text("kontaktperson"),
-  vektor: outputVektor("vektor").notNull(),
+  // Output-Produkt (AP1f-a, ersetzt vektor). FK auf output_produkt.code.
+  produktCode: text("produkt_code")
+    .notNull()
+    .references(() => outputProdukt.code),
   mengeWert: numeric("menge_wert").notNull(),
   mengeEinheit: text("menge_einheit").notNull(),
   zeitraumVon: date("zeitraum_von").notNull(),

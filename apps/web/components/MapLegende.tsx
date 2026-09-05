@@ -1,18 +1,18 @@
 "use client";
 
 import {
-  GRUPPE_FARBE,
-  GRUPPE_LABEL,
+  CLUSTER_FARBE,
+  CLUSTER_LABEL,
+  OUTPUT_FARBE,
+  OUTPUT_LABEL,
   QUALITAET_RING,
-  VEKTOR_FARBE,
-  VEKTOR_LABEL,
 } from "@/lib/farben";
 import type { RegionUmriss } from "@/lib/register";
 
 /**
- * Kartenlegende: Fuellfarbe = Gruppe/Vektor, Rand = Qualitaet. Optionaler
- * Abschnitt „Regionen" mit Sichtbarkeits-Toggle je Fokusregion (nur Umriss ein-/
- * ausblenden – unabhaengig vom Region-Filter, der die Datenpunkte bestimmt).
+ * Kartenlegende: Biomasse-Cluster als Kreis, Output-Gruppe als Raute, Rand =
+ * Qualitaet. Optionaler Abschnitt „Regionen" mit Sichtbarkeits-Toggle je
+ * Fokusregion (nur Umriss ein-/ausblenden – unabhaengig vom Region-Filter).
  */
 export function MapLegende({
   regionen,
@@ -28,20 +28,20 @@ export function MapLegende({
       <div className="card-title">Legende</div>
       <div className="legende">
         <div className="legende-grp">
-          <strong>Biomasse · Gruppe</strong>
-          {Object.entries(GRUPPE_FARBE).map(([k, c]) => (
+          <strong>Biomasse · Cluster</strong>
+          {Object.entries(CLUSTER_FARBE).map(([k, c]) => (
             <span className="leg" key={k}>
               <i style={{ background: c }} />
-              {GRUPPE_LABEL[k]}
+              {CLUSTER_LABEL[k]}
             </span>
           ))}
         </div>
         <div className="legende-grp">
-          <strong>Output · Vektor</strong>
-          {Object.entries(VEKTOR_FARBE).map(([k, c]) => (
+          <strong>Output · Gruppe</strong>
+          {Object.entries(OUTPUT_FARBE).map(([k, c]) => (
             <span className="leg" key={k}>
-              <i style={{ background: c }} />
-              {VEKTOR_LABEL[k]}
+              <i className="leg-raute" style={{ background: c }} />
+              {OUTPUT_LABEL[k]}
             </span>
           ))}
         </div>

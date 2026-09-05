@@ -5,6 +5,7 @@ import {
   biomassestrom,
   materialart,
   outputBedarf,
+  outputProdukt,
   region,
 } from "@bhyo/db/schema";
 import { and, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
@@ -33,8 +34,8 @@ export interface RegisterFilter {
   landkreis?: string | undefined;
   /** Datenjahr (zeitraum_von/bis ueberlappt dieses Jahr). */
   jahr?: string | undefined;
-  /** Nur Output: Filter nach Vektor (waerme|h2|co2). */
-  vektor?: string | undefined;
+  /** Nur Output: Filter nach Output-Gruppe. */
+  outputGruppe?: string | undefined;
 }
 
 /** Zeitraum [von,bis] ueberlappt das gegebene Jahr. */
@@ -123,6 +124,26 @@ export function listRegionen(): Promise<RegionOption[]> {
       .select({ id: region.id, name: region.name })
       .from(region)
       .orderBy(region.name),
+  );
+}
+
+export interface OutputProduktOption {
+  code: string;
+  label: string;
+  gruppe: string;
+}
+
+/** Output-Produkte (fuer die Produktauswahl im Erfassungsformular). */
+export function listOutputProdukte(): Promise<OutputProduktOption[]> {
+  return withDb((db) =>
+    db
+      .select({
+        code: outputProdukt.code,
+        label: outputProdukt.label,
+        gruppe: outputProdukt.gruppe,
+      })
+      .from(outputProdukt)
+      .orderBy(outputProdukt.label),
   );
 }
 
@@ -245,8 +266,8 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       conds.push(eq(outputBedarf.status, filter.status as never));
     if (filter.landkreis)
       conds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
-    if (filter.vektor)
-      conds.push(eq(outputBedarf.vektor, filter.vektor as never));
+    if (filter.outputGruppe)
+      conds.push(eq(outputProdukt.gruppe, filter.outputGruppe as never));
     if (filter.jahr)
       conds.push(
         jahrFilter(outputBedarf.zeitraumVon, outputBedarf.zeitraumBis, filter.jahr),
@@ -270,7 +291,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
         bezeichnung: outputBedarf.bezeichnung,
         ort: outputBedarf.ort,
         landkreis: outputBedarf.landkreis,
-        vektor: outputBedarf.vektor,
+        produktLabel: outputProdukt.label,
         zeitraumVon: outputBedarf.zeitraumVon,
         zeitraumBis: outputBedarf.zeitraumBis,
         mengeWert: outputBedarf.mengeWert,
@@ -284,6 +305,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
       .where(conds.length ? and(...conds) : undefined)
       .orderBy(desc(outputBedarf.createdAt))
@@ -295,7 +317,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       bezeichnung: r.bezeichnung,
       ort: r.ort,
       landkreis: r.landkreis,
-      kategorie: vektorLabel(r.vektor),
+      kategorie: r.produktLabel,
       zeitraumVon: r.zeitraumVon,
       zeitraumBis: r.zeitraumBis,
       menge:
@@ -500,7 +522,7 @@ export function getDetail(
         ort: outputBedarf.ort,
         landkreis: outputBedarf.landkreis,
         kontaktperson: outputBedarf.kontaktperson,
-        vektor: outputBedarf.vektor,
+        produktLabel: outputProdukt.label,
         zeitraumVon: outputBedarf.zeitraumVon,
         zeitraumBis: outputBedarf.zeitraumBis,
         mengeWert: outputBedarf.mengeWert,
@@ -512,6 +534,7 @@ export function getDetail(
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
       .where(eq(outputBedarf.id, id))
       .limit(1);
@@ -525,7 +548,7 @@ export function getDetail(
       ort: r.ort,
       landkreis: r.landkreis,
       kontaktperson: r.kontaktperson,
-      kategorie: vektorLabel(r.vektor),
+      kategorie: r.produktLabel,
       zeitraumVon: r.zeitraumVon,
       zeitraumBis: r.zeitraumBis,
       mengen: [
@@ -551,7 +574,7 @@ export interface MapPunkt {
   art: "biomasse" | "output";
   lng: number;
   lat: number;
-  /** Farbschluessel: materialart.gruppe (Biomasse) bzw. vektor (Output). */
+  /** Farbschluessel: materialart.cluster (Biomasse) bzw. output_produkt.gruppe (Output). */
   farbeKey: string;
   /** Groessenbasis: menge_atro (Biomasse) bzw. menge_wert (Output). */
   menge: number;
@@ -598,7 +621,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
         id: biomassestrom.id,
         lng: sql<number>`ST_X(${biomassestrom.standortGeom})`,
         lat: sql<number>`ST_Y(${biomassestrom.standortGeom})`,
-        gruppe: materialart.gruppe,
+        cluster: materialart.cluster,
         menge: biomassestrom.mengeAtro,
         qualitaet: biomassestrom.qualitaet,
         bezeichnung: biomassestrom.bezeichnung,
@@ -615,7 +638,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
       art: "biomasse" as const,
       lng: r.lng,
       lat: r.lat,
-      farbeKey: r.gruppe ?? "unbekannt",
+      farbeKey: r.cluster ?? "unbekannt",
       menge: r.menge != null ? Number(r.menge) : 0,
       qualitaet: r.qualitaet,
       label: r.bezeichnung ?? r.akteurName ?? "Biomassestrom",
@@ -652,7 +675,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
         id: outputBedarf.id,
         lng: sql<number>`ST_X(${outputBedarf.standortGeom})`,
         lat: sql<number>`ST_Y(${outputBedarf.standortGeom})`,
-        vektor: outputBedarf.vektor,
+        gruppe: outputProdukt.gruppe,
         menge: outputBedarf.mengeWert,
         qualitaet: outputBedarf.qualitaet,
         bezeichnung: outputBedarf.bezeichnung,
@@ -660,6 +683,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .where(and(...oConds))
       .limit(2000);
 
@@ -668,7 +692,7 @@ export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
       art: "output" as const,
       lng: r.lng,
       lat: r.lat,
-      farbeKey: r.vektor,
+      farbeKey: r.gruppe ?? "unbekannt",
       menge: r.menge != null ? Number(r.menge) : 0,
       qualitaet: r.qualitaet,
       label: r.bezeichnung ?? r.akteurName ?? "Output-Bedarf",
@@ -713,11 +737,6 @@ export function listRegionGebiete(): Promise<RegionUmriss[]> {
       geojson: JSON.parse(r.geojson),
     }));
   });
-}
-
-export function vektorLabel(v: string | null): string | null {
-  if (!v) return null;
-  return { waerme: "Wärme", h2: "H₂", co2: "CO₂" }[v] ?? v;
 }
 
 function belegRef(

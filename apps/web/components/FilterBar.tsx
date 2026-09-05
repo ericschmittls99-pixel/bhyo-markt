@@ -1,3 +1,4 @@
+import { OUTPUT_LABEL } from "@/lib/farben";
 import type {
   MaterialartOption,
   RegionOption,
@@ -11,12 +12,6 @@ const STATUS = ["entwurf", "in_pruefung", "geprueft", "verworfen"];
  * laut AP1c/AP1d). Progressive GET-Form: sendet an die aktuelle URL. `hidden`
  * traegt view-spezifische Felder (z. B. Register-Tab).
  */
-const VEKTOREN: [string, string][] = [
-  ["waerme", "Wärme"],
-  ["h2", "H₂"],
-  ["co2", "CO₂"],
-];
-
 export function FilterBar({
   filter,
   regionen,
@@ -28,8 +23,8 @@ export function FilterBar({
   regionen: RegionOption[];
   materialarten: MaterialartOption[];
   hidden?: Record<string, string>;
-  /** Kategorie-Filter: Materialart (Biomasse) oder Vektor (Output). */
-  kategorie?: "materialart" | "vektor";
+  /** Kategorie-Filter: Materialart (Biomasse) oder Output-Gruppe (Output). */
+  kategorie?: "materialart" | "outputgruppe";
 }) {
   return (
     <div className="card">
@@ -57,12 +52,12 @@ export function FilterBar({
             placeholder="Quelle, Akteur, Landkreis"
           />
         </div>
-        {kategorie === "vektor" ? (
+        {kategorie === "outputgruppe" ? (
           <div className="field">
-            <label>Vektor</label>
-            <select name="vektor" defaultValue={filter.vektor ?? ""}>
+            <label>Gruppe</label>
+            <select name="outputgruppe" defaultValue={filter.outputGruppe ?? ""}>
               <option value="">Alle</option>
-              {VEKTOREN.map(([wert, label]) => (
+              {Object.entries(OUTPUT_LABEL).map(([wert, label]) => (
                 <option key={wert} value={wert}>
                   {label}
                 </option>
