@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
+import { ClusterStack } from "@/components/ClusterStack";
 import { Karte } from "@/components/Karte";
 import type { FokusregionZeile } from "@/lib/bewertung";
 import type { RegionUmriss } from "@/lib/register";
@@ -159,6 +160,7 @@ export function BewertungPanel({
             <thead>
               <tr>
                 <th>Fokusregion</th>
+                <th>Cluster</th>
                 <th>Lauf-ID</th>
                 <th>Status</th>
                 <th />
@@ -170,6 +172,9 @@ export function BewertungPanel({
                   <tr key={f.id}>
                     <td>
                       <strong>{f.name}</strong>
+                    </td>
+                    <td>
+                      <ClusterStack verteilung={f.clusterVerteilung} />
                     </td>
                     <td className="muted">{f.laufId ?? "—"}</td>
                     <td>
@@ -197,7 +202,7 @@ export function BewertungPanel({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={4} className="empty">
+                  <td colSpan={5} className="empty">
                     Noch keine Fokusregionen. Über die Karte („Fokusregion
                     zeichnen") oder „Projekt starten → Region definieren" anlegen.
                   </td>

@@ -697,6 +697,41 @@ button.leg-toggle.aus {
   color: var(--text-muted);
 }
 
+/* --- Cluster-Stack (Orb-Stapel) ------------------------------------------- */
+
+.cluster-stack {
+  display: inline-flex;
+  align-items: center;
+}
+.cluster-orb-wrap {
+  position: relative;
+  display: inline-flex;
+}
+.cluster-orb {
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: block;
+  cursor: pointer;
+  /* 2px Trennring in der Kartenhintergrundfarbe (Light/Dark automatisch). */
+  box-shadow: 0 0 0 2px var(--surface-solid);
+}
+.cluster-plus {
+  margin-left: 6px;
+}
+.cluster-popover {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  z-index: 30;
+  box-shadow: var(--shadow);
+}
+
 /* --- Header-Navigation ---------------------------------------------------- */
 
 .app-nav {

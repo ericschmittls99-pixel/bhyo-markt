@@ -1,10 +1,20 @@
-import { analyseLauf, region } from "@bhyo/db/schema";
-import { sql } from "drizzle-orm";
+import {
+  analyseLauf,
+  biomassestrom,
+  materialart,
+  region,
+} from "@bhyo/db/schema";
+import { eq, sql } from "drizzle-orm";
 
 import { type AppDb, withDb } from "@/lib/db";
 
 /** Transaktions-Handle von db.transaction (hat execute/insert/select wie AppDb). */
 type Tx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
+
+export interface ClusterAnteil {
+  cluster: string;
+  anteil: number;
+}
 
 /** Eine Fokusregion mit abgeleitetem Lauf-Status (Platzhalter, falls kein Lauf). */
 export interface FokusregionZeile {
@@ -12,16 +22,68 @@ export interface FokusregionZeile {
   name: string;
   laufId: string | null;
   laufStatus: string | null;
+  /** Cluster-Vielfalt der raeumlich zugeordneten Stroeme, absteigend nach Anteil. */
+  clusterVerteilung: ClusterAnteil[];
 }
 
 /**
- * Alle Fokusregionen mit ihrem juengsten analyse_lauf (falls vorhanden). Regionen
- * ohne Lauf bleiben als abgeleiteter Platzhalter ("nicht gestartet") – kein
- * eigener DB-Eintrag, kein neuer lauf_status-Wert.
+ * Prozentuale Cluster-Verteilung je Region: biomassestrom (mit materialart fuer
+ * cluster) ueber ST_Contains gegen alle region.gebiet, nach region + cluster
+ * gruppiert; Anteil = menge_atro-Summe je Cluster / Gesamtsumme der Region.
+ */
+async function verteilungJeRegion(
+  db: AppDb,
+): Promise<Map<string, ClusterAnteil[]>> {
+  const rows = await db
+    .select({
+      regionId: region.id,
+      cluster: materialart.cluster,
+      menge: sql<number>`sum(${biomassestrom.mengeAtro})::float8`,
+    })
+    .from(region)
+    .innerJoin(
+      biomassestrom,
+      sql`${biomassestrom.standortGeom} is not null and ST_Contains(${region.gebiet}, ${biomassestrom.standortGeom})`,
+    )
+    .innerJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+    .groupBy(region.id, materialart.cluster);
+
+  const proRegion = new Map<string, { cluster: string; menge: number }[]>();
+  for (const r of rows) {
+    const liste = proRegion.get(r.regionId) ?? [];
+    liste.push({ cluster: r.cluster, menge: r.menge });
+    proRegion.set(r.regionId, liste);
+  }
+
+  const ergebnis = new Map<string, ClusterAnteil[]>();
+  for (const [regionId, liste] of proRegion) {
+    const gesamt = liste.reduce((a, x) => a + x.menge, 0);
+    const verteilung = liste
+      .map((x) => ({
+        cluster: x.cluster,
+        anteil: gesamt ? Math.round((x.menge / gesamt) * 100) : 0,
+      }))
+      .sort((a, b) => b.anteil - a.anteil);
+    ergebnis.set(regionId, verteilung);
+  }
+  return ergebnis;
+}
+
+/** Cluster-Verteilung je Region (eigenstaendig; auch von listFokusregionen genutzt). */
+export function listClusterVerteilungJeRegion(): Promise<
+  Map<string, ClusterAnteil[]>
+> {
+  return withDb(verteilungJeRegion);
+}
+
+/**
+ * Alle Fokusregionen mit ihrem juengsten analyse_lauf (falls vorhanden) und der
+ * Cluster-Verteilung. Regionen ohne Lauf bleiben als abgeleiteter Platzhalter
+ * ("nicht gestartet"), ohne Biomasse-Zuordnung ein leeres Verteilungs-Array.
  */
 export function listFokusregionen(): Promise<FokusregionZeile[]> {
-  return withDb((db) =>
-    db
+  return withDb(async (db) => {
+    const zeilen = await db
       .select({
         id: region.id,
         name: region.name,
@@ -33,8 +95,14 @@ export function listFokusregionen(): Promise<FokusregionZeile[]> {
         >`(select status from analyse_lauf where region_id = ${region.id} order by created_at desc limit 1)`,
       })
       .from(region)
-      .orderBy(region.name),
-  );
+      .orderBy(region.name);
+
+    const verteilung = await verteilungJeRegion(db);
+    return zeilen.map((z) => ({
+      ...z,
+      clusterVerteilung: verteilung.get(z.id) ?? [],
+    }));
+  });
 }
 
 /** Vergibt die naechste Lauf-ID (BW-JJJJ-NNN) kollisionssicher per FOR UPDATE. */

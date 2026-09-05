@@ -1,6 +1,6 @@
 import { FilterBar } from "@/components/FilterBar";
 import { getAuswertung } from "@/lib/auswertung";
-import { QUALITAET_RING } from "@/lib/farben";
+import { CLUSTER_FARBE, CLUSTER_LABEL, QUALITAET_RING } from "@/lib/farben";
 import {
   listMaterialarten,
   listRegionen,
@@ -34,11 +34,12 @@ export default async function AuswertungPage({
     status: ersterWert(sp.status),
     landkreis: ersterWert(sp.landkreis),
     jahr: ersterWert(sp.jahr),
+    cluster: ersterWert(sp.cluster),
   };
 
   const [regionen, materialarten, a] = await Promise.all([
     listRegionen(),
-    listMaterialarten(),
+    listMaterialarten(filter.cluster),
     getAuswertung(filter),
   ]);
 
@@ -51,11 +52,13 @@ export default async function AuswertungPage({
     status: filter.status,
     landkreis: filter.landkreis,
     jahr: filter.jahr,
+    cluster: filter.cluster,
   }))
     if (v) basis.set(k, v);
   const exportHref = `/api/auswertung/export?${basis.toString()}`;
 
   const matMax = Math.max(1, ...a.materialart.flatMap((m) => [m.atro, m.fm]));
+  const clusterMax = Math.max(1, ...a.cluster.map((c) => c.atro));
   const jahrMax = Math.max(
     1,
     ...a.jahre.flatMap((j) => [j.datenjahr, j.erhebungsjahr]),
@@ -96,7 +99,34 @@ export default async function AuswertungPage({
         </div>
       </div>
 
-      {/* 2. Menge nach Materialart */}
+      {/* 2. Menge nach Cluster */}
+      <div className="card">
+        <div className="card-title">Menge nach Cluster</div>
+        <div className="stack" style={{ gap: 14 }}>
+          {Object.keys(CLUSTER_LABEL).map((cl) => {
+            const atro = a.cluster.find((c) => c.cluster === cl)?.atro ?? 0;
+            return (
+              <div key={cl}>
+                <div className="row" style={{ justifyContent: "space-between" }}>
+                  <strong>{CLUSTER_LABEL[cl]}</strong>
+                  <span className="muted">{z(atro, 1)} t atro</span>
+                </div>
+                <div className="bar2">
+                  <div
+                    className="bar2-fill"
+                    style={{
+                      width: `${(atro / clusterMax) * 100}%`,
+                      background: CLUSTER_FARBE[cl],
+                    }}
+                  />
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* 3. Menge nach Materialart */}
       <div className="card">
         <div className="card-title">Menge nach Materialart</div>
         {a.materialart.length ? (

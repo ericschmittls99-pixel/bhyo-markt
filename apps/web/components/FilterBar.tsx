@@ -1,4 +1,4 @@
-import { OUTPUT_LABEL } from "@/lib/farben";
+import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import type {
   MaterialartOption,
   RegionOption,
@@ -72,6 +72,19 @@ export function FilterBar({
               {materialarten.map((m) => (
                 <option key={m.code} value={m.code}>
                   {m.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+        {kategorie !== "outputgruppe" && (
+          <div className="field">
+            <label>Cluster</label>
+            <select name="cluster" defaultValue={filter.cluster ?? ""}>
+              <option value="">Alle</option>
+              {Object.entries(CLUSTER_LABEL).map(([wert, label]) => (
+                <option key={wert} value={wert}>
+                  {label}
                 </option>
               ))}
             </select>
