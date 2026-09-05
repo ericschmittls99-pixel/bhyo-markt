@@ -111,6 +111,9 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
 
 ## Design
 
+**`docs/design-system.md` ist die verbindliche Referenz für alle UI-Arbeiten und
+vor jeder Design-Änderung zu lesen.**
+
 Markenidentität bestimmt Farbe und Form, der Glaseffekt liefert nur die
 Tiefenstaffelung: Navy `#1F2E38`, Waldgrün `#3A5412`, Lime `#8CC63F`, Hellgrau
 `#EFEFEE`. Pillen für Badges, Werte und Status. Dark Mode auf Marken-Navy, kein
