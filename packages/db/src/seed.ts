@@ -74,17 +74,87 @@ async function main() {
   await sql`delete from akteur where name like 'Test:%'`;
   await sql`delete from region where name like 'Test:%'`;
 
-  // --- Materialart-Grundwerte (echte Referenzdaten, nur upsert) mit Gruppe ---
-  const materialarten = [
-    ["guelle", "Gülle", "agrar_lebensmittelreststoffe"],
-    ["mist", "Mist", "agrar_lebensmittelreststoffe"],
-    ["bioabfall", "Bioabfall", "bioabfall_kompost"],
-    ["gruenschnitt", "Grünschnitt", "gruenschnitt_landschaftspflege"],
-    ["stroh", "Stroh", "agrar_lebensmittelreststoffe"],
+  // --- Materialart-Grundwerte (AP1f-a: 42 Stueck, code -> label -> cluster) ---
+  const O = "organische_rest_abfallstoffe";
+  const L = "lignozellulosische_reststoffe";
+  const N = "nachwachsende_rohstoffe";
+  const S = "lipide_spezialfeedstocks";
+  const P = "polymere_synthetische_c_quellen";
+  const materialarten: [string, string, string][] = [
+    // Organische Rest- und Abfallstoffe
+    ["guelle", "Gülle", O],
+    ["mist", "Mist", O],
+    ["gruenschnitt", "Grünschnitt", O],
+    ["landschaftspflegeschnitt", "Landschaftspflegeschnitt", O],
+    ["biertreber", "Biertreber", O],
+    ["molkereireste", "Molkereireste", O],
+    ["fruchttrester", "Fruchttrester", O],
+    ["speisereste", "Speisereste", O],
+    ["organischer_hausmuell", "Organischer Hausmüll", O],
+    ["bioabfall", "Bioabfall", O],
+    ["klaerschlamm", "Klärschlamm", O],
+    // Lignozellulosische Reststoffe
+    ["stroh", "Stroh", L],
+    ["maisstroh", "Maisstroh", L],
+    ["getreidespelzen", "Getreidespelzen", L],
+    ["reishuelsen", "Reishülsen", L],
+    ["waldrestholz", "Waldrestholz", L],
+    ["saegemehl", "Sägemehl", L],
+    ["rinde", "Rinde", L],
+    ["landschaftspflegeholz", "Landschaftspflegeholz", L],
+    ["bagasse", "Bagasse", L],
+    ["nussschalen", "Nussschalen", L],
+    // Nachwachsende Rohstoffe
+    ["zwischenfruechte_catch_crops", "Zwischenfrüchte (Catch Crops)", N],
+    ["cover_crops", "Cover Crops", N],
+    ["biomasse_degradierte_flaechen", "Biomasse von degradierten Flächen", N],
+    ["miscanthus", "Miscanthus", N],
+    ["algen", "Algen", N],
+    ["mais", "Mais", N],
+    ["weizen", "Weizen", N],
+    ["zuckerrohr", "Zuckerrohr", N],
+    ["zuckerruebe", "Zuckerrübe", N],
+    ["raps", "Raps", N],
+    ["soja", "Soja", N],
+    ["palmoel", "Palmöl", N],
+    // Lipide und Spezialfeedstocks
+    ["altspeiseoel_uco", "Altspeiseöl (UCO)", S],
+    ["tierfette_kat_1", "Tierfette Kat. 1", S],
+    ["tierfette_kat_2", "Tierfette Kat. 2", S],
+    // Polymere und synthetische Kohlenstoffquellen
+    ["kunststoff_sortierreste", "Kunststoff-Sortierreste", P],
+    ["ersatzbrennstoff_ebs", "Ersatzbrennstoff (EBS, inkl. Altholz A IV)", P],
+    ["shredderleichtfraktion", "Shredderleichtfraktion", P],
+    ["altreifen", "Altreifen", P],
+    ["textilreste_mischfasern", "Textilreste (Mischfasern)", P],
+    ["polymere_unsortiert", "Polymere (unsortiert)", P],
   ];
-  for (const [code, label, gruppe] of materialarten) {
-    await sql`insert into materialart (code, label, gruppe) values (${code}, ${label}, ${gruppe})
-      on conflict (code) do update set gruppe = excluded.gruppe`;
+  for (const [code, label, cluster] of materialarten) {
+    await sql`insert into materialart (code, label, cluster) values (${code}, ${label}, ${cluster})
+      on conflict (code) do update set label = excluded.label, cluster = excluded.cluster`;
+  }
+
+  // --- Output-Produkte (AP1f-a: 15 Stueck, code -> label -> gruppe -> art) ---
+  const outputProdukte: [string, string, string, string][] = [
+    ["strom", "Strom", "primaerprodukte", "target"],
+    ["methan", "Methan", "primaerprodukte", "target"],
+    ["ethanol", "Ethanol", "primaerprodukte", "target"],
+    ["synthesegas", "Synthesegas", "primaerprodukte", "target"],
+    ["h2_niederdruck", "H2 (Niederdruck)", "wasserstoff", "target"],
+    ["h2_hochdruck", "H2 (Hochdruck)", "wasserstoff", "target"],
+    ["h2_einspeisung_kernnetz", "H2-Einspeisung (Kernnetz)", "wasserstoff", "target"],
+    ["liquid_hydrogen", "Liquid Hydrogen", "wasserstoff", "target"],
+    ["methanol", "Methanol", "derivate", "target"],
+    ["saf", "SAF", "derivate", "target"],
+    ["ammoniak", "Ammoniak", "derivate", "target"],
+    ["biofuels", "BioFuels", "derivate", "target"],
+    ["waerme", "Wärme", "add_ons", "add_on"],
+    ["co2", "CO2", "add_ons", "add_on"],
+    ["asche", "Asche", "add_ons", "add_on"],
+  ];
+  for (const [code, label, gruppe, art] of outputProdukte) {
+    await sql`insert into output_produkt (code, label, gruppe, art) values (${code}, ${label}, ${gruppe}, ${art})
+      on conflict (code) do update set label = excluded.label, gruppe = excluded.gruppe, art = excluded.art`;
   }
 
   // --- Regionen als Flaechen-Polygon (gebiet), AP1e ---
@@ -386,11 +456,11 @@ async function main() {
          'schaetzung', ${belegId}, ${s.qual}, 'geprueft')`;
   }
 
-  // --- Output-Bedarfe (verschiedene Vektoren, mit Standort) ---
+  // --- Output-Bedarfe (verschiedene Produkte, mit Standort) ---
   const bedarfe: Array<{
     bez: string;
     akteur: string;
-    vektor: string;
+    produkt: string;
     wert: string;
     einheit: string;
     ort: string;
@@ -403,7 +473,7 @@ async function main() {
     {
       bez: "Test: Nahwärmenetz Ortsmitte",
       akteur: "Bioenergie Kraichgau GmbH",
-      vektor: "waerme",
+      produkt: "waerme",
       wert: "4200",
       einheit: "MWh/a",
       ort: "Bretten",
@@ -422,7 +492,7 @@ async function main() {
     {
       bez: "Test: H2-Bedarf Logistik",
       akteur: "Agrar Genossenschaft Donautal",
-      vektor: "h2",
+      produkt: "h2_niederdruck",
       wert: "120",
       einheit: "t/a",
       ort: "Ulm",
@@ -442,7 +512,7 @@ async function main() {
     {
       bez: "Test: CO2-Abnahme Gewächshaus",
       akteur: "Milchhof Alb",
-      vektor: "co2",
+      produkt: "co2",
       wert: "800",
       einheit: "t/a",
       ort: "Merklingen",
@@ -462,7 +532,7 @@ async function main() {
     {
       bez: "Test: Prozesswärme Sägewerk",
       akteur: "Sägewerk Höllental",
-      vektor: "waerme",
+      produkt: "waerme",
       wert: "1600",
       einheit: "MWh/a",
       ort: "Kirchzarten",
@@ -486,12 +556,12 @@ async function main() {
     await sql`
       insert into output_bedarf
         (akteur_id, bezeichnung, ort, landkreis, standort_geom, kontaktperson,
-         vektor, menge_wert, menge_einheit, zeitraum_von, zeitraum_bis,
+         produkt_code, menge_wert, menge_einheit, zeitraum_von, zeitraum_bis,
          saisonalitaet, beleg_id, qualitaet, status)
       values
         (${A(b.akteur)}, ${b.bez}, ${b.ort}, ${b.lk},
          ST_SetSRID(ST_MakePoint(${b.lng}, ${b.lat}), 4326), ${"Ansprechpartner Test"},
-         ${b.vektor}, ${b.wert}, ${b.einheit}, '2025-01-01', '2025-12-31',
+         ${b.produkt}, ${b.wert}, ${b.einheit}, '2025-01-01', '2025-12-31',
          ${sql.json(gleich())}, ${belegId}, ${b.qual}, 'geprueft')`;
   }
 
