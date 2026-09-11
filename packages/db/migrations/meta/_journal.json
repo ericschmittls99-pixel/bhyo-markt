@@ -50,6 +50,13 @@
       "when": 1788598219662,
       "tag": "0006_taxonomie",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1789118967490,
+      "tag": "0007_output_preis",
+      "breakpoints": true
     }
   ]
 }
