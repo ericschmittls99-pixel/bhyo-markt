@@ -4,7 +4,8 @@
  *
  * - Idempotent: Testdaten tragen den Praefix "Test:" (Belege den Marker
  *   metadata.seed=true) und werden vor jedem Lauf entfernt und neu angelegt.
- *   Materialart-Grundwerte sind echte Referenzdaten und werden nur upserted.
+ *   Das Skript legt ausschliesslich "Test:"-Daten an — die Referenzdaten
+ *   (Materialarten, Output-Produkte) kommen seit Migration 0008 per Migration.
  * - Sicherheit: laeuft NUR mit ALLOW_PREVIEW_SEED=1 und niemals gegen Production.
  *   Selbst dann wuerde es ausschliesslich "Test:"-Daten anfassen.
  *
@@ -73,89 +74,6 @@ async function main() {
   await sql`delete from beleg where metadata->>'seed' = 'true'`;
   await sql`delete from akteur where name like 'Test:%'`;
   await sql`delete from region where name like 'Test:%'`;
-
-  // --- Materialart-Grundwerte (AP1f-a: 42 Stueck, code -> label -> cluster) ---
-  const O = "organische_rest_abfallstoffe";
-  const L = "lignozellulosische_reststoffe";
-  const N = "nachwachsende_rohstoffe";
-  const S = "lipide_spezialfeedstocks";
-  const P = "polymere_synthetische_c_quellen";
-  const materialarten: [string, string, string][] = [
-    // Organische Rest- und Abfallstoffe
-    ["guelle", "Gülle", O],
-    ["mist", "Mist", O],
-    ["gruenschnitt", "Grünschnitt", O],
-    ["landschaftspflegeschnitt", "Landschaftspflegeschnitt", O],
-    ["biertreber", "Biertreber", O],
-    ["molkereireste", "Molkereireste", O],
-    ["fruchttrester", "Fruchttrester", O],
-    ["speisereste", "Speisereste", O],
-    ["organischer_hausmuell", "Organischer Hausmüll", O],
-    ["bioabfall", "Bioabfall", O],
-    ["klaerschlamm", "Klärschlamm", O],
-    // Lignozellulosische Reststoffe
-    ["stroh", "Stroh", L],
-    ["maisstroh", "Maisstroh", L],
-    ["getreidespelzen", "Getreidespelzen", L],
-    ["reishuelsen", "Reishülsen", L],
-    ["waldrestholz", "Waldrestholz", L],
-    ["saegemehl", "Sägemehl", L],
-    ["rinde", "Rinde", L],
-    ["landschaftspflegeholz", "Landschaftspflegeholz", L],
-    ["bagasse", "Bagasse", L],
-    ["nussschalen", "Nussschalen", L],
-    // Nachwachsende Rohstoffe
-    ["zwischenfruechte_catch_crops", "Zwischenfrüchte (Catch Crops)", N],
-    ["cover_crops", "Cover Crops", N],
-    ["biomasse_degradierte_flaechen", "Biomasse von degradierten Flächen", N],
-    ["miscanthus", "Miscanthus", N],
-    ["algen", "Algen", N],
-    ["mais", "Mais", N],
-    ["weizen", "Weizen", N],
-    ["zuckerrohr", "Zuckerrohr", N],
-    ["zuckerruebe", "Zuckerrübe", N],
-    ["raps", "Raps", N],
-    ["soja", "Soja", N],
-    ["palmoel", "Palmöl", N],
-    // Lipide und Spezialfeedstocks
-    ["altspeiseoel_uco", "Altspeiseöl (UCO)", S],
-    ["tierfette_kat_1", "Tierfette Kat. 1", S],
-    ["tierfette_kat_2", "Tierfette Kat. 2", S],
-    // Polymere und synthetische Kohlenstoffquellen
-    ["kunststoff_sortierreste", "Kunststoff-Sortierreste", P],
-    ["ersatzbrennstoff_ebs", "Ersatzbrennstoff (EBS, inkl. Altholz A IV)", P],
-    ["shredderleichtfraktion", "Shredderleichtfraktion", P],
-    ["altreifen", "Altreifen", P],
-    ["textilreste_mischfasern", "Textilreste (Mischfasern)", P],
-    ["polymere_unsortiert", "Polymere (unsortiert)", P],
-  ];
-  for (const [code, label, cluster] of materialarten) {
-    await sql`insert into materialart (code, label, cluster) values (${code}, ${label}, ${cluster})
-      on conflict (code) do update set label = excluded.label, cluster = excluded.cluster`;
-  }
-
-  // --- Output-Produkte (AP1f-a: 15 Stueck, code -> label -> gruppe -> art) ---
-  const outputProdukte: [string, string, string, string][] = [
-    ["strom", "Strom", "primaerprodukte", "target"],
-    ["methan", "Methan", "primaerprodukte", "target"],
-    ["ethanol", "Ethanol", "primaerprodukte", "target"],
-    ["synthesegas", "Synthesegas", "primaerprodukte", "target"],
-    ["h2_niederdruck", "H2 (Niederdruck)", "wasserstoff", "target"],
-    ["h2_hochdruck", "H2 (Hochdruck)", "wasserstoff", "target"],
-    ["h2_einspeisung_kernnetz", "H2-Einspeisung (Kernnetz)", "wasserstoff", "target"],
-    ["liquid_hydrogen", "Liquid Hydrogen", "wasserstoff", "target"],
-    ["methanol", "Methanol", "derivate", "target"],
-    ["saf", "SAF", "derivate", "target"],
-    ["ammoniak", "Ammoniak", "derivate", "target"],
-    ["biofuels", "BioFuels", "derivate", "target"],
-    ["waerme", "Wärme", "add_ons", "add_on"],
-    ["co2", "CO2", "add_ons", "add_on"],
-    ["asche", "Asche", "add_ons", "add_on"],
-  ];
-  for (const [code, label, gruppe, art] of outputProdukte) {
-    await sql`insert into output_produkt (code, label, gruppe, art) values (${code}, ${label}, ${gruppe}, ${art})
-      on conflict (code) do update set label = excluded.label, gruppe = excluded.gruppe, art = excluded.art`;
-  }
 
   // --- Regionen als Flaechen-Polygon (gebiet), AP1e ---
   // Aus Mittelpunkt + Radius (km) eine Bounding-Box bilden.
