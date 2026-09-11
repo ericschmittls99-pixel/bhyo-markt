@@ -6,5 +6,8 @@
     "dev": "pnpm --filter web dev",
     "build": "pnpm --filter web build",
     "test": "pnpm --filter @bhyo/rechenkern test"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.63.0"
   }
 }
