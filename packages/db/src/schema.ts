@@ -257,6 +257,10 @@ export const outputBedarf = pgTable("output_bedarf", {
     .references(() => outputProdukt.code),
   mengeWert: numeric("menge_wert").notNull(),
   mengeEinheit: text("menge_einheit").notNull(),
+  // Abnahmepreis je Einheit (AP1i E6, V2-Mockup). Nullable: Bestandsdaten
+  // haben keinen Preis; die Einheit (€/t, €/MWh, €/kg) haengt am Datensatz.
+  preis: numeric("preis"),
+  preisEinheit: text("preis_einheit"),
   zeitraumVon: date("zeitraum_von").notNull(),
   zeitraumBis: date("zeitraum_bis").notNull(),
   saisonalitaet: jsonb("saisonalitaet").notNull(),
