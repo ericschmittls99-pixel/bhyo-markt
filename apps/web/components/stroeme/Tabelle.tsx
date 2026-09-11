@@ -1,0 +1,215 @@
+"use client";
+
+import type { ReactNode } from "react";
+
+import { Orb } from "@/components/stroeme/Orb";
+import { KonfidenzPill, StatusPillV2 } from "@/components/stroeme/Pillen";
+import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import { CLUSTER_LABEL } from "@/lib/farben";
+import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
+
+interface Spalte {
+  sortKey: string;
+  label: string;
+  align?: "right";
+  render: (s: Strom) => ReactNode;
+}
+
+function zweizeilig(a: ReactNode, b: ReactNode) {
+  return (
+    <span className="zelle2">
+      <span className="haupt">{a}</span>
+      <span className="neben">{b}</span>
+    </span>
+  );
+}
+
+function spalten(art: "biomasse" | "output"): Spalte[] {
+  const feed = art === "biomasse";
+  const basis: Spalte[] = [
+    {
+      sortKey: "titel",
+      label: feed ? "Quelle" : "Abnehmer",
+      render: (s) =>
+        zweizeilig(
+          s.akteurName ?? s.bezeichnung ?? "–",
+          [s.ort, s.landkreis].filter(Boolean).join(", ") || "–",
+        ),
+    },
+    feed
+      ? {
+          sortKey: "materialart",
+          label: "Materialart",
+          render: (s) => (
+            <span className="zelle-orb">
+              <Orb strom={s} size={16} />
+              {zweizeilig(
+                s.materialartLabel ?? "–",
+                s.cluster ? (CLUSTER_LABEL[s.cluster] ?? s.cluster) : "–",
+              )}
+            </span>
+          ),
+        }
+      : {
+          sortKey: "produkt",
+          label: "Output",
+          render: (s) => (
+            <span className="zelle-orb">
+              <Orb strom={s} size={16} />
+              {zweizeilig(
+                s.produktLabel ?? "–",
+                [s.gruppeLabel, s.kategorie ? KATEGORIE_LABEL[s.kategorie] : null]
+                  .filter(Boolean)
+                  .join(" · ") || "–",
+              )}
+            </span>
+          ),
+        },
+    {
+      sortKey: "region",
+      label: "Region",
+      render: (s) => s.regionNamen.join(", ") || "–",
+    },
+    {
+      sortKey: "menge",
+      label: feed ? "Menge (t FM/a)" : "Menge",
+      align: "right",
+      render: (s) =>
+        feed
+          ? s.mengeFm != null
+            ? fmtZahl(s.mengeFm)
+            : "–"
+          : s.mengeWert != null
+            ? `${fmtZahl(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
+            : "–",
+    },
+  ];
+  if (feed)
+    basis.push({
+      sortKey: "menge",
+      label: "t atro/a",
+      align: "right",
+      render: (s) => (
+        <strong>{s.mengeAtro != null ? fmtZahl(s.mengeAtro) : "–"}</strong>
+      ),
+    });
+  basis.push(
+    {
+      sortKey: "preis",
+      label: feed ? "Preis (€/t)" : "Preis",
+      align: "right",
+      render: (s) =>
+        feed
+          ? s.preisMin != null || s.preisMax != null
+            ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"}`
+            : "–"
+          : s.preis != null
+            ? `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim()
+            : "–",
+    },
+    {
+      sortKey: "von",
+      label: "Verfügbar",
+      render: (s) => fmtZeitraum(s.zeitraumVon, s.zeitraumBis),
+    },
+    {
+      sortKey: "qualitaet",
+      label: "Qualität",
+      render: (s) => <KonfidenzPill stufe={s.qualitaet} />,
+    },
+    {
+      sortKey: "status",
+      label: "Status",
+      render: (s) => <StatusPillV2 status={s.status} />,
+    },
+    {
+      sortKey: "belegtyp",
+      label: "Beleg",
+      render: (s) => (s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "–"),
+    },
+  );
+  return basis;
+}
+
+/** Listen-Ansicht von stroeme. (V2): DataTable mit sortierbaren Koepfen. */
+export function Tabelle({
+  art,
+  stroeme,
+  sortKey,
+  richtung,
+  detailId,
+}: {
+  art: "biomasse" | "output";
+  stroeme: Strom[];
+  sortKey: string;
+  richtung: "auf" | "ab";
+  detailId: string | undefined;
+}) {
+  const { setze } = useUrlZustand();
+  const cols = spalten(art);
+
+  function sortiere(key: string) {
+    const neueRichtung = key === sortKey ? (richtung === "auf" ? "ab" : "auf") : "auf";
+    setze({ sort: key, richtung: neueRichtung });
+  }
+
+  return (
+    <div className="card card--tabelle">
+      <div className="table-wrap">
+        <table className="st-tabelle">
+          <thead>
+            <tr>
+              {cols.map((c, i) => (
+                <th
+                  key={i}
+                  className={c.align === "right" ? "rechts" : undefined}
+                  aria-sort={
+                    c.sortKey === sortKey
+                      ? richtung === "auf"
+                        ? "ascending"
+                        : "descending"
+                      : undefined
+                  }
+                >
+                  <button type="button" className="th-sort" onClick={() => sortiere(c.sortKey)}>
+                    {c.label}
+                    {c.sortKey === sortKey && (
+                      <i
+                        className={`ph-bold ph-arrow-${richtung === "auf" ? "up" : "down"}`}
+                        aria-hidden
+                      />
+                    )}
+                  </button>
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {stroeme.map((s) => (
+              <tr
+                key={s.id}
+                className="klickbar"
+                data-aktiv={s.id === detailId ? "" : undefined}
+                tabIndex={0}
+                onClick={() => setze({ detail: s.id }, "push")}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setze({ detail: s.id }, "push");
+                  }
+                }}
+              >
+                {cols.map((c, i) => (
+                  <td key={i} className={c.align === "right" ? "rechts" : undefined}>
+                    {c.render(s)}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}

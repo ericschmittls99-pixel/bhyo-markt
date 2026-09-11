@@ -1,194 +1,208 @@
 import Link from "next/link";
+import { cookies } from "next/headers";
 
-import { DetailPanel } from "@/components/DetailPanel";
-import { FilterBar } from "@/components/FilterBar";
-import { RegisterRow } from "@/components/RegisterRow";
+import { Detail } from "@/components/stroeme/Detail";
+import { FilterSortZeile } from "@/components/stroeme/FilterSortZeile";
+import { Grid } from "@/components/stroeme/Grid";
+import { Tabelle } from "@/components/stroeme/Tabelle";
+import { Toolbar } from "@/components/stroeme/Toolbar";
+import { EmptyState } from "@/components/shell/EmptyState";
+import { CLUSTER_LABEL } from "@/lib/farben";
+import { ladeHistorie, ladeRegionOptionen, ladeStroeme } from "@/lib/stroeme";
 import {
-  getDetail,
-  listBiomasse,
-  listMaterialarten,
-  listOutput,
-  listRegionen,
-  type RegisterZeile,
-} from "@/lib/register";
+  FACETTEN,
+  facettenOptionen,
+  filterStroeme,
+  LEERER_FILTER,
+  SORTIERUNGEN,
+  sortiereStroeme,
+  type StroemeFilter,
+} from "@/lib/stroeme-modell";
+import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
+import { naechsteVerifizierung } from "@/lib/verifizierung";
 
 export const dynamic = "force-dynamic";
 
 type SearchParams = Record<string, string | string[] | undefined>;
 
-function ersterWert(v: string | string[] | undefined): string | undefined {
+function ersterWert(v: string | string[] | undefined): string {
   const s = Array.isArray(v) ? v[0] : v;
-  return s && s.length ? s : undefined;
+  return s ?? "";
 }
 
+/** Mehrwertige Facette: kommagetrennt im Querystring (Delta-Bericht §6). */
+function liste(v: string | string[] | undefined): string[] {
+  return ersterWert(v).split(",").filter(Boolean);
+}
+
+/**
+ * stroeme. (V2, AP1i PR 3): Toolbar, ausklappbare Facetten-Filter, Sortierung,
+ * Grid (Default) / Liste, Detail als Modal (aus dem Grid) oder Panel (aus der
+ * Liste). Datenfilter leben im Querystring, Bedienzustand im Cookie bhyo_ui.
+ */
 export default async function RegisterPage({
   searchParams,
 }: {
   searchParams: Promise<SearchParams>;
 }) {
   const sp = await searchParams;
-  const tab = ersterWert(sp.tab) === "output" ? "output" : "biomasse";
-  const filter = {
-    regionId: ersterWert(sp.region),
-    suche: ersterWert(sp.q),
-    materialart: ersterWert(sp.materialart),
-    qualitaet: ersterWert(sp.qualitaet),
-    status: ersterWert(sp.status),
-    landkreis: ersterWert(sp.landkreis),
-    jahr: ersterWert(sp.jahr),
-    cluster: ersterWert(sp.cluster),
-    outputGruppe: ersterWert(sp.outputgruppe),
+  const art = ersterWert(sp.tab) === "output" ? ("output" as const) : ("biomasse" as const);
+  const ansicht = ersterWert(sp.ansicht) === "liste" ? ("liste" as const) : ("grid" as const);
+
+  const filter: StroemeFilter = {
+    ...LEERER_FILTER,
+    q: ersterWert(sp.q),
+    region: liste(sp.region),
+    cluster: liste(sp.cluster),
+    materialart: liste(sp.materialart),
+    qualitaet: liste(sp.qualitaet),
+    status: liste(sp.status),
+    belegtyp: liste(sp.belegtyp),
+    landkreis: liste(sp.landkreis),
+    produkt: liste(sp.produkt),
+    kategorie: liste(sp.kategorie),
+    mengeMin: ersterWert(sp.mengeMin),
+    mengeMax: ersterWert(sp.mengeMax),
+    preisMin: ersterWert(sp.preisMin),
+    preisMax: ersterWert(sp.preisMax),
+    vonAb: ersterWert(sp.vonAb),
+    erstellt: ersterWert(sp.erstellt),
   };
 
-  const [regionen, materialarten, zeilen] = await Promise.all([
-    listRegionen(),
-    listMaterialarten(filter.cluster),
-    tab === "biomasse" ? listBiomasse(filter) : listOutput(filter),
+  const sortOptionen = SORTIERUNGEN[art];
+  const sortKey = sortOptionen.some(([k]) => k === ersterWert(sp.sort))
+    ? ersterWert(sp.sort)
+    : "erstellt";
+  const richtung = ersterWert(sp.richtung) === "auf" ? ("auf" as const) : ("ab" as const);
+
+  const [pool, regionen, ui] = await Promise.all([
+    ladeStroeme(art),
+    ladeRegionOptionen(),
+    cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
   ]);
 
-  const anzahl = zeilen.length;
-  const summe = zeilen.reduce((acc, z) => acc + (z.mengeNum ?? 0), 0);
-  const bewertet = zeilen.filter((z) => z.qualitaet);
-  const anteilAB = bewertet.length
-    ? Math.round(
-        (bewertet.filter((z) => z.qualitaet === "A" || z.qualitaet === "B")
-          .length /
-          bewertet.length) *
-          100,
-      )
-    : 0;
+  const gefiltert = filterStroeme(pool, filter);
+  const stroeme = sortiereStroeme(gefiltert, sortKey, richtung);
 
-  // Detail-Panel: URL-getrieben ueber ?detail=<id> (im aktuellen Tab).
+  const facetten = FACETTEN[art];
+  const optionen = facettenOptionen(art, pool, regionen, CLUSTER_LABEL);
+  const auswahl = Object.fromEntries(
+    facetten.map(({ key }) => [key, filter[key] as string[]]),
+  );
+  const irgendeinFilter =
+    filter.q.trim() !== "" ||
+    facetten.some(({ key }) => (filter[key] as string[]).length > 0) ||
+    [filter.mengeMin, filter.mengeMax, filter.preisMin, filter.preisMax, filter.vonAb, filter.erstellt].some(
+      (v) => v !== "",
+    );
+
+  const countText = `${stroeme.length} ${stroeme.length === 1 ? "Strom" : "Ströme"}${irgendeinFilter ? " gefiltert" : ""}`;
+
+  // Detail: URL-getrieben; aus dem Grid als Modal, aus der Liste als Panel.
   const detailId = ersterWert(sp.detail);
-  const detail = detailId ? await getDetail(tab, detailId) : null;
+  const detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
+  const historie = detailStrom
+    ? await ladeHistorie(art, detailStrom.id)
+    : [];
+  // Die Begruendung des Anlegens ist der aelteste Log-Eintrag ("email: text").
+  const aeltester = historie.length ? historie[historie.length - 1]!.text : null;
+  const begruendung =
+    aeltester && aeltester.includes(": ") && !aeltester.includes("Status auf")
+      ? aeltester.slice(aeltester.indexOf(": ") + 2)
+      : null;
 
-  // Basis-Query (Tab + aktive Filter), um Detail beim Oeffnen/Schliessen zu
-  // setzen bzw. zu entfernen, ohne Filter/Tab zu verlieren.
-  const basis = new URLSearchParams();
-  basis.set("tab", tab);
-  if (filter.regionId) basis.set("region", filter.regionId);
-  if (filter.suche) basis.set("q", filter.suche);
-  if (filter.materialart) basis.set("materialart", filter.materialart);
-  if (filter.qualitaet) basis.set("qualitaet", filter.qualitaet);
-  if (filter.status) basis.set("status", filter.status);
-  if (filter.landkreis) basis.set("landkreis", filter.landkreis);
-  if (filter.jahr) basis.set("jahr", filter.jahr);
-  if (filter.cluster) basis.set("cluster", filter.cluster);
-  if (filter.outputGruppe) basis.set("outputgruppe", filter.outputGruppe);
-  const basisStr = basis.toString();
-  const detailHref = (id: string) => `?${basisStr}&detail=${id}`;
-  const closeHref = `?${basisStr}`;
+  // Rollen kommen mit der benutzer-Tabelle; bis dahin darf jede eingeloggte
+  // Person erfassen (wie bisher, Zugang ist ueber Cloudflare Access begrenzt).
+  const canEdit = true;
 
-  const query = (extra: Record<string, string>) => {
-    const p = new URLSearchParams();
-    if (filter.regionId) p.set("region", filter.regionId);
-    for (const [k, v] of Object.entries(extra)) if (v) p.set(k, v);
-    return `?${p.toString()}`;
-  };
+  const resetHref = `/register${art === "output" ? "?tab=output" : ""}`;
 
   return (
-    <main className="app-main">
-      <div className="toolbar">
-        <div className="tabs">
-          <Link href={query({ tab: "biomasse" })} aria-current={tab === "biomasse"}>
-            Biomasse
-          </Link>
-          <Link href={query({ tab: "output" })} aria-current={tab === "output"}>
-            Output
-          </Link>
-        </div>
-        <Link className="btn btn--primary" href={`/register/${tab}/neu`}>
-          + Neu anlegen
-        </Link>
-      </div>
-
-      <div className="kpi-row">
-        <div className="kpi">
-          <div className="kpi-label">
-            {tab === "biomasse" ? "Ströme erfasst" : "Bedarfe erfasst"}
-          </div>
-          <div className="kpi-value">{anzahl}</div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">
-            {tab === "biomasse" ? "Summe (t atro)" : "Summe (Bedarfsmenge)"}
-          </div>
-          <div className="kpi-value">
-            {summe.toLocaleString("de-DE", { maximumFractionDigits: 0 })}
-          </div>
-        </div>
-        <div className="kpi">
-          <div className="kpi-label">Qualitätsanteil A + B</div>
-          <div className="kpi-value">{anteilAB}&thinsp;%</div>
-        </div>
-      </div>
-
-      <FilterBar
-        filter={filter}
-        regionen={regionen}
-        materialarten={materialarten}
-        hidden={{ tab }}
-        kategorie={tab === "output" ? "outputgruppe" : "materialart"}
+    <div className="st-seite">
+      <Toolbar tab={art} q={filter.q} canEdit={canEdit} />
+      <FilterSortZeile
+        art={art}
+        countText={countText}
+        facetten={facetten.map(({ key, label }) => ({
+          key,
+          label,
+          optionen: optionen[key] ?? [],
+        }))}
+        auswahl={auswahl}
+        bereich={{
+          mengeMin: filter.mengeMin,
+          mengeMax: filter.mengeMax,
+          preisMin: filter.preisMin,
+          preisMax: filter.preisMax,
+          vonAb: filter.vonAb,
+          erstellt: filter.erstellt,
+        }}
+        sortKey={sortKey}
+        richtung={richtung}
+        sortOptionen={sortOptionen}
+        ansicht={ansicht}
+        offenInitial={!!ui.filterOffen?.stroeme}
+        irgendeinFilter={irgendeinFilter}
       />
 
-      <div className="card">
-        <RegisterTabelle
-          zeilen={zeilen}
-          tab={tab}
-          detailId={detailId}
-          detailHref={detailHref}
+      <div className="st-inhalt">
+        {stroeme.length === 0 ? (
+          irgendeinFilter ? (
+            <EmptyState
+              icon="funnel"
+              titel="keine treffer."
+              beschreibung="Kein Strom entspricht Suche und Filtern."
+            >
+              <Link className="btn btn--sm" href={resetHref}>
+                Filter zurücksetzen
+              </Link>
+            </EmptyState>
+          ) : (
+            <EmptyState
+              icon="leaf"
+              titel="noch keine ströme."
+              beschreibung={
+                art === "biomasse"
+                  ? "Über „Feedstock anlegen“ entsteht der erste Datensatz."
+                  : "Über „Output anlegen“ entsteht der erste Datensatz."
+              }
+            >
+              {canEdit && (
+                <Link
+                  className="btn btn--primary btn--sm"
+                  href={`/register/${art}/neu`}
+                >
+                  <i className="ph-bold ph-plus" aria-hidden />
+                  {art === "biomasse" ? "Feedstock anlegen" : "Output anlegen"}
+                </Link>
+              )}
+            </EmptyState>
+          )
+        ) : ansicht === "grid" ? (
+          <Grid stroeme={stroeme} />
+        ) : (
+          <Tabelle
+            art={art}
+            stroeme={stroeme}
+            sortKey={sortKey}
+            richtung={richtung}
+            detailId={detailId || undefined}
+          />
+        )}
+      </div>
+
+      {detailStrom && (
+        <Detail
+          strom={detailStrom}
+          historie={historie}
+          begruendung={begruendung}
+          verifizierung={
+            detailStrom.beleg ? naechsteVerifizierung(detailStrom.beleg) : null
+          }
+          modal={ansicht === "grid"}
+          canEdit={canEdit}
         />
-      </div>
-
-      {detail && <DetailPanel detail={detail} closeHref={closeHref} />}
-    </main>
-  );
-}
-
-function RegisterTabelle({
-  zeilen,
-  tab,
-  detailId,
-  detailHref,
-}: {
-  zeilen: RegisterZeile[];
-  tab: "biomasse" | "output";
-  detailId: string | undefined;
-  detailHref: (id: string) => string;
-}) {
-  if (!zeilen.length) {
-    return (
-      <div className="empty">
-        Noch keine {tab === "biomasse" ? "Biomasseströme" : "Output-Bedarfe"}{" "}
-        erfasst. Über „Neu anlegen" den ersten Datensatz anlegen.
-      </div>
-    );
-  }
-  return (
-    <div className="table-wrap">
-      <table className="register">
-        <thead>
-          <tr>
-            <th>Quelle / Akteur</th>
-            <th>{tab === "biomasse" ? "Materialart" : "Vektor"}</th>
-            <th>Zeitraum</th>
-            <th>Menge</th>
-            <th>Qualität</th>
-            <th>Beleg</th>
-            <th>Status</th>
-          </tr>
-        </thead>
-        <tbody>
-          {zeilen.map((z) => (
-            <RegisterRow
-              key={z.id}
-              zeile={z}
-              detailHref={detailHref(z.id)}
-              aktiv={z.id === detailId}
-            />
-          ))}
-        </tbody>
-      </table>
+      )}
     </div>
   );
 }
