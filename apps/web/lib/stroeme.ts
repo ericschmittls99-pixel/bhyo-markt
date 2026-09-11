@@ -31,6 +31,11 @@ import { vollstaendigkeit } from "@/lib/vollstaendigkeit";
 
 const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
 
+// Kalendertag in Europe/Berlin (sv-SE formatiert als JJJJ-MM-TT). Der
+// "Erstellt am"-Filter und die Anzeige rechnen sonst mit dem UTC-Tag, waehrend
+// die Historie Berliner Zeit zeigt.
+const tagBerlin = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" });
+
 function parseSaison(j: unknown): number[] | null {
   if (Array.isArray(j) && j.length === 12) return j.map((x) => Number(x) || 0);
   return null;
@@ -81,8 +86,12 @@ const belegSelect = {
   belegMetadata: beleg.metadata,
 };
 
-/** Laedt den kompletten Pool eines Tabs (max. 500, neueste zuerst). */
-export function ladeStroeme(art: StromArt): Promise<Strom[]> {
+/**
+ * Laedt den Pool eines Tabs (max. 500, neueste zuerst). Mit `nurId` laedt sie
+ * genau einen Datensatz — fuer Detail-Deeplinks auf Stroeme jenseits des
+ * 500er-Limits.
+ */
+export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
   return withDb(async (db) => {
     if (art === "biomasse") {
       const geom = biomassestrom.standortGeom;
@@ -122,6 +131,7 @@ export function ladeStroeme(art: StromArt): Promise<Strom[]> {
         .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
         .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
         .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
+        .where(nurId ? eq(biomassestrom.id, nurId) : undefined)
         .orderBy(desc(biomassestrom.createdAt))
         .limit(500);
 
@@ -165,7 +175,7 @@ export function ladeStroeme(art: StromArt): Promise<Strom[]> {
           saisonalitaet: parseSaison(r.saisonalitaet),
           qualitaet: r.qualitaet,
           status: r.status,
-          erstelltAm: r.createdAt.toISOString().slice(0, 10),
+          erstelltAm: tagBerlin.format(r.createdAt),
           beleg: b,
         };
         return {
@@ -232,6 +242,7 @@ export function ladeStroeme(art: StromArt): Promise<Strom[]> {
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
       .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
+      .where(nurId ? eq(outputBedarf.id, nurId) : undefined)
       .orderBy(desc(outputBedarf.createdAt))
       .limit(500);
 
@@ -275,7 +286,7 @@ export function ladeStroeme(art: StromArt): Promise<Strom[]> {
         saisonalitaet: parseSaison(r.saisonalitaet),
         qualitaet: r.qualitaet,
         status: r.status,
-        erstelltAm: r.createdAt.toISOString().slice(0, 10),
+        erstelltAm: tagBerlin.format(r.createdAt),
         beleg: b,
       };
       return {
@@ -328,6 +339,29 @@ export function ladeHistorie(
       zeitpunkt: r.zeitpunkt.toLocaleString("de-DE", { timeZone: "Europe/Berlin" }),
       text: r.text,
     }));
+  });
+}
+
+/**
+ * Aeltester Log-Eintrag = die beim Anlegen protokollierte Begruendung
+ * ("email: text"). Bewusst eigene Abfrage statt Ende der (auf 50 Eintraege
+ * begrenzten) Historie.
+ */
+export function ladeErsteAenderung(
+  art: StromArt,
+  id: string,
+): Promise<string | null> {
+  const entitaetTyp = art === "biomasse" ? "biomassestrom" : "output_bedarf";
+  return withDb(async (db) => {
+    const [row] = await db
+      .select({ text: aenderung.text })
+      .from(aenderung)
+      .where(
+        and(eq(aenderung.entitaetTyp, entitaetTyp), eq(aenderung.entitaetId, id)),
+      )
+      .orderBy(aenderung.zeitpunkt)
+      .limit(1);
+    return row?.text ?? null;
   });
 }
 

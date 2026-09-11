@@ -22,9 +22,14 @@ export function Toolbar({
   const { setze } = useUrlZustand();
   const [wert, setWert] = useState(q);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const feldRef = useRef<HTMLInputElement>(null);
 
-  // Externe Aenderung (Zuruecksetzen, Navigation) ins Feld uebernehmen.
-  useEffect(() => setWert(q), [q]);
+  // Externe Aenderung (Zuruecksetzen, Navigation) ins Feld uebernehmen —
+  // aber nie waehrend des Tippens: sonst ueberschreibt der Server-Roundtrip
+  // des debounce-Werts gerade getippte Zeichen.
+  useEffect(() => {
+    if (document.activeElement !== feldRef.current) setWert(q);
+  }, [q]);
   useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
 
   function tippen(v: string) {
@@ -57,6 +62,7 @@ export function Toolbar({
       <div className="search">
         <i className="ph ph-magnifying-glass" aria-hidden />
         <input
+          ref={feldRef}
           type="search"
           value={wert}
           onChange={(e) => tippen(e.target.value)}

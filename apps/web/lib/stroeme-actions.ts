@@ -1,7 +1,7 @@
 "use server";
 
 import { aenderung, biomassestrom, outputBedarf } from "@bhyo/db/schema";
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { currentUserEmail, withDb } from "@/lib/db";
@@ -24,32 +24,42 @@ async function wechsleStatus(
   if (!(neu in STATUS_LABEL)) return { ok: false, fehler: "Unbekannter Status." };
 
   try {
-    await withDb(async (db) => {
-      const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
-      const [zeile] = await db
-        .select({ status: tabelle.status })
-        .from(tabelle)
-        .where(eq(tabelle.id, id))
-        .limit(1);
-      if (!zeile) throw new Error("Datensatz nicht gefunden.");
-      // Verwerfen ist aus jedem Status erlaubt (Papierkorb); sonst gilt E8.
-      if (
-        neu !== "verworfen" &&
-        !(ERLAUBTE_UEBERGAENGE[zeile.status] ?? []).includes(neu)
-      )
-        throw new Error(
-          `Wechsel von „${STATUS_LABEL[zeile.status]}" nach „${STATUS_LABEL[neu]}" ist nicht vorgesehen.`,
-        );
-      await db
-        .update(tabelle)
-        .set({ status: neu as never, updatedAt: new Date() })
-        .where(eq(tabelle.id, id));
-      await db.insert(aenderung).values({
-        entitaetTyp: art === "biomasse" ? "biomassestrom" : "output_bedarf",
-        entitaetId: id,
-        text: `${email}: ${logText}`,
-      });
-    });
+    // Transaktion + optimistische Sperre: Update greift nur, wenn der Status
+    // noch dem gelesenen Stand entspricht — sonst prueft der E8-Guard gegen
+    // einen veralteten Wert; und Statuswechsel ohne Protokoll darf es nicht geben.
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
+        const [zeile] = await tx
+          .select({ status: tabelle.status })
+          .from(tabelle)
+          .where(eq(tabelle.id, id))
+          .limit(1);
+        if (!zeile) throw new Error("Datensatz nicht gefunden.");
+        if (zeile.status === neu)
+          throw new Error(`Der Strom ist bereits „${STATUS_LABEL[neu]}".`);
+        // Verwerfen ist aus jedem Status erlaubt (Papierkorb); sonst gilt E8.
+        if (
+          neu !== "verworfen" &&
+          !(ERLAUBTE_UEBERGAENGE[zeile.status] ?? []).includes(neu)
+        )
+          throw new Error(
+            `Wechsel von „${STATUS_LABEL[zeile.status]}" nach „${STATUS_LABEL[neu]}" ist nicht vorgesehen.`,
+          );
+        const geaendert = await tx
+          .update(tabelle)
+          .set({ status: neu as never, updatedAt: new Date() })
+          .where(and(eq(tabelle.id, id), eq(tabelle.status, zeile.status)))
+          .returning({ id: tabelle.id });
+        if (!geaendert.length)
+          throw new Error("Der Status wurde zwischenzeitlich geändert — bitte neu laden.");
+        await tx.insert(aenderung).values({
+          entitaetTyp: art === "biomasse" ? "biomassestrom" : "output_bedarf",
+          entitaetId: id,
+          text: `${email}: ${logText}`,
+        });
+      }),
+    );
   } catch (e) {
     return {
       ok: false,

@@ -20,3 +20,6 @@ next-env.d.ts
 
 # Lokales Claude-Code-Tooling
 .claude/
+
+# macOS/iCloud legt beim Sync Duplikate wie "datei 2.ts" an — nie committen.
+* [0-9].*

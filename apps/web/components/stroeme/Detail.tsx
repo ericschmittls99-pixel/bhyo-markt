@@ -10,7 +10,7 @@ import { KonfidenzPill } from "@/components/stroeme/Pillen";
 import { SeasonBarsMini } from "@/components/stroeme/SeasonBarsMini";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL } from "@/lib/farben";
-import { fmtDatum, fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import { fmtAnteil, fmtDatum, fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
@@ -133,13 +133,13 @@ export function Detail({
         },
         {
           label: "Trockensubstanz",
-          wert: s.tsAnteil != null ? fmtZahl(s.tsAnteil) : "–",
+          wert: s.tsAnteil != null ? fmtAnteil(s.tsAnteil) : "–",
           einheit: "%",
           quelle: "TS-Anteil",
         },
         {
           label: "Aschegehalt",
-          wert: s.aschegehalt != null ? fmtZahl(s.aschegehalt) : "–",
+          wert: s.aschegehalt != null ? fmtAnteil(s.aschegehalt) : "–",
           einheit: "%",
           quelle: "Anteil an TS",
         },
@@ -277,7 +277,10 @@ export function Detail({
                   )}
                 </span>
                 {s.lng != null && s.lat != null && (
-                  <Link className="btn btn--sm" href={`/karte?detail=${s.id}`}>
+                  <Link
+                    className="btn btn--sm"
+                    href={`/karte?detail=${s.id}&art=${s.art}`}
+                  >
                     <i className="ph ph-map-trifold" aria-hidden />
                     Auf der Karte
                   </Link>
@@ -401,7 +404,12 @@ export function Detail({
                   {s.beleg.amtlich != null && (
                     <Kv label="Amtliche Quelle" wert={s.beleg.amtlich ? "ja" : "nein"} />
                   )}
-                  <Kv label="Gesprächsdatum" wert={s.beleg.gespraechsdatum} />
+                  <Kv
+                    label="Gesprächsdatum"
+                    wert={
+                      s.beleg.gespraechsdatum ? fmtDatum(s.beleg.gespraechsdatum) : null
+                    }
+                  />
                   <Kv label="Gesprächspartner" wert={s.beleg.gespraechspartner} />
                   <Kv label="Kernnotiz" wert={s.beleg.kernnotiz} />
                   <Kv

@@ -18,6 +18,16 @@ export function fmtPreis(n: number): string {
   return Number.isInteger(n) ? nf0.format(n) : nf2.format(n);
 }
 
+const nf1 = new Intl.NumberFormat("de-DE", { maximumFractionDigits: 1 });
+
+/**
+ * Prozent-Anteile (TS, Asche): eine Nachkommastelle, damit die angezeigte
+ * ConversionChain-Rechnung nachvollziehbar bleibt (8,5 % statt "9 %").
+ */
+export function fmtAnteil(n: number): string {
+  return nf1.format(n);
+}
+
 /** ISO-Datum -> MM/JJJJ. */
 export function fmtMonat(iso: string | null): string {
   return iso ? `${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "–";

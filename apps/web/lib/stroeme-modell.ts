@@ -275,6 +275,8 @@ function sortWert(s: Strom, key: string): string | number {
       return s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "";
     case "menge":
       return mengeVon(s) ?? -Infinity;
+    case "atro":
+      return s.mengeAtro ?? -Infinity;
     case "preis":
       return preisVon(s) ?? -Infinity;
     case "von":
@@ -295,6 +297,9 @@ export function sortiereStroeme(
   return [...liste].sort((a, b) => {
     const va = sortWert(a, key);
     const vb = sortWert(b, key);
+    // Deutsche Sortierung fuer Texte (Ä neben A), Zahlen numerisch.
+    if (typeof va === "string" && typeof vb === "string")
+      return va.localeCompare(vb, "de") * dir;
     return va < vb ? -dir : va > vb ? dir : 0;
   });
 }

@@ -8,7 +8,12 @@ import { Tabelle } from "@/components/stroeme/Tabelle";
 import { Toolbar } from "@/components/stroeme/Toolbar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { CLUSTER_LABEL } from "@/lib/farben";
-import { ladeHistorie, ladeRegionOptionen, ladeStroeme } from "@/lib/stroeme";
+import {
+  ladeErsteAenderung,
+  ladeHistorie,
+  ladeRegionOptionen,
+  ladeStroeme,
+} from "@/lib/stroeme";
 import {
   FACETTEN,
   facettenOptionen,
@@ -99,16 +104,21 @@ export default async function RegisterPage({
   const countText = `${stroeme.length} ${stroeme.length === 1 ? "Strom" : "Ströme"}${irgendeinFilter ? " gefiltert" : ""}`;
 
   // Detail: URL-getrieben; aus dem Grid als Modal, aus der Liste als Panel.
+  // Nicht im Pool (jenseits des 500er-Limits)? Dann gezielt per ID nachladen.
   const detailId = ersterWert(sp.detail);
-  const detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
-  const historie = detailStrom
-    ? await ladeHistorie(art, detailStrom.id)
-    : [];
+  let detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
+  if (detailId && !detailStrom)
+    detailStrom = (await ladeStroeme(art, detailId))[0] ?? null;
+  const [historie, ersteAenderung] = detailStrom
+    ? await Promise.all([
+        ladeHistorie(art, detailStrom.id),
+        ladeErsteAenderung(art, detailStrom.id),
+      ])
+    : [[], null];
   // Die Begruendung des Anlegens ist der aelteste Log-Eintrag ("email: text").
-  const aeltester = historie.length ? historie[historie.length - 1]!.text : null;
   const begruendung =
-    aeltester && aeltester.includes(": ") && !aeltester.includes("Status auf")
-      ? aeltester.slice(aeltester.indexOf(": ") + 2)
+    ersteAenderung && ersteAenderung.includes(": ")
+      ? ersteAenderung.slice(ersteAenderung.indexOf(": ") + 2)
       : null;
 
   // Rollen kommen mit der benutzer-Tabelle; bis dahin darf jede eingeloggte

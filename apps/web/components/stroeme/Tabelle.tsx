@@ -87,7 +87,9 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
   ];
   if (feed)
     basis.push({
-      sortKey: "menge",
+      // Eigener Sortierschluessel: nach atro sortieren, nicht nach Rohmenge —
+      // sonst truegen Koepfe und aria-sort (Mockup nutzte hier "menge").
+      sortKey: "atro",
       label: "t atro/a",
       align: "right",
       render: (s) => (
