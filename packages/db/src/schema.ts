@@ -257,10 +257,15 @@ export const outputBedarf = pgTable("output_bedarf", {
     .references(() => outputProdukt.code),
   mengeWert: numeric("menge_wert").notNull(),
   mengeEinheit: text("menge_einheit").notNull(),
-  // Abnahmepreis je Einheit (AP1i E6, V2-Mockup). Nullable: Bestandsdaten
-  // haben keinen Preis; die Einheit (€/t, €/MWh, €/kg) haengt am Datensatz.
+  // Abnahmepreis je Einheit (AP1i E6/E13, V2-Mockup). Alle drei nullable:
+  // Bestandsdaten haben keinen Preis. Ein Preis ohne Herkunft traegt keine
+  // Konfidenz — an preis_herkunft haengt AP3 die Erloesseite an (wie beim
+  // Preis-Korridor am biomassestrom).
   preis: numeric("preis"),
+  // Bewusst text wie menge_einheit; die UI erzwingt die feste Liste
+  // €/t · €/MWh · €/kg · €/Nm³. Wird Enum, sobald AP3 damit rechnet.
   preisEinheit: text("preis_einheit"),
+  preisHerkunft: preisHerkunft("preis_herkunft"),
   zeitraumVon: date("zeitraum_von").notNull(),
   zeitraumBis: date("zeitraum_bis").notNull(),
   saisonalitaet: jsonb("saisonalitaet").notNull(),

@@ -1,5 +1,5 @@
 {
-  "id": "b33d794d-1c3e-4a6a-a610-fea0d21aa87f",
+  "id": "d77b0fb0-3026-4440-81fa-4dcbaf81209d",
   "prevId": "f1ac42e7-37c8-477b-8354-b10d0343fd34",
   "version": "7",
   "dialect": "postgresql",
@@ -815,6 +815,13 @@
         "preis_einheit": {
           "name": "preis_einheit",
           "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_herkunft": {
+          "name": "preis_herkunft",
+          "type": "preis_herkunft",
+          "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
         },
