@@ -89,7 +89,7 @@ async function main() {
     ["biertreber", "Biertreber", O],
     ["molkereireste", "Molkereireste", O],
     ["fruchttrester", "Fruchttrester", O],
-    ["speisereste", "Speisereste", O],
+    ["erntereste", "Erntereste", O],
     ["organischer_hausmuell", "Organischer Hausmüll", O],
     ["bioabfall", "Bioabfall", O],
     ["klaerschlamm", "Klärschlamm", O],
@@ -132,6 +132,25 @@ async function main() {
   for (const [code, label, cluster] of materialarten) {
     await sql`insert into materialart (code, label, cluster) values (${code}, ${label}, ${cluster})
       on conflict (code) do update set label = excluded.label, cluster = excluded.cluster`;
+  }
+
+  // AP1i: "speisereste" war ein Fehler gegen die AP1f-Taxonomie (richtig:
+  // "erntereste"). Der Upsert legt den neuen Code an, der alte bliebe als
+  // Karteileiche stehen. Der Guard ist Absicht: haengt bereits ein Strom an
+  // "speisereste", wird nichts geloescht (Fall bitte melden statt loeschen).
+  const geloescht = await sql`
+    delete from materialart where code = 'speisereste'
+      and not exists (select 1 from biomassestrom
+                      where materialart_code = 'speisereste')
+    returning code`;
+  if (geloescht.length === 0) {
+    const verbleibend =
+      await sql`select count(*)::int as n from materialart where code = 'speisereste'`;
+    if (verbleibend[0]?.n) {
+      console.warn(
+        "Warnung: 'speisereste' nicht entfernt – es haengen Biomassestroeme daran.",
+      );
+    }
   }
 
   // --- Output-Produkte (AP1f-a: 15 Stueck, code -> label -> gruppe -> art) ---
