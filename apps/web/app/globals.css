@@ -2036,6 +2036,271 @@ button.leg-toggle.aus {
 .pf-feld:has(em) input {
   padding-right: 56px;
 }
+.pf-feld select,
+.pf-feld textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--field-bg);
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+}
+.pf-feld select {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 10px;
+  appearance: none;
+  background-image: none;
+}
+.pf-feld textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.pf-pflicht {
+  font-style: normal;
+  color: var(--accent-strong, var(--text-accent));
+}
+.pf-fehler {
+  font: var(--type-caption);
+  color: var(--danger, #b3261e);
+}
+[data-theme="dark"] .pf-fehler {
+  color: var(--danger, #f2b8b5);
+}
+
+/* SuchCombobox (PR 5): Feld im pf-Stil, Popover/Menu aus dem Chip-System */
+.scb-feld {
+  display: block;
+}
+.scb-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.scb-feld input {
+  padding-right: 30px;
+}
+.scb-pop {
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+}
+.scb-menu {
+  max-height: 240px;
+  overflow-y: auto;
+  display: grid;
+}
+.scb-menu .menu-item.aktiv {
+  background: var(--surface-hover);
+}
+.scb-menu .menu-item .lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scb-meta {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.akteur-gewaehlt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.akteur-neu {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+}
+
+/* SeasonBarsEdit (PR 5, E10): ziehbare Saison-Balken */
+.sbe {
+  display: grid;
+  gap: 6px;
+}
+.sbe-flaeche {
+  touch-action: none;
+  cursor: ns-resize;
+  border-radius: var(--radius-xs);
+}
+.sbe-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-xs);
+}
+.sbe-slot:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--data-lime));
+  outline-offset: 2px;
+}
+.sbe-wert {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: var(--type-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sbe-monate {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  text-align: center;
+}
+.sbe-monate .m {
+  font: var(--type-micro);
+  color: var(--text-secondary);
+}
+.sbe-aktionen {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+/* FormularPanel (PR 5) */
+.fp {
+  padding-bottom: 0;
+}
+.fp .ov-sec {
+  gap: 12px;
+}
+.fp-zeile {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.fp-zeile--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.fp-optional {
+  font: var(--type-caption);
+  font-style: normal;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+.fp-hinweis {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.hinweis-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface-sunken, var(--surface-page));
+  font: var(--type-body-sm);
+  color: var(--text-secondary);
+}
+.hinweis-box i {
+  font-size: 16px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.fp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fp-datei {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.fp-datei-input {
+  display: none;
+}
+.fp-datei-name {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.fp-toggle input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--data-lime);
+}
+.fp-toggle-text {
+  display: grid;
+  gap: 2px;
+  font: var(--type-form-label);
+  color: var(--text-primary);
+}
+.fp-toggle-text .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.qual-box {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface-sunken, var(--surface-page));
+}
+.qual-label {
+  font: var(--type-form-label);
+  color: var(--text-primary);
+}
+.qual-pillen {
+  display: flex;
+  gap: 6px;
+}
+.konf.gedimmt {
+  opacity: 0.3;
+}
+.qual-box .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.ov-fuss {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0 -24px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+.ov-fuss .pf-fehler {
+  margin-right: auto;
+}
+.fp-fuss-aktionen {
+  display: flex;
+  gap: 8px;
+}
 .pf-feld em {
   position: absolute;
   right: 10px;

@@ -1,12 +1,14 @@
-import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { ErfassungFormular } from "@/components/ErfassungFormular";
-import { createBiomasse, createOutput } from "@/lib/actions";
-import { listOutputProdukte } from "@/lib/register";
+import { RegisterInhalt } from "../../RegisterInhalt";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * Deeplink zum Anlegen (bleibt laut Ansage 7 bestehen): rendert stroeme. mit
+ * erzwungen offenem Formular-Panel. Abbrechen/X fuehren "Zurück zum Register"
+ * (/register?tab=<art>).
+ */
 export default async function NeuPage({
   params,
 }: {
@@ -15,21 +17,10 @@ export default async function NeuPage({
   const { art } = await params;
   if (art !== "biomasse" && art !== "output") notFound();
 
-  const outputProdukte =
-    art === "output" ? await listOutputProdukte() : [];
-
   return (
-    <main className="app-main">
-      <div className="toolbar">
-        <Link className="btn btn--ghost" href={`/register?tab=${art}`}>
-          ← Zurück zum Register
-        </Link>
-      </div>
-      <ErfassungFormular
-        art={art}
-        action={art === "biomasse" ? createBiomasse : createOutput}
-        outputProdukte={outputProdukte}
-      />
-    </main>
+    <RegisterInhalt
+      sp={{ tab: art, form: "neu" }}
+      zurueckHref={`/register?tab=${art}`}
+    />
   );
 }

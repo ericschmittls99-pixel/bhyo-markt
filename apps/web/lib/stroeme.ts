@@ -11,6 +11,10 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { withDb } from "@/lib/db";
+import {
+  formularZeileZuWerte,
+  type FormularWerte,
+} from "@/lib/formular-modell";
 import { type Strom, type StromArt } from "@/lib/stroeme-modell";
 import {
   biomasseZeileZuStrom,
@@ -181,8 +185,137 @@ export function ladeErsteAenderung(
   });
 }
 
+/**
+ * Rohwerte eines Stroms fuer das Edit-Formular (PR 5). Nur echte Spalten,
+ * keine sql-Ausdruecke; die Konvertierung passiert ausschliesslich im
+ * getesteten Mapper formularZeileZuWerte.
+ */
+export function ladeFormularWerte(
+  art: StromArt,
+  id: string,
+): Promise<FormularWerte | null> {
+  return withDb(async (db) => {
+    if (art === "biomasse") {
+      const [row] = await db
+        .select({
+          id: biomassestrom.id,
+          akteurId: biomassestrom.akteurId,
+          akteurName: akteur.name,
+          akteurSektor: akteur.sektor,
+          bezeichnung: biomassestrom.bezeichnung,
+          ort: biomassestrom.ort,
+          landkreis: biomassestrom.landkreis,
+          kontaktperson: biomassestrom.kontaktperson,
+          materialartCode: biomassestrom.materialartCode,
+          cluster: materialart.cluster,
+          zeitraumVon: biomassestrom.zeitraumVon,
+          zeitraumBis: biomassestrom.zeitraumBis,
+          mengeRohFm: biomassestrom.mengeRohFm,
+          tsAnteilPct: biomassestrom.tsAnteilPct,
+          aschegehaltPct: biomassestrom.aschegehaltPct,
+          preisMin: biomassestrom.preisMin,
+          preisMittel: biomassestrom.preisMittel,
+          preisMax: biomassestrom.preisMax,
+          preisHerkunft: biomassestrom.preisHerkunft,
+          saisonalitaet: biomassestrom.saisonalitaet,
+          status: biomassestrom.status,
+          belegId: biomassestrom.belegId,
+          belegTyp: beleg.typ,
+          belegLinkUrl: beleg.linkUrl,
+          belegDateiKey: beleg.dateiKey,
+          belegErstelltAm: beleg.erstelltAm,
+          belegGueltigBis: beleg.gueltigBis,
+          belegExtern: beleg.externNachvollziehbar,
+          belegMetadata: beleg.metadata,
+        })
+        .from(biomassestrom)
+        .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
+        .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
+        .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
+        .where(eq(biomassestrom.id, id))
+        .limit(1);
+      return row
+        ? formularZeileZuWerte("biomasse", {
+            ...row,
+            produktCode: null,
+            mengeWert: null,
+            mengeEinheit: null,
+            preis: null,
+            preisEinheit: null,
+          })
+        : null;
+    }
+
+    const [row] = await db
+      .select({
+        id: outputBedarf.id,
+        akteurId: outputBedarf.akteurId,
+        akteurName: akteur.name,
+        akteurSektor: akteur.sektor,
+        bezeichnung: outputBedarf.bezeichnung,
+        ort: outputBedarf.ort,
+        landkreis: outputBedarf.landkreis,
+        kontaktperson: outputBedarf.kontaktperson,
+        produktCode: outputBedarf.produktCode,
+        zeitraumVon: outputBedarf.zeitraumVon,
+        zeitraumBis: outputBedarf.zeitraumBis,
+        mengeWert: outputBedarf.mengeWert,
+        mengeEinheit: outputBedarf.mengeEinheit,
+        preis: outputBedarf.preis,
+        preisEinheit: outputBedarf.preisEinheit,
+        preisHerkunft: outputBedarf.preisHerkunft,
+        saisonalitaet: outputBedarf.saisonalitaet,
+        status: outputBedarf.status,
+        belegId: outputBedarf.belegId,
+        belegTyp: beleg.typ,
+        belegLinkUrl: beleg.linkUrl,
+        belegDateiKey: beleg.dateiKey,
+        belegErstelltAm: beleg.erstelltAm,
+        belegGueltigBis: beleg.gueltigBis,
+        belegExtern: beleg.externNachvollziehbar,
+        belegMetadata: beleg.metadata,
+      })
+      .from(outputBedarf)
+      .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
+      .where(eq(outputBedarf.id, id))
+      .limit(1);
+    return row
+      ? formularZeileZuWerte("output", {
+          ...row,
+          materialartCode: null,
+          cluster: null,
+          mengeRohFm: null,
+          tsAnteilPct: null,
+          aschegehaltPct: null,
+          preisMin: null,
+          preisMittel: null,
+          preisMax: null,
+        })
+      : null;
+  });
+}
+
 export function ladeRegionOptionen(): Promise<{ id: string; name: string }[]> {
   return withDb((db) =>
     db.select({ id: region.id, name: region.name }).from(region).orderBy(region.name),
   );
+}
+
+/**
+ * DISTINCT Landkreise beider Tabellen fuer die Landkreis-Combobox (E7:
+ * Bestandsdaten + Freitext, keine Lookup-Tabelle). Nur echte Spalten;
+ * Deduplizieren und Sortieren in TypeScript.
+ */
+export function ladeLandkreisOptionen(): Promise<string[]> {
+  return withDb(async (db) => {
+    const [a, b] = await Promise.all([
+      db.selectDistinct({ lk: biomassestrom.landkreis }).from(biomassestrom),
+      db.selectDistinct({ lk: outputBedarf.landkreis }).from(outputBedarf),
+    ]);
+    const alle = [...a, ...b]
+      .map((r) => r.lk)
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "");
+    return [...new Set(alle)].sort((x, y) => x.localeCompare(y, "de"));
+  });
 }

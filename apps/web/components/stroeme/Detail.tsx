@@ -40,7 +40,7 @@ function fmtKoordinaten(lng: number, lat: number): string {
  * Detail von stroeme. (V2): aus dem Grid als Modal (680 px, Scrim mit Blur),
  * aus der Liste als Slide-in-Panel (520 px, ohne Scrim). Statuswechsel ueber
  * die klickbare StatusPill (E8), Verwerfen ueber Papierkorb + Modal (E2).
- * Bearbeiten kommt mit dem Formular-PR (PR 5) und ist bis dahin ein Toast.
+ * Bearbeiten oeffnet das Formular-Panel (?form=<id>, PR 5).
  */
 export function Detail({
   strom,
@@ -221,7 +221,7 @@ export function Detail({
                 <button
                   type="button"
                   className="btn btn--sm"
-                  onClick={() => zeigeToast("Bearbeiten folgt mit dem Formular-PR.")}
+                  onClick={() => setze({ form: s.id, detail: null }, "push")}
                 >
                   <i className="ph ph-pencil-simple" aria-hidden />
                   Bearbeiten
