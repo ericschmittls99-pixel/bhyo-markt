@@ -2,15 +2,14 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import {
+  FacettenChips,
+  type FacettenChipDef,
+} from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
-import type { FacettenOption } from "@/lib/stroeme-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
-export interface FacettenChip {
-  key: string;
-  label: string;
-  optionen: FacettenOption[];
-}
+export type FacettenChip = FacettenChipDef;
 
 const BEREICH_KEYS = [
   "mengeMin",
@@ -23,10 +22,11 @@ const BEREICH_KEYS = [
 
 /**
  * Zeile 2 von stroeme. (V2): links Zaehltext bzw. ausgeklappte Facetten-Chips,
- * rechts Filter-Toggle, Sortier-Menue und Grid/Liste. Auf-/Zuklappen der
- * Filterleiste lebt im Cookie bhyo_ui (Bedienzustand), die Filter selbst im
- * Querystring. Bei Platzmangel weicht erst „Weitere Filter" auf ein Plus-Icon,
- * dann der Sortier-Button auf Icon-only aus (wie im Mockup).
+ * rechts Filter-Toggle, Sortier-Menue und Grid/Liste. Die Chip-Popover leben
+ * seit PR 6 geteilt in FacettenChips (auch karte. nutzt sie). Auf-/Zuklappen
+ * der Filterleiste lebt im Cookie bhyo_ui, die Filter selbst im Querystring.
+ * Bei Platzmangel weicht erst „Weitere Filter" auf ein Plus-Icon, dann der
+ * Sortier-Button auf Icon-only aus (wie im Mockup).
  */
 export function FilterSortZeile({
   art,
@@ -55,28 +55,20 @@ export function FilterSortZeile({
 }) {
   const { setze } = useUrlZustand();
   const [offen, setOffen] = useState(offenInitial);
-  const [offeneFacette, setOffeneFacette] = useState<string | null>(null);
-  const [facettenSuche, setFacettenSuche] = useState("");
-  const [bereichOffen, setBereichOffen] = useState(false);
   const [sortOffen, setSortOffen] = useState(false);
+  const [schliessSignal, setSchliessSignal] = useState(0);
   const [zeilenBreite, setZeilenBreite] = useState(0);
   const zeileRef = useRef<HTMLDivElement>(null);
-  const sucheRef = useRef<HTMLInputElement>(null);
 
-  // Popover schliessen bei Klick ausserhalb / Escape.
+  // Sortmenue schliessen bei Klick ausserhalb / Escape.
   useEffect(() => {
     function onDown(ev: MouseEvent) {
       const t = ev.target as HTMLElement | null;
       if (t?.closest?.("[data-pop]")) return;
-      setOffeneFacette(null);
-      setBereichOffen(false);
       setSortOffen(false);
     }
     function onKey(ev: KeyboardEvent) {
-      if (ev.key !== "Escape") return;
-      setOffeneFacette(null);
-      setBereichOffen(false);
-      setSortOffen(false);
+      if (ev.key === "Escape") setSortOffen(false);
     }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -97,10 +89,6 @@ export function FilterSortZeile({
     ro.observe(node);
     return () => ro.disconnect();
   }, []);
-
-  useEffect(() => {
-    if (offeneFacette) sucheRef.current?.focus();
-  }, [offeneFacette]);
 
   const bereichAnzahl = BEREICH_KEYS.filter((k) => bereich[k] !== "").length;
   const facettenAnzahl = facetten.reduce(
@@ -131,16 +119,9 @@ export function FilterSortZeile({
   function toggleLeiste() {
     const neu = !offen;
     setOffen(neu);
-    setOffeneFacette(null);
-    setBereichOffen(false);
+    setSchliessSignal((s) => s + 1);
     const aktuell = updateUiCookie({});
     updateUiCookie({ filterOffen: { ...aktuell.filterOffen, stroeme: neu } });
-  }
-
-  function toggleWert(key: string, wert: string) {
-    const sel = auswahl[key] ?? [];
-    const neu = sel.includes(wert) ? sel.filter((v) => v !== wert) : [...sel, wert];
-    setze({ [key]: neu });
   }
 
   function zuruecksetzen() {
@@ -148,8 +129,7 @@ export function FilterSortZeile({
     for (const f of facetten) leer[f.key] = null;
     for (const k of BEREICH_KEYS) leer[k] = null;
     setze(leer);
-    setOffeneFacette(null);
-    setBereichOffen(false);
+    setSchliessSignal((s) => s + 1);
   }
 
   function sortiere(key: string) {
@@ -167,185 +147,19 @@ export function FilterSortZeile({
 
       {offen && (
         <div id="strom-filter" className="st-chips">
-          {facetten.map((f) => {
-            const sel = auswahl[f.key] ?? [];
-            const istOffen = offeneFacette === f.key;
-            const fq = facettenSuche.trim().toLowerCase();
-            const optionen = istOffen
-              ? f.optionen.filter((o) => !fq || o.label.toLowerCase().includes(fq))
-              : [];
-            return (
-              <div key={f.key} data-pop className="pop-anchor">
-                <button
-                  type="button"
-                  className={`fchip${sel.length || istOffen ? " aktiv" : ""}`}
-                  aria-haspopup="menu"
-                  aria-expanded={istOffen}
-                  onClick={() => {
-                    setOffeneFacette(istOffen ? null : f.key);
-                    setFacettenSuche("");
-                    setBereichOffen(false);
-                    setSortOffen(false);
-                  }}
-                >
-                  {f.label}
-                  {sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
-                </button>
-                {istOffen && (
-                  <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 280 }}>
-                    <div className="pop-suche">
-                      <div className="search search--sm">
-                        <i className="ph ph-magnifying-glass" aria-hidden />
-                        <input
-                          ref={sucheRef}
-                          type="search"
-                          value={facettenSuche}
-                          onChange={(e) => setFacettenSuche(e.target.value)}
-                          placeholder={`${f.label} suchen`}
-                          aria-label={`${f.label} suchen`}
-                        />
-                      </div>
-                    </div>
-                    <div className="menu" role="menu">
-                      {sel.length > 0 && optionen.length > 0 && (
-                        <>
-                          <button
-                            type="button"
-                            role="menuitem"
-                            className="menu-item"
-                            onClick={() => setze({ [f.key]: null })}
-                          >
-                            <i className="ph-bold ph-x" aria-hidden />
-                            <span className="lbl">Auswahl aufheben</span>
-                          </button>
-                          <div className="pop-divider" />
-                        </>
-                      )}
-                      {optionen.map((o) => (
-                        <button
-                          key={o.wert}
-                          type="button"
-                          role="menuitemcheckbox"
-                          aria-checked={sel.includes(o.wert)}
-                          className="menu-item"
-                          onClick={() => toggleWert(f.key, o.wert)}
-                        >
-                          <span className={`check${sel.includes(o.wert) ? " an" : ""}`} aria-hidden>
-                            {sel.includes(o.wert) && <i className="ph-bold ph-check" />}
-                          </span>
-                          <span className="lbl">{o.label}</span>
-                        </button>
-                      ))}
-                      {optionen.length === 0 && <p className="menu-leer">keine treffer.</p>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            );
-          })}
-
-          <div data-pop className="pop-anchor">
-            <button
-              type="button"
-              className={`fchip${bereichAnzahl || bereichOffen ? " aktiv" : ""}`}
-              aria-haspopup="dialog"
-              aria-expanded={bereichOffen}
-              aria-label="Weitere Filter"
-              onClick={() => {
-                setBereichOffen((v) => !v);
-                setOffeneFacette(null);
-                setSortOffen(false);
-              }}
-            >
-              {bereichKompakt ? <i className="ph-bold ph-plus" aria-hidden /> : "Weitere Filter"}
-              {bereichAnzahl > 0 && <span className="fchip-count">{bereichAnzahl}</span>}
-            </button>
-            {bereichOffen && (
-              <div role="dialog" aria-label="Weitere Filter" className="pop pop--links pop--form" style={{ width: 400 }}>
-                <label className="pf">
-                  <span>Menge min</span>
-                  <span className="pf-feld">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={bereich.mengeMin}
-                      onChange={(e) => setze({ mengeMin: e.target.value })}
-                    />
-                    <em>{einheit}</em>
-                  </span>
-                </label>
-                <label className="pf">
-                  <span>Menge max</span>
-                  <span className="pf-feld">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      value={bereich.mengeMax}
-                      onChange={(e) => setze({ mengeMax: e.target.value })}
-                    />
-                    <em>{einheit}</em>
-                  </span>
-                </label>
-                <label className="pf">
-                  <span>{art === "biomasse" ? "Preiskorridor (Mittel)" : "Preis"}</span>
-                  <span className="pf-feld">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="min"
-                      value={bereich.preisMin}
-                      onChange={(e) => setze({ preisMin: e.target.value })}
-                    />
-                    <em>€</em>
-                  </span>
-                </label>
-                <label className="pf">
-                  <span aria-hidden>&nbsp;</span>
-                  <span className="pf-feld">
-                    <input
-                      type="number"
-                      inputMode="decimal"
-                      placeholder="max"
-                      value={bereich.preisMax}
-                      onChange={(e) => setze({ preisMax: e.target.value })}
-                    />
-                    <em>€</em>
-                  </span>
-                </label>
-                <label className="pf">
-                  <span>Verfügbar ab</span>
-                  <span className="pf-feld">
-                    <input
-                      type="month"
-                      value={bereich.vonAb}
-                      onChange={(e) => setze({ vonAb: e.target.value })}
-                    />
-                  </span>
-                </label>
-                <label className="pf">
-                  <span>Erstellt am</span>
-                  <span className="pf-feld">
-                    <input
-                      type="date"
-                      value={bereich.erstellt}
-                      onChange={(e) => setze({ erstellt: e.target.value })}
-                    />
-                  </span>
-                </label>
-              </div>
-            )}
-          </div>
-
-          {irgendeinFilter && (
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label="Filter zurücksetzen"
-              onClick={zuruecksetzen}
-            >
-              <i className="ph-bold ph-x" aria-hidden />
-            </button>
-          )}
+          <FacettenChips
+            facetten={facetten}
+            auswahl={auswahl}
+            bereichKeys={BEREICH_KEYS}
+            bereich={bereich}
+            bereichKompakt={bereichKompakt}
+            einheit={einheit}
+            preisLabel={art === "biomasse" ? "Preiskorridor (Mittel)" : "Preis"}
+            mitReset={irgendeinFilter}
+            onReset={zuruecksetzen}
+            schliessSignal={schliessSignal}
+            onPopoverOffen={() => setSortOffen(false)}
+          />
         </div>
       )}
 
@@ -370,8 +184,7 @@ export function FilterSortZeile({
             aria-label={sortKompakt ? `Sortieren: ${sortLabel}` : undefined}
             onClick={() => {
               setSortOffen((v) => !v);
-              setOffeneFacette(null);
-              setBereichOffen(false);
+              setSchliessSignal((s) => s + 1);
             }}
           >
             <i className="ph ph-arrows-down-up" aria-hidden />
