@@ -198,6 +198,14 @@ export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): Clust
   }));
 }
 
+/** Fussnote unter den Cluster-Balken: Outputs, die in der Auswahl mitlaufen. */
+export function clusterFussnote(recs: Strom[], sicht: Sicht): string | null {
+  if (sicht === "outputs") return null;
+  const { out } = feedOut(recs);
+  if (!out.length) return null;
+  return `Outputs in der Auswahl: ${nBelege(out.length)} · ${einheitenText(out)}`;
+}
+
 // Beschreibungen je Qualitaetsstufe (Mockup; die Stufe wird abgeleitet, nie gewaehlt).
 const QUALITAET_BESCHREIBUNG: Record<string, string> = {
   A: "Vertrag, Betriebsdaten · extern belegt",

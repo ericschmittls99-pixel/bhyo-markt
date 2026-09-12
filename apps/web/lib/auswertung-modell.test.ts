@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   belegtypZeilen,
+  clusterFussnote,
   clusterZeilen,
   jahresBalken,
   kpiKarten,
@@ -177,6 +178,16 @@ describe("clusterZeilen", () => {
     expect(z.map((r) => r.key)).toEqual(["wasserstoff", "add_ons"]);
     expect(z[0]).toMatchObject({ wertText: "1 Beleg", meta: "500 MWh/a" });
     expect(z[1]!.orb).toBe("/orbs/output/waerme.webp");
+  });
+});
+
+describe("clusterFussnote", () => {
+  it("nennt im feed-Modus die Outputs der Auswahl, sonst nichts", () => {
+    expect(clusterFussnote(alle, "alle")).toBe(
+      "Outputs in der Auswahl: 1 Beleg · 500 MWh/a",
+    );
+    expect(clusterFussnote([f1], "alle")).toBeNull();
+    expect(clusterFussnote(alle, "outputs")).toBeNull();
   });
 });
 
