@@ -106,7 +106,7 @@ function polygonBounds(
 export function KarteMap({
   punkte,
   regionen,
-  regionenAus,
+  umrisseAn,
   aktivId,
   zeichnenAktiv,
   onPunktKlick,
@@ -117,7 +117,8 @@ export function KarteMap({
 }: {
   punkte: KartePunkt[];
   regionen: KarteRegion[];
-  regionenAus: string[];
+  /** Master-Toggle regionsumrisse. (Legende): alle Umrisse an oder aus. */
+  umrisseAn: boolean;
   aktivId: string | null;
   zeichnenAktiv: boolean;
   onPunktKlick: (id: string) => void;
@@ -131,16 +132,23 @@ export function KarteMap({
   const mapRef = useRef<MlMap | null>(null);
   const markersRef = useRef<MlMarker[]>([]);
   const labelsRef = useRef<MlMarker[]>([]);
+  // Faecher-Marker leben getrennt von den Basis-Markern: Hover fuegt nur sie
+  // hinzu/entfernt sie — KEIN Redraw aller Orbs (das liess sie kurz blinken).
+  const faecherRef = useRef<MlMarker[]>([]);
   const [ready, setReady] = useState(false);
-  const [aufgefaechert, setAufgefaechert] = useState<string | null>(null);
   const [, setRenderTick] = useState(0);
 
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const [dragBox, setDragBox] = useState<PixelBox | null>(null);
 
   // Props in Refs spiegeln, damit die Marker-Neuzeichnung stabil bleibt.
-  const zustand = useRef({ punkte, aktivId, aufgefaechert, onPunktKlick });
-  zustand.current = { punkte, aktivId, aufgefaechert, onPunktKlick };
+  const zustand = useRef({ punkte, aktivId, onPunktKlick });
+  zustand.current = { punkte, aktivId, onPunktKlick };
+
+  const schliesseFaecher = useCallback(() => {
+    for (const m of faecherRef.current) m.remove();
+    faecherRef.current = [];
+  }, []);
 
   useEffect(() => {
     let map: MlMap | null = null;
@@ -206,16 +214,67 @@ export function KarteMap({
     steuerungRef.current?.fitAlle();
   }, [ready, punkte, steuerungRef]);
 
-  // --- Marker mit Aggregation (neu bei Punkten, Zoom/Move, Faecher, aktiv) ---
+  /**
+   * Faecher (Mockup): Mitglieder eines gemischten Stapels wachsen bei Hover
+   * ZUSAETZLICH aus dem Hauptorb heraus auf den Bogen (-90° ± 60°) — rein
+   * imperativ, damit die Basis-Orbs nicht neu gezeichnet werden (kein Blinken).
+   */
+  const oeffneFaecher = useCallback(
+    (
+      map: MlMap,
+      ml: { Marker: new (o: { element: HTMLElement }) => MlMarker },
+      g: { x: number; y: number },
+      mitglieder: KartePunkt[],
+      maxJe: Map<string, number>,
+      macheMarkerEl: (p: KartePunkt, size: number, badge?: number) => HTMLElement,
+    ) => {
+      schliesseFaecher();
+      const radius = 58;
+      mitglieder.forEach((p, idx) => {
+        const size = Math.min(
+          markerGroesse(p.menge, maxJe.get(`${p.art}|${p.einheit}`) ?? 0),
+          24,
+        );
+        const el = macheMarkerEl(p, size);
+        el.classList.add("km-faecher");
+        const winkel =
+          mitglieder.length === 1
+            ? -Math.PI / 2
+            : -Math.PI / 2 -
+              Math.PI / 3 +
+              ((Math.PI * 2) / 3) * (idx / (mitglieder.length - 1));
+        const dx = Math.cos(winkel) * radius;
+        const dy = Math.sin(winkel) * radius;
+        // Animation "aus dem Kreis heraus": Start am Gruppenzentrum.
+        el.style.setProperty("--km-dx", `${-dx}px`);
+        el.style.setProperty("--km-dy", `${-dy}px`);
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          zustand.current.onPunktKlick(p.id);
+        });
+        const pos = map.unproject([g.x + dx, g.y + dy]);
+        const marker = new ml.Marker({ element: el })
+          .setLngLat([pos.lng, pos.lat])
+          .addTo(map);
+        // Ueber Basis-Orbs und Badges legen (MapLibre-Marker sind Geschwister).
+        marker.getElement().style.zIndex = "5";
+        faecherRef.current.push(marker);
+      });
+    },
+    [schliesseFaecher],
+  );
+
+  // --- Marker mit Aggregation (neu bei Punkten, Zoom/Move, aktiv) ---
   const zeichneMarker = useCallback(async () => {
     const map = mapRef.current;
     if (!map) return;
     const ml = (await import("maplibre-gl")).default;
     if (mapRef.current !== map) return;
+    schliesseFaecher();
     for (const m of markersRef.current) m.remove();
     markersRef.current = [];
 
-    const { punkte: pkt, aktivId: aktiv, aufgefaechert: faecher } = zustand.current;
+    const { punkte: pkt, aktivId: aktiv } = zustand.current;
     const maxJe = maxMengeJe(pkt);
     const px = pkt.map((p) => {
       const q = map.project([p.lng, p.lat]);
@@ -236,7 +295,7 @@ export function KarteMap({
       const ringFarbe = aktiv === p.id && !badge ? LIME : ringFuer(p.qualitaet);
       const halo = document.createElement("span");
       const orb = document.createElement("span");
-      const haloGroesse = size + 10;
+      const haloGroesse = size + 6;
       el.style.width = `${haloGroesse}px`;
       el.style.height = `${haloGroesse}px`;
       halo.className = "km-halo";
@@ -311,7 +370,9 @@ export function KarteMap({
         );
         gruppenEl = macheMarkerEl(groesstes, Math.max(size, 22), mitglieder.length);
         gruppenEl.classList.add("km-stapel");
-        gruppenEl.addEventListener("mouseenter", () => setAufgefaechert(gruppenKey));
+        gruppenEl.addEventListener("mouseenter", () =>
+          oeffneFaecher(map, ml, g, mitglieder, maxJe, macheMarkerEl),
+        );
       }
       gruppenEl.addEventListener("click", reinzoomen);
       markersRef.current.push(
@@ -319,35 +380,8 @@ export function KarteMap({
           .setLngLat([zentrum.lng, zentrum.lat])
           .addTo(map),
       );
-
-      // Aufgefaecherte Mitglieder ZUSAETZLICH auf dem Bogen (-90° ± 60°).
-      if (faecher === gruppenKey) {
-        const radius = 52;
-        mitglieder.forEach((p, idx) => {
-          const size = markerGroesse(p.menge, maxJe.get(`${p.art}|${p.einheit}`) ?? 0);
-          const el = macheMarkerEl(p, Math.min(size, 24));
-          el.classList.add("km-faecher");
-          el.addEventListener("click", (e) => {
-            e.stopPropagation();
-            zustand.current.onPunktKlick(p.id);
-          });
-          const winkel =
-            mitglieder.length === 1
-              ? -Math.PI / 2
-              : -Math.PI / 2 -
-                Math.PI / 3 +
-                ((Math.PI * 2) / 3) * (idx / (mitglieder.length - 1));
-          const pos = map.unproject([
-            g.x + Math.cos(winkel) * radius,
-            g.y + Math.sin(winkel) * radius,
-          ]);
-          markersRef.current.push(
-            new ml.Marker({ element: el }).setLngLat([pos.lng, pos.lat]).addTo(map),
-          );
-        });
-      }
     }
-  }, []);
+  }, [schliesseFaecher, oeffneFaecher]);
 
   useEffect(() => {
     if (!ready) return;
@@ -358,16 +392,15 @@ export function KarteMap({
   useEffect(() => {
     const node = containerRef.current;
     if (!node) return;
-    const zu = () => setAufgefaechert(null);
-    node.addEventListener("mouseleave", zu);
-    return () => node.removeEventListener("mouseleave", zu);
-  }, []);
+    node.addEventListener("mouseleave", schliesseFaecher);
+    return () => node.removeEventListener("mouseleave", schliesseFaecher);
+  }, [schliesseFaecher]);
 
   // --- Regions-Layer (Lime-Umrisse, schwache Fuellung, Glas-Labels) ---------
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !ready) return;
-    const sichtbar = regionen.filter((r) => !regionenAus.includes(r.id));
+    const sichtbar = umrisseAn ? regionen : [];
     const data = {
       type: "FeatureCollection" as const,
       features: sichtbar
@@ -422,7 +455,7 @@ export function KarteMap({
         );
       }
     });
-  }, [regionen, regionenAus, ready, onRegionKlick]);
+  }, [regionen, umrisseAn, ready, onRegionKlick]);
 
   // --- Zeichnen (Rechteck) ---------------------------------------------------
   function rel(e: React.MouseEvent) {

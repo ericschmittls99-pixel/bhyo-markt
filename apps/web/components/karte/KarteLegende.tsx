@@ -26,9 +26,8 @@ const DEFAULT_HOEHE = 320;
 export function KarteLegende({
   punkte,
   gesamt,
-  regionen,
-  regionenAus,
-  onRegionToggle,
+  umrisseAn,
+  onUmrisseToggle,
   onClusterKlick,
   onGruppeKlick,
   auswahlCluster,
@@ -37,9 +36,9 @@ export function KarteLegende({
 }: {
   punkte: KartePunkt[];
   gesamt: number;
-  regionen: { id: string; name: string }[];
-  regionenAus: string[];
-  onRegionToggle: (id: string) => void;
+  /** Master-Toggle regionsumrisse. (Review Eric: ohne Einzelauswahl). */
+  umrisseAn: boolean;
+  onUmrisseToggle: () => void;
   onClusterKlick: (key: string) => void;
   onGruppeKlick: (key: string) => void;
   auswahlCluster: string[];
@@ -50,6 +49,7 @@ export function KarteLegende({
   const [hoehe, setHoehe] = useState(
     Math.min(MAX_HOEHE, Math.max(MIN_HOEHE, initial.hoehe ?? DEFAULT_HOEHE)),
   );
+  const [zieht, setZieht] = useState(false);
   const dragRef = useRef<{ startY: number; startHoehe: number } | null>(null);
 
   function speichere(patch: { offen?: boolean; hoehe?: number }) {
@@ -58,7 +58,7 @@ export function KarteLegende({
       legende: {
         offen: patch.offen ?? offen,
         hoehe: patch.hoehe ?? hoehe,
-        regionenAus: aktuell?.regionenAus ?? regionenAus,
+        umrisse: aktuell?.umrisse ?? umrisseAn,
       },
     });
   }
@@ -77,6 +77,7 @@ export function KarteLegende({
 
   function onGriffPointerDown(e: React.PointerEvent) {
     dragRef.current = { startY: e.clientY, startHoehe: offen ? hoehe : MIN_HOEHE };
+    setZieht(true);
     (e.target as HTMLElement).setPointerCapture(e.pointerId);
   }
   function onGriffPointerMove(e: React.PointerEvent) {
@@ -89,6 +90,7 @@ export function KarteLegende({
   function onGriffPointerUp(e: React.PointerEvent) {
     if (!dragRef.current) return;
     dragRef.current = null;
+    setZieht(false);
     (e.target as HTMLElement).releasePointerCapture(e.pointerId);
     const zu = hoehe <= MIN_HOEHE;
     if (zu) setOffen(false);
@@ -109,9 +111,9 @@ export function KarteLegende({
 
   return (
     <section
-      className={`km-legende${offen ? "" : " zu"}`}
+      className={`km-legende${offen ? "" : " zu"}${zieht ? " ziehen" : ""}`}
       aria-label="Legende"
-      style={offen ? { maxHeight: hoehe } : undefined}
+      style={{ maxHeight: offen ? hoehe : 48 }}
     >
       <div
         className="km-legende-griff"
@@ -221,30 +223,23 @@ export function KarteLegende({
             </p>
           </div>
 
-          {regionen.length > 0 && (
-            <div className="km-leg-grp">
-              <h3>regionen.</h3>
-              {regionen.map((r) => {
-                const sichtbar = !regionenAus.includes(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    type="button"
-                    className={`km-leg-zeile${sichtbar ? "" : " aus"}`}
-                    aria-pressed={sichtbar}
-                    title={sichtbar ? "Umriss ausblenden" : "Umriss einblenden"}
-                    onClick={() => onRegionToggle(r.id)}
-                  >
-                    <i
-                      className={`ph ${sichtbar ? "ph-eye" : "ph-eye-slash"}`}
-                      aria-hidden
-                    />
-                    <span className="lbl">{r.name}</span>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="km-leg-grp">
+            <h3>regionsumrisse.</h3>
+            <button
+              type="button"
+              className="km-leg-zeile"
+              aria-pressed={umrisseAn}
+              onClick={onUmrisseToggle}
+            >
+              <span className="lbl">Umrisse anzeigen</span>
+              <span
+                className="toggle toggle--sm"
+                role="presentation"
+                aria-checked={umrisseAn}
+                style={{ pointerEvents: "none" }}
+              />
+            </button>
+          </div>
         </div>
       )}
     </section>

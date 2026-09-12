@@ -3036,10 +3036,21 @@ table.st-tabelle tbody tr:focus-visible {
   cursor: pointer;
 }
 .km-marker.km-stapel {
-  cursor: zoom-in;
+  cursor: pointer;
 }
 .km-marker.km-faecher {
-  animation: shell-pop var(--duration-base) var(--ease-spring);
+  /* waechst aus dem Hauptorb heraus (Startversatz via --km-dx/--km-dy) */
+  animation: km-faecher-auf var(--duration-slow) var(--ease-spring);
+}
+@keyframes km-faecher-auf {
+  from {
+    transform: translate(var(--km-dx, 0), var(--km-dy, 0)) scale(0.3);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
 }
 .km-badge {
   position: absolute;
@@ -3173,6 +3184,11 @@ table.st-tabelle tbody tr:focus-visible {
   -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-menu);
   overflow: hidden;
+  /* faehrt bei Doppelklick/Toggle animiert hoch/runter; beim Ziehen aus */
+  transition: max-height var(--duration-slow) var(--ease-standard);
+}
+.km-legende.ziehen {
+  transition: none;
 }
 .km-legende-griff {
   display: flex;
@@ -3297,7 +3313,7 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-tertiary);
 }
 .km-legende.zu .km-legende-body {
-  display: none;
+  visibility: hidden;
 }
 
 /* karte.: Marker-Panel + Zeichnen-Dialog */

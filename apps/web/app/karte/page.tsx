@@ -129,7 +129,7 @@ export default async function KartePage({
       detailPunkt={detailPunkt}
       filterOffenInitial={!!ui.filterOffen?.karte}
       legendeInitial={ui.legende ?? { offen: true }}
-      regionenAusInitial={ui.legende?.regionenAus ?? []}
+      umrisseInitial={ui.legende?.umrisse ?? true}
       irgendeinFilter={irgendeinFilter}
     />
   );

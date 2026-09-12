@@ -63,9 +63,9 @@ export function maxMengeJe(punkte: KartePunkt[]): Map<string, number> {
 }
 
 /**
- * Qualitaets-Ring der Marker (Mockup, Delta 1.4): A solid 2,5 / B solid 2 /
- * C dashed / D dotted; ohne Bewertung dezenter 1-px-Rand. Farbe kommt aus
- * QUALITAET_RING (Navy-Rampe, keine Ampel).
+ * Qualitaets-Ring der Marker (Mockup, Delta 1.4; Breiten nach Erics Review
+ * eine Stufe duenner): A solid 2 / B solid 1,5 / C dashed / D dotted; ohne
+ * Bewertung dezenter 1-px-Rand. Farbe aus QUALITAET_RING (Navy, keine Ampel).
  */
 export function qualitaetsRing(q: string | null): {
   breite: number;
@@ -73,13 +73,13 @@ export function qualitaetsRing(q: string | null): {
 } {
   switch (q) {
     case "A":
-      return { breite: 2.5, stil: "solid" };
-    case "B":
       return { breite: 2, stil: "solid" };
+    case "B":
+      return { breite: 1.5, stil: "solid" };
     case "C":
-      return { breite: 1.5, stil: "dashed" };
+      return { breite: 1, stil: "dashed" };
     case "D":
-      return { breite: 1.5, stil: "dotted" };
+      return { breite: 1, stil: "dotted" };
     default:
       return { breite: 1, stil: "solid" };
   }

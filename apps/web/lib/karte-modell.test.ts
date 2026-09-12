@@ -200,12 +200,12 @@ describe("geojsonOderNull", () => {
   });
 });
 
-describe("qualitaetsRing (Mockup-Randlogik)", () => {
-  it("A solid 2,5 / B solid 2 / C dashed / D dotted", () => {
-    expect(qualitaetsRing("A")).toEqual({ breite: 2.5, stil: "solid" });
-    expect(qualitaetsRing("B")).toEqual({ breite: 2, stil: "solid" });
-    expect(qualitaetsRing("C")).toEqual({ breite: 1.5, stil: "dashed" });
-    expect(qualitaetsRing("D")).toEqual({ breite: 1.5, stil: "dotted" });
+describe("qualitaetsRing (Mockup-Randlogik, Review: duenner)", () => {
+  it("A solid 2 / B solid 1,5 / C dashed / D dotted", () => {
+    expect(qualitaetsRing("A")).toEqual({ breite: 2, stil: "solid" });
+    expect(qualitaetsRing("B")).toEqual({ breite: 1.5, stil: "solid" });
+    expect(qualitaetsRing("C")).toEqual({ breite: 1, stil: "dashed" });
+    expect(qualitaetsRing("D")).toEqual({ breite: 1, stil: "dotted" });
   });
   it("ohne Bewertung dezenter 1-px-Rand", () => {
     expect(qualitaetsRing(null)).toEqual({ breite: 1, stil: "solid" });

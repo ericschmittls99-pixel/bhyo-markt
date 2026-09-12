@@ -46,7 +46,7 @@ export function KarteAnsicht({
   detailPunkt,
   filterOffenInitial,
   legendeInitial,
-  regionenAusInitial,
+  umrisseInitial,
   irgendeinFilter,
 }: {
   punkte: KartePunkt[];
@@ -59,7 +59,7 @@ export function KarteAnsicht({
   detailPunkt: KartePunkt | null;
   filterOffenInitial: boolean;
   legendeInitial: { offen: boolean; hoehe?: number };
-  regionenAusInitial: string[];
+  umrisseInitial: boolean;
   irgendeinFilter: boolean;
 }) {
   const router = useRouter();
@@ -70,7 +70,7 @@ export function KarteAnsicht({
   const [auswahlRect, setAuswahlRect] = useState<{ bbox: Bbox; box: PixelBox } | null>(
     null,
   );
-  const [regionenAus, setRegionenAus] = useState<string[]>(regionenAusInitial);
+  const [umrisseAn, setUmrisseAn] = useState(umrisseInitial);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => { if (toastTimer.current) clearTimeout(toastTimer.current); }, []);
@@ -92,11 +92,11 @@ export function KarteAnsicht({
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }
 
-  function regionToggle(id: string) {
-    setRegionenAus((alt) => {
-      const neu = alt.includes(id) ? alt.filter((x) => x !== id) : [...alt, id];
+  function umrisseToggle() {
+    setUmrisseAn((alt) => {
+      const neu = !alt;
       const legende = updateUiCookie({}).legende ?? { offen: true };
-      updateUiCookie({ legende: { ...legende, regionenAus: neu } });
+      updateUiCookie({ legende: { ...legende, umrisse: neu } });
       return neu;
     });
   }
@@ -140,7 +140,7 @@ export function KarteAnsicht({
       <KarteMap
         punkte={punkte}
         regionen={regionen}
-        regionenAus={regionenAus}
+        umrisseAn={umrisseAn}
         aktivId={detailPunkt?.id ?? null}
         zeichnenAktiv={zeichnenAktiv}
         onPunktKlick={(id) => setze({ detail: id }, "push")}
@@ -176,9 +176,8 @@ export function KarteAnsicht({
       <KarteLegende
         punkte={punkte}
         gesamt={gesamt}
-        regionen={regionen}
-        regionenAus={regionenAus}
-        onRegionToggle={regionToggle}
+        umrisseAn={umrisseAn}
+        onUmrisseToggle={umrisseToggle}
         onClusterKlick={(k) => facetteToggle("cluster", k)}
         onGruppeKlick={(k) => facetteToggle("gruppe", k)}
         auswahlCluster={auswahl.cluster ?? []}
