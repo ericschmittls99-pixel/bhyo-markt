@@ -11,13 +11,11 @@ import {
 import { and, desc, eq, sql } from "drizzle-orm";
 
 import { withDb } from "@/lib/db";
+import { type Strom, type StromArt } from "@/lib/stroeme-modell";
 import {
-  GRUPPE_LABEL,
-  type Strom,
-  type StromArt,
-  type StromBeleg,
-} from "@/lib/stroeme-modell";
-import { vollstaendigkeit } from "@/lib/vollstaendigkeit";
+  biomasseZeileZuStrom,
+  outputZeileZuStrom,
+} from "@/lib/stroeme-zeilen";
 
 /**
  * Datenzugriff fuer stroeme. (AP1i PR 3). Die Seite laedt den kompletten Pool
@@ -25,56 +23,14 @@ import { vollstaendigkeit } from "@/lib/vollstaendigkeit";
  * reinen Funktionen aus lib/stroeme-modell.ts — exakt die Logik des
  * V2-Mockups. Bei >500 Zeilen greift das Limit; bekannte Einschraenkung, die
  * schon fuer die bisherige Registerliste galt.
+ *
+ * Die sql<unknown>-Ausdruecke unten sind bewusst NICHT enger typisiert: der
+ * Treiber im Worker liefert sie als Zeichenkette, die Konvertierung passiert
+ * zentral in lib/stroeme-zeilen.ts. json_agg statt array_agg, damit der Wert
+ * notfalls eindeutig als JSON-Text parsebar ist.
  */
 
 // --- Laden -----------------------------------------------------------------
-
-const str = (v: unknown) => (typeof v === "string" && v.trim() ? v : null);
-
-// Kalendertag in Europe/Berlin (sv-SE formatiert als JJJJ-MM-TT). Der
-// "Erstellt am"-Filter und die Anzeige rechnen sonst mit dem UTC-Tag, waehrend
-// die Historie Berliner Zeit zeigt.
-const tagBerlin = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Berlin" });
-
-function parseSaison(j: unknown): number[] | null {
-  if (Array.isArray(j) && j.length === 12) return j.map((x) => Number(x) || 0);
-  return null;
-}
-
-function num(v: string | null): number | null {
-  if (v == null) return null;
-  const n = Number(v);
-  return Number.isNaN(n) ? null : n;
-}
-
-type BelegRow = {
-  belegTyp: string | null;
-  belegDateiKey: string | null;
-  belegLinkUrl: string | null;
-  belegExtern: boolean | null;
-  belegGueltigBis: string | null;
-  belegErstelltAm: Date | null;
-  belegMetadata: unknown;
-};
-
-function belegAus(r: BelegRow): StromBeleg | null {
-  if (!r.belegTyp) return null;
-  const m = (r.belegMetadata ?? {}) as Record<string, unknown>;
-  return {
-    typ: r.belegTyp,
-    quellenangabe: str(m.quellenangabe),
-    href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
-    externNachvollziehbar: r.belegExtern ?? false,
-    gueltigBis: r.belegGueltigBis,
-    erhebungsdatum: r.belegErstelltAm
-      ? r.belegErstelltAm.toISOString().slice(0, 10)
-      : null,
-    amtlich: typeof m.amtlich === "boolean" ? m.amtlich : null,
-    gespraechsdatum: str(m.gespraechsdatum),
-    gespraechspartner: str(m.gespraechspartner),
-    kernnotiz: str(m.kernnotiz),
-  };
-}
 
 const belegSelect = {
   belegTyp: beleg.typ,
@@ -104,10 +60,10 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           kontaktperson: biomassestrom.kontaktperson,
           ort: biomassestrom.ort,
           landkreis: biomassestrom.landkreis,
-          regionIds: sql<string[]>`coalesce((select array_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '{}')`,
-          regionNamen: sql<string[]>`coalesce((select array_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '{}')`,
-          lng: sql<number | null>`case when ${geom} is null then null else ST_X(${geom}) end`,
-          lat: sql<number | null>`case when ${geom} is null then null else ST_Y(${geom}) end`,
+          regionIds: sql<unknown>`coalesce((select json_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
+          regionNamen: sql<unknown>`coalesce((select json_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
+          lng: sql<unknown>`case when ${geom} is null then null else ST_X(${geom}) end`,
+          lat: sql<unknown>`case when ${geom} is null then null else ST_Y(${geom}) end`,
           cluster: materialart.cluster,
           materialartCode: biomassestrom.materialartCode,
           materialartLabel: materialart.label,
@@ -135,77 +91,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         .orderBy(desc(biomassestrom.createdAt))
         .limit(500);
 
-      return rows.map((r) => {
-        const b = belegAus(r);
-        const basis = {
-          id: r.id,
-          art: "biomasse" as const,
-          akteurName: r.akteurName,
-          sektor: r.sektor,
-          bezeichnung: r.bezeichnung,
-          kontaktperson: r.kontaktperson,
-          ort: r.ort,
-          landkreis: r.landkreis,
-          regionIds: r.regionIds,
-          regionNamen: r.regionNamen,
-          lng: r.lng,
-          lat: r.lat,
-          cluster: r.cluster,
-          materialartCode: r.materialartCode,
-          materialartLabel: r.materialartLabel,
-          mengeFm: num(r.mengeFm),
-          tsAnteil: num(r.tsAnteil),
-          aschegehalt: num(r.aschegehalt),
-          mengeAtro: num(r.mengeAtro),
-          preisMin: num(r.preisMin),
-          preisMittel: num(r.preisMittel),
-          preisMax: num(r.preisMax),
-          preisHerkunft: r.preisHerkunft,
-          gruppe: null,
-          gruppeLabel: null,
-          produktCode: null,
-          produktLabel: null,
-          kategorie: null,
-          mengeWert: null,
-          mengeEinheit: null,
-          preis: null,
-          preisEinheit: null,
-          zeitraumVon: r.zeitraumVon,
-          zeitraumBis: r.zeitraumBis,
-          saisonalitaet: parseSaison(r.saisonalitaet),
-          qualitaet: r.qualitaet,
-          status: r.status,
-          erstelltAm: tagBerlin.format(r.createdAt),
-          beleg: b,
-        };
-        return {
-          ...basis,
-          vollstaendigkeit: vollstaendigkeit({
-            art: "biomasse",
-            bezeichnung: basis.bezeichnung,
-            kontaktperson: basis.kontaktperson,
-            ort: basis.ort,
-            landkreis: basis.landkreis,
-            zeitraumVon: basis.zeitraumVon,
-            zeitraumBis: basis.zeitraumBis,
-            menge: basis.mengeFm,
-            tsAnteil: basis.tsAnteil,
-            aschegehalt: basis.aschegehalt,
-            mengeEinheit: null,
-            preis: basis.preisMittel,
-            preisEinheit: null,
-            saisonalitaet: basis.saisonalitaet,
-            beleg: b && {
-              typ: b.typ,
-              quellenangabe: b.quellenangabe,
-              erhebungsdatum: b.erhebungsdatum,
-              externNachvollziehbar: b.externNachvollziehbar,
-              kernnotiz: b.kernnotiz,
-            },
-            status: basis.status,
-          }),
-        };
-      });
+      return rows.map(biomasseZeileZuStrom);
     }
 
     const geom = outputBedarf.standortGeom;
@@ -218,10 +104,10 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         kontaktperson: outputBedarf.kontaktperson,
         ort: outputBedarf.ort,
         landkreis: outputBedarf.landkreis,
-        regionIds: sql<string[]>`coalesce((select array_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '{}')`,
-        regionNamen: sql<string[]>`coalesce((select array_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '{}')`,
-        lng: sql<number | null>`case when ${geom} is null then null else ST_X(${geom}) end`,
-        lat: sql<number | null>`case when ${geom} is null then null else ST_Y(${geom}) end`,
+        regionIds: sql<unknown>`coalesce((select json_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
+        regionNamen: sql<unknown>`coalesce((select json_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
+        lng: sql<unknown>`case when ${geom} is null then null else ST_X(${geom}) end`,
+        lat: sql<unknown>`case when ${geom} is null then null else ST_Y(${geom}) end`,
         gruppe: outputProdukt.gruppe,
         produktCode: outputBedarf.produktCode,
         produktLabel: outputProdukt.label,
@@ -246,77 +132,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
       .orderBy(desc(outputBedarf.createdAt))
       .limit(500);
 
-    return rows.map((r) => {
-      const b = belegAus(r);
-      const basis = {
-        id: r.id,
-        art: "output" as const,
-        akteurName: r.akteurName,
-        sektor: r.sektor,
-        bezeichnung: r.bezeichnung,
-        kontaktperson: r.kontaktperson,
-        ort: r.ort,
-        landkreis: r.landkreis,
-        regionIds: r.regionIds,
-        regionNamen: r.regionNamen,
-        lng: r.lng,
-        lat: r.lat,
-        cluster: null,
-        materialartCode: null,
-        materialartLabel: null,
-        mengeFm: null,
-        tsAnteil: null,
-        aschegehalt: null,
-        mengeAtro: null,
-        preisMin: null,
-        preisMittel: null,
-        preisMax: null,
-        preisHerkunft: null,
-        gruppe: r.gruppe,
-        gruppeLabel: r.gruppe ? (GRUPPE_LABEL[r.gruppe] ?? r.gruppe) : null,
-        produktCode: r.produktCode,
-        produktLabel: r.produktLabel,
-        kategorie: r.kategorie,
-        mengeWert: num(r.mengeWert),
-        mengeEinheit: r.mengeEinheit,
-        preis: num(r.preis),
-        preisEinheit: r.preisEinheit,
-        zeitraumVon: r.zeitraumVon,
-        zeitraumBis: r.zeitraumBis,
-        saisonalitaet: parseSaison(r.saisonalitaet),
-        qualitaet: r.qualitaet,
-        status: r.status,
-        erstelltAm: tagBerlin.format(r.createdAt),
-        beleg: b,
-      };
-      return {
-        ...basis,
-        vollstaendigkeit: vollstaendigkeit({
-          art: "output",
-          bezeichnung: basis.bezeichnung,
-          kontaktperson: basis.kontaktperson,
-          ort: basis.ort,
-          landkreis: basis.landkreis,
-          zeitraumVon: basis.zeitraumVon,
-          zeitraumBis: basis.zeitraumBis,
-          menge: basis.mengeWert,
-          tsAnteil: null,
-          aschegehalt: null,
-          mengeEinheit: basis.mengeEinheit,
-          preis: basis.preis,
-          preisEinheit: basis.preisEinheit,
-          saisonalitaet: basis.saisonalitaet,
-          beleg: b && {
-            typ: b.typ,
-            quellenangabe: b.quellenangabe,
-            erhebungsdatum: b.erhebungsdatum,
-            externNachvollziehbar: b.externNachvollziehbar,
-            kernnotiz: b.kernnotiz,
-          },
-          status: basis.status,
-        }),
-      };
-    });
+    return rows.map(outputZeileZuStrom);
   });
 }
 
