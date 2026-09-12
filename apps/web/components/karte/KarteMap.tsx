@@ -55,7 +55,7 @@ const LIME = "#7DB535";
 
 export interface KarteSteuerung {
   flyTo(lng: number, lat: number, zoom?: number): void;
-  fitAlle(): void;
+  fitAlle(sofort?: boolean): void;
   fitRegion(regionId: string): void;
   zoomIn(): void;
   zoomOut(): void;
@@ -184,12 +184,20 @@ export function KarteMap({
       steuerungRef.current = {
         flyTo: (lng, lat, zoom = 12) =>
           mapRef.current?.flyTo({ center: [lng, lat], zoom }),
-        fitAlle: () => {
+        fitAlle: (sofort?: boolean) => {
           const m = mapRef.current;
           if (!m) return;
           const b = new ml.LngLatBounds();
           for (const p of zustand.current.punkte) b.extend([p.lng, p.lat]);
-          if (!b.isEmpty()) m.fitBounds(b, { padding: 80, maxZoom: 12 });
+          if (!b.isEmpty())
+            m.fitBounds(b, {
+              padding: 80,
+              maxZoom: 12,
+              // duration 0 fuer den Initial-Fit: die animierte Kamera haengt
+              // sonst auf halbem Weg fest, wenn der Browser RAF drosselt
+              // (verdecktes Fenster) — wie schon in der V1-Karte.
+              ...(sofort ? { duration: 0 } : {}),
+            });
         },
         fitRegion: (regionId) => {
           const m = mapRef.current;
@@ -219,7 +227,7 @@ export function KarteMap({
   useEffect(() => {
     if (!ready || initialGefittet.current || punkte.length === 0) return;
     initialGefittet.current = true;
-    steuerungRef.current?.fitAlle();
+    steuerungRef.current?.fitAlle(true);
   }, [ready, punkte, steuerungRef]);
 
   // --- Marker: 1:1 nach Mockup-addGroupMarker (single / agg / stack) ------
