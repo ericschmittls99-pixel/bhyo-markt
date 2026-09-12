@@ -13,11 +13,13 @@ import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
 const BEREICH_KEYS = ["vonAb", "erstellt"] as const;
 
 /**
- * Toolbar von auswertung. (AP1i PR 7): sicht-Umschalter + Facetten-Chips
- * (immer sichtbar, wie im Mockup — anders als karte./stroeme. gibt es keinen
- * Filter-Toggle) + Reset-X + CSV-Export als Sekundaer-Button (E9). Die Filter
- * leben im geteilten Querystring (GETEILTE_FILTER_PARAMS); der CSV-Link
- * reicht genau diese Parameter an die Export-Route weiter.
+ * Toolbar von auswertung. (AP1i PR 7): sicht-Umschalter Feedstock ODER
+ * Outputs (kein Alle-Tab — Spec-Aenderung Eric, die Kacheln sind artrein)
+ * + Facetten-Chips (immer sichtbar, wie im Mockup — anders als karte./
+ * stroeme. gibt es keinen Filter-Toggle) + Reset-X + CSV-Export als
+ * Sekundaer-Button (E9). Die Filter leben im geteilten Querystring
+ * (GETEILTE_FILTER_PARAMS); der CSV-Link reicht genau diese Parameter
+ * plus die explizite sicht an die Export-Route weiter.
  */
 export function AuswertungToolbar({
   facetten,
@@ -48,14 +50,16 @@ export function AuswertungToolbar({
     const v = searchParams.get(k);
     if (v) exportParams.set(k, v);
   }
-  const exportHref = `/api/auswertung/export${exportParams.size ? `?${exportParams}` : ""}`;
+  // sicht immer explizit mitgeben: ohne den Parameter exportiert die Route
+  // beide Arten, das Dashboard zeigt aber immer genau eine.
+  exportParams.set("sicht", sicht);
+  const exportHref = `/api/auswertung/export?${exportParams}`;
 
   return (
     <div className="aw-toolbar">
       <div className="seg" role="group" aria-label="Feedstock oder Outputs">
         {(
           [
-            ["alle", "Alle"],
             ["feedstock", "Feedstock"],
             ["outputs", "Outputs"],
           ] as const
@@ -65,7 +69,7 @@ export function AuswertungToolbar({
             type="button"
             className="seg-opt"
             aria-pressed={sicht === wert}
-            onClick={() => setze({ sicht: wert === "alle" ? null : wert })}
+            onClick={() => setze({ sicht: wert })}
           >
             {label}
           </button>

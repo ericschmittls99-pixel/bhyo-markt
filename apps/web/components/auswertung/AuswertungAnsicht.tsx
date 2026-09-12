@@ -32,7 +32,6 @@ import type { Strom } from "@/lib/stroeme-modell";
 export function AuswertungAnsicht({
   kpis,
   cluster,
-  clusterFuss,
   qualitaet,
   status,
   saison,
@@ -52,7 +51,6 @@ export function AuswertungAnsicht({
 }: {
   kpis: KpiKarte[];
   cluster: ClusterZeile[];
-  clusterFuss: string | null;
   qualitaet: QualitaetsDaten;
   status: StatusZeile[];
   saison: SaisonDaten;
@@ -71,7 +69,7 @@ export function AuswertungAnsicht({
   verifizierung: string | null;
 }) {
   const { setze } = useUrlZustand();
-  const feedMode = sicht !== "outputs";
+  const feedMode = sicht === "feedstock";
   const leer = kpis[0]?.wert === "0";
   // Cluster-Zeilen togglen die Facette ihrer Art (wie die karte.-Legende):
   // Feedstock-Cluster -> cluster (filtert Biomasse), Output-Gruppen -> gruppe.
@@ -185,7 +183,6 @@ export function AuswertungAnsicht({
                   </button>
                 ))}
               </div>
-              {clusterFuss && <p className="aw-caption aw-fuss">{clusterFuss}</p>}
             </section>
 
             <section className="aw-modul aw-modul--h2">

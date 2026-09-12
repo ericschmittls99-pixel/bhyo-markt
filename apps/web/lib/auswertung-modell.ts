@@ -11,7 +11,7 @@ import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
 import { naechsteVerifizierung } from "./verifizierung";
 
-export type Sicht = "alle" | "feedstock" | "outputs";
+export type Sicht = "feedstock" | "outputs";
 
 export interface KpiKarte {
   wert: string;
@@ -141,12 +141,25 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
     : 0;
   const niedrig = recs.filter((s) => s.vollstaendigkeit < 50).length;
 
+  // Caption: vertretene Cluster bzw. Output-Gruppen (seit dem Wegfall des
+  // Alle-Tabs ist die Auswahl immer artrein — Feedstock/Outputs zu zaehlen
+  // waere redundant zum Wert).
+  const gruppenAnzahl = new Set(
+    (sicht === "outputs" ? out : feed)
+      .map((s) => (s.art === "biomasse" ? s.cluster : s.gruppe))
+      .filter(Boolean),
+  ).size;
+  const gruppenCaption =
+    sicht === "outputs"
+      ? `${gruppenAnzahl} ${gruppenAnzahl === 1 ? "Output-Gruppe" : "Output-Gruppen"}`
+      : `${gruppenAnzahl} Cluster`;
+
   return [
     {
       wert: fmtZahl(recs.length),
       einheit: recs.length === 1 ? "Beleg" : "Belege",
       label: "in der auswahl.",
-      caption: `${feed.length} Feedstock · ${out.length} Outputs`,
+      caption: gruppenCaption,
     },
     mengeKpi,
     {
@@ -196,14 +209,6 @@ export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): Clust
       ? `${nBelege(rs.length)} · ${pct(v, atroSum)} %`
       : einheitenText(rs),
   }));
-}
-
-/** Fussnote unter den Cluster-Balken: Outputs, die in der Auswahl mitlaufen. */
-export function clusterFussnote(recs: Strom[], sicht: Sicht): string | null {
-  if (sicht === "outputs") return null;
-  const { out } = feedOut(recs);
-  if (!out.length) return null;
-  return `Outputs in der Auswahl: ${nBelege(out.length)} · ${einheitenText(out)}`;
 }
 
 // Beschreibungen je Qualitaetsstufe (Mockup; die Stufe wird abgeleitet, nie gewaehlt).

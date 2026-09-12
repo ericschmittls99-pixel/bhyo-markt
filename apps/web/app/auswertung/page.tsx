@@ -2,7 +2,6 @@ import { AuswertungAnsicht } from "@/components/auswertung/AuswertungAnsicht";
 import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
 import {
   belegtypZeilen,
-  clusterFussnote,
   clusterZeilen,
   jahresBalken,
   kpiKarten,
@@ -49,57 +48,44 @@ export default async function AuswertungPage({
 }) {
   const sp = await searchParams;
   const filter = filterAusSearchParams(sp);
+  // Kein Alle-Tab (Spec-Aenderung Eric): die Kacheln sind artrein, ohne
+  // Parameter (z. B. von karte. kommend) gilt Feedstock.
   const sichtRoh = ersterWert(sp.sicht);
-  const sicht =
-    sichtRoh === "feedstock" ? ("feedstock" as const)
-    : sichtRoh === "outputs" ? ("outputs" as const)
-    : ("alle" as const);
+  const sicht = sichtRoh === "outputs" ? ("outputs" as const) : ("feedstock" as const);
+  const art = sicht === "outputs" ? ("output" as const) : ("biomasse" as const);
 
-  const [bio, out, regionen] = await Promise.all([
-    sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
-    sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
+  const [pool, regionen] = await Promise.all([
+    ladeStroeme(art),
     ladeRegionOptionen(),
   ]);
-
-  const bioGefiltert = filterStroeme(bio, filter);
-  const outGefiltert = filterStroeme(out, filter);
-  const pool = [...bio, ...out];
-  const recs = [...bioGefiltert, ...outGefiltert];
+  const recs = filterStroeme(pool, filter);
 
   const jetzt = new Date();
   const heuteIso = jetzt.toISOString().slice(0, 10);
   const aktuellesJahr = Number(heuteIso.slice(0, 4));
 
-  // Facetten identisch zu karte. (geteiltes Filterschema, Delta 1.4).
-  const bioOpt = facettenOptionen("biomasse", bioGefiltert, regionen, CLUSTER_LABEL);
-  const outOpt = facettenOptionen("output", outGefiltert, regionen, CLUSTER_LABEL);
-  const basisOpt = sicht === "outputs" ? outOpt : bioOpt;
+  // Facetten identisch zu karte. (geteiltes Filterschema, Delta 1.4),
+  // je sicht: Feedstock -> Cluster/Materialart, Outputs -> Gruppe/Output.
+  const opt = facettenOptionen(art, recs, regionen, CLUSTER_LABEL);
   const gruppeOptionen = Object.entries(OUTPUT_LABEL).map(([wert, label]) => ({
     wert,
     label,
   }));
 
   const facetten: FacettenChipDef[] = [
-    { key: "region", label: "Region", optionen: basisOpt.region ?? [] },
-    ...(sicht !== "outputs"
+    { key: "region", label: "Region", optionen: opt.region ?? [] },
+    ...(sicht === "feedstock"
       ? [
-          { key: "cluster", label: "Cluster", optionen: bioOpt.cluster ?? [] },
-          ...(sicht === "feedstock"
-            ? [{ key: "materialart", label: "Materialart", optionen: bioOpt.materialart ?? [] }]
-            : []),
+          { key: "cluster", label: "Cluster", optionen: opt.cluster ?? [] },
+          { key: "materialart", label: "Materialart", optionen: opt.materialart ?? [] },
         ]
-      : []),
-    ...(sicht !== "feedstock"
-      ? [
+      : [
           { key: "gruppe", label: "Gruppe", optionen: gruppeOptionen },
-          ...(sicht === "outputs"
-            ? [{ key: "produkt", label: "Output", optionen: outOpt.produkt ?? [] }]
-            : []),
-        ]
-      : []),
-    { key: "qualitaet", label: "Qualität", optionen: basisOpt.qualitaet ?? [] },
-    { key: "status", label: "Status", optionen: basisOpt.status ?? [] },
-    { key: "belegtyp", label: "Belegtyp", optionen: basisOpt.belegtyp ?? [] },
+          { key: "produkt", label: "Output", optionen: opt.produkt ?? [] },
+        ]),
+    { key: "qualitaet", label: "Qualität", optionen: opt.qualitaet ?? [] },
+    { key: "status", label: "Status", optionen: opt.status ?? [] },
+    { key: "belegtyp", label: "Belegtyp", optionen: opt.belegtyp ?? [] },
   ];
 
   const auswahl = Object.fromEntries(
@@ -138,7 +124,6 @@ export default async function AuswertungPage({
     <AuswertungAnsicht
       kpis={kpiKarten(recs, sicht)}
       cluster={clusterZeilen(pool, recs, sicht)}
-      clusterFuss={clusterFussnote(recs, sicht)}
       qualitaet={qualitaetsDaten(recs)}
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}

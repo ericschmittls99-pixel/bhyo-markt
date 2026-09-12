@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import {
   belegtypZeilen,
-  clusterFussnote,
   clusterZeilen,
   jahresBalken,
   kpiKarten,
@@ -124,34 +123,34 @@ const o1 = strom({
 const alle = [f1, f2, o1];
 
 describe("kpiKarten", () => {
-  it("zaehlt Auswahl, Trockenmasse, Pruefquote und Erfassungsgrad (sicht=alle)", () => {
-    const k = kpiKarten(alle, "alle");
+  it("zaehlt Auswahl, Trockenmasse, Pruefquote und Erfassungsgrad (sicht=feedstock)", () => {
+    const k = kpiKarten([f1, f2], "feedstock");
     expect(k).toHaveLength(4);
-    expect(k[0]).toMatchObject({ wert: "3", einheit: "Belege", label: "in der auswahl." });
-    expect(k[0]!.caption).toBe("2 Feedstock · 1 Outputs");
+    expect(k[0]).toMatchObject({ wert: "2", einheit: "Belege", label: "in der auswahl." });
+    expect(k[0]!.caption).toBe("2 Cluster");
     expect(k[1]).toMatchObject({ wert: "150", einheit: "t atro/a", label: "trockenmasse." });
-    expect(k[1]!.caption).toContain("aus 1.500 t FM/a");
-    expect(k[1]!.caption).toContain("Bedarf 500 MWh/a");
-    expect(k[2]).toMatchObject({ wert: "33", einheit: "%", label: "belege geprüft." });
-    expect(k[2]!.caption).toBe("1 von 3 · 1 in Prüfung");
+    expect(k[1]!.caption).toBe("aus 1.500 t FM/a");
+    expect(k[2]).toMatchObject({ wert: "50", einheit: "%", label: "belege geprüft." });
+    expect(k[2]!.caption).toBe("1 von 2 · 0 in Prüfung");
     expect(k[3]).toMatchObject({ wert: "60", einheit: "%", label: "ø erfassungsgrad." });
     expect(k[3]!.caption).toBe("1 Beleg unter 50 %");
   });
 
-  it("zeigt bei sicht=outputs den Energiebedarf je Einheit", () => {
+  it("zeigt bei sicht=outputs den Energiebedarf und die Gruppenzahl", () => {
     const k = kpiKarten([o1], "outputs");
+    expect(k[0]!.caption).toBe("1 Output-Gruppe");
     expect(k[1]).toMatchObject({ wert: "500", einheit: "MWh/a", label: "energiebedarf." });
   });
 
   it("meldet vollstaendige Erfassung ohne Ausreisser", () => {
-    const k = kpiKarten([f1], "alle");
+    const k = kpiKarten([f1], "feedstock");
     expect(k[3]!.caption).toBe("alle Belege über 50 %");
   });
 });
 
 describe("clusterZeilen", () => {
   it("summiert t atro je Cluster, pct relativ zum Maximum, flache Clusterfarbe + Orb-Asset", () => {
-    const z = clusterZeilen(alle, alle, "alle");
+    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock");
     expect(z.map((r) => r.key)).toEqual([
       "organische_rest_abfallstoffe",
       "lignozellulosische_reststoffe",
@@ -167,7 +166,7 @@ describe("clusterZeilen", () => {
   });
 
   it("haelt Zeilen aus dem Pool sichtbar, auch wenn der Filter sie leert", () => {
-    const z = clusterZeilen(alle, [f1], "alle");
+    const z = clusterZeilen([f1, f2], [f1], "feedstock");
     expect(z).toHaveLength(2);
     expect(z[1]!.wertText).toBe("0");
   });
@@ -178,16 +177,6 @@ describe("clusterZeilen", () => {
     expect(z.map((r) => r.key)).toEqual(["wasserstoff", "add_ons"]);
     expect(z[0]).toMatchObject({ wertText: "1 Beleg", meta: "500 MWh/a" });
     expect(z[1]!.orb).toBe("/orbs/output/waerme.webp");
-  });
-});
-
-describe("clusterFussnote", () => {
-  it("nennt im feed-Modus die Outputs der Auswahl, sonst nichts", () => {
-    expect(clusterFussnote(alle, "alle")).toBe(
-      "Outputs in der Auswahl: 1 Beleg · 500 MWh/a",
-    );
-    expect(clusterFussnote([f1], "alle")).toBeNull();
-    expect(clusterFussnote(alle, "outputs")).toBeNull();
   });
 });
 
@@ -245,7 +234,7 @@ describe("belegtypZeilen", () => {
 
 describe("jahresBalken", () => {
   it("zaehlt einen Strom fuer jedes Jahr seines Zeitraums (t atro im feed-Modus)", () => {
-    const j = jahresBalken([f1, f2], "alle", 2026);
+    const j = jahresBalken([f1, f2], "feedstock", 2026);
     expect(j.map((b) => b.jahr)).toEqual([2026, 2027, 2028, 2029, 2030, 2031]);
     expect(j[0]).toMatchObject({ wertText: "50", aktuell: true });
     expect(j[1]!.wertText).toBe("150");
@@ -262,7 +251,7 @@ describe("jahresBalken", () => {
 
 describe("preisDaten", () => {
   it("gewichtet den Feedstock-Preis nach t atro und spannt den Korridor auf", () => {
-    const p = preisDaten([f1, f2], "alle");
+    const p = preisDaten([f1, f2], "feedstock");
     // (10*100 + 16*50) / 150 = 12
     expect(p.stats[0]).toMatchObject({ wert: "12", einheit: "€/t" });
     expect(p.korridor).toMatchObject({ minText: "5", maxText: "24" });
@@ -270,7 +259,7 @@ describe("preisDaten", () => {
   });
 
   it("laesst Stroeme ohne Preis aus der Gewichtung und meldet leere Auswahl", () => {
-    expect(preisDaten([strom({ id: "n", mengeAtro: 10 })], "alle").stats).toHaveLength(0);
+    expect(preisDaten([strom({ id: "n", mengeAtro: 10 })], "feedstock").stats).toHaveLength(0);
   });
 
   it("mittelt Outputs je Preiseinheit ohne Korridor", () => {
