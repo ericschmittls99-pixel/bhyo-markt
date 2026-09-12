@@ -16,7 +16,7 @@ import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
-import { fmtDatum, fmtZahl } from "@/lib/format";
+import { fmtAnteil, fmtDatum, fmtZahl } from "@/lib/format";
 import {
   clusterVonMaterialart,
   gruppeVonProdukt,
@@ -142,8 +142,8 @@ export function FormularPanel({
       : null;
   const chain = [
     { label: "Rohmenge", wert: roh ? fmtZahl(Number(roh)) : "–", einheit: "t FM/a", quelle: "erfasst" },
-    { label: "Trockensubstanz", wert: ts ? fmtZahl(Number(ts)) : "–", einheit: "%", quelle: "TS-Anteil" },
-    { label: "Aschegehalt", wert: asche ? fmtZahl(Number(asche)) : "–", einheit: "%", quelle: "Anteil an TS" },
+    { label: "Trockensubstanz", wert: ts ? fmtAnteil(Number(ts)) : "–", einheit: "%", quelle: "TS-Anteil" },
+    { label: "Aschegehalt", wert: asche ? fmtAnteil(Number(asche)) : "–", einheit: "%", quelle: "Anteil an TS" },
     {
       label: "Ergebnis",
       wert: atro != null && Number.isFinite(atro) ? fmtZahl(atro) : "–",
