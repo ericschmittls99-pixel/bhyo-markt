@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
+import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
 import { updateUiCookie, type UiState } from "@/lib/ui-state";
 
 interface NavKind {
@@ -44,6 +45,18 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState(!!initial.sidebarZu);
   const [open, setOpen] = useState<string[]>(initial.akkordeons ?? []);
 
+  // karte. und auswertung. teilen die Datenfilter (Delta §5.4): beim Wechsel
+  // zwischen den beiden Views tragen ihre Nav-Links die Parameter weiter.
+  let geteilteQuery = "";
+  if (pathname === "/karte" || pathname === "/auswertung") {
+    const p = new URLSearchParams();
+    for (const k of GETEILTE_FILTER_PARAMS) {
+      const v = searchParams.get(k);
+      if (v) p.set(k, v);
+    }
+    geteilteQuery = p.size ? `?${p.toString()}` : "";
+  }
+
   const nav: NavEintrag[] = [
     {
       key: "stroeme",
@@ -68,12 +81,17 @@ export function Sidebar({
         },
       ],
     },
-    { key: "karte", label: "karte.", icon: "map-trifold", href: "/karte" },
+    {
+      key: "karte",
+      label: "karte.",
+      icon: "map-trifold",
+      href: `/karte${geteilteQuery}`,
+    },
     {
       key: "auswertung",
       label: "auswertung.",
       icon: "chart-bar",
-      href: "/auswertung",
+      href: `/auswertung${geteilteQuery}`,
     },
     {
       key: "planer",
