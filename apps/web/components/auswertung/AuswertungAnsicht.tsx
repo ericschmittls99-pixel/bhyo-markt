@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-
 import { AuswertungToolbar } from "@/components/auswertung/AuswertungToolbar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { Detail } from "@/components/stroeme/Detail";
@@ -125,9 +123,19 @@ export function AuswertungAnsicht({
             titel="keine belege."
             beschreibung="Kein Beleg entspricht der aktuellen Auswahl."
           >
-            <Link className="btn btn--sm" href="/auswertung">
+            <button
+              type="button"
+              className="btn btn--sm"
+              onClick={() => {
+                // Wie das Toolbar-X: Facetten, Suche und Bereiche leeren,
+                // sicht bleibt erhalten.
+                const leer: Record<string, null> = { q: null, vonAb: null, erstellt: null };
+                for (const f of facetten) leer[f.key] = null;
+                setze(leer);
+              }}
+            >
               Filter zurücksetzen
-            </Link>
+            </button>
           </EmptyState>
         ) : (
           <div className="aw-grid">
