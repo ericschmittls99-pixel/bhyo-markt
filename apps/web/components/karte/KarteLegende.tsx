@@ -154,7 +154,14 @@ export function KarteLegende({
                 className={`km-leg-zeile${auswahlCluster.includes(k) ? " aktiv" : ""}`}
                 onClick={() => onClusterKlick(k)}
               >
-                <i className="km-leg-kreis" style={{ background: farbe }} aria-hidden />
+                <img
+                  className="km-leg-orb"
+                  src={`/orbs/cluster/${k}.webp`}
+                  alt=""
+                  aria-hidden
+                  width={18}
+                  height={18}
+                />
                 <span className="lbl">{CLUSTER_LABEL[k]}</span>
                 <span className="anz">{zaehle("biomasse", k)}</span>
               </button>
@@ -170,7 +177,18 @@ export function KarteLegende({
                 className={`km-leg-zeile${auswahlGruppe.includes(k) ? " aktiv" : ""}`}
                 onClick={() => onGruppeKlick(k)}
               >
-                <i className="km-leg-raute" style={{ background: farbe }} aria-hidden />
+                {k === "add_ons" ? (
+                  <i className="km-leg-raute" style={{ background: farbe }} aria-hidden />
+                ) : (
+                  <img
+                    className="km-leg-orb km-leg-orb--raute"
+                    src={`/orbs/output/${k}.webp`}
+                    alt=""
+                    aria-hidden
+                    width={16}
+                    height={16}
+                  />
+                )}
                 <span className="lbl">{OUTPUT_LABEL[k]}</span>
                 <span className="anz">{zaehle("output", k)}</span>
               </button>

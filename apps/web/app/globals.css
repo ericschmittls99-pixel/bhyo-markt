@@ -3085,7 +3085,7 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   top: 16px;
   left: 16px;
-  z-index: var(--z-menu);
+  z-index: 120; /* unter den Shell-Popovern (Inbox/Konto, --z-menu) */
   display: grid;
   gap: 8px;
   max-width: calc(100% - 96px);
@@ -3131,7 +3131,7 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   top: 16px;
   right: 16px;
-  z-index: var(--z-menu);
+  z-index: 120;
   display: grid;
   gap: 8px;
   justify-items: end;
@@ -3162,7 +3162,7 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   bottom: 16px;
   left: 16px;
-  z-index: var(--z-menu);
+  z-index: 120;
   width: 288px;
   display: flex;
   flex-direction: column;
@@ -3305,7 +3305,7 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   top: 16px;
   right: 72px;
-  z-index: var(--z-menu);
+  z-index: 120;
   display: flex;
   align-items: flex-start;
   gap: 12px;
@@ -3351,7 +3351,7 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .km-zeichnen-dialog {
   position: absolute;
-  z-index: calc(var(--z-menu) + 1);
+  z-index: 121;
   width: 300px;
   display: grid;
   gap: 8px;
@@ -3390,7 +3390,7 @@ table.st-tabelle tbody tr:focus-visible {
   bottom: 24px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: var(--z-menu);
+  z-index: 120;
   padding: 8px 16px;
   border-radius: var(--radius-pill);
   background: var(--bhyo-navy-900, #1f2e38);
@@ -3423,4 +3423,17 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .km-orb--raute {
   border-radius: 3px;
+}
+
+.km-leg-orb {
+  flex: 0 0 auto;
+  border-radius: 50%;
+}
+.km-leg-orb--raute {
+  border-radius: 4px;
+  transform: rotate(45deg);
+  margin: 0 1px;
+}
+.km-panel-orb {
+  flex: 0 0 auto;
 }

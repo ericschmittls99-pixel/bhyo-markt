@@ -3,7 +3,6 @@
 import Link from "next/link";
 
 import { KonfidenzPill } from "@/components/stroeme/Pillen";
-import { farbeFuer } from "@/lib/farben";
 import { fmtZahl } from "@/lib/format";
 import type { KartePunkt } from "@/lib/karte-modell";
 
@@ -19,16 +18,9 @@ export function MarkerPanel({
   punkt: KartePunkt;
   onSchliessen: () => void;
 }) {
-  const farbe = farbeFuer(punkt.art, punkt.farbeKey);
   return (
     <aside className="km-panel" aria-label="Stromdetails">
-      <span
-        className="km-panel-orb"
-        style={{
-          background: `radial-gradient(circle at 30% 30%, color-mix(in srgb, ${farbe} 45%, white), ${farbe})`,
-        }}
-        aria-hidden
-      />
+      <img className="km-panel-orb" src={punkt.orb} alt="" aria-hidden width={32} height={32} />
       <div className="km-panel-text">
         <strong>{punkt.titel}</strong>
         <span className="c">{punkt.untertitel}</span>

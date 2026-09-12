@@ -211,3 +211,18 @@ describe("qualitaetsRing (Mockup-Randlogik)", () => {
     expect(qualitaetsRing(null)).toEqual({ breite: 1, stil: "solid" });
   });
 });
+
+describe("orb-Asset am Kartenpunkt", () => {
+  it("Biomasse → Cluster-Orb, Output → Gruppen-Orb", () => {
+    expect(stromZuPunkt(basis)!.orb).toBe("/orbs/cluster/guelle_mist.webp");
+    expect(stromZuPunkt(outputStrom)!.orb).toBe("/orbs/output/wasserstoff.webp");
+  });
+  it("Add-Ons → Produkt-Orb (asche/co2/waerme)", () => {
+    const p = stromZuPunkt({
+      ...outputStrom,
+      gruppe: "add_ons",
+      produktCode: "asche",
+    })!;
+    expect(p.orb).toBe("/orbs/output/asche.webp");
+  });
+});

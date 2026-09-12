@@ -245,7 +245,11 @@ export function KarteMap({
       orb.className = `km-orb${p.art === "output" ? " km-orb--raute" : ""}`;
       orb.style.width = `${size}px`;
       orb.style.height = `${size}px`;
-      orb.style.background = `radial-gradient(circle at 30% 30%, color-mix(in srgb, ${farbe} 45%, white), ${farbe})`;
+      // Echtes Orb-Verlaufsbild (public/orbs) wie im Grid/Detail — der
+      // radiale Verlauf ist rotationssymmetrisch, die Raute rotiert einfach mit.
+      orb.style.backgroundImage = `url(${p.orb})`;
+      orb.style.backgroundSize = "cover";
+      orb.style.backgroundColor = farbe;
       if (p.art === "output") {
         // Raute: Halo und Orb rotieren gemeinsam; die Kantenlaenge schrumpft,
         // damit die Diagonale wieder ~size ergibt (Groessenlogik unveraendert).

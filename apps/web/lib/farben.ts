@@ -58,3 +58,21 @@ export function farbeFuer(art: "biomasse" | "output", farbeKey: string): string 
 export function ringFuer(qualitaet: string | null): string {
   return (qualitaet && QUALITAET_RING[qualitaet]) || "#b9c0bd";
 }
+
+/**
+ * Orb-Verlaufsbild eines Stroms (public/orbs): Biomasse traegt den
+ * Cluster-Orb, Outputs den Gruppen-Orb; Add-Ons haben je Produkt einen
+ * eigenen (waerme/co2/asche).
+ */
+export function orbSrc(s: {
+  art: "biomasse" | "output";
+  cluster: string | null;
+  gruppe: string | null;
+  produktCode: string | null;
+}): string {
+  if (s.art === "biomasse")
+    return `/orbs/cluster/${s.cluster ?? "organische_rest_abfallstoffe"}.webp`;
+  if (s.gruppe === "add_ons" && s.produktCode)
+    return `/orbs/output/${s.produktCode}.webp`;
+  return `/orbs/output/${s.gruppe ?? "primaerprodukte"}.webp`;
+}

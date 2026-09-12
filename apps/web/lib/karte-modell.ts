@@ -1,3 +1,4 @@
+import { orbSrc } from "./farben";
 import type { Strom } from "./stroeme-modell";
 
 /**
@@ -14,6 +15,8 @@ export interface KartePunkt {
   lat: number;
   /** Farbschluessel: materialart.cluster bzw. output_produkt.gruppe. */
   farbeKey: string;
+  /** Orb-Verlaufsbild (public/orbs), Add-Ons je Produkt. */
+  orb: string;
   /** Groessenbasis: menge_atro (Biomasse) bzw. menge_wert (Output). */
   menge: number;
   einheit: string;
@@ -33,6 +36,7 @@ export function stromZuPunkt(s: Strom): KartePunkt | null {
     lng: s.lng,
     lat: s.lat,
     farbeKey: (feed ? s.cluster : s.gruppe) ?? "unbekannt",
+    orb: orbSrc(s),
     menge: (feed ? s.mengeAtro : s.mengeWert) ?? 0,
     einheit: feed ? "t atro/a" : (s.mengeEinheit ?? ""),
     qualitaet: s.qualitaet,
