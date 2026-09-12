@@ -85,13 +85,14 @@ export function Toolbar({
       </div>
       <div className="st-toolbar-rechts">
         {canEdit && (
-          <Link
+          <button
+            type="button"
             className="btn btn--primary btn--sm"
-            href={`/register/${feed ? "biomasse" : "output"}/neu`}
+            onClick={() => setze({ form: "neu", detail: null }, "push")}
           >
             <i className="ph-bold ph-plus" aria-hidden />
             {feed ? "Feedstock anlegen" : "Output anlegen"}
-          </Link>
+          </button>
         )}
       </div>
     </div>
