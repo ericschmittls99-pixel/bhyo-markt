@@ -370,9 +370,14 @@ export function KarteMap({
         );
         gruppenEl = macheMarkerEl(groesstes, Math.max(size, 22), mitglieder.length);
         gruppenEl.classList.add("km-stapel");
-        gruppenEl.addEventListener("mouseenter", () =>
-          oeffneFaecher(map, ml, g, mitglieder, maxJe, macheMarkerEl),
-        );
+        gruppenEl.addEventListener("mouseenter", () => {
+          // Kurzer Zoom-Impuls des Hauptorbs, waehrend die Mitglieder
+          // herauswachsen (Mockup).
+          gruppenEl.classList.remove("km-puls");
+          void gruppenEl.offsetWidth; // Animation neu triggern
+          gruppenEl.classList.add("km-puls");
+          oeffneFaecher(map, ml, g, mitglieder, maxJe, macheMarkerEl);
+        });
       }
       gruppenEl.addEventListener("click", reinzoomen);
       markersRef.current.push(

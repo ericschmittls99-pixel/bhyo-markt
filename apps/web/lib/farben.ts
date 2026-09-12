@@ -35,10 +35,13 @@ export const OUTPUT_LABEL: Record<string, string> = {
   add_ons: "Add-Ons",
 };
 
-/** Qualitaets-Ring A->D: Navy -> Hellgrau, wie die Qualitaets-Pillen. */
+/**
+ * Qualitaets-Ring A->D: Navy -> Hellgrau. A nutzt bewusst navy-700 statt der
+ * Pillen-Stufe navy-900 — als duenner Ring wirkte 900 fast schwarz (Review).
+ */
 export const QUALITAET_RING: Record<string, string> = {
-  A: "#1F2E38",
-  B: "#4a5c66",
+  A: "#3c4a52",
+  B: "#55636b",
   C: "#97a4ab",
   D: "#d5d8d6",
 };
