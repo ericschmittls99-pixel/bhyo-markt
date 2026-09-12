@@ -16,3 +16,5 @@ jobs:
           psql "$DATABASE_URL" -At -c "select 'output: anzahl='||count(*) from output_bedarf;"
           psql "$DATABASE_URL" -At -c "select 'biomasse geprueft='||count(*) filter (where status='geprueft')||' in_pruefung='||count(*) filter (where status='in_pruefung') from biomassestrom;"
           psql "$DATABASE_URL" -At -c "select 'output geprueft='||count(*) filter (where status='geprueft')||' in_pruefung='||count(*) filter (where status='in_pruefung') from output_bedarf;"
+          psql "$DATABASE_URL" -At -c "select 'jahr '||j||': sum_atro='||coalesce(sum(menge_atro) filter (where coalesce(extract(year from zeitraum_von),2026)<=j and coalesce(extract(year from zeitraum_bis),2031)>=j),0) from biomassestrom, generate_series(2026,2031) j group by j order by j;"
+          psql "$DATABASE_URL" -At -c "select 'zeitraeume: '||string_agg(coalesce(zeitraum_von::text,'-')||'..'||coalesce(zeitraum_bis::text,'-'),' | ') from biomassestrom;"
