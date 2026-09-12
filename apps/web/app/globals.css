@@ -3011,8 +3011,10 @@ table.st-tabelle tbody tr:focus-visible {
   inset: 0;
 }
 .km-flaeche {
-  position: absolute;
-  inset: 0;
+  /* KEIN position hier: maplibre-gl.css setzt .maplibregl-map auf relative
+     und gewinnt die Kaskade — die Groesse kommt deshalb explizit. */
+  width: 100%;
+  height: 100%;
 }
 .km-flaeche canvas {
   filter: grayscale(1) contrast(0.92) brightness(1.04);
