@@ -2995,11 +2995,15 @@ table.st-tabelle tbody tr:focus-visible {
 
 .km-seite {
   position: relative;
-  height: 100%;
+  flex: 1;
   min-height: 0;
   overflow: hidden;
 }
+/* Fullbleed: der Scroll-Container wird fuer die Karte zum Flex-Rahmen,
+   sonst hat height:100% im Flex-Kind keine Bezugsgroesse. */
 .shell-content:has(.km-seite) {
+  display: flex;
+  flex-direction: column;
   overflow: hidden;
 }
 .km-wrap {
