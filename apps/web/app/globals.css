@@ -2036,6 +2036,94 @@ button.leg-toggle.aus {
 .pf-feld:has(em) input {
   padding-right: 56px;
 }
+.pf-feld select,
+.pf-feld textarea {
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--border-default);
+  background: var(--field-bg);
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+}
+.pf-feld select {
+  min-height: 36px;
+  height: 36px;
+  padding: 0 10px;
+  appearance: none;
+  background-image: none;
+}
+.pf-feld textarea {
+  min-height: 84px;
+  resize: vertical;
+}
+.pf-pflicht {
+  font-style: normal;
+  color: var(--accent-strong, var(--text-accent));
+}
+.pf-fehler {
+  font: var(--type-caption);
+  color: var(--danger, #b3261e);
+}
+[data-theme="dark"] .pf-fehler {
+  color: var(--danger, #f2b8b5);
+}
+
+/* SuchCombobox (PR 5): Feld im pf-Stil, Popover/Menu aus dem Chip-System */
+.scb-feld {
+  display: block;
+}
+.scb-caret {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 12px;
+  color: var(--text-tertiary);
+  pointer-events: none;
+}
+.scb-feld input {
+  padding-right: 30px;
+}
+.scb-pop {
+  left: 0;
+  right: 0;
+  top: 100%;
+  margin-top: 4px;
+}
+.scb-menu {
+  max-height: 240px;
+  overflow-y: auto;
+  display: grid;
+}
+.scb-menu .menu-item.aktiv {
+  background: var(--surface-hover);
+}
+.scb-menu .menu-item .lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.scb-meta {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+.akteur-gewaehlt {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+}
+.akteur-neu {
+  display: grid;
+  gap: 8px;
+  padding: 8px;
+  border-top: 1px solid var(--border-subtle);
+  margin-top: 4px;
+}
 .pf-feld em {
   position: absolute;
   right: 10px;
