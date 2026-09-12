@@ -75,6 +75,9 @@ export function AuswertungAnsicht({
   const { setze } = useUrlZustand();
   const feedMode = sicht !== "outputs";
   const leer = kpis[0]?.wert === "0";
+  // Cluster-Zeilen togglen die Facette ihrer Art (wie die karte.-Legende):
+  // Feedstock-Cluster -> cluster (filtert Biomasse), Output-Gruppen -> gruppe.
+  const clusterFacette = feedMode ? "cluster" : "gruppe";
 
   function toggle(key: string, wert: string) {
     const sel = auswahl[key] ?? [];
@@ -153,9 +156,9 @@ export function AuswertungAnsicht({
                   <button
                     type="button"
                     key={z.key}
-                    className={zeilenKlasse("aw-clusterzeile", "gruppe", z.key)}
-                    aria-pressed={istAktiv("gruppe", z.key)}
-                    onClick={() => toggle("gruppe", z.key)}
+                    className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}
+                    aria-pressed={istAktiv(clusterFacette, z.key)}
+                    onClick={() => toggle(clusterFacette, z.key)}
                   >
                     <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
                     <span className="aw-clusterzeile-mitte">
