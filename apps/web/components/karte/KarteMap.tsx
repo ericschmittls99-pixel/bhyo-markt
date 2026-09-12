@@ -243,12 +243,10 @@ export function KarteMap({
       const q = map.project([p.lng, p.lat]);
       return { x: q.x, y: q.y };
     });
-    // Mockup: ab Zoom 16 keine Aggregation mehr.
-    const gruppen = aggregiere(
-      px,
-      pkt.map((p) => groessen[p.id] ?? 0),
-      map.getZoom() >= 16 ? 0 : AGG_RADIUS,
-    );
+    // Mockup: ab Zoom 16 keine Aggregation mehr. Komponenten-Aggregation
+    // (statt Mockup-greedy) haelt Gruppen beim Zoomen stabil — siehe
+    // aggregiere in lib/karte-modell.
+    const gruppen = aggregiere(px, map.getZoom() >= 16 ? 0 : AGG_RADIUS);
     const zentren = gruppen.map((g) => ({ x: g.x, y: g.y }));
 
     const fillEl = (orb: string) => {

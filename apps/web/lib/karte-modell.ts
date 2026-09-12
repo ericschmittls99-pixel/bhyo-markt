@@ -110,35 +110,35 @@ export interface AggGruppe {
 }
 
 /**
- * Aggregation EXAKT wie das Mockup (clusterize): greedy vom groessten Marker,
- * Nachbarn im Radius werden ihm zugeschlagen — bewusst NICHT transitiv.
- * Radius 0 (Zoom >= 16) = keine Aggregation. Zentrum = Mittelwert.
+ * Aggregation als Zusammenhangskomponenten (Kante bei Pixel-Abstand <= R).
+ * BEWUSSTE Abweichung vom Mockup-greedy (clusterize): Komponenten sind
+ * monoton unter wachsendem Radius — beim Zoomen verschmelzen/trennen sich
+ * nur GANZE Gruppen, ein Randpunkt springt nie einzeln in eine fremde
+ * Gruppe (Erics Stabilitaets-Anforderung, Review 6). Radius 0 (Zoom >= 16)
+ * = keine Aggregation. Zentrum = Mittelwert.
  */
-export function aggregiere(
-  px: PixelPunkt[],
-  groessen: number[],
-  radius = 80,
-): AggGruppe[] {
-  const reihenfolge = px
-    .map((_, i) => i)
-    .sort((a, b) => (groessen[b] ?? 0) - (groessen[a] ?? 0));
-  const benutzt = new Set<number>();
+export function aggregiere(px: PixelPunkt[], radius = 80): AggGruppe[] {
+  const n = px.length;
+  const besucht = new Array<boolean>(n).fill(false);
   const gruppen: AggGruppe[] = [];
-  for (const i of reihenfolge) {
-    if (benutzt.has(i)) continue;
-    benutzt.add(i);
+  for (let i = 0; i < n; i++) {
+    if (besucht[i]) continue;
+    besucht[i] = true;
     const mitglieder = [i];
     if (radius > 0) {
-      const a = px[i]!;
-      for (const j of reihenfolge) {
-        if (benutzt.has(j)) continue;
-        const b = px[j]!;
-        if (Math.hypot(a.x - b.x, a.y - b.y) <= radius) {
-          benutzt.add(j);
-          mitglieder.push(j);
+      for (let idx = 0; idx < mitglieder.length; idx++) {
+        const a = px[mitglieder[idx]!]!;
+        for (let j = 0; j < n; j++) {
+          if (besucht[j]) continue;
+          const b = px[j]!;
+          if (Math.hypot(a.x - b.x, a.y - b.y) <= radius) {
+            besucht[j] = true;
+            mitglieder.push(j);
+          }
         }
       }
     }
+    mitglieder.sort((a, b) => a - b);
     gruppen.push({
       x: mitglieder.reduce((s, k) => s + px[k]!.x, 0) / mitglieder.length,
       y: mitglieder.reduce((s, k) => s + px[k]!.y, 0) / mitglieder.length,

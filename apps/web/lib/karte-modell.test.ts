@@ -141,28 +141,44 @@ describe("maxMengeJe", () => {
   });
 });
 
-describe("aggregiere (Mockup: greedy vom groessten, NICHT transitiv)", () => {
-  it("groesster Punkt sammelt Nachbarn im Radius; kein Ketten-Merge", () => {
+describe("aggregiere (Zusammenhangskomponenten — stabil beim Zoomen)", () => {
+  it("transitiv: Randpunkte springen nie zwischen Gruppen", () => {
+    // Greedy (Mockup) haette 70 je nach Seed mal zu 0, mal zu 140 gesteckt;
+    // als Komponente sind alle drei EINE Gruppe.
     const g = aggregiere(
       [
         { x: 0, y: 0 },
-        { x: 50, y: 0 },
-        { x: 95, y: 0 },
-        { x: 300, y: 0 },
+        { x: 70, y: 0 },
+        { x: 140, y: 0 },
+        { x: 400, y: 0 },
       ],
-      [62, 30, 30, 30],
       80,
     );
-    // 0 zieht 50 (Abstand 50); 95 liegt >80 von 0 entfernt → eigene Gruppe.
-    expect(g).toHaveLength(3);
-    expect(g[0]!.indizes).toEqual([0, 1]);
-    expect(g[1]!.indizes).toEqual([2]);
+    expect(g).toHaveLength(2);
+    expect(g[0]!.indizes).toEqual([0, 1, 2]);
+    expect(g[1]!.indizes).toEqual([3]);
+  });
+  it("monoton: bei groesserem Radius verschmelzen nur GANZE Gruppen", () => {
+    const punkte = Array.from({ length: 12 }, (_, i) => ({
+      x: (i * 137) % 500,
+      y: (i * 61) % 300,
+    }));
+    const fein = aggregiere(punkte, 60);
+    const grob = aggregiere(punkte, 140);
+    for (const f of fein) {
+      const traeger = grob.filter((gr) =>
+        f.indizes.some((i) => gr.indizes.includes(i)),
+      );
+      // Jede feine Gruppe liegt VOLLSTAENDIG in genau einer groben Gruppe.
+      expect(traeger).toHaveLength(1);
+      for (const i of f.indizes) expect(traeger[0]!.indizes).toContain(i);
+    }
   });
   it("Gruppenzentrum = Mittelwert; Radius 0 = keine Aggregation (Zoom ≥ 16)", () => {
-    const g = aggregiere([{ x: 0, y: 0 }, { x: 40, y: 20 }], [30, 30], 80);
+    const g = aggregiere([{ x: 0, y: 0 }, { x: 40, y: 20 }], 80);
     expect(g[0]!.x).toBe(20);
     expect(g[0]!.y).toBe(10);
-    expect(aggregiere([{ x: 0, y: 0 }, { x: 10, y: 0 }], [30, 30], 0)).toHaveLength(2);
+    expect(aggregiere([{ x: 0, y: 0 }, { x: 10, y: 0 }], 0)).toHaveLength(2);
   });
 });
 
