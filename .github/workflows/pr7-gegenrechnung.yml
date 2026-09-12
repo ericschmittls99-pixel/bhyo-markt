@@ -1,0 +1,18 @@
+# TEMPORAER (AP1i PR 7, DoD): Kennzahl-Gegenrechnung gegen die Preview-DB.
+# Feste, rein lesende Abfragen — wird vor dem Merge wieder entfernt.
+name: PR7 Gegenrechnung
+on:
+  push:
+    branches: [ap1i-auswertung]
+jobs:
+  gegenrechnung:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Kennzahlen aus der Preview-DB
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          psql "$DATABASE_URL" -At -c "select 'biomasse: anzahl='||count(*)||' sum_atro='||coalesce(sum(menge_atro),0) from biomassestrom;"
+          psql "$DATABASE_URL" -At -c "select 'output: anzahl='||count(*) from output_bedarf;"
+          psql "$DATABASE_URL" -At -c "select 'biomasse geprueft='||count(*) filter (where status='geprueft')||' in_pruefung='||count(*) filter (where status='in_pruefung') from biomassestrom;"
+          psql "$DATABASE_URL" -At -c "select 'output geprueft='||count(*) filter (where status='geprueft')||' in_pruefung='||count(*) filter (where status='in_pruefung') from output_bedarf;"
