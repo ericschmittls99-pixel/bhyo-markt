@@ -3559,9 +3559,13 @@ table.st-tabelle tbody tr:focus-visible {
 /* Klick-filternde Zeilen (Mockup rowSt): aktiv = selected, andere dimmen */
 .aw-zeilen {
   display: grid;
+  /* minmax(0,1fr) statt implizitem max-content-Track: die Zeilen-Buttons
+     duerfen nie breiter werden als die Karte, Ellipsis uebernimmt. */
+  grid-template-columns: minmax(0, 1fr);
   gap: 2px;
   align-content: start;
   min-height: 0;
+  min-width: 0;
 }
 .aw-zeilen--scroll { flex: 1; overflow-y: auto; gap: 4px; }
 .aw-zeilen--status { gap: 6px; }
@@ -3715,7 +3719,11 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   inset: 0;
   display: grid;
-  place-items: center;
+  /* place-content zentriert die ZWEIZEILIGE Gruppe (Wert + "A + B") als
+     Ganzes im Donut-Loch; place-items allein liess sie oben kleben. */
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
   text-align: center;
   pointer-events: none;
 }
@@ -3740,7 +3748,7 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 2px 20px;
   align-content: start;
 }
-.aw-belegzeile { display: grid; grid-template-columns: minmax(0, 1fr) 72px 28px; height: 28px; padding: 0 8px; }
+.aw-belegzeile { display: grid; grid-template-columns: minmax(0, 1fr) 72px 28px; align-items: center; height: 28px; padding: 0 8px; }
 .aw-belegzeile .aw-zeilenwert { text-align: right; }
 @media (max-width: 620px) {
   .aw-belegtypen { grid-template-columns: minmax(0, 1fr); }
