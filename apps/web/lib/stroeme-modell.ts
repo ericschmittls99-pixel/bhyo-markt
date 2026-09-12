@@ -69,6 +69,8 @@ export interface StroemeFilter {
   q: string;
   region: string[];
   cluster: string[];
+  /** Output-Gruppe (karte./auswertung.; stroeme. nutzt produkt/kategorie). */
+  gruppe: string[];
   materialart: string[];
   qualitaet: string[];
   status: string[];
@@ -90,6 +92,7 @@ export const LEERER_FILTER: StroemeFilter = {
   q: "",
   region: [],
   cluster: [],
+  gruppe: [],
   materialart: [],
   qualitaet: [],
   status: [],
@@ -224,6 +227,13 @@ export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
       if (sel.length && !facettenWert(s, key).some((v) => sel.includes(v)))
         return false;
     }
+    // gruppe wirkt wie cluster nur auf die eigene Art (karte./auswertung.).
+    if (
+      f.gruppe.length &&
+      s.art === "output" &&
+      (!s.gruppe || !f.gruppe.includes(s.gruppe))
+    )
+      return false;
     const menge = mengeVon(s);
     if (f.mengeMin !== "" && (menge == null || menge < +f.mengeMin)) return false;
     if (f.mengeMax !== "" && (menge == null || menge > +f.mengeMax)) return false;
@@ -364,3 +374,67 @@ export function facettenOptionen(
     ),
   };
 }
+
+// --- Querystring (geteilt zwischen stroeme., karte., auswertung.) -----------
+
+export type SearchParamsRoh = Record<string, string | string[] | undefined>;
+
+function ersterWert(v: string | string[] | undefined): string {
+  const s = Array.isArray(v) ? v[0] : v;
+  return s ?? "";
+}
+
+/** Mehrwertige Facette: kommagetrennt im Querystring (Delta-Bericht §6). */
+function liste(v: string | string[] | undefined): string[] {
+  return ersterWert(v).split(",").filter(Boolean);
+}
+
+/** Datenfilter aus searchParams — EINE Stelle fuer alle drei Views. */
+export function filterAusSearchParams(sp: SearchParamsRoh): StroemeFilter {
+  return {
+    ...LEERER_FILTER,
+    q: ersterWert(sp.q),
+    region: liste(sp.region),
+    cluster: liste(sp.cluster),
+    gruppe: liste(sp.gruppe),
+    materialart: liste(sp.materialart),
+    qualitaet: liste(sp.qualitaet),
+    status: liste(sp.status),
+    belegtyp: liste(sp.belegtyp),
+    landkreis: liste(sp.landkreis),
+    produkt: liste(sp.produkt),
+    kategorie: liste(sp.kategorie),
+    mengeMin: ersterWert(sp.mengeMin),
+    mengeMax: ersterWert(sp.mengeMax),
+    preisMin: ersterWert(sp.preisMin),
+    preisMax: ersterWert(sp.preisMax),
+    vonAb: ersterWert(sp.vonAb),
+    erstellt: ersterWert(sp.erstellt),
+  };
+}
+
+/**
+ * Parameter, die karte. und auswertung. teilen (Delta §5.4/§6): reine
+ * Datenfilter plus sicht. Bedienzustand (detail, ansicht, sort, form, …)
+ * gehoert bewusst NICHT dazu.
+ */
+export const GETEILTE_FILTER_PARAMS = [
+  "q",
+  "region",
+  "cluster",
+  "gruppe",
+  "materialart",
+  "produkt",
+  "kategorie",
+  "qualitaet",
+  "status",
+  "belegtyp",
+  "landkreis",
+  "mengeMin",
+  "mengeMax",
+  "preisMin",
+  "preisMax",
+  "vonAb",
+  "erstellt",
+  "sicht",
+] as const;

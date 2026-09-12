@@ -27,11 +27,10 @@ import {
 import {
   FACETTEN,
   facettenOptionen,
+  filterAusSearchParams,
   filterStroeme,
-  LEERER_FILTER,
   SORTIERUNGEN,
   sortiereStroeme,
-  type StroemeFilter,
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
@@ -41,11 +40,6 @@ export type SearchParams = Record<string, string | string[] | undefined>;
 function ersterWert(v: string | string[] | undefined): string {
   const s = Array.isArray(v) ? v[0] : v;
   return s ?? "";
-}
-
-/** Mehrwertige Facette: kommagetrennt im Querystring (Delta-Bericht §6). */
-function liste(v: string | string[] | undefined): string[] {
-  return ersterWert(v).split(",").filter(Boolean);
 }
 
 /**
@@ -65,25 +59,7 @@ export async function RegisterInhalt({
   const art = ersterWert(sp.tab) === "output" ? ("output" as const) : ("biomasse" as const);
   const ansicht = ersterWert(sp.ansicht) === "liste" ? ("liste" as const) : ("grid" as const);
 
-  const filter: StroemeFilter = {
-    ...LEERER_FILTER,
-    q: ersterWert(sp.q),
-    region: liste(sp.region),
-    cluster: liste(sp.cluster),
-    materialart: liste(sp.materialart),
-    qualitaet: liste(sp.qualitaet),
-    status: liste(sp.status),
-    belegtyp: liste(sp.belegtyp),
-    landkreis: liste(sp.landkreis),
-    produkt: liste(sp.produkt),
-    kategorie: liste(sp.kategorie),
-    mengeMin: ersterWert(sp.mengeMin),
-    mengeMax: ersterWert(sp.mengeMax),
-    preisMin: ersterWert(sp.preisMin),
-    preisMax: ersterWert(sp.preisMax),
-    vonAb: ersterWert(sp.vonAb),
-    erstellt: ersterWert(sp.erstellt),
-  };
+  const filter = filterAusSearchParams(sp);
 
   const sortOptionen = SORTIERUNGEN[art];
   const sortKey = sortOptionen.some(([k]) => k === ersterWert(sp.sort))
