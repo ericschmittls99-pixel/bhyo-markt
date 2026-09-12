@@ -2990,3 +2990,86 @@ table.st-tabelle tbody tr:focus-visible {
 .btn--ink:active {
   background: var(--action-ink-bg-active);
 }
+
+/* ========================= karte. (V2, PR 6) ========================= */
+
+.km-seite {
+  position: relative;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
+}
+.shell-content:has(.km-seite) {
+  overflow: hidden;
+}
+.km-wrap {
+  position: absolute;
+  inset: 0;
+}
+.km-flaeche {
+  position: absolute;
+  inset: 0;
+}
+.km-flaeche canvas {
+  filter: grayscale(1) contrast(0.92) brightness(1.04);
+}
+[data-theme="dark"] .km-flaeche canvas {
+  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.85)
+    brightness(0.9);
+}
+
+/* Marker: flach, Kreis/Raute; Groesse setzt das Element inline. */
+.km-marker {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: none;
+  cursor: pointer;
+}
+.km-marker.km-stapel {
+  cursor: zoom-in;
+}
+.km-marker.km-faecher {
+  animation: shell-pop var(--duration-base) var(--ease-spring);
+}
+.km-badge {
+  position: absolute;
+  top: -6px;
+  right: -8px;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--bhyo-navy-900, #1f2e38);
+  color: #fff;
+  font: 600 11px/18px var(--font-sans);
+  text-align: center;
+  pointer-events: none;
+}
+
+/* Glas-Label der Regionsumrisse */
+.km-region-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 10px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-pill);
+  background: var(--glass-fill-strong);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--shadow-card);
+  color: var(--text-primary);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.km-region-label em {
+  font-style: normal;
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}
