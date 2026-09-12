@@ -57,52 +57,56 @@ export function gruppenGroesse(groessen: number[]): number {
   return Math.min(72, Math.round(Math.sqrt(groessen.reduce((n, d) => n + d * d, 0))));
 }
 
-/** Faecher-Part (Mockup): 55 % des Gruppen-D, geclampt 22–36. */
+/** Faecher-Part: 45 % des Gruppen-D, geclampt 18–26 (Review: kleiner). */
 export function partGroesse(d: number): number {
-  return Math.max(22, Math.min(36, Math.round(d * 0.55)));
+  return Math.max(18, Math.min(26, Math.round(d * 0.45)));
 }
 
 export interface FaecherLayout {
   radius: number;
-  /** 120 = Bogen (i·spanne/(k−1)), 360 = Vollkreis (i·360/k). */
-  spanneGrad: 120 | 360;
+  /** Winkel zwischen zwei Part-Positionen (Grad). */
+  schrittGrad: number;
   /** Anzahl gezeigter Beleg-Orbs; bei `mehr` kommt ein '…'-Orb dazu. */
   sichtbar: number;
   mehr: boolean;
+  /** true = Vollkreis (gleichmaessig); false = offener Bogen mit Luecke. */
+  voll: boolean;
 }
 
+const MAX_POSITIONEN = 15;
+
 /**
- * Faecher-Layout (Review Eric): eng am Orb bleiben statt den Radius
- * aufzublasen — passt der 120°-Bogen nicht, weitet der Faecher auf den
- * Vollkreis (Radius hoechstens Basis + 14); ist auch der voll, zeigen
- * weniger Parts plus ein '…'-Orb, dass mehr dahinter liegt.
+ * Faecher-Layout (Review Eric): kleinstmoeglicher Radius, Bogen hoechstens
+ * 300° — die Luecke zeigt vom freien Sektor weg zu den Nachbar-Orbs, damit
+ * die Preview-Orbs dort nichts ueberschneiden. Hoechstens ~15 Positionen;
+ * darueber 14 Beleg-Orbs plus ein '…'-Orb.
  */
 export function faecherLayout(
   n: number,
   p: number,
   basis: number,
 ): FaecherLayout {
-  const deckel = basis + 14;
+  const deckel = basis + 26;
   const schritt = p + 6;
-  const radius120 = ((n - 1) * schritt) / ((2 * Math.PI) / 3);
-  if (radius120 <= deckel) {
-    return {
-      radius: Math.max(basis, Math.ceil(radius120)),
-      spanneGrad: 120,
-      sichtbar: n,
-      mehr: false,
-    };
+  let mehr = n > MAX_POSITIONEN;
+  let sichtbar = mehr ? MAX_POSITIONEN - 1 : n;
+  let positionen = sichtbar + (mehr ? 1 : 0);
+
+  // Radius so klein wie moeglich, dass der Bogen <= 300° bleibt.
+  const noetig = ((positionen - 1) * schritt) / ((300 * Math.PI) / 180);
+  const radius = Math.min(deckel, Math.max(basis, Math.ceil(noetig)));
+  let schrittGrad = (schritt / radius) * (180 / Math.PI);
+  const voll = (positionen - 1) * schrittGrad > 300;
+  if (voll) {
+    const kapazitaet = Math.floor(360 / schrittGrad);
+    if (kapazitaet < positionen) {
+      mehr = true;
+      sichtbar = Math.max(1, kapazitaet - 1);
+      positionen = kapazitaet;
+    }
+    schrittGrad = 360 / positionen;
   }
-  const kapazitaet = Math.floor((2 * Math.PI * deckel) / schritt);
-  if (kapazitaet >= n) {
-    return { radius: deckel, spanneGrad: 360, sichtbar: n, mehr: false };
-  }
-  return {
-    radius: deckel,
-    spanneGrad: 360,
-    sichtbar: Math.max(1, kapazitaet - 1),
-    mehr: true,
-  };
+  return { radius, schrittGrad, sichtbar, mehr, voll };
 }
 
 /** Maximum je `${art}|${einheit}` — Outputs skalieren je Einheit getrennt. */

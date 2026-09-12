@@ -120,10 +120,10 @@ describe("gruppenGroesse / partGroesse (Mockup)", () => {
     expect(gruppenGroesse([30, 40])).toBe(50);
     expect(gruppenGroesse([62, 62, 62])).toBe(72);
   });
-  it("Part: 55 % des Gruppen-D, geclampt 22–36", () => {
-    expect(partGroesse(72)).toBe(36);
-    expect(partGroesse(50)).toBe(28);
-    expect(partGroesse(30)).toBe(22);
+  it("Part: 45 % des Gruppen-D, geclampt 18–26 (Review: kleiner)", () => {
+    expect(partGroesse(72)).toBe(26);
+    expect(partGroesse(50)).toBe(23);
+    expect(partGroesse(30)).toBe(18);
   });
 });
 
@@ -289,29 +289,24 @@ describe("orb-Asset am Kartenpunkt", () => {
   });
 });
 
-describe("faecherLayout (eng am Orb; Vollkreis; '…'-Orb bei Ueberlauf)", () => {
-  it("wenige Parts: 120°-Bogen am Basisradius", () => {
-    expect(faecherLayout(2, 24, 46)).toEqual({
-      radius: 46,
-      spanneGrad: 120,
-      sichtbar: 2,
-      mehr: false,
-    });
-  });
-  it("mittlere Anzahl: bleibt am Deckel-Radius, weitet auf den Vollkreis", () => {
-    const l = faecherLayout(6, 28, 60);
-    expect(l.radius).toBeLessThanOrEqual(74);
-    expect(l.spanneGrad).toBe(360);
-    expect(l.sichtbar).toBe(6);
+describe("faecherLayout (Bogen mit Luecke zu Nachbarn; max ~15; '…' bei mehr)", () => {
+  it("wenige Parts: Basisradius, offener Bogen (Luecke bleibt)", () => {
+    const l = faecherLayout(5, 26, 54);
+    expect(l.radius).toBe(54);
+    expect(l.voll).toBe(false);
+    expect(l.sichtbar).toBe(5);
     expect(l.mehr).toBe(false);
+    expect((l.sichtbar - 1) * l.schrittGrad).toBeLessThanOrEqual(300);
   });
-  it("Ueberlauf: Vollkreis voll → weniger sichtbar + '…'-Orb", () => {
-    const l = faecherLayout(14, 28, 60);
-    expect(l.radius).toBe(74);
-    expect(l.spanneGrad).toBe(360);
+  it("15 Belege passen maximal (Vollkreis am Deckel)", () => {
+    const l = faecherLayout(15, 26, 54);
+    expect(l.sichtbar).toBe(15);
+    expect(l.mehr).toBe(false);
+    expect(l.radius).toBeLessThanOrEqual(54 + 26);
+  });
+  it("mehr als 15 → 14 Beleg-Orbs + '…'", () => {
+    const l = faecherLayout(22, 26, 54);
+    expect(l.sichtbar).toBe(14);
     expect(l.mehr).toBe(true);
-    // sichtbar + '…' passen auf den Vollkreis (Kapazitaet floor(2π·74/34)=13)
-    expect(l.sichtbar + 1).toBeLessThanOrEqual(13);
-    expect(l.sichtbar).toBeGreaterThanOrEqual(10);
   });
 });

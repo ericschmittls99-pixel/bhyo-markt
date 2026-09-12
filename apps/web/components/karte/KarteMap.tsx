@@ -330,14 +330,16 @@ export function KarteMap({
         halo.style.border = "1.5px solid var(--glass-edge)";
         const pGr = partGroesse(D);
         const layout = faecherLayout(mitglieder.length, pGr, W / 2 + pGr / 2 + 4);
-        const a0 = fanStart(g, zentren.filter((_, i) => i !== gi));
+        // fanStart liefert den Start des freien 120°-Sektors; dessen Mitte
+        // ist die freie Richtung — dort zentriert der Bogen, die Luecke
+        // zeigt zu den Nachbar-Orbs (Review: nichts ueberschneiden).
+        const freieMitte = fanStart(g, zentren.filter((_, i) => i !== gi)) + 60;
         const positionen = layout.sichtbar + (layout.mehr ? 1 : 0);
-        const winkelVon = (i: number) =>
-          layout.spanneGrad === 360
-            ? a0 + i * (360 / positionen)
-            : positionen > 1
-              ? a0 + i * (120 / (positionen - 1))
-              : a0 + 45;
+        const winkelVon = (i: number) => {
+          if (layout.voll) return freieMitte + i * (360 / positionen);
+          const spanne = (positionen - 1) * layout.schrittGrad;
+          return freieMitte - spanne / 2 + i * layout.schrittGrad;
+        };
         const machePart = (i: number) => {
           const deg = winkelVon(i);
           const a = (deg * Math.PI) / 180;
