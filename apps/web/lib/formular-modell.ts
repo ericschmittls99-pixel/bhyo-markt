@@ -45,6 +45,144 @@ export function saisonOderLeer(v: unknown, kontext: string): number[] {
   return Array(12).fill(0);
 }
 
+/** Gleichverteilung: 12 × 8,3 % (Summe 99,6 — bewusst nicht kuenstlich auf 100 gezogen). */
+export function gleichverteilung(): number[] {
+  return Array(12).fill(Math.round((100 / 12) * 10) / 10);
+}
+
+/** Setzt einen Monatswert (0–100, ganzzahlig) und laesst die Nachbarn stehen. */
+export function saisonWertSetzen(werte: number[], i: number, v: number): number[] {
+  const geclampt = Math.min(100, Math.max(0, Math.round(v)));
+  return werte.map((x, j) => (j === i ? geclampt : x));
+}
+
+// --- Gekoppelte Auswahllisten ------------------------------------------------
+
+export function materialartenImCluster<T extends { cluster: string }>(
+  alle: T[],
+  cluster: string,
+): T[] {
+  return cluster ? alle.filter((m) => m.cluster === cluster) : alle;
+}
+
+export function clusterVonMaterialart(
+  alle: { code: string; cluster: string }[],
+  code: string,
+): string {
+  return alle.find((m) => m.code === code)?.cluster ?? "";
+}
+
+export function produkteInGruppe<T extends { gruppe: string }>(
+  alle: T[],
+  gruppe: string,
+): T[] {
+  return gruppe ? alle.filter((p) => p.gruppe === gruppe) : alle;
+}
+
+export function gruppeVonProdukt(
+  alle: { code: string; gruppe: string }[],
+  code: string,
+): string {
+  return alle.find((p) => p.code === code)?.gruppe ?? "";
+}
+
+// --- Einheiten (E13 + Mockup) ------------------------------------------------
+
+export const MENGE_EINHEITEN = ["t/a", "MWh/a", "Nm³/a"] as const;
+export const PREIS_EINHEITEN = ["€/t", "€/MWh", "€/kg", "€/Nm³"] as const;
+
+// --- Validierung --------------------------------------------------------------
+
+export type FeldFehler = Record<string, string>;
+
+/** Vom Formular/der Action extrahierte Roh-Eingaben (getrimmte Strings). */
+export interface FormularEingaben {
+  akteurId: string;
+  materialartCode: string;
+  produktCode: string;
+  mengeRohFm: string;
+  tsAnteilPct: string;
+  aschegehaltPct: string;
+  mengeWert: string;
+  mengeEinheit: string;
+  preisMin: string;
+  preisMittel: string;
+  preisMax: string;
+  preis: string;
+  vonMonat: string;
+  bisMonat: string;
+  begruendung: string;
+  belegTyp: string;
+  belegQuellenangabe: string;
+  belegErhebungsdatum: string;
+  belegHatDatei: boolean;
+  belegLink: string;
+}
+
+const PFLICHT = "Pflichtfeld";
+const KEINE_ZAHL = "Muss eine Zahl sein";
+
+function zahlOk(v: string): boolean {
+  return v === "" || Number.isFinite(Number(v.replace(",", ".")));
+}
+
+/**
+ * Feld-Fehler fuer die Inline-Anzeige (leeres Objekt = gueltig). Die Keys sind
+ * die FormData-Feldnamen; Client und Server nutzen dieselbe Funktion.
+ */
+export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehler {
+  const f: FeldFehler = {};
+  const pflicht = (key: string, wert: string) => {
+    if (!wert.trim()) f[key] = PFLICHT;
+  };
+  const zahl = (key: string, wert: string) => {
+    if (!zahlOk(wert)) f[key] = KEINE_ZAHL;
+  };
+
+  pflicht("akteur_id", e.akteurId);
+  pflicht("zeitraum_von", e.vonMonat);
+  pflicht("zeitraum_bis", e.bisMonat);
+  pflicht("begruendung", e.begruendung);
+
+  if (art === "biomasse") {
+    pflicht("materialart_code", e.materialartCode);
+    pflicht("menge_roh_fm", e.mengeRohFm);
+    pflicht("ts_anteil_pct", e.tsAnteilPct);
+    pflicht("aschegehalt_pct", e.aschegehaltPct);
+    zahl("menge_roh_fm", e.mengeRohFm);
+    zahl("ts_anteil_pct", e.tsAnteilPct);
+    zahl("aschegehalt_pct", e.aschegehaltPct);
+    zahl("preis_min", e.preisMin);
+    zahl("preis_mittel", e.preisMittel);
+    zahl("preis_max", e.preisMax);
+  } else {
+    pflicht("produkt_code", e.produktCode);
+    pflicht("menge_wert", e.mengeWert);
+    pflicht("menge_einheit", e.mengeEinheit);
+    zahl("menge_wert", e.mengeWert);
+    zahl("preis", e.preis);
+  }
+
+  if (
+    !f.zeitraum_von &&
+    !f.zeitraum_bis &&
+    e.vonMonat &&
+    e.bisMonat &&
+    e.bisMonat < e.vonMonat
+  ) {
+    f.zeitraum_bis = "Bis-Monat liegt vor dem Ab-Monat";
+  }
+
+  if (e.belegTyp) {
+    pflicht("beleg_quellenangabe", e.belegQuellenangabe);
+    pflicht("beleg_erhebungsdatum", e.belegErhebungsdatum);
+    if (!e.belegHatDatei && !e.belegLink.trim())
+      f.beleg_datei = "Datei oder Link erforderlich";
+  }
+
+  return f;
+}
+
 // --- Formularwerte (Edit-Prefill) -------------------------------------------
 
 export interface FormularBeleg {
