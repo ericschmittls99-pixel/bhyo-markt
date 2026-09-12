@@ -15,6 +15,7 @@ import {
 } from "@/lib/beleg-server";
 import { currentUserEmail, withDb } from "@/lib/db";
 import {
+  herkunftOderNull,
   monatZuBis,
   monatZuVon,
   validiereFormular,
@@ -58,21 +59,6 @@ function eingabenAus(formData: FormData): FormularEingaben {
       formData.get("beleg_datei_vorhanden") === "1",
     belegLink: s(text(formData, "beleg_link")),
   };
-}
-
-type Herkunft = "eigene_datenbank" | "marktdaten" | "schaetzung";
-
-/**
- * Preis-Herkunft aus dem Formular; ein eingegebener Preis ohne gewaehlte
- * Herkunft gilt als eigener Wert -> Schaetzung (Mockup-Hinweis "Eigener Wert
- * setzt die Herkunft auf Schätzung.").
- */
-function herkunftAus(formData: FormData, preisGesetzt: boolean): Herkunft | null {
-  const roh = text(formData, "preis_herkunft");
-  if (roh === "eigene_datenbank" || roh === "marktdaten" || roh === "schaetzung")
-    return roh;
-  if (roh != null) console.error("Unerwartete preis_herkunft:", roh);
-  return preisGesetzt ? "schaetzung" : null;
 }
 
 /**
@@ -122,10 +108,7 @@ export async function stromSpeichern(
             preisMin: text(formData, "preis_min"),
             preisMittel: text(formData, "preis_mittel"),
             preisMax: text(formData, "preis_max"),
-            preisHerkunft: herkunftAus(
-              formData,
-              !!(eingaben.preisMin || eingaben.preisMittel || eingaben.preisMax),
-            ),
+            preisHerkunft: herkunftOderNull(text(formData, "preis_herkunft")),
           }
         : {
             ...gemeinsam,
@@ -134,7 +117,7 @@ export async function stromSpeichern(
             mengeEinheit: pflicht(formData, "menge_einheit", "Einheit"),
             preis: text(formData, "preis"),
             preisEinheit: text(formData, "preis_einheit"),
-            preisHerkunft: herkunftAus(formData, !!eingaben.preis),
+            preisHerkunft: herkunftOderNull(text(formData, "preis_herkunft")),
           };
 
     await withDb((db) =>

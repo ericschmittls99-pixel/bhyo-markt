@@ -86,6 +86,22 @@ export function gruppeVonProdukt(
   return alle.find((p) => p.code === code)?.gruppe ?? "";
 }
 
+// --- Preis-Herkunft -----------------------------------------------------------
+
+export type PreisHerkunft = "eigene_datenbank" | "marktdaten" | "schaetzung";
+
+/**
+ * Gespeichert wird nur, was im Formular stand (Review #29): kein serverseitiges
+ * Nachtragen einer nie gemachten Herkunfts-Aussage. "Schätzung" ist bei der
+ * Neuanlage lediglich die Vorauswahl des Selects im FormularPanel.
+ */
+export function herkunftOderNull(roh: string | null): PreisHerkunft | null {
+  if (roh === "eigene_datenbank" || roh === "marktdaten" || roh === "schaetzung")
+    return roh;
+  if (roh != null && roh !== "") console.error("Unerwartete preis_herkunft:", roh);
+  return null;
+}
+
 // --- Einheiten (E13 + Mockup) ------------------------------------------------
 
 export const MENGE_EINHEITEN = ["t/a", "MWh/a", "Nm³/a"] as const;

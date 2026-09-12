@@ -6,6 +6,7 @@ import {
   formularZeileZuWerte,
   gleichverteilung,
   gruppeVonProdukt,
+  herkunftOderNull,
   materialartenImCluster,
   monatZuBis,
   monatZuVon,
@@ -239,5 +240,23 @@ describe("Saison-Helfer", () => {
     expect(saisonWertSetzen(w, 0, -2)[0]).toBe(0);
     expect(saisonWertSetzen(w, 1, 33.4)[1]).toBe(33);
     expect(w[3]).toBe(5); // Eingabe unveraendert
+  });
+});
+
+describe("herkunftOderNull", () => {
+  it("gültige Enum-Werte kommen durch", () => {
+    expect(herkunftOderNull("schaetzung")).toBe("schaetzung");
+    expect(herkunftOderNull("marktdaten")).toBe("marktdaten");
+    expect(herkunftOderNull("eigene_datenbank")).toBe("eigene_datenbank");
+  });
+  it("Preis gesetzt, Herkunft leer → null, nicht 'schaetzung' (Review #29)", () => {
+    expect(herkunftOderNull(null)).toBeNull();
+    expect(herkunftOderNull("")).toBeNull();
+  });
+  it("unbekannter Wert wird protokolliert und zu null", () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(herkunftOderNull("geraten")).toBeNull();
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
   });
 });

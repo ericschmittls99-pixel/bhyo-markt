@@ -602,7 +602,13 @@ export function FormularPanel({
             <label className="pf">
               <span>Herkunft</span>
               <span className="pf-feld">
-                <select name="preis_herkunft" defaultValue={werte?.preisHerkunft ?? ""}>
+                {/* Neuanlage: "Schätzung" nur als VORAUSWAHL — der Server
+                    speichert exakt den Formularstand, kein Nachtragen (Review
+                    #29). Bearbeiten behaelt den gespeicherten Wert, auch leer. */}
+                <select
+                  name="preis_herkunft"
+                  defaultValue={neu ? "schaetzung" : werte.preisHerkunft}
+                >
                   <option value="">—</option>
                   <option value="eigene_datenbank">eigene Datenbank</option>
                   <option value="marktdaten">Marktdaten</option>
