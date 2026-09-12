@@ -97,7 +97,8 @@ function polygonBounds(
 
 /**
  * karte. (V2, PR 6): MapLibre-Flaeche mit Orb-Markern im Mockup-Look
- * (Verlaufs-Orb in Glas-Halo, Kreis/Raute, Groesse 12–38 px, Qualitaets-Ring
+ * (Verlaufs-Orb in Glas-Halo, ALLE rund — Review Eric, Groesse 12–38 px,
+ * Qualitaets-Ring
  * A solid 2,5 / B solid 2 / C dashed / D dotted), Pixel-Aggregation mit
  * Zaehler und Hover-Faecher (Hauptorb bleibt stehen), Lime-Regionsumrissen
  * mit Glas-Labeln und Rechteck-Zeichnen. Zustand kommt von KarteAnsicht.
@@ -238,11 +239,11 @@ export function KarteMap({
       const haloGroesse = size + 10;
       el.style.width = `${haloGroesse}px`;
       el.style.height = `${haloGroesse}px`;
-      halo.className = `km-halo${p.art === "output" ? " km-halo--raute" : ""}`;
+      halo.className = "km-halo";
       halo.style.borderWidth = `${ring.breite}px`;
       halo.style.borderStyle = ring.stil;
       halo.style.borderColor = ringFarbe;
-      orb.className = `km-orb${p.art === "output" ? " km-orb--raute" : ""}`;
+      orb.className = "km-orb";
       orb.style.width = `${size}px`;
       orb.style.height = `${size}px`;
       // Echtes Orb-Verlaufsbild (public/orbs) wie im Grid/Detail — der
@@ -250,13 +251,6 @@ export function KarteMap({
       orb.style.backgroundImage = `url(${p.orb})`;
       orb.style.backgroundSize = "cover";
       orb.style.backgroundColor = farbe;
-      if (p.art === "output") {
-        // Raute: Halo und Orb rotieren gemeinsam; die Kantenlaenge schrumpft,
-        // damit die Diagonale wieder ~size ergibt (Groessenlogik unveraendert).
-        const d = Math.round(size * 0.72);
-        orb.style.width = `${d}px`;
-        orb.style.height = `${d}px`;
-      }
       halo.appendChild(orb);
       el.appendChild(halo);
       if (badge && badge > 1) {

@@ -18,8 +18,8 @@ const DEFAULT_HOEHE = 320;
 
 /**
  * Glas-Legende von karte. (PR 6): klappbar, Hoehe per Griff ziehbar
- * (Doppelklick = auf/zu, Pfeiltasten ±24 px), vier Gruppen — Cluster (Kreis,
- * klick-filtert), Output-Gruppe (Raute, klick-filtert), Rand = Qualitaet,
+ * (Doppelklick = auf/zu, Pfeiltasten ±24 px), vier Gruppen — Cluster und
+ * Output-Gruppe (Orbs, klick-filtern), Rand = Qualitaet,
  * Regionen mit Sichtbarkeitsschaltern. Offen/Hoehe/Regionsschalter leben im
  * Cookie bhyo_ui und ueberleben Einklappen und Reload.
  */
@@ -178,15 +178,15 @@ export function KarteLegende({
                 onClick={() => onGruppeKlick(k)}
               >
                 {k === "add_ons" ? (
-                  <i className="km-leg-raute" style={{ background: farbe }} aria-hidden />
+                  <i className="km-leg-kreis" style={{ background: farbe }} aria-hidden />
                 ) : (
                   <img
-                    className="km-leg-orb km-leg-orb--raute"
+                    className="km-leg-orb"
                     src={`/orbs/output/${k}.webp`}
                     alt=""
                     aria-hidden
-                    width={16}
-                    height={16}
+                    width={18}
+                    height={18}
                   />
                 )}
                 <span className="lbl">{OUTPUT_LABEL[k]}</span>
