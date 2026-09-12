@@ -62,6 +62,15 @@ export function partGroesse(d: number): number {
   return Math.max(22, Math.min(36, Math.round(d * 0.55)));
 }
 
+/**
+ * Faecher-Radius: Basis (Halo-Rand + halber Part), aufgeweitet wenn viele
+ * Parts sonst auf dem 120°-Bogen ueberlappen wuerden ((n−1)·(p+6) Bogenlaenge).
+ */
+export function faecherRadius(n: number, p: number, basis: number): number {
+  const noetig = ((n - 1) * (p + 6)) / ((2 * Math.PI) / 3);
+  return Math.max(basis, Math.ceil(noetig));
+}
+
 /** Maximum je `${art}|${einheit}` — Outputs skalieren je Einheit getrennt. */
 export function maxMengeJe(punkte: KartePunkt[]): Map<string, number> {
   const m = new Map<string, number>();

@@ -16,9 +16,9 @@ import {
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import {
   aggregiere,
+  faecherRadius,
   fanStart,
   farbGruppen,
   gruppenGroesse,
@@ -321,29 +321,23 @@ export function KarteMap({
           e.stopPropagation();
           zustand.current.onPunktKlick(p.id);
         });
-      } else if (typ === "agg") {
-        halo.style.border = "1.5px solid var(--glass-edge)";
-        el.title = `${mitglieder.length} Ströme`;
-        orbEl.append(halo, fillEl(parts[0]!.orb), countEl(mitglieder.length));
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          reinzoomen(mitglieder);
-        });
       } else {
+        // Aggregat (einfarbig wie gemischt): Hauptorb mit Zaehler; der
+        // Hover-Preview faechert ALLE Belege der Gruppe als kleine Orbs auf
+        // (Review Eric — nicht nur die aus anderen Clustern). Klick auf einen
+        // kleinen Orb oeffnet dessen Panel, Klick auf den Hauptorb zoomt.
         orbEl.classList.add("km-stack");
         halo.style.border = "1.5px solid var(--glass-edge)";
-        const rest = parts.slice(1);
-        const n = rest.length;
+        const n = mitglieder.length;
         const pGr = partGroesse(D);
-        const rad = W / 2 + pGr / 2 + 4;
+        const rad = faecherRadius(n, pGr, W / 2 + pGr / 2 + 4);
         const a0 = fanStart(g, zentren.filter((_, i) => i !== gi));
-        rest.forEach((pt, i) => {
+        mitglieder.forEach((p, i) => {
           const deg = n > 1 ? a0 + i * (120 / (n - 1)) : a0 + 45;
           const a = (deg * Math.PI) / 180;
           const part = document.createElement("span");
           part.className = "km-part";
-          const farbKey = pt.mitglieder[0]!.farbeKey;
-          part.title = CLUSTER_LABEL[farbKey] ?? OUTPUT_LABEL[farbKey] ?? farbKey;
+          part.title = `${p.titel} · ${p.untertitel}`;
           part.style.width = `${pGr}px`;
           part.style.height = `${pGr}px`;
           part.style.left = `${(W - pGr) / 2}px`;
@@ -351,11 +345,12 @@ export function KarteMap({
           part.style.zIndex = String(n - i);
           part.style.setProperty("--fx", `${Math.round(rad * Math.cos(a))}px`);
           part.style.setProperty("--fy", `${Math.round(rad * Math.sin(a))}px`);
-          part.style.backgroundImage = `url(${pt.orb})`;
-          part.appendChild(countEl(pt.mitglieder.length));
+          // Stagger: die Belege wachsen nacheinander aus dem Orb (smoother).
+          part.style.setProperty("--verzug", `${i * 35}ms`);
+          part.style.backgroundImage = `url(${p.orb})`;
           part.addEventListener("click", (e) => {
             e.stopPropagation();
-            reinzoomen(pt.mitglieder);
+            zustand.current.onPunktKlick(p.id);
           });
           orbEl.appendChild(part);
         });

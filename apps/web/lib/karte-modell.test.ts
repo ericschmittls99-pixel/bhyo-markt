@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   aggregiere,
   bboxKm,
+  faecherRadius,
   fanStart,
   farbGruppen,
   geojsonOderNull,
@@ -285,5 +286,15 @@ describe("orb-Asset am Kartenpunkt", () => {
       produktCode: "asche",
     })!;
     expect(p.orb).toBe("/orbs/output/asche.webp");
+  });
+});
+
+describe("faecherRadius", () => {
+  it("Basisradius, waechst aber, damit n Parts auf dem 120°-Bogen nicht ueberlappen", () => {
+    expect(faecherRadius(2, 24, 46)).toBe(46);
+    expect(faecherRadius(6, 28, 46)).toBeGreaterThan(46);
+    // Bogenlaenge (120° = 2π/3 · r) muss (n−1)·(p+6) fassen
+    const r = faecherRadius(6, 28, 46);
+    expect(((2 * Math.PI) / 3) * r).toBeGreaterThanOrEqual(5 * 34 - 1);
   });
 });

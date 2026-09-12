@@ -3093,8 +3093,9 @@ table.st-tabelle tbody tr:focus-visible {
   transform: translate(0, 0) scale(0.6);
   opacity: 0;
   transition:
-    transform var(--duration-slow) var(--ease-spring),
+    transform var(--duration-slower, 420ms) var(--ease-spring),
     opacity var(--duration-base) var(--ease-standard);
+  transition-delay: 0s;
   cursor: pointer;
 }
 .km-part .km-count {
@@ -3110,6 +3111,8 @@ table.st-tabelle tbody tr:focus-visible {
 .km-stack.is-open .km-part {
   transform: translate(var(--fx), var(--fy)) scale(1);
   opacity: 1;
+  /* Belege wachsen gestaffelt aus dem Orb; Schliessen ohne Verzug */
+  transition-delay: var(--verzug, 0s);
 }
 .km-stack.is-open .km-part .km-count {
   opacity: 1;
