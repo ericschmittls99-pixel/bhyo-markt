@@ -2124,6 +2124,56 @@ button.leg-toggle.aus {
   border-top: 1px solid var(--border-subtle);
   margin-top: 4px;
 }
+
+/* SeasonBarsEdit (PR 5, E10): ziehbare Saison-Balken */
+.sbe {
+  display: grid;
+  gap: 6px;
+}
+.sbe-flaeche {
+  touch-action: none;
+  cursor: ns-resize;
+  border-radius: var(--radius-xs);
+}
+.sbe-slot {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-end;
+  width: 100%;
+  height: 100%;
+  border-radius: var(--radius-xs);
+}
+.sbe-slot:focus-visible {
+  outline: 2px solid var(--focus-ring, var(--data-lime));
+  outline-offset: 2px;
+}
+.sbe-wert {
+  position: absolute;
+  top: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font: var(--type-micro);
+  font-variant-numeric: tabular-nums;
+  color: var(--text-secondary);
+  white-space: nowrap;
+  pointer-events: none;
+}
+.sbe-monate {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 6px;
+  text-align: center;
+}
+.sbe-monate .m {
+  font: var(--type-micro);
+  color: var(--text-secondary);
+}
+.sbe-aktionen {
+  display: flex;
+  gap: 8px;
+  margin-top: 2px;
+}
 .pf-feld em {
   position: absolute;
   right: 10px;
