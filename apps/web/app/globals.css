@@ -3024,61 +3024,97 @@ table.st-tabelle tbody tr:focus-visible {
     brightness(0.9);
 }
 
-/* Marker: flach, Kreis/Raute; Groesse setzt das Element inline. */
-.km-marker {
+/* Marker: 1:1 Mockup — Orb-Bild (km-fill) 6 px im Glas-Halo, Zaehler-Pille,
+   Stack-Parts fahren per is-open aus dem Zentrum auf den Bogen. */
+.km-orb {
   position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   padding: 0;
-  border: none;
+  border: 0;
   background: none;
   cursor: pointer;
+  animation: km-pop var(--duration-base) var(--ease-standard);
 }
-.km-marker.km-stapel {
+.km-halo {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: var(--glass-fill);
+  box-shadow: var(--glass-shadow);
+  box-sizing: border-box;
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+.km-orb:hover .km-halo {
+  transform: scale(1.06);
+}
+.km-orb.is-active .km-halo {
+  box-shadow: 0 0 0 3px var(--border-active), var(--glass-shadow);
+}
+.km-fill {
+  position: absolute;
+  inset: 6px;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+.km-count {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  min-width: 20px;
+  height: 20px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--pill-value-bg);
+  color: var(--pill-value-fg);
+  font: 600 11px/20px var(--font-sans);
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+  box-shadow: 0 0 0 2px var(--surface-card);
+  pointer-events: none;
+}
+.km-part {
+  position: absolute;
+  border-radius: 50%;
+  background-size: cover;
+  background-position: center;
+  box-shadow: 0 0 0 2px var(--surface-card), 0 2px 6px rgba(31, 46, 56, 0.2);
+  transform: translate(0, 0) scale(0.6);
+  opacity: 0;
+  transition:
+    transform var(--duration-slow) var(--ease-spring),
+    opacity var(--duration-base) var(--ease-standard);
   cursor: pointer;
 }
-.km-marker.km-faecher {
-  /* waechst aus dem Hauptorb heraus (Startversatz via --km-dx/--km-dy) */
-  animation: km-faecher-auf var(--duration-slow) var(--ease-spring);
-}
-.km-marker.km-puls > .km-halo {
-  animation: km-puls var(--duration-base) var(--ease-spring);
-}
-@keyframes km-puls {
-  0% {
-    transform: scale(1);
-  }
-  45% {
-    transform: scale(1.14);
-  }
-  100% {
-    transform: scale(1);
-  }
-}
-@keyframes km-faecher-auf {
-  from {
-    transform: translate(var(--km-dx, 0), var(--km-dy, 0)) scale(0.3);
-    opacity: 0;
-  }
-  to {
-    transform: none;
-    opacity: 1;
-  }
-}
-.km-badge {
-  position: absolute;
-  top: -6px;
-  right: -8px;
+.km-part .km-count {
+  right: -6px;
+  bottom: -6px;
   min-width: 18px;
   height: 18px;
-  padding: 0 5px;
-  border-radius: 9px;
-  background: var(--bhyo-navy-900, #1f2e38);
-  color: #fff;
-  font: 600 11px/18px var(--font-sans);
-  text-align: center;
-  pointer-events: none;
+  line-height: 18px;
+  font-size: 10px;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.km-stack.is-open .km-part {
+  transform: translate(var(--fx), var(--fy)) scale(1);
+  opacity: 1;
+}
+.km-stack.is-open .km-part .km-count {
+  opacity: 1;
+}
+@keyframes km-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.7);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
 }
 
 /* Glas-Label der Regionsumrisse */
@@ -3429,41 +3465,9 @@ table.st-tabelle tbody tr:focus-visible {
   box-shadow: var(--shadow-menu);
 }
 
-/* karte.: Orb-Marker im Glas-Halo (Mockup-Look) */
-.km-halo {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  height: 100%;
-  border-radius: 50%;
-  /* Mockup: luftiger, halbtransparenter Glasring um den Orb */
-  background: color-mix(in srgb, var(--glass-fill-strong) 58%, transparent);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
-  box-shadow: 0 2px 6px rgba(31, 46, 56, 0.2);
-  box-sizing: border-box;
-}
-.km-halo--raute {
-  border-radius: 22%;
-  transform: rotate(45deg);
-}
-.km-orb {
-  border-radius: 50%;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35);
-}
-.km-orb--raute {
-  border-radius: 3px;
-}
-
 .km-leg-orb {
   flex: 0 0 auto;
   border-radius: 50%;
-}
-.km-leg-orb--raute {
-  border-radius: 4px;
-  transform: rotate(45deg);
-  margin: 0 1px;
 }
 .km-panel-orb {
   flex: 0 0 auto;

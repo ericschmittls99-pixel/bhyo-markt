@@ -46,10 +46,20 @@ export function stromZuPunkt(s: Strom): KartePunkt | null {
   };
 }
 
-/** Markerdurchmesser 12–38 px, Flaeche ~ Menge (Wurzel-Skala). */
+/** Markerdurchmesser 30–62 px (Mockup sizeOf: 30 + 32·√v, v geclampt 0–1). */
 export function markerGroesse(menge: number, maxMenge: number): number {
-  if (maxMenge <= 0) return 14;
-  return Math.round(12 + Math.sqrt(Math.max(0, menge) / maxMenge) * 26);
+  const v = Math.max(0, menge) / (maxMenge || 1);
+  return Math.round(30 + 32 * Math.sqrt(Math.min(1, v)));
+}
+
+/** Gruppen-Durchmesser (Mockup): √(Σ D²), gedeckelt auf 72. */
+export function gruppenGroesse(groessen: number[]): number {
+  return Math.min(72, Math.round(Math.sqrt(groessen.reduce((n, d) => n + d * d, 0))));
+}
+
+/** Faecher-Part (Mockup): 55 % des Gruppen-D, geclampt 22–36. */
+export function partGroesse(d: number): number {
+  return Math.max(22, Math.min(36, Math.round(d * 0.55)));
 }
 
 /** Maximum je `${art}|${einheit}` — Outputs skalieren je Einheit getrennt. */
@@ -63,25 +73,26 @@ export function maxMengeJe(punkte: KartePunkt[]): Map<string, number> {
 }
 
 /**
- * Qualitaets-Ring der Marker (Mockup, Delta 1.4; Breiten nach Erics Review
- * fein nachjustiert): A solid 1,5 / B solid 1 / C dashed / D dotted; ohne
- * Bewertung dezenter 1-px-Rand. Farbe aus QUALITAET_RING (Navy, keine Ampel).
+ * Qualitaets-Ring EXAKT wie die Mockup-RING-Konstante — er sitzt auf dem
+ * grossen Glas-Halo (Orb-Bild 6 px eingerueckt), dadurch wirken 2–2,5 px
+ * dort richtig. Rampe navy-900/700/500/300, keine Ampel.
  */
 export function qualitaetsRing(q: string | null): {
   breite: number;
   stil: "solid" | "dashed" | "dotted";
+  farbe: string;
 } {
   switch (q) {
     case "A":
-      return { breite: 1.5, stil: "solid" };
+      return { breite: 2.5, stil: "solid", farbe: "#1f2e38" };
     case "B":
-      return { breite: 1, stil: "solid" };
+      return { breite: 2, stil: "solid", farbe: "#3c4a52" };
     case "C":
-      return { breite: 1, stil: "dashed" };
+      return { breite: 2, stil: "dashed", farbe: "#6c7a81" };
     case "D":
-      return { breite: 1, stil: "dotted" };
+      return { breite: 2, stil: "dotted", farbe: "#a3acb1" };
     default:
-      return { breite: 1, stil: "solid" };
+      return { breite: 1.5, stil: "solid", farbe: "rgba(31,46,56,0.18)" };
   }
 }
 
@@ -99,32 +110,35 @@ export interface AggGruppe {
 }
 
 /**
- * Verschmilzt Punkte, deren Pixel-Abstand unter dem Radius liegt, transitiv
- * zu Gruppen (BFS). Gruppenzentrum = Mittelwert der Mitglieder.
+ * Aggregation EXAKT wie das Mockup (clusterize): greedy vom groessten Marker,
+ * Nachbarn im Radius werden ihm zugeschlagen — bewusst NICHT transitiv.
+ * Radius 0 (Zoom >= 16) = keine Aggregation. Zentrum = Mittelwert.
  */
-export function aggregiere(px: PixelPunkt[], radius = 80): AggGruppe[] {
-  const n = px.length;
-  const besucht = new Array<boolean>(n).fill(false);
-  const r2 = radius * radius;
+export function aggregiere(
+  px: PixelPunkt[],
+  groessen: number[],
+  radius = 80,
+): AggGruppe[] {
+  const reihenfolge = px
+    .map((_, i) => i)
+    .sort((a, b) => (groessen[b] ?? 0) - (groessen[a] ?? 0));
+  const benutzt = new Set<number>();
   const gruppen: AggGruppe[] = [];
-  for (let i = 0; i < n; i++) {
-    if (besucht[i]) continue;
+  for (const i of reihenfolge) {
+    if (benutzt.has(i)) continue;
+    benutzt.add(i);
     const mitglieder = [i];
-    besucht[i] = true;
-    for (let idx = 0; idx < mitglieder.length; idx++) {
-      const a = px[mitglieder[idx]!]!;
-      for (let j = 0; j < n; j++) {
-        if (besucht[j]) continue;
+    if (radius > 0) {
+      const a = px[i]!;
+      for (const j of reihenfolge) {
+        if (benutzt.has(j)) continue;
         const b = px[j]!;
-        const dx = a.x - b.x;
-        const dy = a.y - b.y;
-        if (dx * dx + dy * dy < r2) {
-          besucht[j] = true;
+        if (Math.hypot(a.x - b.x, a.y - b.y) <= radius) {
+          benutzt.add(j);
           mitglieder.push(j);
         }
       }
     }
-    mitglieder.sort((a, b) => a - b);
     gruppen.push({
       x: mitglieder.reduce((s, k) => s + px[k]!.x, 0) / mitglieder.length,
       y: mitglieder.reduce((s, k) => s + px[k]!.y, 0) / mitglieder.length,
@@ -132,6 +146,56 @@ export function aggregiere(px: PixelPunkt[], radius = 80): AggGruppe[] {
     });
   }
   return gruppen;
+}
+
+/**
+ * Faecher-Startwinkel (Mockup fanStart): waehlt den 120°-Sektor, der am
+ * weitesten von Nachbar-Orbs (< 260 px) entfernt liegt; ohne Nachbarn −100°.
+ */
+export function fanStart(g: PixelPunkt, nachbarn: PixelPunkt[]): number {
+  const nah = nachbarn.filter((o) => Math.hypot(o.x - g.x, o.y - g.y) < 260);
+  if (!nah.length) return -100;
+  let best = -100;
+  let bestScore = -Infinity;
+  for (let start = -180; start < 180; start += 15) {
+    const mitte = ((start + 60) * Math.PI) / 180;
+    const mx = Math.cos(mitte);
+    const my = Math.sin(mitte);
+    const score =
+      nah.reduce((min, o) => {
+        const dx = o.x - g.x;
+        const dy = o.y - g.y;
+        const d = Math.hypot(dx, dy) || 1;
+        return Math.min(min, d * (1 - (dx * mx + dy * my) / d));
+      }, Infinity) - (start === -100 ? 0 : 1);
+    if (score > bestScore) {
+      bestScore = score;
+      best = start;
+    }
+  }
+  return best;
+}
+
+export interface FarbGruppe {
+  orb: string;
+  mitglieder: KartePunkt[];
+  flaeche: number;
+}
+
+/** Parts eines Stapels (Mockup): je Orb-Bild gruppiert, nach Flaeche sortiert. */
+export function farbGruppen(
+  mitglieder: KartePunkt[],
+  groessen: Record<string, number>,
+): FarbGruppe[] {
+  const je = new Map<string, FarbGruppe>();
+  for (const p of mitglieder) {
+    const g = je.get(p.orb) ?? { orb: p.orb, mitglieder: [], flaeche: 0 };
+    g.mitglieder.push(p);
+    const d = groessen[p.id] ?? 0;
+    g.flaeche += d * d;
+    je.set(p.orb, g);
+  }
+  return [...je.values()].sort((a, b) => b.flaeche - a.flaeche);
 }
 
 // --- Bbox-Mathe (Zeichnen-Dialog) -----------------------------------------

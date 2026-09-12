@@ -3,9 +3,13 @@ import { describe, expect, it, vi } from "vitest";
 import {
   aggregiere,
   bboxKm,
+  fanStart,
+  farbGruppen,
   geojsonOderNull,
+  gruppenGroesse,
   markerGroesse,
   maxMengeJe,
+  partGroesse,
   punkteInBbox,
   qualitaetsRing,
   stromZuPunkt,
@@ -98,14 +102,27 @@ describe("stromZuPunkt", () => {
   });
 });
 
-describe("markerGroesse", () => {
-  it("skaliert 12–38 mit Wurzel", () => {
-    expect(markerGroesse(0, 100)).toBe(12);
-    expect(markerGroesse(100, 100)).toBe(38);
-    expect(markerGroesse(25, 100)).toBe(25);
+describe("markerGroesse (Mockup: 30 + 32·√v, v geclampt 0–1)", () => {
+  it("skaliert 30–62", () => {
+    expect(markerGroesse(0, 100)).toBe(30);
+    expect(markerGroesse(100, 100)).toBe(62);
+    expect(markerGroesse(25, 100)).toBe(46);
   });
-  it("maxMenge 0 → Mittelgroesse 14", () => {
-    expect(markerGroesse(5, 0)).toBe(14);
+  it("maxMenge 0: Mockup teilt durch 1 und clampt", () => {
+    expect(markerGroesse(5, 0)).toBe(62);
+    expect(markerGroesse(0.25, 0)).toBe(46);
+  });
+});
+
+describe("gruppenGroesse / partGroesse (Mockup)", () => {
+  it("Gruppe: √(Σ D²), gedeckelt auf 72; Wrapper +12 macht der Renderer", () => {
+    expect(gruppenGroesse([30, 40])).toBe(50);
+    expect(gruppenGroesse([62, 62, 62])).toBe(72);
+  });
+  it("Part: 55 % des Gruppen-D, geclampt 22–36", () => {
+    expect(partGroesse(72)).toBe(36);
+    expect(partGroesse(50)).toBe(28);
+    expect(partGroesse(30)).toBe(22);
   });
 });
 
@@ -124,8 +141,8 @@ describe("maxMengeJe", () => {
   });
 });
 
-describe("aggregiere", () => {
-  it("verschmilzt transitiv unter dem Radius", () => {
+describe("aggregiere (Mockup: greedy vom groessten, NICHT transitiv)", () => {
+  it("groesster Punkt sammelt Nachbarn im Radius; kein Ketten-Merge", () => {
     const g = aggregiere(
       [
         { x: 0, y: 0 },
@@ -133,16 +150,44 @@ describe("aggregiere", () => {
         { x: 95, y: 0 },
         { x: 300, y: 0 },
       ],
+      [62, 30, 30, 30],
       80,
     );
-    expect(g).toHaveLength(2);
-    expect(g[0]!.indizes).toEqual([0, 1, 2]);
-    expect(g[1]!.indizes).toEqual([3]);
+    // 0 zieht 50 (Abstand 50); 95 liegt >80 von 0 entfernt → eigene Gruppe.
+    expect(g).toHaveLength(3);
+    expect(g[0]!.indizes).toEqual([0, 1]);
+    expect(g[1]!.indizes).toEqual([2]);
   });
-  it("Gruppenzentrum = Mittelwert", () => {
-    const g = aggregiere([{ x: 0, y: 0 }, { x: 40, y: 20 }], 80);
+  it("Gruppenzentrum = Mittelwert; Radius 0 = keine Aggregation (Zoom ≥ 16)", () => {
+    const g = aggregiere([{ x: 0, y: 0 }, { x: 40, y: 20 }], [30, 30], 80);
     expect(g[0]!.x).toBe(20);
     expect(g[0]!.y).toBe(10);
+    expect(aggregiere([{ x: 0, y: 0 }, { x: 10, y: 0 }], [30, 30], 0)).toHaveLength(2);
+  });
+});
+
+describe("fanStart (Mockup: freier 120°-Sektor)", () => {
+  it("ohne Nachbarn Default −100°", () => {
+    expect(fanStart({ x: 0, y: 0 }, [])).toBe(-100);
+  });
+  it("Nachbar rechts → Faecher oeffnet von ihm weg (Mitte zeigt nach links)", () => {
+    const start = fanStart({ x: 0, y: 0 }, [{ x: 100, y: 0 }]);
+    const mitte = start + 60;
+    // Winkelabstand der Bogen-Mitte zu 180° (gegenueber dem Nachbarn) klein
+    const abstand = Math.abs(((mitte - 180 + 540) % 360) - 180);
+    expect(abstand).toBeLessThan(75);
+  });
+});
+
+describe("farbGruppen (Mockup: Parts je Orb-Key, nach Flaeche sortiert)", () => {
+  it("gruppiert nach orb und sortiert absteigend nach Flaeche", () => {
+    const a = stromZuPunkt(basis)!;                       // guelle_mist
+    const b = stromZuPunkt({ ...basis, id: "b2" })!;      // guelle_mist
+    const o = stromZuPunkt(outputStrom)!;                 // wasserstoff
+    const parts = farbGruppen([a, b, o], { b1: 30, b2: 30, o1: 62 });
+    expect(parts[0]!.mitglieder.map((m) => m.id)).toEqual(["o1"]);
+    expect(parts[1]!.mitglieder).toHaveLength(2);
+    expect(parts[0]!.orb).toBe(o.orb);
   });
 });
 
@@ -200,15 +245,15 @@ describe("geojsonOderNull", () => {
   });
 });
 
-describe("qualitaetsRing (Mockup-Randlogik, Review 3: noch duenner)", () => {
-  it("A solid 1,5 / B solid 1 / C dashed / D dotted", () => {
-    expect(qualitaetsRing("A")).toEqual({ breite: 1.5, stil: "solid" });
-    expect(qualitaetsRing("B")).toEqual({ breite: 1, stil: "solid" });
-    expect(qualitaetsRing("C")).toEqual({ breite: 1, stil: "dashed" });
-    expect(qualitaetsRing("D")).toEqual({ breite: 1, stil: "dotted" });
+describe("qualitaetsRing (exakt Mockup-RING, sitzt auf dem Glas-Halo)", () => {
+  it("A 2,5 solid 900 / B 2 solid 700 / C 2 dashed 500 / D 2 dotted 300", () => {
+    expect(qualitaetsRing("A")).toEqual({ breite: 2.5, stil: "solid", farbe: "#1f2e38" });
+    expect(qualitaetsRing("B")).toEqual({ breite: 2, stil: "solid", farbe: "#3c4a52" });
+    expect(qualitaetsRing("C")).toEqual({ breite: 2, stil: "dashed", farbe: "#6c7a81" });
+    expect(qualitaetsRing("D")).toEqual({ breite: 2, stil: "dotted", farbe: "#a3acb1" });
   });
-  it("ohne Bewertung dezenter 1-px-Rand", () => {
-    expect(qualitaetsRing(null)).toEqual({ breite: 1, stil: "solid" });
+  it("ohne Bewertung dezenter Glasrand", () => {
+    expect(qualitaetsRing(null).breite).toBe(1.5);
   });
 });
 
