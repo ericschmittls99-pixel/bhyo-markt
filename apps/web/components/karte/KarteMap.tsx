@@ -134,10 +134,13 @@ export function KarteMap({
 }) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<MlMap | null>(null);
-  const markersRef = useRef<MlMarker[]>([]);
+  // Keyed Marker (Key = Typ + Mitglieds-IDs): beim Zoomen werden nur echte
+  // Gruppierungswechsel neu gebaut — kein Voll-Redraw, kein Blinken.
+  const markerMapRef = useRef(
+    new Map<string, { marker: MlMarker; orbEl: HTMLElement; typ: string; punktId?: string }>(),
+  );
   const labelsRef = useRef<MlMarker[]>([]);
   const [ready, setReady] = useState(false);
-  const [, setRenderTick] = useState(0);
 
   const dragStart = useRef<{ x: number; y: number } | null>(null);
   const [dragBox, setDragBox] = useState<PixelBox | null>(null);
@@ -163,7 +166,16 @@ export function KarteMap({
         console.info("karte: maplibre load");
         setReady(true);
       });
-      map.on("moveend", () => setRenderTick((t) => t + 1));
+      // Aggregation laeuft schon WAEHREND des Zoomens (rAF-gedrosselt) —
+      // Pan aendert Pixel-Abstaende nicht, zoom schon.
+      let rafId = 0;
+      map.on("zoom", () => {
+        if (rafId) return;
+        rafId = requestAnimationFrame(() => {
+          rafId = 0;
+          void zeichneMarkerRef.current?.();
+        });
+      });
       // Kein stummer Fallback: MapLibre-Fehler (Style, Tiles, WebGL) landen
       // sonst nirgends — protokollieren, damit eine haengende Karte Ursache zeigt.
       map.on("error", (e) => console.error("karte: maplibre-Fehler", e.error ?? e));
@@ -211,16 +223,16 @@ export function KarteMap({
   }, [ready, punkte, steuerungRef]);
 
   // --- Marker: 1:1 nach Mockup-addGroupMarker (single / agg / stack) ------
-  // Der Faecher (Parts je Farbgruppe) liegt von Anfang an im Marker-DOM und
-  // faehrt per CSS-Transition (is-open) hinter dem Hauptorb hervor — kein
-  // Neuzeichnen beim Hover, der Hauptorb bleibt stehen.
+  // Keyed Diffing: bestehende Gruppen behalten ihre Marker (MapLibre bewegt
+  // sie beim Zoomen selbst), nur Gruppierungswechsel bauen neu. Die Pop- und
+  // Hover-Animationen liegen auf einem INNEREN Element — auf dem Wurzel-
+  // element setzt MapLibre den Positions-Transform (sonst blitzt der Orb
+  // waehrend der Animation oben links auf).
   const zeichneMarker = useCallback(async () => {
     const map = mapRef.current;
     if (!map) return;
     const ml = (await import("maplibre-gl")).default;
     if (mapRef.current !== map) return;
-    for (const m of markersRef.current) m.remove();
-    markersRef.current = [];
 
     const { punkte: pkt, aktivId: aktiv } = zustand.current;
     const maxJe = maxMengeJe(pkt);
@@ -257,9 +269,31 @@ export function KarteMap({
       map.fitBounds(b, { padding: 90, maxZoom: 16 });
     };
 
+    const bestand = markerMapRef.current;
+    const gesehen = new Set<string>();
+
     gruppen.forEach((g, gi) => {
       const mitglieder = g.indizes.map((i) => pkt[i]!);
       const parts = farbGruppen(mitglieder, groessen);
+      const typ =
+        mitglieder.length === 1 ? "single" : parts.length === 1 ? "agg" : "stack";
+      const key = `${typ}|${mitglieder
+        .map((m) => m.id)
+        .sort()
+        .join(",")}`;
+      gesehen.add(key);
+      // Zoomstabiles Zentrum wie im Mockup: Mittel der LngLat-Positionen.
+      const zentrum: [number, number] = [
+        mitglieder.reduce((n, m) => n + m.lng, 0) / mitglieder.length,
+        mitglieder.reduce((n, m) => n + m.lat, 0) / mitglieder.length,
+      ];
+
+      const vorhanden = bestand.get(key);
+      if (vorhanden) {
+        vorhanden.marker.setLngLat(zentrum);
+        return;
+      }
+
       const D =
         mitglieder.length === 1
           ? (groessen[mitglieder[0]!.id] ?? 30)
@@ -267,36 +301,38 @@ export function KarteMap({
       const W = D + 12;
       const el = document.createElement("button");
       el.type = "button";
-      el.className = "km-orb";
+      el.className = "km-marker";
       el.style.width = `${W}px`;
       el.style.height = `${W}px`;
+      const orbEl = document.createElement("div");
+      orbEl.className = "km-orb km-neu";
+      el.appendChild(orbEl);
       const halo = document.createElement("span");
       halo.className = "km-halo";
 
-      if (mitglieder.length === 1) {
+      let punktId: string | undefined;
+      if (typ === "single") {
         const p = mitglieder[0]!;
+        punktId = p.id;
         const ring = qualitaetsRing(p.qualitaet);
         halo.style.border = `${ring.breite}px ${ring.stil} ${ring.farbe}`;
-        if (p.id === aktiv) el.classList.add("is-active");
+        if (p.id === aktiv) orbEl.classList.add("is-active");
         el.title = `${p.titel} · ${p.untertitel}`;
-        el.append(halo, fillEl(p.orb));
+        orbEl.append(halo, fillEl(p.orb));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           zustand.current.onPunktKlick(p.id);
         });
-      } else if (parts.length === 1) {
-        // agg: eine Farbgruppe — ein Orb mit Zaehler, Glasrand statt Ring.
+      } else if (typ === "agg") {
         halo.style.border = "1.5px solid var(--glass-edge)";
         el.title = `${mitglieder.length} Ströme`;
-        el.append(halo, fillEl(parts[0]!.orb), countEl(mitglieder.length));
+        orbEl.append(halo, fillEl(parts[0]!.orb), countEl(mitglieder.length));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           reinzoomen(mitglieder);
         });
       } else {
-        // stack: Parts (je Farbgruppe, eigener Zaehler) starten im Zentrum
-        // und fahren bei Hover auf den freien 120°-Bogen (fanStart).
-        el.classList.add("km-stack");
+        orbEl.classList.add("km-stack");
         halo.style.border = "1.5px solid var(--glass-edge)";
         const rest = parts.slice(1);
         const n = rest.length;
@@ -308,8 +344,8 @@ export function KarteMap({
           const a = (deg * Math.PI) / 180;
           const part = document.createElement("span");
           part.className = "km-part";
-          const key = pt.mitglieder[0]!.farbeKey;
-          part.title = CLUSTER_LABEL[key] ?? OUTPUT_LABEL[key] ?? key;
+          const farbKey = pt.mitglieder[0]!.farbeKey;
+          part.title = CLUSTER_LABEL[farbKey] ?? OUTPUT_LABEL[farbKey] ?? farbKey;
           part.style.width = `${pGr}px`;
           part.style.height = `${pGr}px`;
           part.style.left = `${(W - pGr) / 2}px`;
@@ -323,31 +359,46 @@ export function KarteMap({
             e.stopPropagation();
             reinzoomen(pt.mitglieder);
           });
-          el.appendChild(part);
+          orbEl.appendChild(part);
         });
         halo.style.zIndex = String(n + 1);
         const f0 = fillEl(parts[0]!.orb);
         f0.style.zIndex = String(n + 2);
         const c0 = countEl(mitglieder.length);
         c0.style.zIndex = String(n + 3);
-        el.append(halo, f0, c0);
+        orbEl.append(halo, f0, c0);
         el.title = `${mitglieder.length} Ströme`;
-        el.addEventListener("mouseenter", () => el.classList.add("is-open"));
-        el.addEventListener("mouseleave", () => el.classList.remove("is-open"));
+        el.addEventListener("mouseenter", () => orbEl.classList.add("is-open"));
+        el.addEventListener("mouseleave", () => orbEl.classList.remove("is-open"));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           reinzoomen(mitglieder);
         });
       }
 
-      const zentrum = map.unproject([g.x, g.y]);
-      markersRef.current.push(
-        new ml.Marker({ element: el })
-          .setLngLat([zentrum.lng, zentrum.lat])
-          .addTo(map),
-      );
+      const marker = new ml.Marker({ element: el }).setLngLat(zentrum).addTo(map);
+      bestand.set(key, { marker, orbEl, typ, punktId });
     });
+
+    // Verschwundene Gruppen entfernen, aktiv-Zustand der Singles angleichen.
+    for (const [key, eintrag] of bestand) {
+      if (!gesehen.has(key)) {
+        eintrag.marker.remove();
+        bestand.delete(key);
+      } else if (eintrag.typ === "single") {
+        eintrag.orbEl.classList.toggle("is-active", eintrag.punktId === aktiv);
+      }
+    }
   }, []);
+
+  const zeichneMarkerRef = useRef<(() => Promise<void>) | null>(null);
+  zeichneMarkerRef.current = zeichneMarker;
+
+  // Punkte-Wechsel (Filter/sicht): alles verwerfen und frisch bauen.
+  useEffect(() => {
+    for (const [, e] of markerMapRef.current) e.marker.remove();
+    markerMapRef.current.clear();
+  }, [punkte]);
 
   useEffect(() => {
     if (!ready) return;

@@ -3026,12 +3026,20 @@ table.st-tabelle tbody tr:focus-visible {
 
 /* Marker: 1:1 Mockup — Orb-Bild (km-fill) 6 px im Glas-Halo, Zaehler-Pille,
    Stack-Parts fahren per is-open aus dem Zentrum auf den Bogen. */
-.km-orb {
+/* Wurzelelement: HIER setzt MapLibre seinen Positions-Transform — deshalb
+   liegen Pop-/Hover-Animationen ausschliesslich auf dem inneren .km-orb. */
+.km-marker {
   position: relative;
   padding: 0;
   border: 0;
   background: none;
   cursor: pointer;
+}
+.km-orb {
+  position: absolute;
+  inset: 0;
+}
+.km-orb.km-neu {
   animation: km-pop var(--duration-base) var(--ease-standard);
 }
 .km-halo {
