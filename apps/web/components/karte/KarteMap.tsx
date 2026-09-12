@@ -21,6 +21,7 @@ import {
   aggregiere,
   markerGroesse,
   maxMengeJe,
+  qualitaetsRing,
   type KartePunkt,
 } from "@/lib/karte-modell";
 
@@ -95,10 +96,11 @@ function polygonBounds(
 }
 
 /**
- * karte. (V2, PR 6): MapLibre-Flaeche mit flachen V2-Markern (Kreis/Raute,
- * Groesse 12–38 px, 1-px-Qualitaetsrand auf 55 %), Pixel-Aggregation mit
- * Zaehler und Hover-Faecher, Lime-Regionsumrissen mit Glas-Labeln und
- * Rechteck-Zeichnen. Reine Darstellung — Zustand kommt von KarteAnsicht.
+ * karte. (V2, PR 6): MapLibre-Flaeche mit Orb-Markern im Mockup-Look
+ * (Verlaufs-Orb in Glas-Halo, Kreis/Raute, Groesse 12–38 px, Qualitaets-Ring
+ * A solid 2,5 / B solid 2 / C dashed / D dotted), Pixel-Aggregation mit
+ * Zaehler und Hover-Faecher (Hauptorb bleibt stehen), Lime-Regionsumrissen
+ * mit Glas-Labeln und Rechteck-Zeichnen. Zustand kommt von KarteAnsicht.
  */
 export function KarteMap({
   punkte,
@@ -220,26 +222,39 @@ export function KarteMap({
     });
     const gruppen = aggregiere(px, AGG_RADIUS);
 
+    // Marker im Mockup-Look (Delta 1.4): Verlaufs-Orb in Cluster-/Gruppenfarbe
+    // auf Glas-Halo; Form Kreis (Biomasse) / Raute (Output); Qualitaets-Ring
+    // A solid 2,5 / B solid 2 / C dashed / D dotted auf dem Halo.
     const macheMarkerEl = (p: KartePunkt, size: number, badge?: number) => {
       const el = document.createElement("button");
       el.type = "button";
       el.title = badge ? `${badge} Ströme` : `${p.titel} · ${p.untertitel}`;
       el.className = "km-marker";
-      el.style.width = `${size}px`;
-      el.style.height = `${size}px`;
-      const shape = document.createElement("span");
-      const rand =
-        aktiv === p.id && !badge
-          ? LIME
-          : `color-mix(in srgb, ${ringFuer(p.qualitaet)} 55%, transparent)`;
-      const gemein = `background:${farbeFuer(p.art, p.farbeKey)};border:1px solid ${rand};box-shadow:0 1px 3px rgba(31,46,56,0.22);box-sizing:border-box;`;
+      const farbe = farbeFuer(p.art, p.farbeKey);
+      const ring = qualitaetsRing(p.qualitaet);
+      const ringFarbe = aktiv === p.id && !badge ? LIME : ringFuer(p.qualitaet);
+      const halo = document.createElement("span");
+      const orb = document.createElement("span");
+      const haloGroesse = size + 10;
+      el.style.width = `${haloGroesse}px`;
+      el.style.height = `${haloGroesse}px`;
+      halo.className = `km-halo${p.art === "output" ? " km-halo--raute" : ""}`;
+      halo.style.borderWidth = `${ring.breite}px`;
+      halo.style.borderStyle = ring.stil;
+      halo.style.borderColor = ringFarbe;
+      orb.className = `km-orb${p.art === "output" ? " km-orb--raute" : ""}`;
+      orb.style.width = `${size}px`;
+      orb.style.height = `${size}px`;
+      orb.style.background = `radial-gradient(circle at 30% 30%, color-mix(in srgb, ${farbe} 45%, white), ${farbe})`;
       if (p.art === "output") {
+        // Raute: Halo und Orb rotieren gemeinsam; die Kantenlaenge schrumpft,
+        // damit die Diagonale wieder ~size ergibt (Groessenlogik unveraendert).
         const d = Math.round(size * 0.72);
-        shape.style.cssText = `width:${d}px;height:${d}px;border-radius:2px;transform:rotate(45deg);${gemein}`;
-      } else {
-        shape.style.cssText = `width:${size}px;height:${size}px;border-radius:50%;${gemein}`;
+        orb.style.width = `${d}px`;
+        orb.style.height = `${d}px`;
       }
-      el.appendChild(shape);
+      halo.appendChild(orb);
+      el.appendChild(halo);
       if (badge && badge > 1) {
         const b = document.createElement("span");
         b.className = "km-badge";
@@ -253,74 +268,85 @@ export function KarteMap({
       const mitglieder = g.indizes.map((i) => pkt[i]!);
       const gruppenKey = mitglieder.map((m) => m.id).join("|");
 
-      if (mitglieder.length === 1 || faecher === gruppenKey) {
-        // Einzelmarker bzw. aufgefaecherte Gruppe: alle Mitglieder einzeln.
-        const radius = mitglieder.length === 1 ? 0 : 46;
-        mitglieder.forEach((p, idx) => {
-          const size = markerGroesse(p.menge, maxJe.get(`${p.art}|${p.einheit}`) ?? 0);
-          const el = macheMarkerEl(p, size);
-          el.addEventListener("click", (e) => {
-            e.stopPropagation();
-            zustand.current.onPunktKlick(p.id);
-          });
-          let lngLat: [number, number] = [p.lng, p.lat];
-          if (radius > 0) {
-            // Faecher: Bogen um das Gruppenzentrum, -90° ± 60° (nach oben).
-            const winkel =
-              mitglieder.length === 1
-                ? -Math.PI / 2
-                : (-Math.PI / 2 - (Math.PI * 120) / 360) +
-                  ((Math.PI * 120) / 180) * (idx / (mitglieder.length - 1));
-            const zentrum = map.unproject([
-              g.x + Math.cos(winkel) * radius,
-              g.y + Math.sin(winkel) * radius,
-            ]);
-            lngLat = [zentrum.lng, zentrum.lat];
-            el.classList.add("km-faecher");
-          }
-          const marker = new ml.Marker({ element: el }).setLngLat(lngLat).addTo(map);
-          markersRef.current.push(marker);
+      if (mitglieder.length === 1) {
+        const p = mitglieder[0]!;
+        const size = markerGroesse(p.menge, maxJe.get(`${p.art}|${p.einheit}`) ?? 0);
+        const el = macheMarkerEl(p, size);
+        el.addEventListener("click", (e) => {
+          e.stopPropagation();
+          zustand.current.onPunktKlick(p.id);
         });
+        markersRef.current.push(
+          new ml.Marker({ element: el }).setLngLat([p.lng, p.lat]).addTo(map),
+        );
         continue;
       }
 
-      // Gruppe: gleicher art+farbeKey -> ein Marker mit Summe; gemischt -> Stapel.
+      // Gruppe: gleicher art+farbeKey -> ein Orb mit Summe; gemischt -> Stapel.
+      // Der Gruppen-Orb bleibt IMMER stehen (Mockup: Hover faechert die
+      // NEBEN-Orbs auf, der Hauptorb verschwindet nicht); Klick zoomt hinein.
       const einheitlich = mitglieder.every(
         (m) => m.art === mitglieder[0]!.art && m.farbeKey === mitglieder[0]!.farbeKey,
       );
       const zentrum = map.unproject([g.x, g.y]);
+      const reinzoomen = (e: Event) => {
+        e.stopPropagation();
+        const b = new ml.LngLatBounds();
+        for (const m of mitglieder) b.extend([m.lng, m.lat]);
+        map.fitBounds(b, { padding: 80, maxZoom: 14 });
+      };
+
+      let gruppenEl: HTMLElement;
       if (einheitlich) {
         const summe = mitglieder.reduce((s, m) => s + m.menge, 0);
         const p0 = mitglieder[0]!;
-        const size = markerGroesse(summe, Math.max(summe, maxJe.get(`${p0.art}|${p0.einheit}`) ?? 0));
-        const el = macheMarkerEl(p0, size, mitglieder.length);
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const b = new ml.LngLatBounds();
-          for (const m of mitglieder) b.extend([m.lng, m.lat]);
-          map.fitBounds(b, { padding: 80, maxZoom: 14 });
-        });
-        markersRef.current.push(
-          new ml.Marker({ element: el }).setLngLat([zentrum.lng, zentrum.lat]).addTo(map),
+        const size = markerGroesse(
+          summe,
+          Math.max(summe, maxJe.get(`${p0.art}|${p0.einheit}`) ?? 0),
         );
+        gruppenEl = macheMarkerEl(p0, size, mitglieder.length);
       } else {
         const groesstes = [...mitglieder].sort((a, b) => b.menge - a.menge)[0]!;
         const size = markerGroesse(
           groesstes.menge,
           maxJe.get(`${groesstes.art}|${groesstes.einheit}`) ?? 0,
         );
-        const el = macheMarkerEl(groesstes, Math.max(size, 22), mitglieder.length);
-        el.classList.add("km-stapel");
-        el.addEventListener("mouseenter", () => setAufgefaechert(gruppenKey));
-        el.addEventListener("click", (e) => {
-          e.stopPropagation();
-          const b = new ml.LngLatBounds();
-          for (const m of mitglieder) b.extend([m.lng, m.lat]);
-          map.fitBounds(b, { padding: 80, maxZoom: 14 });
+        gruppenEl = macheMarkerEl(groesstes, Math.max(size, 22), mitglieder.length);
+        gruppenEl.classList.add("km-stapel");
+        gruppenEl.addEventListener("mouseenter", () => setAufgefaechert(gruppenKey));
+      }
+      gruppenEl.addEventListener("click", reinzoomen);
+      markersRef.current.push(
+        new ml.Marker({ element: gruppenEl })
+          .setLngLat([zentrum.lng, zentrum.lat])
+          .addTo(map),
+      );
+
+      // Aufgefaecherte Mitglieder ZUSAETZLICH auf dem Bogen (-90° ± 60°).
+      if (faecher === gruppenKey) {
+        const radius = 52;
+        mitglieder.forEach((p, idx) => {
+          const size = markerGroesse(p.menge, maxJe.get(`${p.art}|${p.einheit}`) ?? 0);
+          const el = macheMarkerEl(p, Math.min(size, 24));
+          el.classList.add("km-faecher");
+          el.addEventListener("click", (e) => {
+            e.stopPropagation();
+            zustand.current.onPunktKlick(p.id);
+          });
+          const winkel =
+            mitglieder.length === 1
+              ? -Math.PI / 2
+              : -Math.PI / 2 -
+                Math.PI / 3 +
+                ((Math.PI * 2) / 3) * (idx / (mitglieder.length - 1));
+          const pos = map.unproject([
+            g.x + Math.cos(winkel) * radius,
+            g.y + Math.sin(winkel) * radius,
+          ]);
+          markersRef.current.push(
+            new ml.Marker({ element: el }).setLngLat([pos.lng, pos.lat]).addTo(map),
+          );
         });
-        markersRef.current.push(
-          new ml.Marker({ element: el }).setLngLat([zentrum.lng, zentrum.lat]).addTo(map),
-        );
       }
     }
   }, []);

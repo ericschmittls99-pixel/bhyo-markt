@@ -9,7 +9,7 @@ import {
   OUTPUT_LABEL,
   QUALITAET_RING,
 } from "@/lib/farben";
-import type { KartePunkt } from "@/lib/karte-modell";
+import { qualitaetsRing, type KartePunkt } from "@/lib/karte-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 const MIN_HOEHE = 96;
@@ -180,12 +180,22 @@ export function KarteLegende({
           <div className="km-leg-grp">
             <h3>rand · qualität.</h3>
             <div className="km-leg-qual">
-              {Object.entries(QUALITAET_RING).map(([k, farbe]) => (
-                <span className="km-leg-qual-item" key={k}>
-                  <i style={{ borderColor: farbe }} aria-hidden />
-                  {k}
-                </span>
-              ))}
+              {Object.entries(QUALITAET_RING).map(([k, farbe]) => {
+                const ring = qualitaetsRing(k);
+                return (
+                  <span className="km-leg-qual-item" key={k}>
+                    <i
+                      style={{
+                        borderColor: farbe,
+                        borderWidth: ring.breite,
+                        borderStyle: ring.stil,
+                      }}
+                      aria-hidden
+                    />
+                    {k}
+                  </span>
+                );
+              })}
             </div>
             <p className="km-leg-hinweis">
               Größe ~ Menge (t atro/a bzw. Bedarfsmenge). Ströme ohne

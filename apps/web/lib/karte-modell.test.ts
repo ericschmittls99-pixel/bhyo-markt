@@ -7,6 +7,7 @@ import {
   markerGroesse,
   maxMengeJe,
   punkteInBbox,
+  qualitaetsRing,
   stromZuPunkt,
   sucheKarte,
   type KartePunkt,
@@ -196,5 +197,17 @@ describe("geojsonOderNull", () => {
     expect(geojsonOderNull(42, "r1")).toBeNull();
     expect(spy).toHaveBeenCalledTimes(2);
     spy.mockRestore();
+  });
+});
+
+describe("qualitaetsRing (Mockup-Randlogik)", () => {
+  it("A solid 2,5 / B solid 2 / C dashed / D dotted", () => {
+    expect(qualitaetsRing("A")).toEqual({ breite: 2.5, stil: "solid" });
+    expect(qualitaetsRing("B")).toEqual({ breite: 2, stil: "solid" });
+    expect(qualitaetsRing("C")).toEqual({ breite: 1.5, stil: "dashed" });
+    expect(qualitaetsRing("D")).toEqual({ breite: 1.5, stil: "dotted" });
+  });
+  it("ohne Bewertung dezenter 1-px-Rand", () => {
+    expect(qualitaetsRing(null)).toEqual({ breite: 1, stil: "solid" });
   });
 });
