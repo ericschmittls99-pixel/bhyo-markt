@@ -3432,9 +3432,6 @@ table.st-tabelle tbody tr:focus-visible {
   flex: 0 0 auto;
   border-radius: 50%;
 }
-.km-panel-orb {
-  flex: 0 0 auto;
-}
 
 .km-part--mehr {
   display: flex;
