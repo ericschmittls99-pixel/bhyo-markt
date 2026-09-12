@@ -152,8 +152,14 @@ export function KarteMap({
         zoom: 7,
         attributionControl: { compact: true },
       });
-      map.on("load", () => setReady(true));
+      map.on("load", () => {
+        console.info("karte: maplibre load");
+        setReady(true);
+      });
       map.on("moveend", () => setRenderTick((t) => t + 1));
+      // Kein stummer Fallback: MapLibre-Fehler (Style, Tiles, WebGL) landen
+      // sonst nirgends — protokollieren, damit eine haengende Karte Ursache zeigt.
+      map.on("error", (e) => console.error("karte: maplibre-Fehler", e.error ?? e));
       mapRef.current = map;
 
       steuerungRef.current = {
