@@ -35,10 +35,13 @@ export const OUTPUT_LABEL: Record<string, string> = {
   add_ons: "Add-Ons",
 };
 
-/** Qualitaets-Ring A->D: Navy -> Hellgrau, wie die Qualitaets-Pillen. */
+/**
+ * Qualitaets-Ring A->D: Navy -> Hellgrau. A nutzt bewusst navy-700 statt der
+ * Pillen-Stufe navy-900 — als duenner Ring wirkte 900 fast schwarz (Review).
+ */
 export const QUALITAET_RING: Record<string, string> = {
-  A: "#1F2E38",
-  B: "#4a5c66",
+  A: "#3c4a52",
+  B: "#55636b",
   C: "#97a4ab",
   D: "#d5d8d6",
 };
@@ -57,4 +60,22 @@ export function farbeFuer(art: "biomasse" | "output", farbeKey: string): string 
 /** Ringfarbe (Rand) anhand Qualitaet; ohne Bewertung dezenter Rand. */
 export function ringFuer(qualitaet: string | null): string {
   return (qualitaet && QUALITAET_RING[qualitaet]) || "#b9c0bd";
+}
+
+/**
+ * Orb-Verlaufsbild eines Stroms (public/orbs): Biomasse traegt den
+ * Cluster-Orb, Outputs den Gruppen-Orb; Add-Ons haben je Produkt einen
+ * eigenen (waerme/co2/asche).
+ */
+export function orbSrc(s: {
+  art: "biomasse" | "output";
+  cluster: string | null;
+  gruppe: string | null;
+  produktCode: string | null;
+}): string {
+  if (s.art === "biomasse")
+    return `/orbs/cluster/${s.cluster ?? "organische_rest_abfallstoffe"}.webp`;
+  if (s.gruppe === "add_ons" && s.produktCode)
+    return `/orbs/output/${s.produktCode}.webp`;
+  return `/orbs/output/${s.gruppe ?? "primaerprodukte"}.webp`;
 }
