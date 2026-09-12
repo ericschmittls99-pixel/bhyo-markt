@@ -3548,8 +3548,14 @@ table.st-tabelle tbody tr:focus-visible {
   font: 500 13px/1 var(--font-sans);
   color: var(--text-secondary);
 }
-.aw-kpi-wert--klein { flex-direction: column; align-items: flex-start; gap: 4px; }
+.aw-kpi-wert--klein {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 4px 6px;
+}
 .aw-kpi-wert--klein strong { font-size: 30px; }
+.aw-kpi-wert--klein .aw-caption { grid-column: 1 / -1; }
 .aw-kpi-label {
   margin: 0;
   font: var(--type-body-sm);
