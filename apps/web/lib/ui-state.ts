@@ -17,8 +17,8 @@ export interface UiState {
   theme?: "light" | "dark";
   /** Filterleiste je View offen (kommt mit den Screen-PRs). */
   filterOffen?: Record<string, boolean>;
-  /** Kartenlegende: offen + Hoehe in px (kommt mit karte.-PR). */
-  legende?: { offen: boolean; hoehe?: number };
+  /** Kartenlegende (PR 6): offen + Hoehe in px + ausgeblendete Region-IDs. */
+  legende?: { offen: boolean; hoehe?: number; regionenAus?: string[] };
 }
 
 export const UI_DEFAULT: UiState = {
