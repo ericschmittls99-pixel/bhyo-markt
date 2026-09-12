@@ -139,6 +139,8 @@ export interface OutputProduktOption {
   code: string;
   label: string;
   gruppe: string;
+  /** "target" | "add_on" (output_produkt.art) — Kategorie-Hinweis im Formular. */
+  kategorie: string;
 }
 
 /** Output-Produkte (fuer die Produktauswahl im Erfassungsformular). */
@@ -149,9 +151,30 @@ export function listOutputProdukte(): Promise<OutputProduktOption[]> {
         code: outputProdukt.code,
         label: outputProdukt.label,
         gruppe: outputProdukt.gruppe,
+        kategorie: outputProdukt.art,
       })
       .from(outputProdukt)
       .orderBy(outputProdukt.label),
+  );
+}
+
+export interface MaterialartMitCluster {
+  code: string;
+  label: string;
+  cluster: string;
+}
+
+/** Materialarten mit Cluster (fuer die gekoppelten Comboboxen, PR 5). */
+export function listMaterialartenMitCluster(): Promise<MaterialartMitCluster[]> {
+  return withDb((db) =>
+    db
+      .select({
+        code: materialart.code,
+        label: materialart.label,
+        cluster: materialart.cluster,
+      })
+      .from(materialart)
+      .orderBy(materialart.label),
   );
 }
 

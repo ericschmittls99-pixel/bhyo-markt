@@ -301,3 +301,21 @@ export function ladeRegionOptionen(): Promise<{ id: string; name: string }[]> {
     db.select({ id: region.id, name: region.name }).from(region).orderBy(region.name),
   );
 }
+
+/**
+ * DISTINCT Landkreise beider Tabellen fuer die Landkreis-Combobox (E7:
+ * Bestandsdaten + Freitext, keine Lookup-Tabelle). Nur echte Spalten;
+ * Deduplizieren und Sortieren in TypeScript.
+ */
+export function ladeLandkreisOptionen(): Promise<string[]> {
+  return withDb(async (db) => {
+    const [a, b] = await Promise.all([
+      db.selectDistinct({ lk: biomassestrom.landkreis }).from(biomassestrom),
+      db.selectDistinct({ lk: outputBedarf.landkreis }).from(outputBedarf),
+    ]);
+    const alle = [...a, ...b]
+      .map((r) => r.lk)
+      .filter((x): x is string => typeof x === "string" && x.trim() !== "");
+    return [...new Set(alle)].sort((x, y) => x.localeCompare(y, "de"));
+  });
+}
