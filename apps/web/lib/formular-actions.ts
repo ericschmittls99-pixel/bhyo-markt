@@ -1,0 +1,204 @@
+"use server";
+
+import { biomassestrom, outputBedarf } from "@bhyo/db/schema";
+import { eq } from "drizzle-orm";
+import { revalidatePath } from "next/cache";
+
+import {
+  aktualisiereBeleg,
+  erstelleBeleg,
+  logAenderung,
+  pflicht,
+  saisonAusFormData,
+  text,
+  ValidierungsFehler,
+} from "@/lib/beleg-server";
+import { currentUserEmail, withDb } from "@/lib/db";
+import {
+  monatZuBis,
+  monatZuVon,
+  validiereFormular,
+  type FeldFehler,
+  type FormularEingaben,
+} from "@/lib/formular-modell";
+import type { StromArt } from "@/lib/stroeme-modell";
+
+export interface SpeichernErgebnis {
+  ok?: boolean;
+  feldFehler?: FeldFehler;
+  fehler?: string;
+}
+
+const s = (v: string | null) => v ?? "";
+
+function eingabenAus(formData: FormData): FormularEingaben {
+  const datei = formData.get("beleg_datei");
+  return {
+    akteurId: s(text(formData, "akteur_id")),
+    materialartCode: s(text(formData, "materialart_code")),
+    produktCode: s(text(formData, "produkt_code")),
+    mengeRohFm: s(text(formData, "menge_roh_fm")),
+    tsAnteilPct: s(text(formData, "ts_anteil_pct")),
+    aschegehaltPct: s(text(formData, "aschegehalt_pct")),
+    mengeWert: s(text(formData, "menge_wert")),
+    mengeEinheit: s(text(formData, "menge_einheit")),
+    preisMin: s(text(formData, "preis_min")),
+    preisMittel: s(text(formData, "preis_mittel")),
+    preisMax: s(text(formData, "preis_max")),
+    preis: s(text(formData, "preis")),
+    vonMonat: s(text(formData, "zeitraum_von")),
+    bisMonat: s(text(formData, "zeitraum_bis")),
+    begruendung: s(text(formData, "begruendung")),
+    belegTyp: s(text(formData, "beleg_typ")),
+    belegQuellenangabe: s(text(formData, "beleg_quellenangabe")),
+    belegErhebungsdatum: s(text(formData, "beleg_erhebungsdatum")),
+    // Beim Bearbeiten zaehlt eine bereits hinterlegte Datei weiter als Datei.
+    belegHatDatei:
+      (datei instanceof File && datei.size > 0) ||
+      formData.get("beleg_datei_vorhanden") === "1",
+    belegLink: s(text(formData, "beleg_link")),
+  };
+}
+
+type Herkunft = "eigene_datenbank" | "marktdaten" | "schaetzung";
+
+/**
+ * Preis-Herkunft aus dem Formular; ein eingegebener Preis ohne gewaehlte
+ * Herkunft gilt als eigener Wert -> Schaetzung (Mockup-Hinweis "Eigener Wert
+ * setzt die Herkunft auf Schätzung.").
+ */
+function herkunftAus(formData: FormData, preisGesetzt: boolean): Herkunft | null {
+  const roh = text(formData, "preis_herkunft");
+  if (roh === "eigene_datenbank" || roh === "marktdaten" || roh === "schaetzung")
+    return roh;
+  if (roh != null) console.error("Unerwartete preis_herkunft:", roh);
+  return preisGesetzt ? "schaetzung" : null;
+}
+
+/**
+ * Anlegen (id = null) und Bearbeiten (id gesetzt) fuer beide Arten. Gibt
+ * Feld-Fehler fuer die Inline-Anzeige zurueck statt zu redirecten; der Client
+ * schliesst das Panel und zeigt den Toast. Kein Status-Feld (E8): Neuanlage
+ * ist immer entwurf, Bearbeiten laesst den Status unangetastet.
+ */
+export async function stromSpeichern(
+  art: StromArt,
+  id: string | null,
+  _prev: SpeichernErgebnis,
+  formData: FormData,
+): Promise<SpeichernErgebnis> {
+  const email = await currentUserEmail();
+  if (!email) return { fehler: "Nicht authentifiziert." };
+
+  const eingaben = eingabenAus(formData);
+  const feldFehler = validiereFormular(art, eingaben);
+  // Erst validieren, dann hochladen — ein Validierungsfehler darf keine
+  // R2-Waisen erzeugen (wie bisher).
+  if (Object.keys(feldFehler).length > 0) return { feldFehler };
+
+  const begruendung = eingaben.begruendung;
+  const entitaetTyp = art === "biomasse" ? "biomassestrom" : "output_bedarf";
+
+  try {
+    const gemeinsam = {
+      akteurId: eingaben.akteurId,
+      bezeichnung: text(formData, "bezeichnung"),
+      ort: text(formData, "ort"),
+      landkreis: text(formData, "landkreis"),
+      kontaktperson: text(formData, "kontaktperson"),
+      zeitraumVon: monatZuVon(eingaben.vonMonat),
+      zeitraumBis: monatZuBis(eingaben.bisMonat),
+      saisonalitaet: saisonAusFormData(formData),
+    };
+
+    const werte =
+      art === "biomasse"
+        ? {
+            ...gemeinsam,
+            materialartCode: eingaben.materialartCode,
+            mengeRohFm: pflicht(formData, "menge_roh_fm", "Rohmenge"),
+            tsAnteilPct: pflicht(formData, "ts_anteil_pct", "TS-Anteil"),
+            aschegehaltPct: pflicht(formData, "aschegehalt_pct", "Aschegehalt"),
+            preisMin: text(formData, "preis_min"),
+            preisMittel: text(formData, "preis_mittel"),
+            preisMax: text(formData, "preis_max"),
+            preisHerkunft: herkunftAus(
+              formData,
+              !!(eingaben.preisMin || eingaben.preisMittel || eingaben.preisMax),
+            ),
+          }
+        : {
+            ...gemeinsam,
+            produktCode: eingaben.produktCode,
+            mengeWert: pflicht(formData, "menge_wert", "Bedarfsmenge"),
+            mengeEinheit: pflicht(formData, "menge_einheit", "Einheit"),
+            preis: text(formData, "preis"),
+            preisEinheit: text(formData, "preis_einheit"),
+            preisHerkunft: herkunftAus(formData, !!eingaben.preis),
+          };
+
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        if (id == null) {
+          // Anlegen: Beleg zuerst, dann Insert mit abgeleiteter Qualitaet.
+          const belegErgebnis = await erstelleBeleg(tx, formData);
+          if (art === "biomasse") {
+            const [row] = await tx
+              .insert(biomassestrom)
+              .values({
+                ...(werte as typeof werte & { materialartCode: string }),
+                belegId: belegErgebnis?.belegId ?? null,
+                qualitaet: belegErgebnis?.qualitaet ?? null,
+                status: "entwurf",
+              } as never)
+              .returning({ id: biomassestrom.id });
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+          } else {
+            const [row] = await tx
+              .insert(outputBedarf)
+              .values({
+                ...werte,
+                belegId: belegErgebnis?.belegId ?? null,
+                qualitaet: belegErgebnis?.qualitaet ?? null,
+                status: "entwurf",
+              } as never)
+              .returning({ id: outputBedarf.id });
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+          }
+          return;
+        }
+
+        // Bearbeiten: Beleg in place (Entscheidung Eric), Status unangetastet.
+        const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
+        const [bestand] = await tx
+          .select({ belegId: tabelle.belegId })
+          .from(tabelle)
+          .where(eq(tabelle.id, id))
+          .limit(1);
+        if (!bestand) throw new ValidierungsFehler("Datensatz nicht gefunden.");
+
+        const belegErgebnis = bestand.belegId
+          ? await aktualisiereBeleg(tx, formData, bestand.belegId)
+          : await erstelleBeleg(tx, formData);
+
+        await tx
+          .update(tabelle)
+          .set({
+            ...werte,
+            belegId: belegErgebnis?.belegId ?? null,
+            qualitaet: belegErgebnis?.qualitaet ?? null,
+            updatedAt: new Date(),
+          } as never)
+          .where(eq(tabelle.id, id));
+        await logAenderung(tx, entitaetTyp, id, email, begruendung);
+      }),
+    );
+  } catch (e) {
+    if (e instanceof ValidierungsFehler) return { fehler: e.message };
+    console.error("Fehler beim Speichern:", e);
+    return { fehler: "Speichern fehlgeschlagen. Bitte Eingaben prüfen." };
+  }
+
+  revalidatePath("/register");
+  return { ok: true };
+}
