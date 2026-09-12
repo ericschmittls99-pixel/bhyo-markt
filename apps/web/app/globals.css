@@ -2174,6 +2174,133 @@ button.leg-toggle.aus {
   gap: 8px;
   margin-top: 2px;
 }
+
+/* FormularPanel (PR 5) */
+.fp {
+  padding-bottom: 0;
+}
+.fp .ov-sec {
+  gap: 12px;
+}
+.fp-zeile {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.fp-zeile--3 {
+  grid-template-columns: 1fr 1fr 1fr;
+}
+.fp-optional {
+  font: var(--type-caption);
+  font-style: normal;
+  color: var(--text-tertiary);
+  margin-left: 4px;
+}
+.fp-hinweis {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.hinweis-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 12px 14px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface-sunken, var(--surface-page));
+  font: var(--type-body-sm);
+  color: var(--text-secondary);
+}
+.hinweis-box i {
+  font-size: 16px;
+  color: var(--text-tertiary);
+  margin-top: 1px;
+}
+.fp-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.fp-datei {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 36px;
+}
+.fp-datei-input {
+  display: none;
+}
+.fp-datei-name {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.fp-toggle {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  cursor: pointer;
+}
+.fp-toggle input {
+  width: 16px;
+  height: 16px;
+  margin-top: 2px;
+  accent-color: var(--data-lime);
+}
+.fp-toggle-text {
+  display: grid;
+  gap: 2px;
+  font: var(--type-form-label);
+  color: var(--text-primary);
+}
+.fp-toggle-text .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.qual-box {
+  display: grid;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--radius-sm, 12px);
+  background: var(--surface-sunken, var(--surface-page));
+}
+.qual-label {
+  font: var(--type-form-label);
+  color: var(--text-primary);
+}
+.qual-pillen {
+  display: flex;
+  gap: 6px;
+}
+.konf.gedimmt {
+  opacity: 0.3;
+}
+.qual-box .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.ov-fuss {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  margin: 0 -24px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface-card);
+}
+.ov-fuss .pf-fehler {
+  margin-right: auto;
+}
+.fp-fuss-aktionen {
+  display: flex;
+  gap: 8px;
+}
 .pf-feld em {
   position: absolute;
   right: 10px;
