@@ -3483,3 +3483,13 @@ table.st-tabelle tbody tr:focus-visible {
 .km-panel-orb {
   flex: 0 0 auto;
 }
+
+.km-part--mehr {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-card);
+  color: var(--text-secondary);
+  font: 700 14px/1 var(--font-sans);
+  letter-spacing: 1px;
+}

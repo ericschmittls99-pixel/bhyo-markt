@@ -62,13 +62,47 @@ export function partGroesse(d: number): number {
   return Math.max(22, Math.min(36, Math.round(d * 0.55)));
 }
 
+export interface FaecherLayout {
+  radius: number;
+  /** 120 = Bogen (i·spanne/(k−1)), 360 = Vollkreis (i·360/k). */
+  spanneGrad: 120 | 360;
+  /** Anzahl gezeigter Beleg-Orbs; bei `mehr` kommt ein '…'-Orb dazu. */
+  sichtbar: number;
+  mehr: boolean;
+}
+
 /**
- * Faecher-Radius: Basis (Halo-Rand + halber Part), aufgeweitet wenn viele
- * Parts sonst auf dem 120°-Bogen ueberlappen wuerden ((n−1)·(p+6) Bogenlaenge).
+ * Faecher-Layout (Review Eric): eng am Orb bleiben statt den Radius
+ * aufzublasen — passt der 120°-Bogen nicht, weitet der Faecher auf den
+ * Vollkreis (Radius hoechstens Basis + 14); ist auch der voll, zeigen
+ * weniger Parts plus ein '…'-Orb, dass mehr dahinter liegt.
  */
-export function faecherRadius(n: number, p: number, basis: number): number {
-  const noetig = ((n - 1) * (p + 6)) / ((2 * Math.PI) / 3);
-  return Math.max(basis, Math.ceil(noetig));
+export function faecherLayout(
+  n: number,
+  p: number,
+  basis: number,
+): FaecherLayout {
+  const deckel = basis + 14;
+  const schritt = p + 6;
+  const radius120 = ((n - 1) * schritt) / ((2 * Math.PI) / 3);
+  if (radius120 <= deckel) {
+    return {
+      radius: Math.max(basis, Math.ceil(radius120)),
+      spanneGrad: 120,
+      sichtbar: n,
+      mehr: false,
+    };
+  }
+  const kapazitaet = Math.floor((2 * Math.PI * deckel) / schritt);
+  if (kapazitaet >= n) {
+    return { radius: deckel, spanneGrad: 360, sichtbar: n, mehr: false };
+  }
+  return {
+    radius: deckel,
+    spanneGrad: 360,
+    sichtbar: Math.max(1, kapazitaet - 1),
+    mehr: true,
+  };
 }
 
 /** Maximum je `${art}|${einheit}` — Outputs skalieren je Einheit getrennt. */

@@ -3,7 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   aggregiere,
   bboxKm,
-  faecherRadius,
+  faecherLayout,
   fanStart,
   farbGruppen,
   geojsonOderNull,
@@ -289,12 +289,29 @@ describe("orb-Asset am Kartenpunkt", () => {
   });
 });
 
-describe("faecherRadius", () => {
-  it("Basisradius, waechst aber, damit n Parts auf dem 120°-Bogen nicht ueberlappen", () => {
-    expect(faecherRadius(2, 24, 46)).toBe(46);
-    expect(faecherRadius(6, 28, 46)).toBeGreaterThan(46);
-    // Bogenlaenge (120° = 2π/3 · r) muss (n−1)·(p+6) fassen
-    const r = faecherRadius(6, 28, 46);
-    expect(((2 * Math.PI) / 3) * r).toBeGreaterThanOrEqual(5 * 34 - 1);
+describe("faecherLayout (eng am Orb; Vollkreis; '…'-Orb bei Ueberlauf)", () => {
+  it("wenige Parts: 120°-Bogen am Basisradius", () => {
+    expect(faecherLayout(2, 24, 46)).toEqual({
+      radius: 46,
+      spanneGrad: 120,
+      sichtbar: 2,
+      mehr: false,
+    });
+  });
+  it("mittlere Anzahl: bleibt am Deckel-Radius, weitet auf den Vollkreis", () => {
+    const l = faecherLayout(6, 28, 60);
+    expect(l.radius).toBeLessThanOrEqual(74);
+    expect(l.spanneGrad).toBe(360);
+    expect(l.sichtbar).toBe(6);
+    expect(l.mehr).toBe(false);
+  });
+  it("Ueberlauf: Vollkreis voll → weniger sichtbar + '…'-Orb", () => {
+    const l = faecherLayout(14, 28, 60);
+    expect(l.radius).toBe(74);
+    expect(l.spanneGrad).toBe(360);
+    expect(l.mehr).toBe(true);
+    // sichtbar + '…' passen auf den Vollkreis (Kapazitaet floor(2π·74/34)=13)
+    expect(l.sichtbar + 1).toBeLessThanOrEqual(13);
+    expect(l.sichtbar).toBeGreaterThanOrEqual(10);
   });
 });

@@ -18,7 +18,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
   aggregiere,
-  faecherRadius,
+  faecherLayout,
   fanStart,
   farbGruppen,
   gruppenGroesse,
@@ -328,25 +328,35 @@ export function KarteMap({
         // kleinen Orb oeffnet dessen Panel, Klick auf den Hauptorb zoomt.
         orbEl.classList.add("km-stack");
         halo.style.border = "1.5px solid var(--glass-edge)";
-        const n = mitglieder.length;
         const pGr = partGroesse(D);
-        const rad = faecherRadius(n, pGr, W / 2 + pGr / 2 + 4);
+        const layout = faecherLayout(mitglieder.length, pGr, W / 2 + pGr / 2 + 4);
         const a0 = fanStart(g, zentren.filter((_, i) => i !== gi));
-        mitglieder.forEach((p, i) => {
-          const deg = n > 1 ? a0 + i * (120 / (n - 1)) : a0 + 45;
+        const positionen = layout.sichtbar + (layout.mehr ? 1 : 0);
+        const winkelVon = (i: number) =>
+          layout.spanneGrad === 360
+            ? a0 + i * (360 / positionen)
+            : positionen > 1
+              ? a0 + i * (120 / (positionen - 1))
+              : a0 + 45;
+        const machePart = (i: number) => {
+          const deg = winkelVon(i);
           const a = (deg * Math.PI) / 180;
           const part = document.createElement("span");
           part.className = "km-part";
-          part.title = `${p.titel} · ${p.untertitel}`;
           part.style.width = `${pGr}px`;
           part.style.height = `${pGr}px`;
           part.style.left = `${(W - pGr) / 2}px`;
           part.style.top = `${(W - pGr) / 2}px`;
-          part.style.zIndex = String(n - i);
-          part.style.setProperty("--fx", `${Math.round(rad * Math.cos(a))}px`);
-          part.style.setProperty("--fy", `${Math.round(rad * Math.sin(a))}px`);
+          part.style.zIndex = String(positionen - i);
+          part.style.setProperty("--fx", `${Math.round(layout.radius * Math.cos(a))}px`);
+          part.style.setProperty("--fy", `${Math.round(layout.radius * Math.sin(a))}px`);
           // Stagger: die Belege wachsen nacheinander aus dem Orb (smoother).
           part.style.setProperty("--verzug", `${i * 35}ms`);
+          return part;
+        };
+        mitglieder.slice(0, layout.sichtbar).forEach((p, i) => {
+          const part = machePart(i);
+          part.title = `${p.titel} · ${p.untertitel}`;
           part.style.backgroundImage = `url(${p.orb})`;
           part.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -354,11 +364,23 @@ export function KarteMap({
           });
           orbEl.appendChild(part);
         });
-        halo.style.zIndex = String(n + 1);
+        if (layout.mehr) {
+          const rest = mitglieder.length - layout.sichtbar;
+          const part = machePart(layout.sichtbar);
+          part.classList.add("km-part--mehr");
+          part.title = `${rest} weitere Ströme — hineinzoomen`;
+          part.textContent = "…";
+          part.addEventListener("click", (e) => {
+            e.stopPropagation();
+            reinzoomen(mitglieder);
+          });
+          orbEl.appendChild(part);
+        }
+        halo.style.zIndex = String(positionen + 1);
         const f0 = fillEl(parts[0]!.orb);
-        f0.style.zIndex = String(n + 2);
+        f0.style.zIndex = String(positionen + 2);
         const c0 = countEl(mitglieder.length);
-        c0.style.zIndex = String(n + 3);
+        c0.style.zIndex = String(positionen + 3);
         orbEl.append(halo, f0, c0);
         el.title = `${mitglieder.length} Ströme`;
         el.addEventListener("mouseenter", () => orbEl.classList.add("is-open"));
