@@ -3378,3 +3378,17 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 8px;
   margin-top: 4px;
 }
+
+.km-zeichnen-hinweis {
+  position: absolute;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: var(--z-menu);
+  padding: 8px 16px;
+  border-radius: var(--radius-pill);
+  background: var(--bhyo-navy-900, #1f2e38);
+  color: #fff;
+  font: var(--type-caption);
+  box-shadow: var(--shadow-menu);
+}

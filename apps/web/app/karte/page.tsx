@@ -1,89 +1,136 @@
-import { DetailPanel } from "@/components/DetailPanel";
-import { FilterBar } from "@/components/FilterBar";
-import { KartePanel } from "@/components/KartePanel";
+import { cookies } from "next/headers";
+
+import { KarteAnsicht } from "@/components/karte/KarteAnsicht";
+import type { KarteRegion } from "@/components/karte/KarteMap";
+import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
+import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
+import { stromZuPunkt, type KartePunkt } from "@/lib/karte-modell";
+import { listRegionGebiete } from "@/lib/register";
+import { ladeRegionOptionen, ladeStroeme } from "@/lib/stroeme";
 import {
-  getDetail,
-  getRegionGebiet,
-  listMapPunkte,
-  listMaterialarten,
-  listRegionen,
-  listRegionGebiete,
-  type RegisterFilter,
-} from "@/lib/register";
+  facettenOptionen,
+  filterAusSearchParams,
+  filterStroeme,
+  type SearchParamsRoh,
+  type Strom,
+} from "@/lib/stroeme-modell";
+import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 
 export const dynamic = "force-dynamic";
 
-type SearchParams = Record<string, string | string[] | undefined>;
-
-function ersterWert(v: string | string[] | undefined): string | undefined {
+function ersterWert(v: string | string[] | undefined): string {
   const s = Array.isArray(v) ? v[0] : v;
-  return s && s.length ? s : undefined;
+  return s ?? "";
 }
 
+/**
+ * karte. (V2, AP1i PR 6): Vollbreite MapLibre-Karte. Der Datenpfad laeuft
+ * ueber die getesteten PR-3-Mapper (ladeStroeme -> Strom mit konvertierten
+ * lng/lat) statt ueber sql<number>-Behauptungen; gefiltert wird mit demselben
+ * Querystring-Schema wie stroeme./auswertung. (inkl. sicht=).
+ */
 export default async function KartePage({
   searchParams,
 }: {
-  searchParams: Promise<SearchParams>;
+  searchParams: Promise<SearchParamsRoh>;
 }) {
   const sp = await searchParams;
-  const filter: RegisterFilter = {
-    regionId: ersterWert(sp.region),
-    suche: ersterWert(sp.q),
-    materialart: ersterWert(sp.materialart),
-    qualitaet: ersterWert(sp.qualitaet),
-    status: ersterWert(sp.status),
-    landkreis: ersterWert(sp.landkreis),
-    jahr: ersterWert(sp.jahr),
-    cluster: ersterWert(sp.cluster),
-  };
+  const filter = filterAusSearchParams(sp);
+  const sichtRoh = ersterWert(sp.sicht);
+  const sicht =
+    sichtRoh === "feedstock" ? ("feedstock" as const)
+    : sichtRoh === "outputs" ? ("outputs" as const)
+    : ("alle" as const);
+
+  const [bio, out, regionen, umrisse, ui] = await Promise.all([
+    sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
+    sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
+    ladeRegionOptionen(),
+    listRegionGebiete(),
+    cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
+  ]);
+
+  const bioGefiltert = filterStroeme(bio, filter);
+  const outGefiltert = filterStroeme(out, filter);
+  const pool = [...bioGefiltert, ...outGefiltert];
+  const punkte = pool
+    .map(stromZuPunkt)
+    .filter((p): p is KartePunkt => p != null);
+  const gesamt = [...bio, ...out]
+    .map(stromZuPunkt)
+    .filter((p) => p != null).length;
+
+  // Regionen: Umriss + Anzahl der (gefilterten) Stroeme, deren Standort in
+  // der Region liegt (regionIds kommen fertig aus dem PR-3-Datenpfad).
+  const karteRegionen: KarteRegion[] = umrisse.map((r) => ({
+    id: r.id,
+    name: r.name,
+    geojson: r.geojson,
+    anzahl: pool.filter((s) => s.regionIds.includes(r.id) && s.lng != null).length,
+  }));
+
+  // Facetten je sicht (Delta 1.4): gemeinsame Listen aus facettenOptionen,
+  // gruppe aus den festen Gruppen-Labels.
+  const bioOpt = facettenOptionen("biomasse", bioGefiltert, regionen, CLUSTER_LABEL);
+  const outOpt = facettenOptionen("output", outGefiltert, regionen, CLUSTER_LABEL);
+  const basisOpt = sicht === "outputs" ? outOpt : bioOpt;
+  const gruppeOptionen = Object.entries(OUTPUT_LABEL).map(([wert, label]) => ({
+    wert,
+    label,
+  }));
+
+  const facetten: FacettenChipDef[] = [
+    { key: "region", label: "Region", optionen: basisOpt.region ?? [] },
+    ...(sicht !== "outputs"
+      ? [
+          { key: "cluster", label: "Cluster", optionen: bioOpt.cluster ?? [] },
+          ...(sicht === "feedstock"
+            ? [{ key: "materialart", label: "Materialart", optionen: bioOpt.materialart ?? [] }]
+            : []),
+        ]
+      : []),
+    ...(sicht !== "feedstock"
+      ? [
+          { key: "gruppe", label: "Gruppe", optionen: gruppeOptionen },
+          ...(sicht === "outputs"
+            ? [{ key: "produkt", label: "Output", optionen: outOpt.produkt ?? [] }]
+            : []),
+        ]
+      : []),
+    { key: "qualitaet", label: "Qualität", optionen: basisOpt.qualitaet ?? [] },
+    { key: "status", label: "Status", optionen: basisOpt.status ?? [] },
+    { key: "belegtyp", label: "Belegtyp", optionen: basisOpt.belegtyp ?? [] },
+  ];
+
+  const auswahl = Object.fromEntries(
+    facetten.map(({ key }) => [key, filter[key as "cluster"] as string[]]),
+  );
+  const bereich = { vonAb: filter.vonAb, erstellt: filter.erstellt };
+  const irgendeinFilter =
+    filter.q.trim() !== "" ||
+    facetten.some(({ key }) => (filter[key as "cluster"] as string[]).length > 0) ||
+    filter.vonAb !== "" ||
+    filter.erstellt !== "";
 
   const detailId = ersterWert(sp.detail);
-  const detailArt = ersterWert(sp.art) === "output" ? "output" : "biomasse";
-
-  const [regionen, materialarten, punkte, regionGebiet, regionUmrisse, detail] =
-    await Promise.all([
-      listRegionen(),
-      listMaterialarten(filter.cluster),
-      listMapPunkte(filter),
-      filter.regionId
-        ? getRegionGebiet(filter.regionId)
-        : Promise.resolve(null),
-      listRegionGebiete(),
-      detailId ? getDetail(detailArt, detailId) : Promise.resolve(null),
-    ]);
-
-  const basis = new URLSearchParams();
-  if (filter.regionId) basis.set("region", filter.regionId);
-  if (filter.suche) basis.set("q", filter.suche);
-  if (filter.materialart) basis.set("materialart", filter.materialart);
-  if (filter.qualitaet) basis.set("qualitaet", filter.qualitaet);
-  if (filter.status) basis.set("status", filter.status);
-  if (filter.landkreis) basis.set("landkreis", filter.landkreis);
-  if (filter.jahr) basis.set("jahr", filter.jahr);
-  if (filter.cluster) basis.set("cluster", filter.cluster);
-  const basisStr = basis.toString();
+  const detailPunkt = detailId
+    ? (punkte.find((p) => p.id === detailId) ?? null)
+    : null;
 
   return (
-    <main className="app-main">
-      <div className="toolbar">
-        <h1>Karte</h1>
-        <span className="muted">{punkte.length} Standorte</span>
-      </div>
-
-      <FilterBar
-        filter={filter}
-        regionen={regionen}
-        materialarten={materialarten}
-      />
-
-      <KartePanel
-        punkte={punkte}
-        regionGebiet={regionGebiet}
-        regionUmrisse={regionUmrisse}
-        basisStr={basisStr}
-      />
-
-      {detail && <DetailPanel detail={detail} closeHref={`?${basisStr}`} />}
-    </main>
+    <KarteAnsicht
+      punkte={punkte}
+      gesamt={gesamt}
+      regionen={karteRegionen}
+      facetten={facetten}
+      auswahl={auswahl}
+      bereich={bereich}
+      sicht={sicht}
+      detailPunkt={detailPunkt}
+      filterOffenInitial={!!ui.filterOffen?.karte}
+      legendeInitial={ui.legende ?? { offen: true }}
+      regionenAusInitial={ui.legende?.regionenAus ?? []}
+      irgendeinFilter={irgendeinFilter}
+    />
   );
 }

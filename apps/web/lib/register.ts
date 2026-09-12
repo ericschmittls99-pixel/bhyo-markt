@@ -11,6 +11,7 @@ import {
 import { and, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { withDb } from "@/lib/db";
+import { geojsonOderNull } from "@/lib/karte-modell";
 
 /**
  * Raeumliche Regionszuordnung (AP1e): ein Strom/Bedarf gehoert zu einer Region,
@@ -599,134 +600,6 @@ export interface RegionGebiet {
   geojson: unknown;
 }
 
-export function listMapPunkte(filter: RegisterFilter): Promise<MapPunkt[]> {
-  return withDb(async (db) => {
-    const s = filter.suche ? `%${filter.suche.trim()}%` : null;
-
-    const bConds: SQL[] = [sql`${biomassestrom.standortGeom} is not null`];
-    if (filter.regionId)
-      bConds.push(imGebiet(biomassestrom.standortGeom, filter.regionId));
-    if (filter.materialart)
-      bConds.push(eq(biomassestrom.materialartCode, filter.materialart));
-    if (filter.cluster) bConds.push(clusterFilter(filter.cluster));
-    if (filter.qualitaet)
-      bConds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
-    if (filter.status)
-      bConds.push(eq(biomassestrom.status, filter.status as never));
-    if (filter.landkreis)
-      bConds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
-    if (filter.jahr)
-      bConds.push(
-        jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
-      );
-    if (s)
-      bConds.push(
-        or(
-          ilike(akteur.name, s),
-          ilike(biomassestrom.bezeichnung, s),
-          ilike(biomassestrom.landkreis, s),
-          ilike(biomassestrom.ort, s),
-        )!,
-      );
-
-    const bRows = await db
-      .select({
-        id: biomassestrom.id,
-        lng: sql<number>`ST_X(${biomassestrom.standortGeom})`,
-        lat: sql<number>`ST_Y(${biomassestrom.standortGeom})`,
-        cluster: materialart.cluster,
-        menge: biomassestrom.mengeAtro,
-        qualitaet: biomassestrom.qualitaet,
-        bezeichnung: biomassestrom.bezeichnung,
-        akteurName: akteur.name,
-      })
-      .from(biomassestrom)
-      .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
-      .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
-      .where(and(...bConds))
-      .limit(2000);
-
-    const biomasse: MapPunkt[] = bRows.map((r) => ({
-      id: r.id,
-      art: "biomasse" as const,
-      lng: r.lng,
-      lat: r.lat,
-      farbeKey: r.cluster ?? "unbekannt",
-      menge: r.menge != null ? Number(r.menge) : 0,
-      qualitaet: r.qualitaet,
-      label: r.bezeichnung ?? r.akteurName ?? "Biomassestrom",
-    }));
-
-    // Materialart-Filter aktiv -> Output ausblenden (Output hat keine Materialart).
-    if (filter.materialart) return biomasse;
-
-    const oConds: SQL[] = [sql`${outputBedarf.standortGeom} is not null`];
-    if (filter.regionId)
-      oConds.push(imGebiet(outputBedarf.standortGeom, filter.regionId));
-    if (filter.qualitaet)
-      oConds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
-    if (filter.status)
-      oConds.push(eq(outputBedarf.status, filter.status as never));
-    if (filter.landkreis)
-      oConds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
-    if (filter.jahr)
-      oConds.push(
-        jahrFilter(outputBedarf.zeitraumVon, outputBedarf.zeitraumBis, filter.jahr),
-      );
-    if (s)
-      oConds.push(
-        or(
-          ilike(akteur.name, s),
-          ilike(outputBedarf.bezeichnung, s),
-          ilike(outputBedarf.landkreis, s),
-          ilike(outputBedarf.ort, s),
-        )!,
-      );
-
-    const oRows = await db
-      .select({
-        id: outputBedarf.id,
-        lng: sql<number>`ST_X(${outputBedarf.standortGeom})`,
-        lat: sql<number>`ST_Y(${outputBedarf.standortGeom})`,
-        gruppe: outputProdukt.gruppe,
-        menge: outputBedarf.mengeWert,
-        qualitaet: outputBedarf.qualitaet,
-        bezeichnung: outputBedarf.bezeichnung,
-        akteurName: akteur.name,
-      })
-      .from(outputBedarf)
-      .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
-      .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
-      .where(and(...oConds))
-      .limit(2000);
-
-    const output: MapPunkt[] = oRows.map((r) => ({
-      id: r.id,
-      art: "output" as const,
-      lng: r.lng,
-      lat: r.lat,
-      farbeKey: r.gruppe ?? "unbekannt",
-      menge: r.menge != null ? Number(r.menge) : 0,
-      qualitaet: r.qualitaet,
-      label: r.bezeichnung ?? r.akteurName ?? "Output-Bedarf",
-    }));
-
-    return [...biomasse, ...output];
-  });
-}
-
-export function getRegionGebiet(regionId: string): Promise<RegionGebiet | null> {
-  return withDb(async (db) => {
-    const [r] = await db
-      .select({ geojson: sql<string>`ST_AsGeoJSON(${region.gebiet})` })
-      .from(region)
-      .where(eq(region.id, regionId))
-      .limit(1);
-    if (!r?.geojson) return null;
-    return { geojson: JSON.parse(r.geojson) };
-  });
-}
-
 /** Umriss (id, name, Polygon-GeoJSON) aller Regionen fuer den Karten-Layer. */
 export interface RegionUmriss {
   id: string;
@@ -740,14 +613,16 @@ export function listRegionGebiete(): Promise<RegionUmriss[]> {
       .select({
         id: region.id,
         name: region.name,
-        geojson: sql<string>`ST_AsGeoJSON(${region.gebiet})`,
+        // Treiber-Form offen (Text ODER geparstes Objekt) — Konvertierung
+        // an genau einer Stelle in geojsonOderNull (PR 6, Lehre aus PR 3).
+        geojson: sql<unknown>`ST_AsGeoJSON(${region.gebiet})`,
       })
       .from(region)
       .orderBy(region.name);
     return rows.map((r) => ({
       id: r.id,
       name: r.name,
-      geojson: JSON.parse(r.geojson),
+      geojson: geojsonOderNull(r.geojson, `region ${r.id}`),
     }));
   });
 }
