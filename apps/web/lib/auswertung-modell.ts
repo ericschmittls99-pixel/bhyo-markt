@@ -5,6 +5,7 @@
 // PR-3-Pfad in stroeme-zeilen.ts; hier gibt es keine sql<T>-Behauptungen mehr.
 // Die Fachregeln folgen dashVals() aus dem V2-Mockup.
 
+import { energieKwh, preisCtKwh, preisEuroKg } from "./energie";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
 import { fmtDatum, fmtPreis, fmtZahl } from "./format";
 import { STATUS_LABEL } from "./status";
@@ -94,14 +95,13 @@ function feedOut(recs: Strom[]) {
 }
 
 /** Bedarfssummen je Einheit ("500 MWh/a · 120 t/a"). */
-function einheitenText(out: Strom[], ohne?: string): string {
+function einheitenText(out: Strom[]): string {
   const je: Record<string, number> = {};
   for (const s of out) {
     if (s.mengeWert == null || !s.mengeEinheit) continue;
     je[s.mengeEinheit] = (je[s.mengeEinheit] ?? 0) + s.mengeWert;
   }
   return Object.keys(je)
-    .filter((u) => u !== ohne)
     .map((u) => `${fmtZahl(je[u]!)} ${u}`)
     .join(" · ");
 }
@@ -112,15 +112,33 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
 
   let mengeKpi: KpiKarte;
   if (sicht === "outputs") {
-    const mwh = sum(
-      out.filter((s) => s.mengeEinheit === "MWh/a"),
+    // Energiebedarf = Hu-Aequivalent der Target-Outputs (lib/energie);
+    // CO2 ist stofflich und steht separat daneben. Belege ohne belegbaren
+    // Heizwert (Synthesegas/BioFuels in t/a, fehlende Menge) werden
+    // ausgewiesen statt still ignoriert.
+    const targets = out.filter((s) => s.kategorie === "target");
+    const kwh = sum(
+      targets,
+      (s) => energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit) ?? 0,
+    );
+    const ohneHeizwert = targets.filter(
+      (s) => energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit) == null,
+    ).length;
+    const co2Tonnen = sum(
+      out.filter((s) => s.produktCode === "co2" && s.mengeEinheit === "t/a"),
       (s) => s.mengeWert ?? 0,
     );
     mengeKpi = {
-      wert: fmtZahl(mwh),
+      wert: fmtZahl(kwh / 1000),
       einheit: "MWh/a",
       label: "energiebedarf.",
-      caption: einheitenText(out, "MWh/a") || "keine weiteren Einheiten",
+      caption: [
+        "Target-Outputs nach Hu",
+        co2Tonnen > 0 ? `dazu ${fmtZahl(co2Tonnen)} t CO2/a` : "",
+        ohneHeizwert > 0 ? `${nBelege(ohneHeizwert)} ohne Heizwert` : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
     };
   } else {
     const bedarf = einheitenText(out);
@@ -350,21 +368,59 @@ export function preisDaten(recs: Strom[], sicht: Sicht): PreisDaten {
     };
   }
 
-  const jeEinheit: Record<string, number[]> = {};
-  for (const s of out) {
-    if (s.preis == null || !s.preisEinheit) continue;
-    (jeEinheit[s.preisEinheit] = jeEinheit[s.preisEinheit] ?? []).push(s.preis);
+  // Outputs (Review-Runde 3 Eric): drei getrennte Kennzahlen — Targets und
+  // Waerme als ct/kWh (Umrechnung ueber Hu, lib/energie), CO2 als €/kg.
+  // Belege ohne umrechenbaren Preis fallen aus der jeweiligen Gruppe.
+  const stats: PreisDaten["stats"] = [];
+  const runde2 = (x: number) => Math.round(x * 100) / 100;
+
+  const targetPreise = out
+    .filter((s) => s.kategorie === "target")
+    .map((s) => ({
+      ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
+      kwh: energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit) ?? 0,
+    }))
+    .filter((x): x is { ct: number; kwh: number } => x.ct != null);
+  if (targetPreise.length) {
+    let tw = targetPreise.reduce((n, x) => n + x.kwh, 0);
+    let gewicht = (x: { kwh: number }) => x.kwh;
+    if (tw === 0) {
+      gewicht = () => 1;
+      tw = targetPreise.length;
+    }
+    const mittel = targetPreise.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw;
+    stats.push({
+      wert: fmtPreis(runde2(mittel)),
+      einheit: "ct/kWh",
+      label: "ø preis target-outputs, kWh-gewichtet.",
+    });
   }
-  return {
-    stats: Object.keys(jeEinheit)
-      .slice(0, 3)
-      .map((einheit) => {
-        const werte = jeEinheit[einheit]!;
-        const mittel = Math.round((werte.reduce((a, b) => a + b, 0) / werte.length) * 10) / 10;
-        return { wert: fmtPreis(mittel), einheit, label: `ø preis · ${nBelege(werte.length).toLowerCase()}.` };
-      }),
-    korridor: null,
-  };
+
+  const waermePreise = out
+    .filter((s) => s.produktCode === "waerme")
+    .map((s) => preisCtKwh(s.produktCode, s.preis, s.preisEinheit))
+    .filter((v): v is number => v != null);
+  if (waermePreise.length) {
+    stats.push({
+      wert: fmtPreis(runde2(waermePreise.reduce((a, b) => a + b, 0) / waermePreise.length)),
+      einheit: "ct/kWh",
+      label: "ø preis wärme.",
+    });
+  }
+
+  const co2Preise = out
+    .filter((s) => s.produktCode === "co2")
+    .map((s) => preisEuroKg(s.preis, s.preisEinheit))
+    .filter((v): v is number => v != null);
+  if (co2Preise.length) {
+    stats.push({
+      wert: fmtPreis(runde2(co2Preise.reduce((a, b) => a + b, 0) / co2Preise.length)),
+      einheit: "€/kg",
+      label: "ø preis CO2.",
+    });
+  }
+
+  return { stats, korridor: null };
 }
 
 export function verifZeilen(recs: Strom[], heuteIso: string): VerifZeile[] {

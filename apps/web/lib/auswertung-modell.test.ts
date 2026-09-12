@@ -108,7 +108,9 @@ const o1 = strom({
   id: "o1",
   art: "output",
   gruppe: "wasserstoff",
+  produktCode: "h2_niederdruck",
   produktLabel: "Wasserstoff",
+  kategorie: "target",
   mengeWert: 500,
   mengeEinheit: "MWh/a",
   status: "in_pruefung",
@@ -136,10 +138,48 @@ describe("kpiKarten", () => {
     expect(k[3]!.caption).toBe("1 Beleg unter 50 %");
   });
 
-  it("zeigt bei sicht=outputs den Energiebedarf und die Gruppenzahl", () => {
+  it("summiert bei sicht=outputs den Energiebedarf der Targets nach Hu und nennt CO2 separat", () => {
+    const h2 = strom({
+      id: "oh2",
+      art: "output",
+      gruppe: "wasserstoff",
+      produktCode: "h2_hochdruck",
+      kategorie: "target",
+      mengeWert: 120,
+      mengeEinheit: "t/a",
+    });
+    const co2 = strom({
+      id: "oco2",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "co2",
+      kategorie: "add_on",
+      mengeWert: 800,
+      mengeEinheit: "t/a",
+    });
+    const syn = strom({
+      id: "osyn",
+      art: "output",
+      gruppe: "primaerprodukte",
+      produktCode: "synthesegas",
+      kategorie: "target",
+      mengeWert: 10,
+      mengeEinheit: "t/a",
+    });
+    const k = kpiKarten([o1, h2, co2, syn], "outputs");
+    expect(k[0]!.caption).toBe("3 Output-Gruppen");
+    // 500 MWh direkt + 120 t H2 * 33,326 kWh/kg = 3.999,07 MWh -> 4.499
+    expect(k[1]).toMatchObject({ wert: "4.499", einheit: "MWh/a", label: "energiebedarf." });
+    expect(k[1]!.caption).toContain("Hu");
+    expect(k[1]!.caption).toContain("dazu 800 t CO2/a");
+    expect(k[1]!.caption).toContain("1 Beleg ohne Heizwert");
+  });
+
+  it("laesst CO2- und ohne-Heizwert-Hinweis weg, wenn nichts da ist", () => {
     const k = kpiKarten([o1], "outputs");
-    expect(k[0]!.caption).toBe("1 Output-Gruppe");
-    expect(k[1]).toMatchObject({ wert: "500", einheit: "MWh/a", label: "energiebedarf." });
+    expect(k[1]).toMatchObject({ wert: "500", einheit: "MWh/a" });
+    expect(k[1]!.caption).not.toContain("CO2");
+    expect(k[1]!.caption).not.toContain("ohne Heizwert");
   });
 
   it("meldet vollstaendige Erfassung ohne Ausreisser", () => {
@@ -262,11 +302,56 @@ describe("preisDaten", () => {
     expect(preisDaten([strom({ id: "n", mengeAtro: 10 })], "feedstock").stats).toHaveLength(0);
   });
 
-  it("mittelt Outputs je Preiseinheit ohne Korridor", () => {
-    const o2 = strom({ id: "o5", art: "output", preis: 12, preisEinheit: "€/MWh" });
-    const p = preisDaten([o1, o2], "outputs");
-    expect(p.stats[0]).toMatchObject({ wert: "10", einheit: "€/MWh" });
+  it("teilt die Output-Preise in Targets (ct/kWh), Waerme (ct/kWh) und CO2 (€/kg)", () => {
+    // o1: H2 target, 5 €/kg -> 15,00 ct/kWh, Energie 500 MWh
+    const target = { ...o1, preis: 5, preisEinheit: "€/kg" };
+    const strom2 = strom({
+      id: "ostrom",
+      art: "output",
+      gruppe: "primaerprodukte",
+      produktCode: "strom",
+      kategorie: "target",
+      mengeWert: 500,
+      mengeEinheit: "MWh/a",
+      preis: 120,
+      preisEinheit: "€/MWh",
+    });
+    const waerme = strom({
+      id: "owaerme",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "waerme",
+      kategorie: "add_on",
+      mengeWert: 5800,
+      mengeEinheit: "MWh/a",
+      preis: 80,
+      preisEinheit: "€/MWh",
+    });
+    const co2 = strom({
+      id: "oco2p",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "co2",
+      kategorie: "add_on",
+      mengeWert: 800,
+      mengeEinheit: "t/a",
+      preis: 80,
+      preisEinheit: "€/t",
+    });
+    const p = preisDaten([target, strom2, waerme, co2], "outputs");
+    // Targets kWh-gewichtet, beide 500 MWh: (15,0035 + 12) / 2 = 13,50
+    expect(p.stats[0]).toMatchObject({ wert: "13,50", einheit: "ct/kWh" });
+    expect(p.stats[0]!.label).toContain("target");
+    expect(p.stats[1]).toMatchObject({ wert: "8", einheit: "ct/kWh" });
+    expect(p.stats[1]!.label).toContain("wärme");
+    expect(p.stats[2]).toMatchObject({ wert: "0,08", einheit: "€/kg" });
+    expect(p.stats[2]!.label).toContain("CO2");
     expect(p.korridor).toBeNull();
+  });
+
+  it("laesst Preisgruppen ohne Daten weg", () => {
+    const p = preisDaten([{ ...o1, preis: null }], "outputs");
+    expect(p.stats).toHaveLength(0);
   });
 });
 
