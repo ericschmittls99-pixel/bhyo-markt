@@ -6,7 +6,12 @@ import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import { stromZuPunkt, type KartePunkt } from "@/lib/karte-modell";
 import { listRegionGebiete } from "@/lib/register";
-import { ladeRegionOptionen, ladeStroeme } from "@/lib/stroeme";
+import {
+  ladeErsteAenderung,
+  ladeHistorie,
+  ladeRegionOptionen,
+  ladeStroeme,
+} from "@/lib/stroeme";
 import {
   facettenOptionen,
   filterAusSearchParams,
@@ -15,6 +20,7 @@ import {
   type Strom,
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
+import { naechsteVerifizierung } from "@/lib/verifizierung";
 
 export const dynamic = "force-dynamic";
 
@@ -112,7 +118,28 @@ export default async function KartePage({
     filter.vonAb !== "" ||
     filter.erstellt !== "";
 
+  // Marker-Klick oeffnet DASSELBE Detail wie stroeme. (Spec-Anpassung Eric):
+  // vollen Strom + Historie laden; nicht im Pool (Filter/500er-Limit) →
+  // gezielt nachladen, Art ist unbekannt, also beide probieren.
   const detailId = ersterWert(sp.detail);
+  let detailStrom: Strom | null = detailId
+    ? ([...bio, ...out].find((s) => s.id === detailId) ?? null)
+    : null;
+  if (detailId && !detailStrom)
+    detailStrom =
+      (await ladeStroeme("biomasse", detailId))[0] ??
+      (await ladeStroeme("output", detailId))[0] ??
+      null;
+  const [historie, ersteAenderung] = detailStrom
+    ? await Promise.all([
+        ladeHistorie(detailStrom.art, detailStrom.id),
+        ladeErsteAenderung(detailStrom.art, detailStrom.id),
+      ])
+    : [[], null];
+  const begruendung =
+    ersteAenderung && ersteAenderung.includes(": ")
+      ? ersteAenderung.slice(ersteAenderung.indexOf(": ") + 2)
+      : null;
   const detailPunkt = detailId
     ? (punkte.find((p) => p.id === detailId) ?? null)
     : null;
@@ -127,6 +154,12 @@ export default async function KartePage({
       bereich={bereich}
       sicht={sicht}
       detailPunkt={detailPunkt}
+      detailStrom={detailStrom}
+      historie={historie}
+      begruendung={begruendung}
+      verifizierung={
+        detailStrom?.beleg ? naechsteVerifizierung(detailStrom.beleg) : null
+      }
       filterOffenInitial={!!ui.filterOffen?.karte}
       legendeInitial={ui.legende ?? { offen: true }}
       umrisseInitial={ui.legende?.umrisse ?? true}

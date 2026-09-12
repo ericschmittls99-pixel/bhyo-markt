@@ -41,6 +41,11 @@ function fmtKoordinaten(lng: number, lat: number): string {
  * aus der Liste als Slide-in-Panel (520 px, ohne Scrim). Statuswechsel ueber
  * die klickbare StatusPill (E8), Verwerfen ueber Papierkorb + Modal (E2).
  * Bearbeiten oeffnet das Formular-Panel (?form=<id>, PR 5).
+ *
+ * karte. rendert DIESELBE Komponente lesend (canEdit=false) mit
+ * `stroemeHref`: statt Bearbeiten/Papierkorb steht dann "In ströme. öffnen",
+ * und der "Auf der Karte"-Link entfaellt (man IST auf der Karte) — eine
+ * Detailansicht, zwei Einstiegspunkte (PR 6, Spec-Anpassung Eric).
  */
 export function Detail({
   strom,
@@ -49,6 +54,7 @@ export function Detail({
   verifizierung,
   modal,
   canEdit,
+  stroemeHref,
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -56,6 +62,8 @@ export function Detail({
   verifizierung: string | null;
   modal: boolean;
   canEdit: boolean;
+  /** Gesetzt im karte.-Kontext: Ziel fuer "In ströme. öffnen". */
+  stroemeHref?: string;
 }) {
   const s = strom;
   const { setze } = useUrlZustand();
@@ -217,7 +225,13 @@ export function Detail({
               </div>
             </div>
             <div className="ov-kopf-aktionen">
-              {canEdit && (
+              {stroemeHref && (
+                <Link className="btn btn--sm" href={stroemeHref}>
+                  <i className="ph ph-arrow-square-out" aria-hidden />
+                  In ströme. öffnen
+                </Link>
+              )}
+              {!stroemeHref && canEdit && (
                 <button
                   type="button"
                   className="btn btn--sm"
@@ -227,7 +241,7 @@ export function Detail({
                   Bearbeiten
                 </button>
               )}
-              {canEdit && s.status !== "verworfen" && (
+              {!stroemeHref && canEdit && s.status !== "verworfen" && (
                 <button
                   type="button"
                   className="icon-btn"
@@ -276,7 +290,7 @@ export function Detail({
                     </span>
                   )}
                 </span>
-                {s.lng != null && s.lat != null && (
+                {!stroemeHref && s.lng != null && s.lat != null && (
                   <Link
                     className="btn btn--sm"
                     href={`/karte?detail=${s.id}&art=${s.art}`}

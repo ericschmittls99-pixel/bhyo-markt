@@ -12,13 +12,14 @@ import {
 } from "@/components/karte/KarteMap";
 import { KarteControls, KarteToolbar } from "@/components/karte/KarteToolbar";
 import { KarteLegende } from "@/components/karte/KarteLegende";
-import { MarkerPanel } from "@/components/karte/MarkerPanel";
 import { ZeichnenDialog } from "@/components/karte/ZeichnenDialog";
+import { Detail } from "@/components/stroeme/Detail";
 import {
   punkteInBbox,
   type KartePunkt,
   type KarteTreffer,
 } from "@/lib/karte-modell";
+import type { Strom } from "@/lib/stroeme-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 type Bbox = [number, number, number, number];
@@ -44,6 +45,10 @@ export function KarteAnsicht({
   bereich,
   sicht,
   detailPunkt,
+  detailStrom,
+  historie,
+  begruendung,
+  verifizierung,
   filterOffenInitial,
   legendeInitial,
   umrisseInitial,
@@ -57,6 +62,10 @@ export function KarteAnsicht({
   bereich: Record<string, string>;
   sicht: "alle" | "feedstock" | "outputs";
   detailPunkt: KartePunkt | null;
+  detailStrom: Strom | null;
+  historie: { zeitpunkt: string; text: string }[];
+  begruendung: string | null;
+  verifizierung: string | null;
   filterOffenInitial: boolean;
   legendeInitial: { offen: boolean; hoehe?: number };
   umrisseInitial: boolean;
@@ -79,8 +88,8 @@ export function KarteAnsicht({
     function onKey(ev: KeyboardEvent) {
       if (ev.key !== "Escape") return;
       if (auswahlRect) return setAuswahlRect(null);
-      if (zeichnenAktiv) return setZeichnenAktiv(false);
-      if (detailPunkt) setze({ detail: null }, "push");
+      if (zeichnenAktiv) setZeichnenAktiv(false);
+      // Detail schliesst sich selbst per Escape (eigener Handler).
     }
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -185,10 +194,15 @@ export function KarteAnsicht({
         initial={legendeInitial}
       />
 
-      {detailPunkt && (
-        <MarkerPanel
-          punkt={detailPunkt}
-          onSchliessen={() => setze({ detail: null }, "push")}
+      {detailStrom && (
+        <Detail
+          strom={detailStrom}
+          historie={historie}
+          begruendung={begruendung}
+          verifizierung={verifizierung}
+          modal={false}
+          canEdit={false}
+          stroemeHref={`/register?tab=${detailStrom.art === "biomasse" ? "biomasse" : "output"}&detail=${detailStrom.id}`}
         />
       )}
 
