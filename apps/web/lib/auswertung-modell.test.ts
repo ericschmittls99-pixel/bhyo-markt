@@ -171,6 +171,23 @@ describe("kpiKarten", () => {
     expect(k[3]!.caption).toContain("Spanne -700 – 1.500 €/a");
   });
 
+  it("ordnet einen Beleg mit Vorzeichenwechsel in der Spanne nach dem Mittel zu (E14)", () => {
+    // Material, dessen Zahlungsstrom je Marktlage kippen kann: min -10 / max +15
+    const wechsel = strom({
+      id: "w",
+      mengeAtro: 100,
+      preisMin: -10,
+      preisMittel: 5,
+      preisMax: 15,
+    });
+    const k = kpiKarten([wechsel], "feedstock");
+    expect(k[2]!.stats).toEqual([
+      { wert: "5", einheit: "€/t", label: "ø einkaufspreis (n=1)" },
+    ]);
+    expect(k[3]).toMatchObject({ wert: "500", einheit: "€/a" });
+    expect(k[3]!.caption).toContain("Spanne -1.000 – 1.500 €/a");
+  });
+
   it("zeigt einen negativen Saldo mit sichtbarem Vorzeichen", () => {
     const fN = strom({ id: "fn", mengeAtro: 100, preisMittel: -8 });
     const k = kpiKarten([fN], "feedstock");

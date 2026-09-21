@@ -171,6 +171,21 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
     zahl("preis_min", e.preisMin);
     zahl("preis_mittel", e.preisMittel);
     zahl("preis_max", e.preisMax);
+    // E14: preis_* ist ein signierter Zahlungsstrom (negativ = Annahme-
+    // entgelt). Die Reihenfolge Min <= Mittel <= Max muss auch ueber das
+    // Vorzeichen hinweg gelten — verdrehte Werte wuerden Spannen und
+    // Saldo still verzerren. Verglichen wird nur, was befuellt ist.
+    const preisWert = (v: string): number | null =>
+      v.trim() === "" || !zahlOk(v) ? null : Number(v.replace(",", "."));
+    const pMin = preisWert(e.preisMin);
+    const pMittel = preisWert(e.preisMittel);
+    const pMax = preisWert(e.preisMax);
+    if (pMin != null && pMittel != null && pMittel < pMin)
+      f.preis_mittel ??= "Muss ≥ Min sein";
+    if (pMittel != null && pMax != null && pMax < pMittel)
+      f.preis_max ??= "Muss ≥ Mittel sein";
+    if (pMin != null && pMax != null && pMax < pMin)
+      f.preis_max ??= "Muss ≥ Min sein";
   } else {
     pflicht("produkt_code", e.produktCode);
     pflicht("menge_wert", e.mengeWert);
