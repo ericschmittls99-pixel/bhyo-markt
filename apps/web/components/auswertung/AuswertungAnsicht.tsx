@@ -133,7 +133,7 @@ export function AuswertungAnsicht({
     <section className="aw-modul aw-modul--b2">
       <header className="aw-kopf">
         <h3 className="aw-kicker">
-          {feedMode ? "biomasse je cluster." : "belege je output-gruppe."}
+          {feedMode ? "feedstock je cluster." : "belege je output-gruppe."}
         </h3>
         <span className="aw-caption">
           {feedMode ? "t atro/a" : "Anzahl · Bedarf je Einheit"}
@@ -357,7 +357,7 @@ export function AuswertungAnsicht({
     <section className="aw-modul aw-modul--w2">
       <header className="aw-kopf">
         <h3 className="aw-kicker">
-          {feedMode ? "verfügbare biomasse je jahr." : "aktive belege je jahr."}
+          {feedMode ? "verfügbarer feedstock je jahr." : "aktive belege je jahr."}
         </h3>
         <span className="aw-caption">{feedMode ? "t atro/a" : "Belege"}</span>
       </header>
