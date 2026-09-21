@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+  # Notausgang (kein Ersatz fuer den push-Trigger): beim PR-7-Merge hat
+  # GitHub fuer den Squash-Commit kein PushEvent erzeugt (Events-API leer,
+  # kein Token-/paths-Problem — Einzelfall-Drop). Damit laesst sich der
+  # Production-Deploy ohne leeren Trigger-Commit nachholen.
+  workflow_dispatch:
 
 # Pro Ziel-Ref nur ein Deploy gleichzeitig; laufende überholte Deploys abbrechen.
 concurrency:

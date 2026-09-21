@@ -511,11 +511,35 @@ describe("jahresBalken", () => {
     expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2026, "5"]]);
   });
 
-  it("zaehlt offene Zeitraeume ueber die ganze Achse durch", () => {
+  it("zaehlt offene Zeitraeume ab dem aktuellen Jahr ueber die Achse durch", () => {
     const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
     const fix = strom({ id: "fx", mengeAtro: 10, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
     const j = jahresBalken([offen, fix], 2026);
     expect(j.map((b) => b.wertText)).toEqual(["15", "15"]);
+  });
+
+  it("laesst offene Zeitraeume nicht rueckwirkend in historische Jahre zaehlen (E17)", () => {
+    // Der offene Beleg beginnt ab dem AKTUELLEN Jahr — die 2019/2020-Balken
+    // existieren nur wegen des fremden historischen Belegs.
+    const offen = strom({ id: "of", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
+    const hist = strom({
+      id: "hi",
+      mengeAtro: 100,
+      zeitraumVon: "2019-01-01",
+      zeitraumBis: "2020-12-31",
+    });
+    const j = jahresBalken([offen, hist], 2026);
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
+      [2019, "100"],
+      [2020, "100"],
+      [2021, "0"],
+      [2022, "0"],
+      [2023, "0"],
+      [2024, "0"],
+      [2025, "0"],
+      [2026, "5"],
+    ]);
+    expect(j[7]!.aktuell).toBe(true);
   });
 
   it("zaehlt einen Jahreswechsel-Beleg in beiden Grenzjahren, nicht darueber hinaus", () => {

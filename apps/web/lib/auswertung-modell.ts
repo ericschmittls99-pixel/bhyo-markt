@@ -528,15 +528,25 @@ function jahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
       .filter((iso): iso is string => iso != null)
       .map((iso) => Number(iso.slice(0, 4))),
   );
+  // Offene Zeitraeume (E17) starten ab dem aktuellen Jahr — das gehoert
+  // dann auch auf die Achse, selbst wenn kein Beleg es explizit nennt.
+  if (recs.some((s) => s.zeitraumVon == null || s.zeitraumBis == null))
+    jahre.push(aktuellesJahr);
   const lo = jahre.length ? Math.min(...jahre) : aktuellesJahr;
   const hi = jahre.length ? Math.max(...jahre) : aktuellesJahr;
   return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 }
 
-/** Jahres-Summe je Kalenderjahr des Zeitraums; offene Zeitraeume zaehlen ueber die ganze Achse. */
+/**
+ * Jahres-Summe je Kalenderjahr des Zeitraums. Offene Zeitraeume (E17):
+ * ohne Von-Datum zaehlt ein Beleg erst AB dem aktuellen Jahr — nie
+ * rueckwirkend in Jahre, die nur durch fremde historische Belege auf der
+ * Achse sind; ohne Bis-Datum laeuft er bis zum Achsenende durch.
+ */
 function jahresWerte(
   recs: Strom[],
   achse: number[],
+  aktuellesJahr: number,
   wertVon: (s: Strom) => number,
 ): number[] {
   const jahrVon = (iso: string | null, fallback: number) =>
@@ -545,7 +555,7 @@ function jahresWerte(
     sum(
       recs.filter(
         (s) =>
-          jahrVon(s.zeitraumVon, achse[0]!) <= jahr &&
+          jahrVon(s.zeitraumVon, aktuellesJahr) <= jahr &&
           jahrVon(s.zeitraumBis, achse[achse.length - 1]!) >= jahr,
       ),
       wertVon,
@@ -572,7 +582,7 @@ function zuJahresBalken(
 export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken[] {
   const feed = recs.filter((s) => s.art === "biomasse");
   const achse = jahresAchse(feed, aktuellesJahr);
-  return zuJahresBalken(achse, jahresWerte(feed, achse, atroVon), aktuellesJahr);
+  return zuJahresBalken(achse, jahresWerte(feed, achse, aktuellesJahr, atroVon), aktuellesJahr);
 }
 
 /**
@@ -589,12 +599,12 @@ export function outputJahre(
   return {
     energie: zuJahresBalken(
       achse,
-      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, (s) => kwhVon(s) / 1000),
+      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, aktuellesJahr, (s) => kwhVon(s) / 1000),
       aktuellesJahr,
     ),
     stofflich: zuJahresBalken(
       achse,
-      jahresWerte(out.filter(istStofflich), achse, (s) => s.mengeWert ?? 0),
+      jahresWerte(out.filter(istStofflich), achse, aktuellesJahr, (s) => s.mengeWert ?? 0),
       aktuellesJahr,
     ),
   };
