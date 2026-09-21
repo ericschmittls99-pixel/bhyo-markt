@@ -10,7 +10,7 @@ import {
   outputMengen,
   outputPotenzialZeilen,
   outputPreisZeilen,
-  potenzialZeilen,
+  saldoZeilen,
   preisKorridorZeilen,
   qualitaetsDaten,
   saisonDaten,
@@ -137,7 +137,7 @@ export default async function AuswertungPage({
       saison={saisonDaten(recs)}
       belegtypen={belegtypZeilen(recs)}
       jahre={sicht === "feedstock" ? jahresBalken(recs, aktuellesJahr) : []}
-      potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
+      saldo={sicht === "feedstock" ? saldoZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
       outMengen={sicht === "outputs" ? outputMengen(pool, recs) : null}
       outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : []}

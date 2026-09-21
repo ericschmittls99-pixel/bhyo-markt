@@ -21,8 +21,8 @@
 //   H2-Produktion, Referenzanlage Guessing; sciencedirect.com Reviews zu DFB-
 //   Gasification). Massebasis 13,3 MJ/kg ueber typische Produktgasdichte
 //   ~0,9 kg/Nm³ (H2~40 · CO~25 · CO2~20 · CH4~10 Vol-%).
-// - BioFuels 37,5 MJ/kg (FAME-Biodiesel, iea-amf.org Fuel Information Fatty
-//   Acid Esters; bewusst konservativ gegenueber HVO ~44 MJ/kg).
+// - BioFuels 37,0 MJ/kg (FAME-Biodiesel, RED II Anhang III / Richtlinie (EU)
+//   2018/2001; bewusst konservativ gegenueber HVO ~44 MJ/kg).
 //
 // BEWUSST OHNE Faktor: co2, asche — stoffliche Outputs, kein Energieaequivalent.
 
@@ -44,7 +44,7 @@ export const HEIZWERT: Record<string, Heizwert> = {
   saf: { kwhProKg: 43.15 / 3.6 },
   ammoniak: { kwhProKg: 18.6 / 3.6 },
   synthesegas: { kwhProKg: 13.3 / 3.6, kwhProNm3: 12 / 3.6 },
-  biofuels: { kwhProKg: 37.5 / 3.6 },
+  biofuels: { kwhProKg: 37.0 / 3.6 },
 };
 
 /**

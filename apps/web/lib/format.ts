@@ -28,6 +28,18 @@ export function fmtAnteil(n: number): string {
   return nf1.format(n);
 }
 
+/**
+ * Feedstock-Zahlungsstrom (E14): preis_* ist aus Sicht bhyo signiert —
+ * positiv = bhyo zahlt (Einkaufspreis), negativ = bhyo erhaelt
+ * (Annahme-/Entsorgungsentgelt). Ein roher negativer Wert wird nie als
+ * "Preis" gerendert; das Label kommt aus dem Vorzeichen.
+ */
+export function fmtZahlungsstrom(wert: number, einheit = "€/t"): string {
+  return wert < 0
+    ? `Annahmeentgelt ${fmtPreis(-wert)} ${einheit}`
+    : `Einkaufspreis ${fmtPreis(wert)} ${einheit}`;
+}
+
 /** ISO-Datum -> MM/JJJJ. */
 export function fmtMonat(iso: string | null): string {
   return iso ? `${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "–";

@@ -10,7 +10,14 @@ import { KonfidenzPill } from "@/components/stroeme/Pillen";
 import { SeasonBarsMini } from "@/components/stroeme/SeasonBarsMini";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL } from "@/lib/farben";
-import { fmtAnteil, fmtDatum, fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import {
+  fmtAnteil,
+  fmtDatum,
+  fmtPreis,
+  fmtZahl,
+  fmtZahlungsstrom,
+  fmtZeitraum,
+} from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
@@ -367,7 +374,9 @@ export function Detail({
                     />
                     <Kv
                       label="Mittel"
-                      wert={s.preisMittel != null ? `${fmtPreis(s.preisMittel)} €/t` : "–"}
+                      // E14: Label aus dem Vorzeichen (Einkaufspreis/Annahmeentgelt),
+                      // ein roher negativer Wert wird nie als "Preis" gerendert.
+                      wert={s.preisMittel != null ? fmtZahlungsstrom(s.preisMittel) : "–"}
                     />
                   </>
                 ) : (

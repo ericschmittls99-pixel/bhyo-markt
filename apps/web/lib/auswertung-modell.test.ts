@@ -10,8 +10,8 @@ import {
   outputMengen,
   outputPotenzialZeilen,
   outputPreisZeilen,
-  potenzialZeilen,
   preisKorridorZeilen,
+  saldoZeilen,
   qualitaetsDaten,
   saisonDaten,
   statusZeilen,
@@ -131,25 +131,56 @@ const o1 = strom({
 const alle = [f1, f2, o1];
 
 describe("kpiKarten", () => {
-  it("liefert Pruefquote, Trockenmasse, gewichteten Preis und Regionenpotenzial (sicht=feedstock)", () => {
+  it("liefert Pruefquote, Trockenmasse, getrennte ø-Preise und Feedstock-Saldo (sicht=feedstock)", () => {
     const k = kpiKarten([f1, f2], "feedstock");
     expect(k).toHaveLength(4);
     expect(k[0]).toMatchObject({ wert: "50", einheit: "%", label: "belege geprüft." });
-    expect(k[0]!.caption).toBe("1 von 2 · 0 in Prüfung");
     expect(k[1]).toMatchObject({ wert: "150", einheit: "t atro/a", label: "trockenmasse." });
-    expect(k[1]!.caption).toBe("aus 1.500 t FM/a");
-    // (10*100 + 16*50) / 150 = 12
-    expect(k[2]).toMatchObject({ wert: "12", einheit: "€/t", label: "ø preis." });
-    expect(k[2]!.caption).toBe("gewichtet nach t atro/a");
-    // Mittel 10*100 + 16*50 = 1.800; Min 5*100+8*50 = 900; Max 20*100+24*50 = 3.200
-    expect(k[3]).toMatchObject({ wert: "1.800", einheit: "€/a", label: "regionenpotenzial." });
-    expect(k[3]!.caption).toBe("Spanne 900 – 3.200 €/a");
+    // Beide positiv -> nur Einkaufspreis-Stat: (10*100 + 16*50) / 150 = 12
+    expect(k[2]!.label).toBe("ø preise.");
+    expect(k[2]!.stats).toEqual([
+      { wert: "12", einheit: "€/t", label: "ø einkaufspreis (n=2)" },
+    ]);
+    expect(k[2]!.caption).toBe("atro-gewichtet");
+    // Saldo 10*100 + 16*50 = 1.800; Spanne Σ(min*m) = 900 bis Σ(max*m) = 3.200
+    expect(k[3]).toMatchObject({ wert: "1.800", einheit: "€/a", label: "feedstock-saldo." });
+    expect(k[3]!.caption).toBe(
+      "Spanne 900 – 3.200 €/a · Min/Max je Position, mengengewichtet",
+    );
+    expect(k[3]!.hinweis).toContain("Nettobeschaffungskosten");
+    expect(k[3]!.hinweis).toContain("Nettoerlös");
+  });
+
+  it("trennt Einkaufspreise und Annahmeentgelte nach Vorzeichen (E14)", () => {
+    // fN: bhyo ERHAELT 8 €/t (negativ), 100 t atro
+    const fN = strom({
+      id: "fn",
+      cluster: "lignozellulosische_reststoffe",
+      mengeAtro: 100,
+      preisMin: -12,
+      preisMittel: -8,
+      preisMax: -5,
+    });
+    const k = kpiKarten([f1, fN], "feedstock");
+    expect(k[2]!.stats).toEqual([
+      { wert: "10", einheit: "€/t", label: "ø einkaufspreis (n=1)" },
+      { wert: "8", einheit: "€/t", label: "ø annahmeentgelt (n=1)" },
+    ]);
+    // Saldo: 10*100 - 8*100 = 200; Spanne 5*100-12*100 = -700 bis 20*100-5*100 = 1.500
+    expect(k[3]).toMatchObject({ wert: "200", einheit: "€/a" });
+    expect(k[3]!.caption).toContain("Spanne -700 – 1.500 €/a");
+  });
+
+  it("zeigt einen negativen Saldo mit sichtbarem Vorzeichen", () => {
+    const fN = strom({ id: "fn", mengeAtro: 100, preisMittel: -8 });
+    const k = kpiKarten([fN], "feedstock");
+    expect(k[3]).toMatchObject({ wert: "-800", einheit: "€/a" });
   });
 
   it("weist Belege ohne Preis aus statt sie still zu ignorieren", () => {
     const ohnePreis = strom({ id: "n", cluster: "lipide_spezialfeedstocks", mengeAtro: 10 });
     const k = kpiKarten([f1, ohnePreis], "feedstock");
-    expect(k[2]!.caption).toBe("gewichtet nach t atro/a · 1 Beleg ohne Preis");
+    expect(k[2]!.caption).toBe("atro-gewichtet · 1 Beleg ohne Preis");
     expect(k[3]).toMatchObject({ wert: "1.000", einheit: "€/a" });
   });
 
@@ -159,11 +190,17 @@ describe("kpiKarten", () => {
     expect(k[3]!.wert).toBe("–");
   });
 
-  it("skaliert grosse Potenziale auf Mio. €/a", () => {
+  it("skaliert grosse Salden vorzeichenerhaltend auf Mio. €/a", () => {
     const gross = strom({ id: "g", mengeAtro: 100000, preisMittel: 25 });
-    const k = kpiKarten([gross], "feedstock");
-    expect(k[3]).toMatchObject({ wert: "2,50", einheit: "Mio. €/a" });
-    expect(k[3]!.caption).toBe("Spanne 2.500.000 – 2.500.000 €/a");
+    expect(kpiKarten([gross], "feedstock")[3]).toMatchObject({
+      wert: "2,50",
+      einheit: "Mio. €/a",
+    });
+    const grossNegativ = strom({ id: "gn", mengeAtro: 100000, preisMittel: -25 });
+    expect(kpiKarten([grossNegativ], "feedstock")[3]).toMatchObject({
+      wert: "-2,50",
+      einheit: "Mio. €/a",
+    });
   });
 
   it("liefert bei sicht=outputs Pruefquote, Energiebedarf, ct/kWh-Preis und Potenzial", () => {
@@ -213,7 +250,7 @@ describe("kpiKarten", () => {
     expect(k[2]).toMatchObject({ wert: "13,43", einheit: "ct/kWh", label: "ø preis." });
     expect(k[2]!.caption).toContain("Target-Outputs");
     // Potenzial: 500*8 + 600.000 + 5.800*80 + 800*80 = 1.132.000 -> 1,13 Mio
-    expect(k[3]).toMatchObject({ wert: "1,13", einheit: "Mio. €/a", label: "regionenpotenzial." });
+    expect(k[3]).toMatchObject({ wert: "1,13", einheit: "Mio. €/a", label: "erlöspotenzial." });
   });
 
   it("nutzt fuer Synthesegas in t/a den Referenz-Heizwert (E13)", () => {
@@ -431,9 +468,9 @@ describe("jahresBalken", () => {
   });
 });
 
-describe("potenzialZeilen", () => {
+describe("saldoZeilen", () => {
   it("spannt je Cluster Min/Mittel/Max von Preis × t atro auf einer 0..Max-Skala auf", () => {
-    const z = potenzialZeilen([f1, f2], [f1, f2]);
+    const z = saldoZeilen([f1, f2], [f1, f2]);
     expect(z.map((r) => r.key)).toEqual([
       "organische_rest_abfallstoffe",
       "lignozellulosische_reststoffe",
@@ -459,13 +496,13 @@ describe("potenzialZeilen", () => {
       preisMittel: 5,
     });
     const ohne = strom({ id: "o", cluster: "lipide_spezialfeedstocks", mengeAtro: 10 });
-    const z = potenzialZeilen([nurMittel, ohne], [nurMittel, ohne]);
+    const z = saldoZeilen([nurMittel, ohne], [nurMittel, ohne]);
     expect(z[0]).toMatchObject({ minText: "50", maxText: "50", leer: false });
     expect(z[1]!.leer).toBe(true);
   });
 
   it("liefert je Materialart eine Unterzeile auf derselben Skala", () => {
-    const z = potenzialZeilen([f1, f2], [f1, f2]);
+    const z = saldoZeilen([f1, f2], [f1, f2]);
     expect(z[0]!.unter).toHaveLength(1);
     expect(z[0]!.unter[0]).toMatchObject({
       label: "Gülle",
@@ -496,7 +533,7 @@ describe("potenzialZeilen", () => {
       materialartLabel: "Biotonne",
       mengeAtro: 99,
     });
-    const z = potenzialZeilen([mitPreis, ohnePreis], [mitPreis, ohnePreis]);
+    const z = saldoZeilen([mitPreis, ohnePreis], [mitPreis, ohnePreis]);
     expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
     expect(z[0]!.unter[1]!.leer).toBe(true);
   });
@@ -518,9 +555,31 @@ describe("potenzialZeilen", () => {
       mengeAtro: 10,
       preisMittel: 5,
     });
-    const z = potenzialZeilen([g1, g2], [g1]);
+    const z = saldoZeilen([g1, g2], [g1]);
     expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
     expect(z[0]!.unter[1]!.leer).toBe(true);
+  });
+
+  it("spannt die Skala bei negativen Salden ueber 0 hinaus auf (E14)", () => {
+    // orga: 500/1.000/2.000 — ligno (Annahme): -1.200/-800/-500; Skala -1.200..2.000
+    const fN = strom({
+      id: "fn",
+      cluster: "lignozellulosische_reststoffe",
+      mengeAtro: 100,
+      preisMin: -12,
+      preisMittel: -8,
+      preisMax: -5,
+    });
+    const z = saldoZeilen([f1, fN], [f1, fN]);
+    expect(z[0]).toMatchObject({ minText: "500", vonPct: 53, mittelPct: 69, bisPct: 100 });
+    expect(z[1]).toMatchObject({
+      minText: "-1.200",
+      mittelText: "-800",
+      maxText: "-500",
+      vonPct: 0,
+      mittelPct: 13,
+      bisPct: 22,
+    });
   });
 });
 
@@ -539,11 +598,26 @@ describe("preisKorridorZeilen", () => {
     expect(z[1]).toMatchObject({ vonPct: 33, mittelPct: 67, bisPct: 100 });
   });
 
-  it("gewichtet das Cluster-Mittel nach t atro", () => {
-    const a = strom({ id: "a", cluster: "lipide_spezialfeedstocks", mengeAtro: 100, preisMittel: 10 });
-    const b = strom({ id: "b", cluster: "lipide_spezialfeedstocks", mengeAtro: 50, preisMittel: 16 });
+  it("mittelt Min/Mittel/Max je Position mengengewichtet (E14)", () => {
+    const a = strom({
+      id: "a",
+      cluster: "lipide_spezialfeedstocks",
+      mengeAtro: 100,
+      preisMin: 4,
+      preisMittel: 10,
+      preisMax: 20,
+    });
+    const b = strom({
+      id: "b",
+      cluster: "lipide_spezialfeedstocks",
+      mengeAtro: 50,
+      preisMin: 10,
+      preisMittel: 16,
+      preisMax: 26,
+    });
     const z = preisKorridorZeilen([a, b], [a, b]);
-    expect(z[0]!.mittelText).toBe("12");
+    // ø_min = (4*100+10*50)/150 = 6; ø = 12; ø_max = (20*100+26*50)/150 = 22
+    expect(z[0]).toMatchObject({ minText: "6", mittelText: "12", maxText: "22" });
   });
 });
 

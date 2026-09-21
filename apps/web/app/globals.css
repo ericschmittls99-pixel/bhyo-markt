@@ -3851,6 +3851,40 @@ table.st-tabelle tbody tr:focus-visible {
 /* Sektions-Caption in zweigeteilten Output-Modulen */
 .aw-sektion { padding: 6px 2px 0; }
 
+/* KPI-Kachel mit mehreren kleinen Stats (ø-Preise, E14) */
+.aw-kpi-stats { display: grid; gap: 8px; }
+
+/* Info-Popover an KPI-Labels (Saldo-Erlaeuterung, E14) */
+.aw-info { position: relative; display: inline-block; margin-left: 6px; }
+.aw-info-knopf {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  outline: none;
+  vertical-align: middle;
+}
+.aw-info-knopf:hover { color: var(--text-primary); }
+.aw-info-knopf:focus-visible { box-shadow: var(--ring-focus-inset); border-radius: 4px; }
+.aw-info-pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  width: 240px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font: var(--type-caption);
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
 /* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster).
    Eigene Breite/Rundung statt des -8px-Ueberhangs der Basiszeilen: das
    Klick-Highlight bleibt mit Padding und runden Ecken im Modul. */

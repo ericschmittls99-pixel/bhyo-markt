@@ -22,10 +22,10 @@ describe("energieKwh", () => {
   });
 
   it("nutzt fuer Synthesegas und BioFuels die Referenz-Heizwerte (E13)", () => {
-    // Synthesegas 12 MJ/Nm³ bzw. 13,3 MJ/kg; BioFuels (FAME) 37,5 MJ/kg
+    // Synthesegas 12 MJ/Nm³ bzw. 13,3 MJ/kg; BioFuels (FAME) 37,0 MJ/kg (RED II)
     expect(energieKwh("synthesegas", 10, "t/a")).toBeCloseTo(36_944.4, 1);
     expect(energieKwh("synthesegas", 1000, "Nm³/a")).toBeCloseTo(3_333.3, 1);
-    expect(energieKwh("biofuels", 10, "t/a")).toBeCloseTo(104_166.7, 1);
+    expect(energieKwh("biofuels", 10, "t/a")).toBeCloseTo(102_777.8, 1);
     expect(energieKwh("synthesegas", 100, "MWh/a")).toBe(100_000);
   });
 

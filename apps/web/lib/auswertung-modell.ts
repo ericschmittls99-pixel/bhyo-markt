@@ -14,11 +14,21 @@ import { naechsteVerifizierung } from "./verifizierung";
 
 export type Sicht = "feedstock" | "outputs";
 
+export interface KpiStat {
+  wert: string;
+  einheit: string;
+  label: string;
+}
+
 export interface KpiKarte {
   wert: string;
   einheit: string;
   label: string;
   caption: string;
+  /** Ersetzt den grossen Einzelwert durch mehrere kleine Stats (ø-Preise, E14). */
+  stats?: KpiStat[];
+  /** Erlaeuterungstext fuer ein Info-Popover (Feedstock-Saldo, E14). */
+  hinweis?: string;
 }
 
 /** Akkordeon-Unterzeile je Materialart; key leer = kein Code, nicht filterbar. */
@@ -169,11 +179,12 @@ export function auswahlZeile(recs: Strom[]): string {
 }
 
 /**
- * Regionenpotenzial = Preis × Menge (Eric, Feedstock-Umbau 21.09.): Summe
- * preisMittel × t atro ueber Belege mit Preis; die Spanne nutzt preisMin/Max
- * mit Rueckfall auf preisMittel. Nur die Anzeige skaliert ab 1 Mio auf Mio €/a.
+ * Feedstock-Saldo = Σ Preis × Menge (E14): preis_* ist der signierte
+ * Zahlungsstrom aus Sicht bhyo (positiv = bhyo zahlt, negativ = bhyo
+ * erhaelt). Die Spanne summiert Min/Max je Position (Rueckfall auf
+ * preisMittel) — mengengewichtet, kein Konfidenzintervall.
  */
-function potenzialSumme(mitPreis: Strom[]) {
+function saldoSumme(mitPreis: Strom[]) {
   return {
     min: sum(mitPreis, (s) => (s.preisMin ?? s.preisMittel!) * atroVon(s)),
     mittel: sum(mitPreis, (s) => s.preisMittel! * atroVon(s)),
@@ -181,11 +192,16 @@ function potenzialSumme(mitPreis: Strom[]) {
   };
 }
 
-function potenzialWert(v: number): { wert: string; einheit: string } {
-  return v >= 1_000_000
+/** Anzeige-Skalierung ab |1 Mio| auf Mio. €/a, Vorzeichen bleibt sichtbar. */
+function saldoWert(v: number): { wert: string; einheit: string } {
+  return Math.abs(v) >= 1_000_000
     ? { wert: fmtPreis(Math.round(v / 10_000) / 100), einheit: "Mio. €/a" }
     : { wert: fmtZahl(Math.round(v)), einheit: "€/a" };
 }
+
+export const SALDO_HINWEIS =
+  "Zahlungsstrom aus Sicht bhyo: positiv = Nettobeschaffungskosten (bhyo zahlt), " +
+  "negativ = Nettoerlös aus Annahme (bhyo erhält Annahme-/Entsorgungsentgelte).";
 
 /** Atro-gewichtetes Preismittel; ohne Atro-Gewichte gleichgewichtet. */
 function preisMittelGewichtet(mitPreis: Strom[]): number {
@@ -290,44 +306,62 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
 
     const potenzialKpi: KpiKarte =
       potenziale.length === 0
-        ? { wert: "–", einheit: "", label: "regionenpotenzial.", caption: "keine Preise in der Auswahl" }
+        ? { wert: "–", einheit: "", label: "erlöspotenzial.", caption: "keine Preise in der Auswahl" }
         : {
-            ...potenzialWert(potenziale.reduce((a, b) => a + b, 0)),
-            label: "regionenpotenzial.",
+            ...saldoWert(potenziale.reduce((a, b) => a + b, 0)),
+            label: "erlöspotenzial.",
             caption: `Preis × Menge${ohnePreisNote}`,
           };
 
     return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
   }
 
-  // Feedstock (Umbau Eric 21.09.): Pruefquote, Menge, Preis, Potenzial —
-  // Belegzahl und Erfassungsgrad wandern in die auswahlZeile.
+  // Feedstock (E12/E14): Pruefquote, Menge, getrennte ø-Preise, Saldo —
+  // Belegzahl und Erfassungsgrad wandern in die auswahlZeile. Ein gemischter
+  // ø ueber beide Vorzeichen laege nahe null und waere bedeutungslos, darum
+  // Einkaufspreise (>= 0) und Annahmeentgelte (< 0) getrennt.
   const mitPreis = feed.filter((s) => s.preisMittel != null);
   const ohnePreis = feed.length - mitPreis.length;
+  const ohneNote = ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : "";
   let preisKpi: KpiKarte;
-  let potenzialKpi: KpiKarte;
+  let saldoKpi: KpiKarte;
   if (mitPreis.length === 0) {
     const keine = { wert: "–", einheit: "", caption: "keine Preise in der Auswahl" };
-    preisKpi = { ...keine, label: "ø preis." };
-    potenzialKpi = { ...keine, label: "regionenpotenzial." };
+    preisKpi = { ...keine, label: "ø preise." };
+    saldoKpi = { ...keine, label: "feedstock-saldo.", hinweis: SALDO_HINWEIS };
   } else {
+    const einkauf = mitPreis.filter((s) => s.preisMittel! >= 0);
+    const annahme = mitPreis.filter((s) => s.preisMittel! < 0);
+    const stats: KpiStat[] = [];
+    if (einkauf.length)
+      stats.push({
+        wert: fmtPreis(preisMittelGewichtet(einkauf)),
+        einheit: "€/t",
+        label: `ø einkaufspreis (n=${einkauf.length})`,
+      });
+    if (annahme.length)
+      stats.push({
+        wert: fmtPreis(-preisMittelGewichtet(annahme)),
+        einheit: "€/t",
+        label: `ø annahmeentgelt (n=${annahme.length})`,
+      });
     preisKpi = {
-      wert: fmtPreis(preisMittelGewichtet(mitPreis)),
-      einheit: "€/t",
-      label: "ø preis.",
-      caption:
-        "gewichtet nach t atro/a" +
-        (ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : ""),
+      wert: "",
+      einheit: "",
+      label: "ø preise.",
+      caption: `atro-gewichtet${ohneNote}`,
+      stats,
     };
-    const pot = potenzialSumme(mitPreis);
-    potenzialKpi = {
-      ...potenzialWert(pot.mittel),
-      label: "regionenpotenzial.",
-      caption: `Spanne ${fmtZahl(Math.round(pot.min))} – ${fmtZahl(Math.round(pot.max))} €/a`,
+    const s = saldoSumme(mitPreis);
+    saldoKpi = {
+      ...saldoWert(s.mittel),
+      label: "feedstock-saldo.",
+      caption: `Spanne ${fmtZahl(Math.round(s.min))} – ${fmtZahl(Math.round(s.max))} €/a · Min/Max je Position, mengengewichtet`,
+      hinweis: SALDO_HINWEIS,
     };
   }
 
-  return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
+  return [geprueftKpi, mengeKpi, preisKpi, saldoKpi];
 }
 
 /**
@@ -554,8 +588,10 @@ function clusterSpannen(
     const mitPreis = rs.filter((s) => s.preisMittel != null);
     return mitPreis.length ? spanneVon(mitPreis) : null;
   };
-  const felder = (sp: Spanne, skala: number) => {
-    const anteil = (v: number) => Math.round((v / skala) * 100);
+  // Skala ueber alle Zeilen; mit E14 koennen Salden/Preise negativ sein,
+  // daher spannt sie von min(0, kleinstes Min) bis zum groessten Max.
+  const felder = (sp: Spanne, lo: number, hi: number) => {
+    const anteil = (v: number) => Math.round(((v - lo) / (hi - lo)) * 100);
     return {
       minText: sp ? fmt(sp.min) : "–",
       mittelText: sp ? fmt(sp.mittel) : "–",
@@ -577,13 +613,14 @@ function clusterSpannen(
     recs.filter((s) => s.art === "biomasse" && s.cluster === k),
   );
   const spannen = clusterRecs.map(spanneAus);
-  const skala = Math.max(1, ...spannen.map((sp) => sp?.max ?? 0));
+  const lo = Math.min(0, ...spannen.map((sp) => sp?.min ?? 0));
+  const hi = Math.max(lo + 1, ...spannen.map((sp) => sp?.max ?? 0));
   return keys.map((k, i) => ({
     key: k,
     label: CLUSTER_LABEL[k] ?? k,
     orb: `/orbs/cluster/${k}.webp`,
     farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
-    ...felder(spannen[i] ?? null, skala),
+    ...felder(spannen[i] ?? null, lo, hi),
     // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
     // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
     unter: materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
@@ -593,25 +630,39 @@ function clusterSpannen(
           (b.sp?.mittel ?? -1) - (a.sp?.mittel ?? -1) ||
           a.g.label.localeCompare(b.g.label, "de"),
       )
-      .map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, skala) })),
+      .map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
   }));
 }
 
-/** Regionenpotenzial je Cluster: Spanne von Preis × t atro in €/a. */
-export function potenzialZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
-  return clusterSpannen(pool, recs, potenzialSumme, (n) => fmtZahl(Math.round(n)));
+/** Feedstock-Saldo je Cluster (E14): Σ Preis × t atro in €/a, Min/Max je Position. */
+export function saldoZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
+  return clusterSpannen(pool, recs, saldoSumme, (n) => fmtZahl(Math.round(n)));
 }
 
-/** Preiskorridor je Cluster: min/max der Belegpreise, Mittel atro-gewichtet, €/t. */
+/**
+ * Preiskorridor je Cluster in €/t: Min/Mittel/Max je Position atro-
+ * mengengewichtet (E14) — dieselbe Regel wie die Saldo-Spanne, nur als
+ * ø statt Summe. Kein Konfidenzintervall.
+ */
 export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
   return clusterSpannen(
     pool,
     recs,
-    (mitPreis) => ({
-      min: Math.min(...mitPreis.map((s) => s.preisMin ?? s.preisMittel!)),
-      mittel: preisMittelGewichtet(mitPreis),
-      max: Math.max(...mitPreis.map((s) => s.preisMax ?? s.preisMittel!)),
-    }),
+    (mitPreis) => {
+      let tw = sum(mitPreis, atroVon);
+      let w = atroVon;
+      if (tw === 0) {
+        w = () => 1;
+        tw = mitPreis.length;
+      }
+      const gewichtet = (f: (s: Strom) => number) =>
+        sum(mitPreis, (s) => f(s) * w(s)) / tw;
+      return {
+        min: gewichtet((s) => s.preisMin ?? s.preisMittel!),
+        mittel: Math.round(gewichtet((s) => s.preisMittel!)),
+        max: gewichtet((s) => s.preisMax ?? s.preisMittel!),
+      };
+    },
     fmtPreis,
   );
 }

@@ -49,7 +49,7 @@ export function AuswertungAnsicht({
   saison,
   belegtypen,
   jahre,
-  potenzial,
+  saldo,
   preisKorridore,
   outMengen,
   outPotenzial,
@@ -75,7 +75,7 @@ export function AuswertungAnsicht({
   saison: SaisonDaten;
   belegtypen: BelegtypZeile[];
   jahre: JahresBalken[];
-  potenzial: SpannenZeile[];
+  saldo: SpannenZeile[];
   preisKorridore: SpannenZeile[];
   outMengen: OutputListen | null;
   outPotenzial: OutputZeile[];
@@ -276,13 +276,53 @@ export function AuswertungAnsicht({
     </section>
   );
 
+  /** Info-Popover fuer KPI-Erlaeuterungen (z. B. Saldo-Vorzeichen, E14). */
+  const infoKnopf = (key: string, text: string) => (
+    <span className="aw-info">
+      <button
+        type="button"
+        className="aw-info-knopf"
+        aria-label="Erläuterung anzeigen"
+        aria-expanded={!!offen[key]}
+        onClick={() => flip(key)}
+      >
+        <i className="ph ph-info" aria-hidden />
+      </button>
+      {offen[key] && (
+        <span className="pop aw-info-pop" role="note">
+          {text}
+        </span>
+      )}
+    </span>
+  );
+
   const kpiModule = kpis.map((k) => (
     <section className="aw-modul aw-kpi" key={k.label}>
-      <p className="aw-kpi-wert">
-        <strong>{k.wert}</strong>
-        <span>{k.einheit}</span>
+      {k.stats ? (
+        <div className="aw-kpi-stats">
+          {k.stats.map((st) => (
+            <p className="aw-kpi-wert aw-kpi-wert--klein" key={st.label}>
+              <strong>{st.wert}</strong>
+              <span>{st.einheit}</span>
+              <em className="aw-caption">{st.label}</em>
+            </p>
+          ))}
+          {k.stats.length === 0 && (
+            <p className="aw-kpi-wert">
+              <strong>–</strong>
+            </p>
+          )}
+        </div>
+      ) : (
+        <p className="aw-kpi-wert">
+          <strong>{k.wert}</strong>
+          <span>{k.einheit}</span>
+        </p>
+      )}
+      <p className="aw-kpi-label">
+        {k.label}
+        {k.hinweis && infoKnopf(`info:${k.label}`, k.hinweis)}
       </p>
-      <p className="aw-kpi-label">{k.label}</p>
       <p className="aw-caption">{k.caption}</p>
     </section>
   ));
@@ -690,11 +730,16 @@ export function AuswertungAnsicht({
                   {jahreModul}
                   {spannenModul(
                     "pot",
-                    "regionenpotenzial je cluster.",
-                    "Preis × Menge, €/a",
-                    potenzial,
+                    "feedstock-saldo je cluster.",
+                    "€/a · Min/Max je Position, mengengewichtet",
+                    saldo,
                   )}
-                  {spannenModul("kor", "preiskorridor je cluster.", "€/t", preisKorridore)}
+                  {spannenModul(
+                    "kor",
+                    "preiskorridor je cluster.",
+                    "€/t · mengengewichtet · − = Annahmeentgelt",
+                    preisKorridore,
+                  )}
                   {qualitaetModul}
                   {statusModul}
                   {belegtypenModul}
@@ -715,7 +760,7 @@ export function AuswertungAnsicht({
                   {outJahreModul}
                   <section className="aw-modul aw-modul--b2">
                     <header className="aw-kopf">
-                      <h3 className="aw-kicker">regionenpotenzial je gruppe.</h3>
+                      <h3 className="aw-kicker">erlöspotenzial je gruppe.</h3>
                       <span className="aw-caption">Preis × Menge, €/a</span>
                     </header>
                     <div className="aw-zeilen aw-zeilen--scroll">
