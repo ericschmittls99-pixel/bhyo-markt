@@ -136,12 +136,12 @@ export function AuswertungAnsicht({
   });
 
   /** Aufklapp-Pfeil des Akkordeons (eigener Knopf neben der Filter-Zeile). */
-  const caretKnopf = (k: string, auf: boolean) => (
+  const caretKnopf = (k: string, auf: boolean, begriff = "Materialarten") => (
     <button
       type="button"
       className="aw-akk-caret"
       aria-expanded={auf}
-      aria-label={auf ? "Materialarten verbergen" : "Materialarten anzeigen"}
+      aria-label={auf ? `${begriff} verbergen` : `${begriff} anzeigen`}
       onClick={() => flip(k)}
     >
       <i className={`ph-bold ph-caret-${auf ? "up" : "down"}`} aria-hidden />
@@ -217,7 +217,7 @@ export function AuswertungAnsicht({
               </span>
               <span className="aw-zeilenwert">{z.wertText}</span>
             </button>
-            {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf)}
+            {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf, "Produkte")}
           </div>
           {auf &&
             z.unter.map((u) => (
