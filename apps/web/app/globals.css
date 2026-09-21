@@ -3776,16 +3776,19 @@ table.st-tabelle tbody tr:focus-visible {
   .aw-belegtypen { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Jahre: 6 Saeulen */
+/* Jahre: dynamische Achse (E16) — Saeulen fuellen die Breite, ab ~8 Balken
+   greift die Mindestbreite und der Container scrollt horizontal. */
 .aw-jahre {
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
+  display: flex;
   gap: 10px;
   flex: 1;
   min-height: 0;
   align-items: end;
+  overflow-x: auto;
 }
 .aw-jahr {
+  flex: 1 0 52px;
+  min-width: 52px;
   display: flex;
   flex-direction: column;
   align-items: stretch;
@@ -3795,6 +3798,13 @@ table.st-tabelle tbody tr:focus-visible {
   text-align: center;
 }
 .aw-jahr .aw-caption { text-align: center; white-space: nowrap; }
+/* Vergangenheit gedimmt, mit Hairline zur Zukunft (E16) */
+.aw-jahr.vergangen .aw-jahr-fill { opacity: 0.4; }
+.aw-jahr.vergangen .aw-caption { opacity: 0.6; }
+.aw-jahr.vergangen:has(+ .aw-jahr:not(.vergangen)) {
+  border-right: 1px dashed var(--border-default);
+  padding-right: 10px;
+}
 .aw-jahr-track {
   flex: 1;
   min-height: 0;

@@ -624,7 +624,11 @@ export function AuswertungAnsicht({
   const jahresBalkenListe = (balken: JahresBalken[]) => (
     <div className="aw-jahre">
       {balken.map((j) => (
-        <div className="aw-jahr" key={j.jahr} title={`${j.jahr}: ${j.wertText}`}>
+        <div
+          className={`aw-jahr${j.vergangen ? " vergangen" : ""}`}
+          key={j.jahr}
+          title={`${j.jahr}: ${j.wertText}`}
+        >
           <span className="aw-caption">{j.wertText}</span>
           <span className="aw-jahr-track">
             <span

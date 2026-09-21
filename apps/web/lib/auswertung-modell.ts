@@ -108,6 +108,8 @@ export interface JahresBalken {
   wertText: string;
   pct: number;
   aktuell: boolean;
+  /** Jahr liegt vor dem aktuellen — wird visuell als Vergangenheit abgegrenzt (E16). */
+  vergangen: boolean;
 }
 
 export interface SpannenUnterzeile {
@@ -515,58 +517,84 @@ export function belegtypZeilen(recs: Strom[]): BelegtypZeile[] {
   return zeilen;
 }
 
-const JAHRE = [2026, 2027, 2028, 2029, 2030, 2031];
+/**
+ * Dynamische Jahresachse (E16, Eric 21.09.): lueckenlos vom fruehesten bis
+ * zum spaetesten Jahr der Belegzeitraeume; ohne jeden Zeitraum faellt sie
+ * aufs aktuelle Jahr zurueck. Ab ~8 Balken scrollt das Modul (CSS).
+ */
+function jahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
+  const jahre = recs.flatMap((s) =>
+    [s.zeitraumVon, s.zeitraumBis]
+      .filter((iso): iso is string => iso != null)
+      .map((iso) => Number(iso.slice(0, 4))),
+  );
+  const lo = jahre.length ? Math.min(...jahre) : aktuellesJahr;
+  const hi = jahre.length ? Math.max(...jahre) : aktuellesJahr;
+  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+}
 
-/** Jahres-Summe je Kalenderjahr des Zeitraums; offene Zeitraeume zaehlen durchgehend. */
-function jahresWerte(recs: Strom[], wertVon: (s: Strom) => number): number[] {
+/** Jahres-Summe je Kalenderjahr des Zeitraums; offene Zeitraeume zaehlen ueber die ganze Achse. */
+function jahresWerte(
+  recs: Strom[],
+  achse: number[],
+  wertVon: (s: Strom) => number,
+): number[] {
   const jahrVon = (iso: string | null, fallback: number) =>
     iso ? Number(iso.slice(0, 4)) : fallback;
-  return JAHRE.map((jahr) =>
+  return achse.map((jahr) =>
     sum(
       recs.filter(
         (s) =>
-          jahrVon(s.zeitraumVon, JAHRE[0]!) <= jahr &&
-          jahrVon(s.zeitraumBis, JAHRE[JAHRE.length - 1]!) >= jahr,
+          jahrVon(s.zeitraumVon, achse[0]!) <= jahr &&
+          jahrVon(s.zeitraumBis, achse[achse.length - 1]!) >= jahr,
       ),
       wertVon,
     ),
   );
 }
 
-function zuJahresBalken(werte: number[], aktuellesJahr: number): JahresBalken[] {
+function zuJahresBalken(
+  achse: number[],
+  werte: number[],
+  aktuellesJahr: number,
+): JahresBalken[] {
   const max = Math.max(1, ...werte);
-  return JAHRE.map((jahr, i) => ({
+  return achse.map((jahr, i) => ({
     jahr,
     wertText: fmtZahl(Math.round(werte[i]!)),
     pct: Math.max(2, Math.round((werte[i]! / max) * 100)),
     aktuell: jahr === aktuellesJahr,
+    vergangen: jahr < aktuellesJahr,
   }));
 }
 
-/** Feedstock: verfuegbare t atro je Jahr. */
+/** Feedstock: verfuegbare t atro je Jahr auf dynamischer Achse. */
 export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken[] {
-  return zuJahresBalken(
-    jahresWerte(recs.filter((s) => s.art === "biomasse"), atroVon),
-    aktuellesJahr,
-  );
+  const feed = recs.filter((s) => s.art === "biomasse");
+  const achse = jahresAchse(feed, aktuellesJahr);
+  return zuJahresBalken(achse, jahresWerte(feed, achse, atroVon), aktuellesJahr);
 }
 
 /**
- * Outputs (E13): Bedarfe je Jahr — Energie = Target-Outputs in MWh/a (ohne
- * Waerme), Stofflich = CO2 + Asche in t/a. Gleicher Switch wie Saisonalitaet.
+ * Outputs (E13/E16): Bedarfe je Jahr — Energie = Target-Outputs in MWh/a
+ * (ohne Waerme), Stofflich = CO2 + Asche in t/a. Beide Reihen teilen sich
+ * eine Achse aus allen Output-Belegen, damit der Switch sie nicht verschiebt.
  */
 export function outputJahre(
   recs: Strom[],
   aktuellesJahr: number,
 ): { energie: JahresBalken[]; stofflich: JahresBalken[] } {
   const out = recs.filter((s) => s.art === "output");
+  const achse = jahresAchse(out, aktuellesJahr);
   return {
     energie: zuJahresBalken(
-      jahresWerte(out.filter((s) => s.kategorie === "target"), (s) => kwhVon(s) / 1000),
+      achse,
+      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, (s) => kwhVon(s) / 1000),
       aktuellesJahr,
     ),
     stofflich: zuJahresBalken(
-      jahresWerte(out.filter(istStofflich), (s) => s.mengeWert ?? 0),
+      achse,
+      jahresWerte(out.filter(istStofflich), achse, (s) => s.mengeWert ?? 0),
       aktuellesJahr,
     ),
   };

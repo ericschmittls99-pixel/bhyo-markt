@@ -469,7 +469,12 @@ describe("belegtypZeilen", () => {
 });
 
 describe("jahresBalken", () => {
-  it("summiert t atro fuer jedes Jahr des Zeitraums", () => {
+  // Dynamische Achse (E16, Eric 21.09.): die Jahre kommen aus den
+  // Belegzeitraeumen, lueckenlos vom fruehesten bis zum spaetesten Jahr.
+  // Semantik bleibt die JAHRESRATE (t atro/a): ein Beleg zaehlt in jedem
+  // Kalenderjahr seines Zeitraums mit seiner vollen Rate.
+  it("spannt die Achse dynamisch ueber die Belegzeitraeume", () => {
+    // f1: 2027-2029, f2: 2026-2031 -> Achse 2026..2031
     const j = jahresBalken([f1, f2], 2026);
     expect(j.map((b) => b.jahr)).toEqual([2026, 2027, 2028, 2029, 2030, 2031]);
     expect(j[0]).toMatchObject({ wertText: "50", aktuell: true });
@@ -478,15 +483,41 @@ describe("jahresBalken", () => {
     expect(j[1]!.pct).toBe(100);
   });
 
-  it("zaehlt offene Zeitraeume durchgehend", () => {
-    const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
-    const j = jahresBalken([offen], 2026);
-    expect(j.every((b) => b.wertText === "5")).toBe(true);
+  it("zeigt vergangene Zeitraeume und grenzt sie als Vergangenheit ab", () => {
+    const alt = strom({
+      id: "alt",
+      mengeAtro: 1200,
+      zeitraumVon: "2024-01-01",
+      zeitraumBis: "2025-12-31",
+    });
+    const neu = strom({
+      id: "neu",
+      mengeAtro: 600,
+      zeitraumVon: "2026-01-01",
+      zeitraumBis: "2026-12-31",
+    });
+    const j = jahresBalken([alt, neu], 2026);
+    expect(j.map((b) => [b.jahr, b.wertText, b.vergangen])).toEqual([
+      [2024, "1.200", true],
+      [2025, "1.200", true],
+      [2026, "600", false],
+    ]);
+    expect(j[2]!.aktuell).toBe(true);
   });
 
-  // Jahres-Bucketing-Verifikation (Eric, Punkt 8): kein Off-by-one an den
-  // Jahresgrenzen. Semantik ist die JAHRESRATE (t atro/a): ein Beleg zaehlt
-  // in jedem Kalenderjahr seines Zeitraums mit seiner vollen Rate.
+  it("faellt ohne jeden Zeitraum auf das aktuelle Jahr zurueck", () => {
+    const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
+    const j = jahresBalken([offen], 2026);
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2026, "5"]]);
+  });
+
+  it("zaehlt offene Zeitraeume ueber die ganze Achse durch", () => {
+    const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
+    const fix = strom({ id: "fx", mengeAtro: 10, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
+    const j = jahresBalken([offen, fix], 2026);
+    expect(j.map((b) => b.wertText)).toEqual(["15", "15"]);
+  });
+
   it("zaehlt einen Jahreswechsel-Beleg in beiden Grenzjahren, nicht darueber hinaus", () => {
     const wechsel = strom({
       id: "jw",
@@ -495,12 +526,13 @@ describe("jahresBalken", () => {
       zeitraumBis: "2027-01-01",
     });
     const j = jahresBalken([wechsel], 2026);
-    expect(j.find((b) => b.jahr === 2026)?.wertText).toBe("2");
-    expect(j.find((b) => b.jahr === 2027)?.wertText).toBe("2");
-    expect(j.find((b) => b.jahr === 2028)?.wertText).toBe("0");
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
+      [2026, "2"],
+      [2027, "2"],
+    ]);
   });
 
-  it("ordnet ein Teiljahr genau seinem Kalenderjahr zu", () => {
+  it("ordnet ein Teiljahr genau seinem Kalenderjahr zu, ohne Nachbarjahre", () => {
     const teil = strom({
       id: "tj",
       mengeAtro: 600,
@@ -508,7 +540,7 @@ describe("jahresBalken", () => {
       zeitraumBis: "2027-12-31",
     });
     const j = jahresBalken([teil], 2026);
-    expect(j.map((b) => b.wertText)).toEqual(["0", "600", "0", "0", "0", "0"]);
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2027, "600"]]);
   });
 
   it("haelt ein Jahr ohne Belege als 0-Balken in der durchgaengigen Achse", () => {
@@ -519,9 +551,6 @@ describe("jahresBalken", () => {
       [2026, "100"],
       [2027, "0"],
       [2028, "50"],
-      [2029, "0"],
-      [2030, "0"],
-      [2031, "0"],
     ]);
   });
 
@@ -529,9 +558,12 @@ describe("jahresBalken", () => {
     const a = strom({ id: "u1", mengeAtro: 1200, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
     const b = strom({ id: "u2", mengeAtro: 900, zeitraumVon: "2027-01-01", zeitraumBis: "2029-12-31" });
     const j = jahresBalken([a, b], 2026);
-    expect(j.find((x) => x.jahr === 2026)?.wertText).toBe("1.200");
-    expect(j.find((x) => x.jahr === 2027)?.wertText).toBe("2.100");
-    expect(j.find((x) => x.jahr === 2028)?.wertText).toBe("900");
+    expect(j.map((x) => [x.jahr, x.wertText])).toEqual([
+      [2026, "1.200"],
+      [2027, "2.100"],
+      [2028, "900"],
+      [2029, "900"],
+    ]);
   });
 });
 
@@ -786,13 +818,18 @@ describe("outputMengen", () => {
 });
 
 describe("outputJahre", () => {
-  it("summiert Target-MWh (ohne Waerme) und stoffliche t je Jahr", () => {
+  it("summiert Target-MWh (ohne Waerme) und stoffliche t auf gemeinsamer dynamischer Achse", () => {
+    // oStrom 2026-2027, oCo2 2026, oWaerme offen -> Achse 2026..2027
     const j = outputJahre([oStrom, oWaerme, oCo2], 2026);
-    expect(j.energie[0]).toMatchObject({ wertText: "500", aktuell: true });
-    expect(j.energie[1]!.wertText).toBe("500");
-    expect(j.energie[2]!.wertText).toBe("0");
-    expect(j.stofflich[0]!.wertText).toBe("800");
-    expect(j.stofflich[1]!.wertText).toBe("0");
+    expect(j.energie.map((b) => [b.jahr, b.wertText])).toEqual([
+      [2026, "500"],
+      [2027, "500"],
+    ]);
+    expect(j.energie[0]!.aktuell).toBe(true);
+    expect(j.stofflich.map((b) => [b.jahr, b.wertText])).toEqual([
+      [2026, "800"],
+      [2027, "0"],
+    ]);
   });
 });
 
