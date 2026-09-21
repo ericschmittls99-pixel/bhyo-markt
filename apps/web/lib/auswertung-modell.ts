@@ -313,7 +313,10 @@ export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): Clust
       ? `${nBelege(rs.length)} · ${pct(v, atroSum)} %`
       : einheitenText(rs),
     unter: feedMode
-      ? materialartGruppen(rs.filter((s) => s.art === "biomasse"))
+      ? materialartGruppen(
+          pool.filter((s) => s.art === "biomasse" && keyVon(s) === k),
+          rs.filter((s) => s.art === "biomasse"),
+        )
           .map((g) => ({ g, v: sum(g.rs, atroVon) }))
           .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
           .map(({ g, v: gv }) => ({
@@ -331,19 +334,25 @@ export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): Clust
  * Gruppiert Feedstock-Belege nach Materialart (Akkordeon-Unterzeilen).
  * Gruppiert wird ueber Code oder ersatzweise Label; filterbar (key) ist nur,
  * was einen materialart_code traegt — die Facette filtert ueber den Code.
+ * Wie bei den Cluster-Zeilen kommen die Gruppen aus dem POOL und die Werte
+ * aus der Auswahl, damit gefilterte Zeilen sichtbar bleiben und nur dimmen.
  */
-function materialartGruppen(rs: Strom[]): { key: string; label: string; rs: Strom[] }[] {
+function materialartGruppen(
+  poolRs: Strom[],
+  recsRs: Strom[],
+): { key: string; label: string; rs: Strom[] }[] {
+  const gkVon = (s: Strom) => s.materialartCode ?? s.materialartLabel ?? "";
   const je = new Map<string, { key: string; label: string; rs: Strom[] }>();
-  for (const s of rs) {
-    const gk = s.materialartCode ?? s.materialartLabel ?? "";
-    const g = je.get(gk) ?? {
-      key: s.materialartCode ?? "",
-      label: s.materialartLabel ?? "ohne Materialart",
-      rs: [],
-    };
-    g.rs.push(s);
-    je.set(gk, g);
+  for (const s of poolRs) {
+    const gk = gkVon(s);
+    if (!je.has(gk))
+      je.set(gk, {
+        key: s.materialartCode ?? "",
+        label: s.materialartLabel ?? "ohne Materialart",
+        rs: [],
+      });
   }
+  for (const s of recsRs) je.get(gkVon(s))?.rs.push(s);
   return [...je.values()];
 }
 
@@ -471,6 +480,9 @@ function clusterSpannen(
   const keys = Object.keys(CLUSTER_LABEL).filter((k) =>
     pool.some((s) => s.cluster === k),
   );
+  const clusterPool = keys.map((k) =>
+    pool.filter((s) => s.art === "biomasse" && s.cluster === k),
+  );
   const clusterRecs = keys.map((k) =>
     recs.filter((s) => s.art === "biomasse" && s.cluster === k),
   );
@@ -484,7 +496,7 @@ function clusterSpannen(
     ...felder(spannen[i] ?? null, skala),
     // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
     // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
-    unter: materialartGruppen(clusterRecs[i]!)
+    unter: materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
       .map((g) => ({ g, sp: spanneAus(g.rs) }))
       .sort(
         (a, b) =>

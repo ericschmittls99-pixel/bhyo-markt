@@ -269,6 +269,26 @@ describe("clusterZeilen", () => {
     });
   });
 
+  it("haelt Materialart-Unterzeilen aus dem Pool sichtbar, wenn der Filter sie leert", () => {
+    const g1 = strom({
+      id: "g1",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "guelle",
+      materialartLabel: "Gülle",
+      mengeAtro: 100,
+    });
+    const g2 = strom({
+      id: "g2",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "biotonne",
+      materialartLabel: "Biotonne",
+      mengeAtro: 300,
+    });
+    const z = clusterZeilen([g1, g2], [g1], "feedstock");
+    expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
+    expect(z[0]!.unter[1]).toMatchObject({ wertText: "0", pct: 0, meta: "0 Belege" });
+  });
+
   it("fasst Belege ohne Materialart-Code als nicht filterbare Unterzeile", () => {
     // f1 traegt nur ein Label (kein Code), f2 gar keine Materialart
     const z = clusterZeilen([f1, f2], [f1, f2], "feedstock");
@@ -418,6 +438,28 @@ describe("potenzialZeilen", () => {
       mengeAtro: 99,
     });
     const z = potenzialZeilen([mitPreis, ohnePreis], [mitPreis, ohnePreis]);
+    expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
+    expect(z[0]!.unter[1]!.leer).toBe(true);
+  });
+
+  it("haelt gefilterte Materialarten als leere Unterzeilen sichtbar", () => {
+    const g1 = strom({
+      id: "g1",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "guelle",
+      materialartLabel: "Gülle",
+      mengeAtro: 10,
+      preisMittel: 5,
+    });
+    const g2 = strom({
+      id: "g2",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "biotonne",
+      materialartLabel: "Biotonne",
+      mengeAtro: 10,
+      preisMittel: 5,
+    });
+    const z = potenzialZeilen([g1, g2], [g1]);
     expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
     expect(z[0]!.unter[1]!.leer).toBe(true);
   });
