@@ -315,7 +315,9 @@
 
   /* ======================= glass (nur schwebendes Chrome) ======================= */
   --glass-fill: rgba(255, 255, 255, 0.72);
-  --glass-fill-strong: rgba(255, 255, 255, 0.86);
+  /* 0.86 -> 0.94 (Eric 21.09.): Popover/Overlays waren zu durchscheinend,
+     der Hintergrund stoerte die Lesbarkeit. Blur bleibt als Identitaet. */
+  --glass-fill-strong: rgba(255, 255, 255, 0.94);
   --glass-solid: var(--bhyo-white);
   --glass-edge: rgba(255, 255, 255, 0.65);
   --glass-hairline: rgba(31, 46, 56, 0.08);
@@ -417,7 +419,8 @@
   --scrim: rgba(10, 18, 24, 0.6);
 
   --glass-fill: rgba(31, 46, 56, 0.62);
-  --glass-fill-strong: rgba(40, 58, 69, 0.84);
+  /* 0.84 -> 0.95, siehe Light-Token */
+  --glass-fill-strong: rgba(40, 58, 69, 0.95);
   --glass-solid: #283a45;
   --glass-edge: rgba(255, 255, 255, 0.1);
   --glass-hairline: rgba(255, 255, 255, 0.08);
