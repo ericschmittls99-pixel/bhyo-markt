@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { getTableName } from "drizzle-orm";
 
 import {
   belegTyp,
@@ -10,6 +11,9 @@ import {
   outputGruppe,
   preisHerkunft,
   qualitaetsStufe,
+  biomassestrom,
+  outputBedarf,
+  vergabeZeitraum,
 } from "./schema";
 
 // Postgres-Enum-Werte lassen sich anhaengen, aber nicht umbenennen, entfernen
@@ -107,5 +111,35 @@ describe("Enum feedstock_cluster", () => {
       "lipide_spezialfeedstocks",
       "polymere_synthetische_c_quellen",
     ]);
+  });
+});
+
+// AP1j: Vergabe-Modell. Die Tests frieren Spaltennamen und Nullability der
+// neuen Strukturen ein — der abgeleitete Verfuegbarkeitsstatus haengt daran.
+describe("Tabelle vergabe_zeitraum (AP1j)", () => {
+  it("traegt beide Elternbezuege nullable und die Vergabefelder", () => {
+    expect(getTableName(vergabeZeitraum)).toBe("vergabe_zeitraum");
+    expect(vergabeZeitraum.biomassestromId.name).toBe("biomassestrom_id");
+    expect(vergabeZeitraum.biomassestromId.notNull).toBe(false);
+    expect(vergabeZeitraum.outputBedarfId.name).toBe("output_bedarf_id");
+    expect(vergabeZeitraum.outputBedarfId.notNull).toBe(false);
+    expect(vergabeZeitraum.vergebenVon.name).toBe("vergeben_von");
+    expect(vergabeZeitraum.vergebenVon.notNull).toBe(false);
+    expect(vergabeZeitraum.vergebenBis.name).toBe("vergeben_bis");
+    expect(vergabeZeitraum.vergebenBis.notNull).toBe(false);
+    expect(vergabeZeitraum.vergebenAn.name).toBe("vergeben_an");
+    expect(vergabeZeitraum.anBhyo.name).toBe("an_bhyo");
+    expect(vergabeZeitraum.anBhyo.notNull).toBe(true);
+    expect(vergabeZeitraum.anBhyo.hasDefault).toBe(true);
+  });
+});
+
+describe("reserviert_bhyo (AP1j)", () => {
+  it("existiert auf beiden Stromtabellen als not-null boolean mit Default", () => {
+    for (const spalte of [biomassestrom.reserviertBhyo, outputBedarf.reserviertBhyo]) {
+      expect(spalte.name).toBe("reserviert_bhyo");
+      expect(spalte.notNull).toBe(true);
+      expect(spalte.hasDefault).toBe(true);
+    }
   });
 });

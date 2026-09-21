@@ -64,6 +64,13 @@
       "when": 1789121433381,
       "tag": "0008_stammdaten",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790024373478,
+      "tag": "0009_vergabe",
+      "breakpoints": true
     }
   ]
 }
