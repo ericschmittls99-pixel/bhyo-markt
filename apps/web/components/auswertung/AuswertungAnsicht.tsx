@@ -148,9 +148,6 @@ export function AuswertungAnsicht({
     </button>
   );
 
-  /** Unsichtbarer Caret-Platz, damit Balken und Werte aller Zeilen rechts buendig enden. */
-  const caretPlatz = <span className="aw-akk-caret aw-akk-caret--platz" aria-hidden />;
-
   /** Min–Max-Band mit ø-Punkt (Cluster- und Materialart-Zeilen). */
   const spannBand = (u: SpannenUnterzeile, farbe: string) => (
     <span className="aw-spannzeile-band">
@@ -201,28 +198,24 @@ export function AuswertungAnsicht({
           <div className={zeilenKlasse("aw-clusterzeile", z.facette, z.key)}>
             <button
               type="button"
-              className="aw-akk-haupt"
+              className="aw-akk-haupt aw-akk-haupt--spalte"
               aria-pressed={istAktiv(z.facette, z.key)}
               onClick={() => toggle(z.facette, z.key)}
             >
-              <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
-              <span className="aw-clusterzeile-mitte">
-                <span className="aw-clusterzeile-kopf">
-                  <span className="lbl">{z.label}</span>
-                  <span className="aw-caption">{z.meta}</span>
-                </span>
-                <span className="aw-balken">
-                  <span
-                    className="aw-balken-fill"
-                    style={{ width: `${z.pct}%`, background: z.farbe }}
-                  />
-                </span>
+              <span className="aw-spannzeile-kopf">
+                <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
+                <span className="lbl">{z.label}</span>
+                <span className="aw-caption">{z.meta}</span>
+                <span className="aw-zeilenwert">{z.wertText}</span>
               </span>
-              <span className="aw-zeilenwert">{z.wertText}</span>
+              <span className="aw-balken">
+                <span
+                  className="aw-balken-fill"
+                  style={{ width: `${z.pct}%`, background: z.farbe }}
+                />
+              </span>
             </button>
-            {z.unter.length > 0
-              ? caretKnopf(`${modulKey}:${z.key}`, auf, "Produkte")
-              : caretPlatz}
+            {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf, "Produkte")}
           </div>
           {auf &&
             z.unter.map((u) => (
@@ -238,15 +231,17 @@ export function AuswertungAnsicht({
                 aria-pressed={u.key ? istAktiv("produkt", u.key) : undefined}
                 onClick={u.key ? () => toggle("produkt", u.key) : undefined}
               >
-                <span className="lbl">{u.label}</span>
+                <span className="aw-spannzeile-kopf">
+                  <span className="lbl">{u.label}</span>
+                  <span className="aw-caption">{u.meta}</span>
+                  <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
+                </span>
                 <span className="aw-balken aw-balken--fein">
                   <span
                     className="aw-balken-fill"
                     style={{ width: `${u.pct}%`, background: z.farbe }}
                   />
                 </span>
-                <span className="aw-caption">{u.meta}</span>
-                <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
               </button>
             ))}
         </div>
@@ -305,26 +300,24 @@ export function AuswertungAnsicht({
               <div className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}>
                 <button
                   type="button"
-                  className="aw-akk-haupt"
+                  className="aw-akk-haupt aw-akk-haupt--spalte"
                   aria-pressed={istAktiv(clusterFacette, z.key)}
                   onClick={() => toggle(clusterFacette, z.key)}
                 >
-                  <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
-                  <span className="aw-clusterzeile-mitte">
-                    <span className="aw-clusterzeile-kopf">
-                      <span className="lbl">{z.label}</span>
-                      <span className="aw-caption">{z.meta}</span>
-                    </span>
-                    <span className="aw-balken">
-                      <span
-                        className="aw-balken-fill"
-                        style={{ width: `${z.pct}%`, background: z.farbe }}
-                      />
-                    </span>
+                  <span className="aw-spannzeile-kopf">
+                    <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
+                    <span className="lbl">{z.label}</span>
+                    <span className="aw-caption">{z.meta}</span>
+                    <span className="aw-zeilenwert">{z.wertText}</span>
                   </span>
-                  <span className="aw-zeilenwert">{z.wertText}</span>
+                  <span className="aw-balken">
+                    <span
+                      className="aw-balken-fill"
+                      style={{ width: `${z.pct}%`, background: z.farbe }}
+                    />
+                  </span>
                 </button>
-                {z.unter.length > 0 ? caretKnopf(`feed:${z.key}`, auf) : caretPlatz}
+                {z.unter.length > 0 && caretKnopf(`feed:${z.key}`, auf)}
               </div>
               {auf &&
                 z.unter.map((u) => (
@@ -340,15 +333,17 @@ export function AuswertungAnsicht({
                     aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
                     onClick={u.key ? () => toggle("materialart", u.key) : undefined}
                   >
-                    <span className="lbl">{u.label}</span>
+                    <span className="aw-spannzeile-kopf">
+                      <span className="lbl">{u.label}</span>
+                      <span className="aw-caption">{u.meta}</span>
+                      <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
+                    </span>
                     <span className="aw-balken aw-balken--fein">
                       <span
                         className="aw-balken-fill"
                         style={{ width: `${u.pct}%`, background: z.farbe }}
                       />
                     </span>
-                    <span className="aw-caption">{u.meta}</span>
-                    <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
                   </button>
                 ))}
             </div>
@@ -405,8 +400,7 @@ export function AuswertungAnsicht({
                     className={`${
                       u.key
                         ? zeilenKlasse("aw-unterzeile", "materialart", u.key)
-                        : "aw-unterzeile"
-                    } aw-unterzeile--spann`}
+                        : "aw-unterzeile"}`}
                     disabled={!u.key}
                     aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
                     onClick={u.key ? () => toggle("materialart", u.key) : undefined}
