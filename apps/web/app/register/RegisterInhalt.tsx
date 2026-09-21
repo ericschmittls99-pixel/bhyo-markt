@@ -218,6 +218,7 @@ export async function RegisterInhalt({
           produkte={produkte}
           landkreise={landkreise}
           zurueckHref={zurueckHref}
+          modal={ansicht === "grid"}
         />
       ) : (
         detailStrom && (

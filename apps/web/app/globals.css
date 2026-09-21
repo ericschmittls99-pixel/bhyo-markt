@@ -2153,9 +2153,14 @@ button.leg-toggle.aus {
 }
 .sbe-wert {
   position: absolute;
-  top: -18px;
+  /* bottom kommt inline (folgt der Balkenspitze, in die Flaeche geclampt). */
   left: 50%;
   transform: translateX(-50%);
+  z-index: 1;
+  padding: 0 4px;
+  border-radius: 4px;
+  background: var(--surface-card);
+  box-shadow: var(--shadow-raised);
   font: var(--type-micro);
   font-variant-numeric: tabular-nums;
   color: var(--text-secondary);
