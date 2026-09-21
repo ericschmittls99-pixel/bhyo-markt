@@ -3840,11 +3840,13 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-spannzeile-kopf .lbl { flex: 1; }
 .aw-spannzeile-band {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  /* Feste Zahlenspalten, damit die Baender aller Zeilen buendig starten. */
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
   align-items: center;
   gap: 8px;
 }
 .aw-spannzeile-band .aw-caption { white-space: nowrap; }
+.aw-spannzeile-band .aw-caption:first-child { text-align: right; }
 .aw-spannband {
   position: relative;
   display: block;
@@ -3940,8 +3942,9 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-unterzeile.aktiv { background: var(--surface-selected); }
 .aw-unterzeile.gedimmt { opacity: 0.45; }
 .aw-unterzeile .lbl {
-  flex: 0 1 auto;
-  max-width: 45%;
+  /* Feste Spalte, damit alle Balken am selben Punkt starten; Ueberlaenge
+     wird mit Ellipsis gekappt. */
+  flex: 0 0 112px;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
