@@ -569,17 +569,18 @@ describe("potenzialZeilen", () => {
       "lignozellulosische_reststoffe",
     ]);
     // Salden f1: 500/1.000/2.000, f2: 400/800/1.200 -> Potenziale
-    // f1: -2.000/-1.000/-500, f2: -1.200/-800/-400; Skala -2.000..0
+    // f1: -2.000/-1.000/-500, f2: -1.200/-800/-400; gemeinsame Skala
+    // exakt vom kleinsten Min bis zum groessten Max: -2.000..-400
     expect(z[0]).toMatchObject({
       minText: "-2.000",
       mittelText: "-1.000",
       maxText: "-500",
       vonPct: 0,
-      mittelPct: 50,
-      bisPct: 75,
+      mittelPct: 63,
+      bisPct: 94,
       leer: false,
     });
-    expect(z[1]).toMatchObject({ vonPct: 40, mittelPct: 60, bisPct: 80 });
+    expect(z[1]).toMatchObject({ vonPct: 50, mittelPct: 75, bisPct: 100 });
   });
 
   it("faellt ohne Min/Max auf preisMittel zurueck und markiert Cluster ohne Preis als leer", () => {
@@ -604,8 +605,8 @@ describe("potenzialZeilen", () => {
       mittelText: "-1.000",
       maxText: "-500",
       vonPct: 0,
-      mittelPct: 50,
-      bisPct: 75,
+      mittelPct: 63,
+      bisPct: 94,
       leer: false,
     });
     expect(z[1]!.unter[0]!.label).toBe("ohne Materialart");
@@ -681,16 +682,16 @@ describe("potenzialZeilen", () => {
 describe("preisKorridorZeilen", () => {
   it("zeigt je Cluster den Preiskorridor mit atro-gewichtetem Mittel", () => {
     const z = preisKorridorZeilen([f1, f2], [f1, f2]);
-    // f1: 5 / 10 / 20 — f2: 8 / 16 / 24; Skala 0..24
+    // f1: 5 / 10 / 20 — f2: 8 / 16 / 24; gemeinsame Skala exakt 5..24
     expect(z[0]).toMatchObject({
       minText: "5",
       mittelText: "10",
       maxText: "20",
-      vonPct: 21,
-      mittelPct: 42,
-      bisPct: 83,
+      vonPct: 0,
+      mittelPct: 26,
+      bisPct: 79,
     });
-    expect(z[1]).toMatchObject({ vonPct: 33, mittelPct: 67, bisPct: 100 });
+    expect(z[1]).toMatchObject({ vonPct: 16, mittelPct: 58, bisPct: 100 });
   });
 
   it("mittelt Min/Mittel/Max je Position mengengewichtet (E14)", () => {

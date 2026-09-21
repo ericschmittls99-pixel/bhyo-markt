@@ -596,8 +596,9 @@ function clusterSpannen(
     const mitPreis = rs.filter((s) => s.preisMittel != null);
     return mitPreis.length ? spanneVon(mitPreis) : null;
   };
-  // Skala ueber alle Zeilen; mit E14 koennen Salden/Preise negativ sein,
-  // daher spannt sie von min(0, kleinstes Min) bis zum groessten Max.
+  // Eine gemeinsame Skala fuer alle Cluster: exakt vom kleinsten Min bis
+  // zum groessten Max ueber alle Zeilen (Eric, E18-Nachtrag) — kein
+  // 0-Anker, die Baender nutzen die volle Breite.
   const felder = (sp: Spanne, lo: number, hi: number) => {
     const anteil = (v: number) => Math.round(((v - lo) / (hi - lo)) * 100);
     return {
@@ -621,8 +622,9 @@ function clusterSpannen(
     recs.filter((s) => s.art === "biomasse" && s.cluster === k),
   );
   const spannen = clusterRecs.map(spanneAus);
-  const lo = Math.min(0, ...spannen.map((sp) => sp?.min ?? 0));
-  const hiRoh = Math.max(0, ...spannen.map((sp) => sp?.max ?? 0));
+  const belegt = spannen.filter((sp): sp is NonNullable<typeof sp> => sp != null);
+  const lo = belegt.length ? Math.min(...belegt.map((sp) => sp.min)) : 0;
+  const hiRoh = belegt.length ? Math.max(...belegt.map((sp) => sp.max)) : 1;
   const hi = hiRoh === lo ? lo + 1 : hiRoh;
   return keys.map((k, i) => ({
     key: k,
