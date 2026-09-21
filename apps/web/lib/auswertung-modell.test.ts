@@ -655,6 +655,47 @@ describe("potenzialZeilen", () => {
     expect(z[0]!.unter[1]!.leer).toBe(true);
   });
 
+  it("spannt die Skala auch ueber Materialart-Spannen, die den Cluster ueberragen", () => {
+    // Gemischtes Cluster: Guelle (Annahme) Potenzial +1.000/+2.000/+2.500,
+    // Biotonne (Einkauf) -4.000/-3.000/-2.000; Cluster-Summe -3.000/-1.000/+500.
+    // Die Skala muss alle Materialarten umfassen (-4.000..2.500), sonst
+    // laufen Baender und oe-Punkt aus der Spur.
+    const annahme = strom({
+      id: "an",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "guelle",
+      materialartLabel: "Gülle",
+      mengeAtro: 100,
+      preisMin: -25,
+      preisMittel: -20,
+      preisMax: -10,
+    });
+    const einkauf = strom({
+      id: "ek",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "biotonne",
+      materialartLabel: "Biotonne",
+      mengeAtro: 100,
+      preisMin: 20,
+      preisMittel: 30,
+      preisMax: 40,
+    });
+    const z = potenzialZeilen([annahme, einkauf], [annahme, einkauf]);
+    expect(z[0]).toMatchObject({ vonPct: 15, mittelPct: 46, bisPct: 69 });
+    expect(z[0]!.unter[0]).toMatchObject({
+      label: "Gülle",
+      vonPct: 77,
+      mittelPct: 92,
+      bisPct: 100,
+    });
+    expect(z[0]!.unter[1]).toMatchObject({
+      label: "Biotonne",
+      vonPct: 0,
+      mittelPct: 15,
+      bisPct: 31,
+    });
+  });
+
   it("macht Annahme-Cluster positiv und spannt die Skala ueber 0 (E18)", () => {
     // Potenziale: orga (Einkauf) -2.000/-1.000/-500 — ligno (Annahme)
     // +500/+800/+1.200; Skala -2.000..1.200

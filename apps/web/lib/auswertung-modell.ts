@@ -622,7 +622,23 @@ function clusterSpannen(
     recs.filter((s) => s.art === "biomasse" && s.cluster === k),
   );
   const spannen = clusterRecs.map(spanneAus);
-  const belegt = spannen.filter((sp): sp is NonNullable<typeof sp> => sp != null);
+  // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
+  // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
+  const unterje = keys.map((_, i) =>
+    materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
+      .map((g) => ({ g, sp: spanneAus(g.rs) }))
+      .sort(
+        (a, b) =>
+          (b.sp?.mittel ?? Number.NEGATIVE_INFINITY) - (a.sp?.mittel ?? Number.NEGATIVE_INFINITY) ||
+          a.g.label.localeCompare(b.g.label, "de"),
+      ),
+  );
+  // Die Skala umfasst neben den Cluster-Spannen auch jede Materialart —
+  // bei gemischten Vorzeichen ragt eine Materialart sonst ueber die
+  // Cluster-Summe hinaus und Band/oe-Punkt laufen aus der Spur.
+  const belegt = [...spannen, ...unterje.flat().map((u) => u.sp)].filter(
+    (sp): sp is NonNullable<typeof sp> => sp != null,
+  );
   const lo = belegt.length ? Math.min(...belegt.map((sp) => sp.min)) : 0;
   const hiRoh = belegt.length ? Math.max(...belegt.map((sp) => sp.max)) : 1;
   const hi = hiRoh === lo ? lo + 1 : hiRoh;
@@ -632,16 +648,7 @@ function clusterSpannen(
     orb: `/orbs/cluster/${k}.webp`,
     farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
     ...felder(spannen[i] ?? null, lo, hi),
-    // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
-    // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
-    unter: materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
-      .map((g) => ({ g, sp: spanneAus(g.rs) }))
-      .sort(
-        (a, b) =>
-          (b.sp?.mittel ?? Number.NEGATIVE_INFINITY) - (a.sp?.mittel ?? Number.NEGATIVE_INFINITY) ||
-          a.g.label.localeCompare(b.g.label, "de"),
-      )
-      .map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
+    unter: unterje[i]!.map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
   }));
 }
 
