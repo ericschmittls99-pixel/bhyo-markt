@@ -380,5 +380,6 @@ in den PR-Text).
 | E9 | Auswertungs-Blöcke (5.4) | **CSV-Export bleibt** (Sekundär-Button in der Toolbar). „Menge nach Materialart", „Abdeckung nach Landkreis" und „Zuletzt aktualisiert" **entfallen ersatzlos**. |
 | E10 | Saisonalität (5.4) | **Ziehbare Balken werden gebaut**: SeasonBars im Formular sind per Maus (Drag) und Tastatur (Pfeiltasten) editierbar, `Gleichverteilung`-Button wie Mockup, `KI-Vorschlag laden` disabled. Ersetzt die 12 Zahlenfelder. |
 | E11 | PR-Schnitt (7) | 9 PRs laut Tabelle oben (8 aus dem Bericht + Migrations-PR). |
+| E12 | Feedstock-Board (PR 7, 2026-09-21) | Umbau abweichend vom Mockup: Belegzahl + Erfassungsgrad als schmale Auswahlzeile über den Kacheln; KPI-Reihe = Prüfquote, Trockenmasse, ø Preis (atro-gewichtet), **Regionenpotenzial** (Σ preisMittel × t atro in €/a, Spanne aus preisMin/Max mit Rückfall auf preisMittel, Anzeige ab 1 Mio als Mio. €/a). Neue Module „regionenpotenzial je cluster." und „preiskorridor je cluster." (Bandbreiten-Zeile je Cluster auf 0..Max-Skala) ersetzen das Preis-Modul der Feedstock-Sicht; Saisonalität bleibt Monatsindex. Kein hartes Sektions-Raster, logischer Fluss Menge → Wert → Belastbarkeit, „nächste verifizierung." unten rechts. Outputs-Sicht unverändert. |
 
 Damit ist der Bericht freigegeben; die Umsetzung beginnt mit PR 1.

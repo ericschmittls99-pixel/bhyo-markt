@@ -34,7 +34,7 @@ export interface ClusterZeile {
 export interface QualitaetsDaten {
   segmente: { stufe: string; anteil: number }[];
   abProzent: number;
-  zeilen: { stufe: string; label: string; anzahl: number }[];
+  zeilen: { stufe: string; label: string; anzahl: number; pct: number }[];
 }
 
 export interface StatusZeile {
@@ -66,9 +66,24 @@ export interface JahresBalken {
   aktuell: boolean;
 }
 
-export interface PreisDaten {
-  stats: { wert: string; einheit: string; label: string }[];
-  korridor: { minText: string; maxText: string; pos: number } | null;
+export interface PreisStat {
+  wert: string;
+  einheit: string;
+  label: string;
+}
+
+export interface SpannenZeile {
+  key: string;
+  label: string;
+  orb: string;
+  farbe: string;
+  minText: string;
+  mittelText: string;
+  maxText: string;
+  vonPct: number;
+  mittelPct: number;
+  bisPct: number;
+  leer: boolean;
 }
 
 export interface VerifZeile {
@@ -106,6 +121,47 @@ function einheitenText(out: Strom[]): string {
     .join(" · ");
 }
 
+/**
+ * Auswahl-Zeile ueber den Kacheln (Feedstock-Umbau Eric 21.09.): Belegzahl und
+ * Erfassungsgrad ruecken aus den KPI-Kacheln in eine schmale Caption.
+ */
+export function auswahlZeile(recs: Strom[]): string {
+  const avg = recs.length
+    ? Math.round(sum(recs, (s) => s.vollstaendigkeit) / recs.length)
+    : 0;
+  return `${nBelege(recs.length)} in der Auswahl (ø Erfassungsgrad ${avg} %)`;
+}
+
+/**
+ * Regionenpotenzial = Preis × Menge (Eric, Feedstock-Umbau 21.09.): Summe
+ * preisMittel × t atro ueber Belege mit Preis; die Spanne nutzt preisMin/Max
+ * mit Rueckfall auf preisMittel. Nur die Anzeige skaliert ab 1 Mio auf Mio €/a.
+ */
+function potenzialSumme(mitPreis: Strom[]) {
+  return {
+    min: sum(mitPreis, (s) => (s.preisMin ?? s.preisMittel!) * atroVon(s)),
+    mittel: sum(mitPreis, (s) => s.preisMittel! * atroVon(s)),
+    max: sum(mitPreis, (s) => (s.preisMax ?? s.preisMittel!) * atroVon(s)),
+  };
+}
+
+function potenzialWert(v: number): { wert: string; einheit: string } {
+  return v >= 1_000_000
+    ? { wert: fmtPreis(Math.round(v / 10_000) / 100), einheit: "Mio. €/a" }
+    : { wert: fmtZahl(Math.round(v)), einheit: "€/a" };
+}
+
+/** Atro-gewichtetes Preismittel; ohne Atro-Gewichte gleichgewichtet. */
+function preisMittelGewichtet(mitPreis: Strom[]): number {
+  let tw = sum(mitPreis, atroVon);
+  let w = atroVon;
+  if (tw === 0) {
+    w = () => 1;
+    tw = mitPreis.length;
+  }
+  return Math.round(sum(mitPreis, (s) => s.preisMittel! * w(s)) / tw);
+}
+
 export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
   const { feed, out } = feedOut(recs);
   const atroSum = sum(feed, atroVon);
@@ -141,58 +197,77 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
         .join(" · "),
     };
   } else {
-    const bedarf = einheitenText(out);
+    // Artrein seit dem Wegfall des Alle-Tabs: in der Feedstock-Sicht gibt es
+    // keine Output-Belege, ein Bedarfszusatz entfaellt.
     mengeKpi = {
       wert: fmtZahl(atroSum),
       einheit: "t atro/a",
       label: "trockenmasse.",
-      caption:
-        `aus ${fmtZahl(sum(feed, (s) => s.mengeFm ?? 0))} t FM/a` +
-        (bedarf ? ` · Bedarf ${bedarf}` : ""),
+      caption: `aus ${fmtZahl(sum(feed, (s) => s.mengeFm ?? 0))} t FM/a`,
     };
   }
 
   const geprueft = recs.filter((s) => s.status === "geprueft").length;
   const inPruefung = recs.filter((s) => s.status === "in_pruefung").length;
-  const avg = recs.length
-    ? Math.round(sum(recs, (s) => s.vollstaendigkeit) / recs.length)
-    : 0;
-  const niedrig = recs.filter((s) => s.vollstaendigkeit < 50).length;
+  const geprueftKpi: KpiKarte = {
+    wert: String(pct(geprueft, recs.length)),
+    einheit: "%",
+    label: "belege geprüft.",
+    caption: `${geprueft} von ${recs.length} · ${inPruefung} in Prüfung`,
+  };
 
-  // Caption: vertretene Cluster bzw. Output-Gruppen (seit dem Wegfall des
-  // Alle-Tabs ist die Auswahl immer artrein — Feedstock/Outputs zu zaehlen
-  // waere redundant zum Wert).
-  const gruppenAnzahl = new Set(
-    (sicht === "outputs" ? out : feed)
-      .map((s) => (s.art === "biomasse" ? s.cluster : s.gruppe))
-      .filter(Boolean),
-  ).size;
-  const gruppenCaption =
-    sicht === "outputs"
-      ? `${gruppenAnzahl} ${gruppenAnzahl === 1 ? "Output-Gruppe" : "Output-Gruppen"}`
-      : `${gruppenAnzahl} Cluster`;
+  if (sicht === "outputs") {
+    const avg = recs.length
+      ? Math.round(sum(recs, (s) => s.vollstaendigkeit) / recs.length)
+      : 0;
+    const niedrig = recs.filter((s) => s.vollstaendigkeit < 50).length;
+    const gruppenAnzahl = new Set(out.map((s) => s.gruppe).filter(Boolean)).size;
+    return [
+      {
+        wert: fmtZahl(recs.length),
+        einheit: recs.length === 1 ? "Beleg" : "Belege",
+        label: "in der auswahl.",
+        caption: `${gruppenAnzahl} ${gruppenAnzahl === 1 ? "Output-Gruppe" : "Output-Gruppen"}`,
+      },
+      mengeKpi,
+      geprueftKpi,
+      {
+        wert: String(avg),
+        einheit: "%",
+        label: "ø erfassungsgrad.",
+        caption: niedrig ? `${nBelege(niedrig)} unter 50 %` : "alle Belege über 50 %",
+      },
+    ];
+  }
 
-  return [
-    {
-      wert: fmtZahl(recs.length),
-      einheit: recs.length === 1 ? "Beleg" : "Belege",
-      label: "in der auswahl.",
-      caption: gruppenCaption,
-    },
-    mengeKpi,
-    {
-      wert: String(pct(geprueft, recs.length)),
-      einheit: "%",
-      label: "belege geprüft.",
-      caption: `${geprueft} von ${recs.length} · ${inPruefung} in Prüfung`,
-    },
-    {
-      wert: String(avg),
-      einheit: "%",
-      label: "ø erfassungsgrad.",
-      caption: niedrig ? `${nBelege(niedrig)} unter 50 %` : "alle Belege über 50 %",
-    },
-  ];
+  // Feedstock (Umbau Eric 21.09.): Pruefquote, Menge, Preis, Potenzial —
+  // Belegzahl und Erfassungsgrad wandern in die auswahlZeile.
+  const mitPreis = feed.filter((s) => s.preisMittel != null);
+  const ohnePreis = feed.length - mitPreis.length;
+  let preisKpi: KpiKarte;
+  let potenzialKpi: KpiKarte;
+  if (mitPreis.length === 0) {
+    const keine = { wert: "–", einheit: "", caption: "keine Preise in der Auswahl" };
+    preisKpi = { ...keine, label: "ø preis." };
+    potenzialKpi = { ...keine, label: "regionenpotenzial." };
+  } else {
+    preisKpi = {
+      wert: fmtPreis(preisMittelGewichtet(mitPreis)),
+      einheit: "€/t",
+      label: "ø preis.",
+      caption:
+        "gewichtet nach t atro/a" +
+        (ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : ""),
+    };
+    const pot = potenzialSumme(mitPreis);
+    potenzialKpi = {
+      ...potenzialWert(pot.mittel),
+      label: "regionenpotenzial.",
+      caption: `Spanne ${fmtZahl(Math.round(pot.min))} – ${fmtZahl(Math.round(pot.max))} €/a`,
+    };
+  }
+
+  return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
 }
 
 /**
@@ -252,6 +327,7 @@ export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
       stufe,
       label: QUALITAET_BESCHREIBUNG[stufe]!,
       anzahl: anzahl(stufe),
+      pct: pct(anzahl(stufe), bewertet.length),
     })),
   };
 }
@@ -337,41 +413,73 @@ export function jahresBalken(recs: Strom[], sicht: Sicht, aktuellesJahr: number)
   }));
 }
 
-export function preisDaten(recs: Strom[], sicht: Sicht): PreisDaten {
-  const { feed, out } = feedOut(recs);
-  const feedMode = sicht !== "outputs";
-
-  if (feedMode) {
-    const mitPreis = feed.filter((s) => s.preisMittel != null);
-    if (!mitPreis.length) return { stats: [], korridor: null };
-    let tw = sum(mitPreis, atroVon);
-    let w = atroVon;
-    if (tw === 0) {
-      w = () => 1;
-      tw = mitPreis.length;
-    }
-    const mittel = Math.round(sum(mitPreis, (s) => s.preisMittel! * w(s)) / tw);
-    const minWerte = feed.map((s) => s.preisMin).filter((v): v is number => v != null);
-    const maxWerte = feed.map((s) => s.preisMax).filter((v): v is number => v != null);
-    const min = minWerte.length ? Math.min(...minWerte) : null;
-    const max = maxWerte.length ? Math.max(...maxWerte) : null;
+/**
+ * Cluster-Zeilen mit Min/Mittel/Max auf gemeinsamer 0..Max-Skala (Bandbreite
+ * als Korridor je Cluster). Keys aus dem Pool wie clusterZeilen, damit
+ * gefilterte Zeilen sichtbar bleiben und nur dimmen.
+ */
+function clusterSpannen(
+  pool: Strom[],
+  recs: Strom[],
+  spanneVon: (mitPreis: Strom[]) => { min: number; mittel: number; max: number },
+  fmt: (n: number) => string,
+): SpannenZeile[] {
+  const keys = Object.keys(CLUSTER_LABEL).filter((k) =>
+    pool.some((s) => s.cluster === k),
+  );
+  const spannen = keys.map((k) => {
+    const mitPreis = recs.filter(
+      (s) => s.art === "biomasse" && s.cluster === k && s.preisMittel != null,
+    );
+    return mitPreis.length ? spanneVon(mitPreis) : null;
+  });
+  const skala = Math.max(1, ...spannen.map((sp) => sp?.max ?? 0));
+  const anteil = (v: number) => Math.round((v / skala) * 100);
+  return keys.map((k, i) => {
+    const sp = spannen[i] ?? null;
     return {
-      stats: [{ wert: fmtPreis(mittel), einheit: "€/t", label: "ø preis, gewichtet nach t atro/a." }],
-      korridor:
-        min != null && max != null
-          ? {
-              minText: fmtPreis(min),
-              maxText: fmtPreis(max),
-              pos: max > min ? Math.min(100, Math.max(0, Math.round(((mittel - min) / (max - min)) * 100))) : 50,
-            }
-          : null,
+      key: k,
+      label: CLUSTER_LABEL[k] ?? k,
+      orb: `/orbs/cluster/${k}.webp`,
+      farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
+      minText: sp ? fmt(sp.min) : "–",
+      mittelText: sp ? fmt(sp.mittel) : "–",
+      maxText: sp ? fmt(sp.max) : "–",
+      vonPct: sp ? anteil(sp.min) : 0,
+      mittelPct: sp ? anteil(sp.mittel) : 0,
+      bisPct: sp ? anteil(sp.max) : 0,
+      leer: !sp,
     };
-  }
+  });
+}
 
-  // Outputs (Review-Runde 3 Eric): drei getrennte Kennzahlen — Targets und
-  // Waerme als ct/kWh (Umrechnung ueber Hu, lib/energie), CO2 als €/kg.
-  // Belege ohne umrechenbaren Preis fallen aus der jeweiligen Gruppe.
-  const stats: PreisDaten["stats"] = [];
+/** Regionenpotenzial je Cluster: Spanne von Preis × t atro in €/a. */
+export function potenzialZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
+  return clusterSpannen(pool, recs, potenzialSumme, (n) => fmtZahl(Math.round(n)));
+}
+
+/** Preiskorridor je Cluster: min/max der Belegpreise, Mittel atro-gewichtet, €/t. */
+export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
+  return clusterSpannen(
+    pool,
+    recs,
+    (mitPreis) => ({
+      min: Math.min(...mitPreis.map((s) => s.preisMin ?? s.preisMittel!)),
+      mittel: preisMittelGewichtet(mitPreis),
+      max: Math.max(...mitPreis.map((s) => s.preisMax ?? s.preisMittel!)),
+    }),
+    fmtPreis,
+  );
+}
+
+/**
+ * Output-Preise (Review-Runde 3 Eric): drei getrennte Kennzahlen — Targets und
+ * Waerme als ct/kWh (Umrechnung ueber Hu, lib/energie), CO2 als €/kg.
+ * Belege ohne umrechenbaren Preis fallen aus der jeweiligen Gruppe.
+ */
+export function preisStats(recs: Strom[]): PreisStat[] {
+  const { out } = feedOut(recs);
+  const stats: PreisStat[] = [];
   const runde2 = (x: number) => Math.round(x * 100) / 100;
 
   const targetPreise = out
@@ -420,7 +528,7 @@ export function preisDaten(recs: Strom[], sicht: Sicht): PreisDaten {
     });
   }
 
-  return { stats, korridor: null };
+  return stats;
 }
 
 export function verifZeilen(recs: Strom[], heuteIso: string): VerifZeile[] {

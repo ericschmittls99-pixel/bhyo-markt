@@ -1,11 +1,14 @@
 import { AuswertungAnsicht } from "@/components/auswertung/AuswertungAnsicht";
 import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
 import {
+  auswahlZeile,
   belegtypZeilen,
   clusterZeilen,
   jahresBalken,
   kpiKarten,
-  preisDaten,
+  potenzialZeilen,
+  preisKorridorZeilen,
+  preisStats,
   qualitaetsDaten,
   saisonDaten,
   statusZeilen,
@@ -123,13 +126,17 @@ export default async function AuswertungPage({
   return (
     <AuswertungAnsicht
       kpis={kpiKarten(recs, sicht)}
+      auswahlText={sicht === "feedstock" ? auswahlZeile(recs) : null}
+      anzahl={recs.length}
       cluster={clusterZeilen(pool, recs, sicht)}
       qualitaet={qualitaetsDaten(recs)}
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}
       belegtypen={belegtypZeilen(recs)}
       jahre={jahresBalken(recs, sicht, aktuellesJahr)}
-      preis={preisDaten(recs, sicht)}
+      preis={sicht === "outputs" ? preisStats(recs) : []}
+      potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
+      preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
       verif={verifZeilen(recs, heuteIso)}
       facetten={facetten}
       auswahl={auswahl}

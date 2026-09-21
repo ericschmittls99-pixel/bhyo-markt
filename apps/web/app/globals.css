@@ -3576,6 +3576,7 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-zeilen--scroll { flex: 1; overflow-y: auto; gap: 4px; }
 .aw-zeilen--status { gap: 6px; }
 .aw-clusterzeile,
+.aw-spannzeile,
 .aw-qualzeile,
 .aw-statuszeile,
 .aw-belegzeile,
@@ -3599,20 +3600,24 @@ table.st-tabelle tbody tr:focus-visible {
     opacity var(--duration-fast) var(--ease-standard);
 }
 .aw-clusterzeile:hover,
+.aw-spannzeile:hover,
 .aw-qualzeile:hover,
 .aw-statuszeile:hover,
 .aw-belegzeile:hover,
 .aw-verifzeile:hover { background: var(--surface-hover); }
 .aw-clusterzeile:focus-visible,
+.aw-spannzeile:focus-visible,
 .aw-qualzeile:focus-visible,
 .aw-statuszeile:focus-visible,
 .aw-belegzeile:focus-visible,
 .aw-verifzeile:focus-visible { box-shadow: var(--ring-focus-inset); }
 .aw-clusterzeile.aktiv,
+.aw-spannzeile.aktiv,
 .aw-qualzeile.aktiv,
 .aw-statuszeile.aktiv,
 .aw-belegzeile.aktiv { background: var(--surface-selected); }
 .aw-clusterzeile.gedimmt,
+.aw-spannzeile.gedimmt,
 .aw-qualzeile.gedimmt,
 .aw-statuszeile.gedimmt,
 .aw-belegzeile.gedimmt { opacity: 0.45; }
@@ -3794,7 +3799,7 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .aw-jahr-fill.aktuell { background: var(--status-active); }
 
-/* Preiskorridor */
+/* Output-Preise */
 .aw-preise {
   display: flex;
   gap: 28px;
@@ -3802,26 +3807,56 @@ table.st-tabelle tbody tr:focus-visible {
   align-items: flex-start;
 }
 .aw-preise em { font-style: normal; }
-.aw-korridor { margin-top: auto; display: grid; gap: 6px; }
-.aw-korridor-track {
+
+/* Auswahlzeile ueber den Kacheln (Feedstock) */
+.aw-auswahl { padding: 0 2px 8px; }
+
+/* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster) */
+.aw-spannzeile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  padding: 8px;
+}
+.aw-spannzeile-kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.aw-spannzeile-kopf .lbl { flex: 1; }
+.aw-spannzeile-band {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+.aw-spannzeile-band .aw-caption { white-space: nowrap; }
+.aw-spannband {
   position: relative;
   display: block;
   height: 8px;
   border-radius: var(--radius-pill);
   background: var(--surface-sunken);
 }
-.aw-korridor-punkt {
+.aw-spannband-fill {
   position: absolute;
-  top: -4px;
-  width: 16px;
-  height: 16px;
-  margin-left: -8px;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  opacity: 0.6;
+}
+.aw-spannband-punkt {
+  position: absolute;
+  top: -3px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
   border-radius: 50%;
   background: var(--status-active);
   box-shadow: 0 0 0 3px var(--surface-card);
   transition: left var(--duration-slow) var(--ease-standard);
 }
-.aw-korridor-enden { display: flex; justify-content: space-between; }
 
 /* Naechste Verifizierung */
 .aw-verifzeile { height: 32px; padding: 0 8px; }

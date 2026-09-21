@@ -12,10 +12,11 @@ import type {
   ClusterZeile,
   JahresBalken,
   KpiKarte,
-  PreisDaten,
+  PreisStat,
   QualitaetsDaten,
   SaisonDaten,
   Sicht,
+  SpannenZeile,
   StatusZeile,
   VerifZeile,
 } from "@/lib/auswertung-modell";
@@ -28,9 +29,16 @@ import type { Strom } from "@/lib/stroeme-modell";
  * den geteilten Querystring (Mockup rowSt: aktiv = selected-Flaeche, uebrige
  * Zeilen dimmen). Diagramme sind flaches HTML/CSS/SVG — Verlaeufe nur als
  * Identitaet ueber die Orb-Assets (>= 20 px), Qualitaet in der Navy-Rampe.
+ *
+ * Die beiden Sichten ordnen dieselben Module unterschiedlich (Umbau Eric
+ * 21.09.): Feedstock fliesst von Menge ueber Wert zu Belastbarkeit und endet
+ * unten rechts mit der naechsten Verifizierung; Outputs behaelt das
+ * urspruengliche PR-7-Layout.
  */
 export function AuswertungAnsicht({
   kpis,
+  auswahlText,
+  anzahl,
   cluster,
   qualitaet,
   status,
@@ -38,6 +46,8 @@ export function AuswertungAnsicht({
   belegtypen,
   jahre,
   preis,
+  potenzial,
+  preisKorridore,
   verif,
   facetten,
   auswahl,
@@ -50,13 +60,17 @@ export function AuswertungAnsicht({
   verifizierung,
 }: {
   kpis: KpiKarte[];
+  auswahlText: string | null;
+  anzahl: number;
   cluster: ClusterZeile[];
   qualitaet: QualitaetsDaten;
   status: StatusZeile[];
   saison: SaisonDaten;
   belegtypen: BelegtypZeile[];
   jahre: JahresBalken[];
-  preis: PreisDaten;
+  preis: PreisStat[];
+  potenzial: SpannenZeile[];
+  preisKorridore: SpannenZeile[];
   verif: VerifZeile[];
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
@@ -70,7 +84,7 @@ export function AuswertungAnsicht({
 }) {
   const { setze } = useUrlZustand();
   const feedMode = sicht === "feedstock";
-  const leer = kpis[0]?.wert === "0";
+  const leer = anzahl === 0;
   // Cluster-Zeilen togglen die Facette ihrer Art (wie die karte.-Legende):
   // Feedstock-Cluster -> cluster (filtert Biomasse), Output-Gruppen -> gruppe.
   const clusterFacette = feedMode ? "cluster" : "gruppe";
@@ -104,6 +118,315 @@ export function AuswertungAnsicht({
     return seg;
   });
 
+  const kpiModule = kpis.map((k) => (
+    <section className="aw-modul aw-kpi" key={k.label}>
+      <p className="aw-kpi-wert">
+        <strong>{k.wert}</strong>
+        <span>{k.einheit}</span>
+      </p>
+      <p className="aw-kpi-label">{k.label}</p>
+      <p className="aw-caption">{k.caption}</p>
+    </section>
+  ));
+
+  const clusterModul = (
+    <section className="aw-modul aw-modul--b2">
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">
+          {feedMode ? "biomasse je cluster." : "belege je output-gruppe."}
+        </h3>
+        <span className="aw-caption">
+          {feedMode ? "t atro/a" : "Anzahl · Bedarf je Einheit"}
+        </span>
+      </header>
+      <div className="aw-zeilen aw-zeilen--scroll">
+        {cluster.map((z) => (
+          <button
+            type="button"
+            key={z.key}
+            className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}
+            aria-pressed={istAktiv(clusterFacette, z.key)}
+            onClick={() => toggle(clusterFacette, z.key)}
+          >
+            <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
+            <span className="aw-clusterzeile-mitte">
+              <span className="aw-clusterzeile-kopf">
+                <span className="lbl">{z.label}</span>
+                <span className="aw-caption">{z.meta}</span>
+              </span>
+              <span className="aw-balken">
+                <span
+                  className="aw-balken-fill"
+                  style={{ width: `${z.pct}%`, background: z.farbe }}
+                />
+              </span>
+            </span>
+            <span className="aw-zeilenwert">{z.wertText}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  /** Bandbreiten-Modul (Feedstock): eine Korridor-Zeile je Cluster. */
+  const spannenModul = (titel: string, caption: string, zeilen: SpannenZeile[]) => (
+    <section className="aw-modul aw-modul--b2">
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">{titel}</h3>
+        <span className="aw-caption">{caption}</span>
+      </header>
+      <div className="aw-zeilen aw-zeilen--scroll">
+        {zeilen.map((z) => (
+          <button
+            type="button"
+            key={z.key}
+            className={zeilenKlasse("aw-spannzeile", "cluster", z.key)}
+            aria-pressed={istAktiv("cluster", z.key)}
+            onClick={() => toggle("cluster", z.key)}
+          >
+            <span className="aw-spannzeile-kopf">
+              <img className="aw-orb16" src={z.orb} alt="" aria-hidden />
+              <span className="lbl">{z.label}</span>
+              <span className="aw-zeilenwert">
+                {z.leer ? "–" : `ø ${z.mittelText}`}
+              </span>
+            </span>
+            {z.leer ? (
+              <span className="aw-caption">keine Preise im Cluster</span>
+            ) : (
+              <span className="aw-spannzeile-band">
+                <span className="aw-caption">{z.minText}</span>
+                <span className="aw-spannband">
+                  <span
+                    className="aw-spannband-fill"
+                    style={{
+                      left: `${z.vonPct}%`,
+                      width: `${Math.max(2, z.bisPct - z.vonPct)}%`,
+                      background: z.farbe,
+                    }}
+                  />
+                  <span
+                    className="aw-spannband-punkt"
+                    style={{ left: `${z.mittelPct}%` }}
+                  />
+                </span>
+                <span className="aw-caption">{z.maxText}</span>
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const qualitaetModul = (
+    <section className="aw-modul aw-modul--h2">
+      <h3 className="aw-kicker">qualität der belege.</h3>
+      <div className="aw-donut">
+        <svg
+          width="132"
+          height="132"
+          viewBox="0 0 132 132"
+          role="img"
+          aria-label="Verteilung der Qualitätsstufen"
+        >
+          <circle cx="66" cy="66" r="56" className="aw-donut-track" strokeWidth="14" />
+          {donutSegs.map((s) => (
+            <circle
+              key={s.stufe}
+              cx="66"
+              cy="66"
+              r="56"
+              className={`aw-donut-seg aw-donut-seg--${s.stufe}${s.gedimmt ? " gedimmt" : ""}`}
+              strokeWidth="14"
+              strokeDasharray={s.dash}
+              strokeDashoffset={s.offset}
+            />
+          ))}
+        </svg>
+        <div className="aw-donut-mitte" aria-hidden>
+          <strong>
+            {qualitaet.abProzent}
+            <span> %</span>
+          </strong>
+          <span className="aw-caption">A + B</span>
+        </div>
+      </div>
+      <div className="aw-zeilen">
+        {qualitaet.zeilen.map((q) => (
+          <button
+            type="button"
+            key={q.stufe}
+            className={zeilenKlasse("aw-qualzeile", "qualitaet", q.stufe)}
+            aria-pressed={istAktiv("qualitaet", q.stufe)}
+            onClick={() => toggle("qualitaet", q.stufe)}
+          >
+            <KonfidenzPill stufe={q.stufe} />
+            <span className="aw-caption lbl">{q.label}</span>
+            <span className="aw-zeilenwert">
+              {q.anzahl}
+              <span className="aw-caption"> · {q.pct} %</span>
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const statusModul = (
+    <section className="aw-modul aw-modul--h2">
+      <h3 className="aw-kicker">status.</h3>
+      <div className="aw-zeilen aw-zeilen--status">
+        {status.map((st) => (
+          <button
+            type="button"
+            key={st.key}
+            className={zeilenKlasse("aw-statuszeile", "status", st.key)}
+            aria-pressed={istAktiv("status", st.key)}
+            onClick={() => toggle("status", st.key)}
+          >
+            <span className="aw-statuszeile-kopf">
+              <StatusPillV2 status={st.key} />
+              <span className="aw-zeilenwert">
+                {st.anzahl}
+                <span className="aw-caption"> · {st.pct} %</span>
+              </span>
+            </span>
+            <span className="aw-balken aw-balken--fein">
+              <span
+                className="aw-balken-fill aw-balken-fill--ink"
+                style={{ width: `${st.pct}%` }}
+              />
+            </span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const saisonModul = (klasse: string) => (
+    <section className={klasse}>
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">saisonalität.</h3>
+        <span className="aw-caption">Monatsindex, 100 % = Jahresmittel</span>
+      </header>
+      {saison.feed && (
+        <div className="aw-saison">
+          <span className="aw-caption">
+            angebot · feedstock, gewichtet nach t atro/a
+          </span>
+          <SeasonBarsMini werte={saison.feed} hoehe={64} />
+        </div>
+      )}
+      {saison.out && (
+        <div className="aw-saison">
+          <span className="aw-caption">bedarf · outputs, gleichgewichtet</span>
+          <SeasonBarsMini werte={saison.out} hoehe={64} />
+        </div>
+      )}
+      {saison.notiz && <p className="aw-caption aw-fuss">{saison.notiz}</p>}
+    </section>
+  );
+
+  const belegtypenModul = (
+    <section className="aw-modul aw-modul--w2">
+      <h3 className="aw-kicker">belegtypen.</h3>
+      <div className="aw-belegtypen">
+        {belegtypen.map((bt) => (
+          <button
+            type="button"
+            key={bt.key}
+            className={zeilenKlasse("aw-belegzeile", "belegtyp", bt.key)}
+            aria-pressed={istAktiv("belegtyp", bt.key)}
+            onClick={() => toggle("belegtyp", bt.key)}
+          >
+            <span className="lbl">{bt.label}</span>
+            <span className="aw-balken aw-balken--fein">
+              <span
+                className="aw-balken-fill aw-balken-fill--ink"
+                style={{ width: `${bt.pct}%` }}
+              />
+            </span>
+            <span className="aw-zeilenwert">{bt.anzahl}</span>
+          </button>
+        ))}
+      </div>
+    </section>
+  );
+
+  const jahreModul = (
+    <section className="aw-modul aw-modul--w2">
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">
+          {feedMode ? "verfügbare biomasse je jahr." : "aktive belege je jahr."}
+        </h3>
+        <span className="aw-caption">{feedMode ? "t atro/a" : "Belege"}</span>
+      </header>
+      <div className="aw-jahre">
+        {jahre.map((j) => (
+          <div
+            className="aw-jahr"
+            key={j.jahr}
+            title={`${j.jahr}: ${j.wertText}`}
+          >
+            <span className="aw-caption">{j.wertText}</span>
+            <span className="aw-jahr-track">
+              <span
+                className={`aw-jahr-fill${j.aktuell ? " aktuell" : ""}`}
+                style={{ height: `${j.pct}%` }}
+              />
+            </span>
+            <span className="aw-caption">{j.jahr}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+
+  const preisModul = (
+    <section className="aw-modul aw-modul--w2">
+      <h3 className="aw-kicker">preise · outputs.</h3>
+      <div className="aw-preise">
+        {preis.map((ps) => (
+          <p className="aw-kpi-wert aw-kpi-wert--klein" key={ps.label}>
+            <strong>{ps.wert}</strong>
+            <span>{ps.einheit}</span>
+            <em className="aw-caption">{ps.label}</em>
+          </p>
+        ))}
+        {preis.length === 0 && (
+          <p className="aw-caption">Keine Preise in der Auswahl.</p>
+        )}
+      </div>
+    </section>
+  );
+
+  const verifModul = (
+    <section className="aw-modul aw-modul--w2">
+      <h3 className="aw-kicker">nächste verifizierung.</h3>
+      <div className="aw-zeilen">
+        {verif.map((v) => (
+          <button
+            type="button"
+            key={v.id}
+            className="aw-verifzeile"
+            onClick={() => setze({ detail: v.id }, "push")}
+          >
+            <img className="aw-orb16" src={v.orb} alt="" aria-hidden />
+            <span className="lbl">
+              {v.titel} <span className="aw-caption">· {v.sub}</span>
+            </span>
+            {v.ueberfaellig && <span className="pill-wert">fällig.</span>}
+            <span className="aw-caption aw-verifdatum">{v.datum}</span>
+          </button>
+        ))}
+        {verif.length === 0 && (
+          <p className="aw-caption">Keine Fristen in der Auswahl.</p>
+        )}
+      </div>
+    </section>
+  );
+
   return (
     <div className="aw-seite">
       <AuswertungToolbar
@@ -127,272 +450,50 @@ export function AuswertungAnsicht({
               onClick={() => {
                 // Wie das Toolbar-X: Facetten, Suche und Bereiche leeren,
                 // sicht bleibt erhalten.
-                const leer: Record<string, null> = { q: null, vonAb: null, erstellt: null };
-                for (const f of facetten) leer[f.key] = null;
-                setze(leer);
+                const alleLeer: Record<string, null> = { q: null, vonAb: null, erstellt: null };
+                for (const f of facetten) alleLeer[f.key] = null;
+                setze(alleLeer);
               }}
             >
               Filter zurücksetzen
             </button>
           </EmptyState>
         ) : (
-          <div className="aw-grid">
-            {kpis.map((k) => (
-              <section className="aw-modul aw-kpi" key={k.label}>
-                <p className="aw-kpi-wert">
-                  <strong>{k.wert}</strong>
-                  <span>{k.einheit}</span>
-                </p>
-                <p className="aw-kpi-label">{k.label}</p>
-                <p className="aw-caption">{k.caption}</p>
-              </section>
-            ))}
-
-            <section className="aw-modul aw-modul--b2">
-              <header className="aw-kopf">
-                <h3 className="aw-kicker">
-                  {feedMode ? "biomasse je cluster." : "belege je output-gruppe."}
-                </h3>
-                <span className="aw-caption">
-                  {feedMode ? "t atro/a" : "Anzahl · Bedarf je Einheit"}
-                </span>
-              </header>
-              <div className="aw-zeilen aw-zeilen--scroll">
-                {cluster.map((z) => (
-                  <button
-                    type="button"
-                    key={z.key}
-                    className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}
-                    aria-pressed={istAktiv(clusterFacette, z.key)}
-                    onClick={() => toggle(clusterFacette, z.key)}
-                  >
-                    <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
-                    <span className="aw-clusterzeile-mitte">
-                      <span className="aw-clusterzeile-kopf">
-                        <span className="lbl">{z.label}</span>
-                        <span className="aw-caption">{z.meta}</span>
-                      </span>
-                      <span className="aw-balken">
-                        <span
-                          className="aw-balken-fill"
-                          style={{ width: `${z.pct}%`, background: z.farbe }}
-                        />
-                      </span>
-                    </span>
-                    <span className="aw-zeilenwert">{z.wertText}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="aw-modul aw-modul--h2">
-              <h3 className="aw-kicker">qualität der belege.</h3>
-              <div className="aw-donut">
-                <svg
-                  width="132"
-                  height="132"
-                  viewBox="0 0 132 132"
-                  role="img"
-                  aria-label="Verteilung der Qualitätsstufen"
-                >
-                  <circle cx="66" cy="66" r="56" className="aw-donut-track" strokeWidth="14" />
-                  {donutSegs.map((s) => (
-                    <circle
-                      key={s.stufe}
-                      cx="66"
-                      cy="66"
-                      r="56"
-                      className={`aw-donut-seg aw-donut-seg--${s.stufe}${s.gedimmt ? " gedimmt" : ""}`}
-                      strokeWidth="14"
-                      strokeDasharray={s.dash}
-                      strokeDashoffset={s.offset}
-                    />
-                  ))}
-                </svg>
-                <div className="aw-donut-mitte" aria-hidden>
-                  <strong>
-                    {qualitaet.abProzent}
-                    <span> %</span>
-                  </strong>
-                  <span className="aw-caption">A + B</span>
-                </div>
-              </div>
-              <div className="aw-zeilen">
-                {qualitaet.zeilen.map((q) => (
-                  <button
-                    type="button"
-                    key={q.stufe}
-                    className={zeilenKlasse("aw-qualzeile", "qualitaet", q.stufe)}
-                    aria-pressed={istAktiv("qualitaet", q.stufe)}
-                    onClick={() => toggle("qualitaet", q.stufe)}
-                  >
-                    <KonfidenzPill stufe={q.stufe} />
-                    <span className="aw-caption lbl">{q.label}</span>
-                    <span className="aw-zeilenwert">{q.anzahl}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="aw-modul aw-modul--h2">
-              <h3 className="aw-kicker">status.</h3>
-              <div className="aw-zeilen aw-zeilen--status">
-                {status.map((st) => (
-                  <button
-                    type="button"
-                    key={st.key}
-                    className={zeilenKlasse("aw-statuszeile", "status", st.key)}
-                    aria-pressed={istAktiv("status", st.key)}
-                    onClick={() => toggle("status", st.key)}
-                  >
-                    <span className="aw-statuszeile-kopf">
-                      <StatusPillV2 status={st.key} />
-                      <span className="aw-zeilenwert">
-                        {st.anzahl}
-                        <span className="aw-caption"> · {st.pct} %</span>
-                      </span>
-                    </span>
-                    <span className="aw-balken aw-balken--fein">
-                      <span
-                        className="aw-balken-fill aw-balken-fill--ink"
-                        style={{ width: `${st.pct}%` }}
-                      />
-                    </span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="aw-modul aw-modul--b2">
-              <header className="aw-kopf">
-                <h3 className="aw-kicker">saisonalität.</h3>
-                <span className="aw-caption">Monatsindex, 100 % = Jahresmittel</span>
-              </header>
-              {saison.feed && (
-                <div className="aw-saison">
-                  <span className="aw-caption">
-                    angebot · feedstock, gewichtet nach t atro/a
-                  </span>
-                  <SeasonBarsMini werte={saison.feed} hoehe={64} />
-                </div>
+          <>
+            {auswahlText && <p className="aw-auswahl aw-caption">{auswahlText}</p>}
+            <div className="aw-grid">
+              {feedMode ? (
+                <>
+                  {kpiModule}
+                  {clusterModul}
+                  {saisonModul("aw-modul aw-modul--w2")}
+                  {jahreModul}
+                  {spannenModul(
+                    "regionenpotenzial je cluster.",
+                    "Preis × Menge, €/a",
+                    potenzial,
+                  )}
+                  {spannenModul("preiskorridor je cluster.", "€/t", preisKorridore)}
+                  {qualitaetModul}
+                  {statusModul}
+                  {belegtypenModul}
+                  {verifModul}
+                </>
+              ) : (
+                <>
+                  {kpiModule}
+                  {clusterModul}
+                  {qualitaetModul}
+                  {statusModul}
+                  {saisonModul("aw-modul aw-modul--b2")}
+                  {belegtypenModul}
+                  {jahreModul}
+                  {preisModul}
+                  {verifModul}
+                </>
               )}
-              {saison.out && (
-                <div className="aw-saison">
-                  <span className="aw-caption">bedarf · outputs, gleichgewichtet</span>
-                  <SeasonBarsMini werte={saison.out} hoehe={64} />
-                </div>
-              )}
-              {saison.notiz && <p className="aw-caption aw-fuss">{saison.notiz}</p>}
-            </section>
-
-            <section className="aw-modul aw-modul--w2">
-              <h3 className="aw-kicker">belegtypen.</h3>
-              <div className="aw-belegtypen">
-                {belegtypen.map((bt) => (
-                  <button
-                    type="button"
-                    key={bt.key}
-                    className={zeilenKlasse("aw-belegzeile", "belegtyp", bt.key)}
-                    aria-pressed={istAktiv("belegtyp", bt.key)}
-                    onClick={() => toggle("belegtyp", bt.key)}
-                  >
-                    <span className="lbl">{bt.label}</span>
-                    <span className="aw-balken aw-balken--fein">
-                      <span
-                        className="aw-balken-fill aw-balken-fill--ink"
-                        style={{ width: `${bt.pct}%` }}
-                      />
-                    </span>
-                    <span className="aw-zeilenwert">{bt.anzahl}</span>
-                  </button>
-                ))}
-              </div>
-            </section>
-
-            <section className="aw-modul aw-modul--w2">
-              <header className="aw-kopf">
-                <h3 className="aw-kicker">
-                  {feedMode ? "verfügbare biomasse je jahr." : "aktive belege je jahr."}
-                </h3>
-                <span className="aw-caption">{feedMode ? "t atro/a" : "Belege"}</span>
-              </header>
-              <div className="aw-jahre">
-                {jahre.map((j) => (
-                  <div
-                    className="aw-jahr"
-                    key={j.jahr}
-                    title={`${j.jahr}: ${j.wertText}`}
-                  >
-                    <span className="aw-caption">{j.wertText}</span>
-                    <span className="aw-jahr-track">
-                      <span
-                        className={`aw-jahr-fill${j.aktuell ? " aktuell" : ""}`}
-                        style={{ height: `${j.pct}%` }}
-                      />
-                    </span>
-                    <span className="aw-caption">{j.jahr}</span>
-                  </div>
-                ))}
-              </div>
-            </section>
-
-            <section className="aw-modul aw-modul--w2">
-              <h3 className="aw-kicker">
-                {feedMode ? "preiskorridor · feedstock." : "preise · outputs."}
-              </h3>
-              <div className="aw-preise">
-                {preis.stats.map((ps) => (
-                  <p className="aw-kpi-wert aw-kpi-wert--klein" key={ps.label}>
-                    <strong>{ps.wert}</strong>
-                    <span>{ps.einheit}</span>
-                    <em className="aw-caption">{ps.label}</em>
-                  </p>
-                ))}
-                {preis.stats.length === 0 && (
-                  <p className="aw-caption">Keine Preise in der Auswahl.</p>
-                )}
-              </div>
-              {preis.korridor && (
-                <div className="aw-korridor">
-                  <span className="aw-korridor-track">
-                    <span
-                      className="aw-korridor-punkt"
-                      style={{ left: `${preis.korridor.pos}%` }}
-                      aria-hidden
-                    />
-                  </span>
-                  <span className="aw-korridor-enden aw-caption">
-                    <span>min {preis.korridor.minText} €/t</span>
-                    <span>max {preis.korridor.maxText} €/t</span>
-                  </span>
-                </div>
-              )}
-            </section>
-
-            <section className="aw-modul aw-modul--w2">
-              <h3 className="aw-kicker">nächste verifizierung.</h3>
-              <div className="aw-zeilen">
-                {verif.map((v) => (
-                  <button
-                    type="button"
-                    key={v.id}
-                    className="aw-verifzeile"
-                    onClick={() => setze({ detail: v.id }, "push")}
-                  >
-                    <img className="aw-orb16" src={v.orb} alt="" aria-hidden />
-                    <span className="lbl">
-                      {v.titel} <span className="aw-caption">· {v.sub}</span>
-                    </span>
-                    {v.ueberfaellig && <span className="pill-wert">fällig.</span>}
-                    <span className="aw-caption aw-verifdatum">{v.datum}</span>
-                  </button>
-                ))}
-                {verif.length === 0 && (
-                  <p className="aw-caption">Keine Fristen in der Auswahl.</p>
-                )}
-              </div>
-            </section>
-          </div>
+            </div>
+          </>
         )}
       </div>
 
