@@ -47,9 +47,6 @@ export interface StatusZeile {
 export interface SaisonDaten {
   feed: number[] | null;
   out: number[] | null;
-  feedPeak: number;
-  outPeak: number;
-  notiz: string;
 }
 
 export interface BelegtypZeile {
@@ -339,11 +336,6 @@ export function statusZeilen(recs: Strom[]): StatusZeile[] {
   });
 }
 
-const MONAT_NAMEN = [
-  "Januar", "Februar", "März", "April", "Mai", "Juni",
-  "Juli", "August", "September", "Oktober", "November", "Dezember",
-];
-
 /** Gewichteter Monatsindex; fehlende Saisonalitaet zaehlt flach 100. */
 function saisonIndex(rs: Strom[], gewicht: (s: Strom) => number): number[] {
   let tw = sum(rs, gewicht);
@@ -358,23 +350,11 @@ function saisonIndex(rs: Strom[], gewicht: (s: Strom) => number): number[] {
   );
 }
 
-const peakIdx = (v: number[]) => v.indexOf(Math.max(...v));
-
 export function saisonDaten(recs: Strom[]): SaisonDaten {
   const { feed, out } = feedOut(recs);
-  const feedIdx = feed.length ? saisonIndex(feed, atroVon) : null;
-  const outIdx = out.length ? saisonIndex(out, () => 1) : null;
   return {
-    feed: feedIdx,
-    out: outIdx,
-    feedPeak: feedIdx ? peakIdx(feedIdx) : 0,
-    outPeak: outIdx ? peakIdx(outIdx) : 0,
-    notiz: [
-      feedIdx ? `Angebotsspitze im ${MONAT_NAMEN[peakIdx(feedIdx)]}` : "",
-      outIdx ? `Bedarfsspitze im ${MONAT_NAMEN[peakIdx(outIdx)]}` : "",
-    ]
-      .filter(Boolean)
-      .join(" · "),
+    feed: feed.length ? saisonIndex(feed, atroVon) : null,
+    out: out.length ? saisonIndex(out, () => 1) : null,
   };
 }
 

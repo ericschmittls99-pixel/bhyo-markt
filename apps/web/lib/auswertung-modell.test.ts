@@ -278,20 +278,17 @@ describe("saisonDaten", () => {
     // Januar: (100*110 + 50*100) / 150 = 106.66 -> 107
     expect(s.feed![0]).toBe(107);
     expect(s.feed![11]).toBe(93);
-    expect(s.feedPeak).toBe(0);
     expect(s.out).toBeNull();
-    expect(s.notiz).toBe("Angebotsspitze im Januar");
   });
 
-  it("gewichtet den Bedarf gleich und nennt beide Spitzen", () => {
+  it("gewichtet den Bedarf gleich", () => {
     const o = strom({
       id: "o3",
       art: "output",
       saisonalitaet: [100, 100, 100, 100, 100, 100, 100, 100, 100, 120, 100, 100],
     });
     const s = saisonDaten([f1, o]);
-    expect(s.outPeak).toBe(9);
-    expect(s.notiz).toBe("Angebotsspitze im Januar · Bedarfsspitze im Oktober");
+    expect(s.out![9]).toBe(120);
   });
 });
 

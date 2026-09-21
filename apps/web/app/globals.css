@@ -3809,14 +3809,19 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-preise em { font-style: normal; }
 
 /* Auswahlzeile ueber den Kacheln (Feedstock) */
-.aw-auswahl { padding: 0 2px 8px; }
+.aw-auswahl { padding: 8px 2px 18px; }
 
-/* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster) */
+/* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster).
+   Eigene Breite/Rundung statt des -8px-Ueberhangs der Basiszeilen: das
+   Klick-Highlight bleibt mit Padding und runden Ecken im Modul. */
 .aw-spannzeile {
   flex-direction: column;
   align-items: stretch;
   gap: 6px;
-  padding: 8px;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
 }
 .aw-spannzeile-kopf {
   display: flex;

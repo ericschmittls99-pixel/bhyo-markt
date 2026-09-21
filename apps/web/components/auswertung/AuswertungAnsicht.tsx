@@ -324,7 +324,6 @@ export function AuswertungAnsicht({
           <SeasonBarsMini werte={saison.out} hoehe={64} />
         </div>
       )}
-      {saison.notiz && <p className="aw-caption aw-fuss">{saison.notiz}</p>}
     </section>
   );
 
