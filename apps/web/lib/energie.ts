@@ -13,11 +13,18 @@
 // - SAF/Jet A-1 43,15 MJ/kg (Spezifikation min. ~42,8 MJ/kg):
 //   Jet-A-1-Spezifikation (DEF STAN 91-091 / ASTM D1655)
 //
-// BEWUSST OHNE Faktor (kein stummer Fallback, Belege werden in der Kachel
-// als "ohne Heizwert" ausgewiesen):
-// - synthesegas, biofuels: Heizwert haengt von der Zusammensetzung ab —
-//   zaehlen nur, wenn die Menge direkt in MWh/a erfasst ist.
-// - co2, asche: stoffliche Outputs, kein Energieaequivalent.
+// Referenzwerte (E13, Eric 21.09.26): Synthesegas und BioFuels bekommen
+// Industriestandard-Heizwerte statt "ohne Heizwert" — der tatsaechliche Wert
+// haengt von der Zusammensetzung ab, die Referenz macht t/a-Belege vergleichbar:
+// - Synthesegas 12 MJ/Nm³ (Mitte der Literaturspanne 10–16 MJ/Nm³ trocken fuer
+//   Zweibett-Wirbelschicht-Dampfvergasung von Biomasse, Pfad der biogenen
+//   H2-Produktion, Referenzanlage Guessing; sciencedirect.com Reviews zu DFB-
+//   Gasification). Massebasis 13,3 MJ/kg ueber typische Produktgasdichte
+//   ~0,9 kg/Nm³ (H2~40 · CO~25 · CO2~20 · CH4~10 Vol-%).
+// - BioFuels 37,5 MJ/kg (FAME-Biodiesel, iea-amf.org Fuel Information Fatty
+//   Acid Esters; bewusst konservativ gegenueber HVO ~44 MJ/kg).
+//
+// BEWUSST OHNE Faktor: co2, asche — stoffliche Outputs, kein Energieaequivalent.
 
 interface Heizwert {
   kwhProKg?: number;
@@ -36,6 +43,8 @@ export const HEIZWERT: Record<string, Heizwert> = {
   methanol: { kwhProKg: 19.9 / 3.6 },
   saf: { kwhProKg: 43.15 / 3.6 },
   ammoniak: { kwhProKg: 18.6 / 3.6 },
+  synthesegas: { kwhProKg: 13.3 / 3.6, kwhProNm3: 12 / 3.6 },
+  biofuels: { kwhProKg: 37.5 / 3.6 },
 };
 
 /**

@@ -6,9 +6,12 @@ import {
   clusterZeilen,
   jahresBalken,
   kpiKarten,
+  outputJahre,
+  outputMengen,
+  outputPotenzialZeilen,
+  outputPreisZeilen,
   potenzialZeilen,
   preisKorridorZeilen,
-  preisStats,
   qualitaetsDaten,
   saisonDaten,
   statusZeilen,
@@ -126,17 +129,20 @@ export default async function AuswertungPage({
   return (
     <AuswertungAnsicht
       kpis={kpiKarten(recs, sicht)}
-      auswahlText={sicht === "feedstock" ? auswahlZeile(recs) : null}
+      auswahlText={auswahlZeile(recs)}
       anzahl={recs.length}
-      cluster={clusterZeilen(pool, recs, sicht)}
+      cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht) : []}
       qualitaet={qualitaetsDaten(recs)}
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}
       belegtypen={belegtypZeilen(recs)}
-      jahre={jahresBalken(recs, sicht, aktuellesJahr)}
-      preis={sicht === "outputs" ? preisStats(recs) : []}
+      jahre={sicht === "feedstock" ? jahresBalken(recs, aktuellesJahr) : []}
       potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
+      outMengen={sicht === "outputs" ? outputMengen(pool, recs) : null}
+      outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : []}
+      outPreise={sicht === "outputs" ? outputPreisZeilen(pool, recs) : null}
+      outJahre={sicht === "outputs" ? outputJahre(recs, aktuellesJahr) : null}
       verif={verifZeilen(recs, heuteIso)}
       facetten={facetten}
       auswahl={auswahl}

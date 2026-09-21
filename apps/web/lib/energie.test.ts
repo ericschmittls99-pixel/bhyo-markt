@@ -21,13 +21,17 @@ describe("energieKwh", () => {
     expect(energieKwh("methanol", 1000, "Nm³/a")).toBeNull();
   });
 
-  it("liefert null fuer zusammensetzungsabhaengige und stoffliche Produkte", () => {
-    expect(energieKwh("synthesegas", 10, "t/a")).toBeNull();
-    expect(energieKwh("biofuels", 10, "t/a")).toBeNull();
+  it("nutzt fuer Synthesegas und BioFuels die Referenz-Heizwerte (E13)", () => {
+    // Synthesegas 12 MJ/Nm³ bzw. 13,3 MJ/kg; BioFuels (FAME) 37,5 MJ/kg
+    expect(energieKwh("synthesegas", 10, "t/a")).toBeCloseTo(36_944.4, 1);
+    expect(energieKwh("synthesegas", 1000, "Nm³/a")).toBeCloseTo(3_333.3, 1);
+    expect(energieKwh("biofuels", 10, "t/a")).toBeCloseTo(104_166.7, 1);
+    expect(energieKwh("synthesegas", 100, "MWh/a")).toBe(100_000);
+  });
+
+  it("liefert null fuer stoffliche Produkte", () => {
     expect(energieKwh("co2", 800, "t/a")).toBeNull();
     expect(energieKwh("asche", 240, "t/a")).toBeNull();
-    // ... aber direkte MWh/a-Angaben zaehlen immer:
-    expect(energieKwh("synthesegas", 100, "MWh/a")).toBe(100_000);
   });
 
   it("liefert null bei fehlender Menge oder Einheit", () => {
@@ -48,8 +52,9 @@ describe("preisCtKwh", () => {
     expect(preisCtKwh("methan", 1, "€/Nm³")).toBeCloseTo(10.03, 2);
   });
 
-  it("liefert null ohne Heizwert-Faktor", () => {
-    expect(preisCtKwh("synthesegas", 100, "€/t")).toBeNull();
+  it("rechnet Synthesegas ueber den Referenz-Heizwert, Waerme nur ueber €/MWh", () => {
+    // 100 €/t / (13,3/3,6 kWh/kg * 1000) * 100 = 2,71 ct/kWh
+    expect(preisCtKwh("synthesegas", 100, "€/t")).toBeCloseTo(2.71, 2);
     expect(preisCtKwh("waerme", 5, "€/kg")).toBeNull();
   });
 });

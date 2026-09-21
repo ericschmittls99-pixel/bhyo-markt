@@ -3816,8 +3816,37 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .aw-preise em { font-style: normal; }
 
-/* Auswahlzeile ueber den Kacheln (Feedstock) */
+/* Auswahlzeile ueber den Kacheln */
 .aw-auswahl { padding: 8px 2px 18px; }
+
+/* Energie/Stofflich-Umschalter der Output-Module */
+.aw-mini-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.aw-mini-switch button {
+  margin: 0;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font: var(--type-caption);
+  cursor: pointer;
+  outline: none;
+}
+.aw-mini-switch button.aktiv {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+.aw-mini-switch button:focus-visible { box-shadow: var(--ring-focus-inset); }
+
+/* Sektions-Caption in zweigeteilten Output-Modulen */
+.aw-sektion { padding: 6px 2px 0; }
 
 /* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster).
    Eigene Breite/Rundung statt des -8px-Ueberhangs der Basiszeilen: das

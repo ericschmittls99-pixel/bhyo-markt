@@ -56,7 +56,34 @@ export interface StatusZeile {
 
 export interface SaisonDaten {
   feed: number[] | null;
-  out: number[] | null;
+  outEnergie: number[] | null;
+  outStofflich: number[] | null;
+}
+
+/** Akkordeon-Unterzeile eines Output-Moduls (ein Produkt). */
+export interface OutputUnterzeile {
+  key: string;
+  label: string;
+  pct: number;
+  wertText: string;
+  meta: string;
+}
+
+/**
+ * Zeile der Output-Module (E13-Umbau): Gruppen filtern die gruppe-Facette,
+ * Einzelprodukte (Waerme, CO2, Asche) die produkt-Facette.
+ */
+export interface OutputZeile extends OutputUnterzeile {
+  facette: "gruppe" | "produkt";
+  orb: string;
+  farbe: string;
+  unter: OutputUnterzeile[];
+}
+
+/** Zweigeteilte Output-Listen: energetisch (MWh/a bzw. ct/kWh) und stofflich (t/a bzw. €/kg). */
+export interface OutputListen {
+  energetisch: OutputZeile[];
+  stofflich: OutputZeile[];
 }
 
 export interface BelegtypZeile {
@@ -71,12 +98,6 @@ export interface JahresBalken {
   wertText: string;
   pct: number;
   aktuell: boolean;
-}
-
-export interface PreisStat {
-  wert: string;
-  einheit: string;
-  label: string;
 }
 
 export interface SpannenUnterzeile {
@@ -109,6 +130,10 @@ export interface VerifZeile {
 
 const sum = (arr: Strom[], fn: (s: Strom) => number) =>
   arr.reduce((n, s) => n + fn(s), 0);
+const STOFFLICH = new Set(["co2", "asche"]);
+const kwhVon = (s: Strom) =>
+  energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit) ?? 0;
+const istStofflich = (s: Strom) => STOFFLICH.has(s.produktCode ?? "");
 const pct = (a: number, b: number) => (b ? Math.round((a / b) * 100) : 0);
 const atroVon = (s: Strom) => s.mengeAtro ?? 0;
 const nBelege = (n: number) => `${fmtZahl(n)} ${n === 1 ? "Beleg" : "Belege"}`;
@@ -228,27 +253,50 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
   };
 
   if (sicht === "outputs") {
-    const avg = recs.length
-      ? Math.round(sum(recs, (s) => s.vollstaendigkeit) / recs.length)
-      : 0;
-    const niedrig = recs.filter((s) => s.vollstaendigkeit < 50).length;
-    const gruppenAnzahl = new Set(out.map((s) => s.gruppe).filter(Boolean)).size;
-    return [
-      {
-        wert: fmtZahl(recs.length),
-        einheit: recs.length === 1 ? "Beleg" : "Belege",
-        label: "in der auswahl.",
-        caption: `${gruppenAnzahl} ${gruppenAnzahl === 1 ? "Output-Gruppe" : "Output-Gruppen"}`,
-      },
-      mengeKpi,
-      geprueftKpi,
-      {
-        wert: String(avg),
-        einheit: "%",
-        label: "ø erfassungsgrad.",
-        caption: niedrig ? `${nBelege(niedrig)} unter 50 %` : "alle Belege über 50 %",
-      },
-    ];
+    // Outputs-Umbau (E13, Eric 21.09.): Kacheln wie beim Feedstock-Board —
+    // Pruefquote, Energiebedarf, kWh-gewichteter ø Preis, Potenzial in €/a.
+    const energetisch = out.filter((s) => !istStofflich(s));
+    const mitCt = energetisch
+      .map((s) => ({
+        ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
+        kwh: kwhVon(s),
+      }))
+      .filter((x): x is { ct: number; kwh: number } => x.ct != null);
+    const potenziale = out
+      .map(potenzialEuro)
+      .filter((v): v is number => v != null);
+    const ohnePreis = out.filter((s) => s.preis == null).length;
+    const ohnePreisNote = ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : "";
+
+    let preisKpi: KpiKarte;
+    if (mitCt.length === 0) {
+      preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: "keine Preise in der Auswahl" };
+    } else {
+      let tw = mitCt.reduce((n, x) => n + x.kwh, 0);
+      let gewicht = (x: { kwh: number }) => x.kwh;
+      if (tw === 0) {
+        gewicht = () => 1;
+        tw = mitCt.length;
+      }
+      const mittel = mitCt.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw;
+      preisKpi = {
+        wert: fmtPreis(Math.round(mittel * 100) / 100),
+        einheit: "ct/kWh",
+        label: "ø preis.",
+        caption: `kWh-gewichtet über Targets & Wärme${ohnePreisNote}`,
+      };
+    }
+
+    const potenzialKpi: KpiKarte =
+      potenziale.length === 0
+        ? { wert: "–", einheit: "", label: "regionenpotenzial.", caption: "keine Preise in der Auswahl" }
+        : {
+            ...potenzialWert(potenziale.reduce((a, b) => a + b, 0)),
+            label: "regionenpotenzial.",
+            caption: `Preis × Menge${ohnePreisNote}`,
+          };
+
+    return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
   }
 
   // Feedstock (Umbau Eric 21.09.): Pruefquote, Menge, Preis, Potenzial —
@@ -407,9 +455,16 @@ function saisonIndex(rs: Strom[], gewicht: (s: Strom) => number): number[] {
 
 export function saisonDaten(recs: Strom[]): SaisonDaten {
   const { feed, out } = feedOut(recs);
+  // Outputs (E13): Energie = Target-Outputs kWh-gewichtet (Waerme zaehlt
+  // nicht), Stofflich = CO2 + Asche t-gewichtet.
+  const targets = out.filter((s) => s.kategorie === "target");
+  const stofflich = out.filter(istStofflich);
   return {
     feed: feed.length ? saisonIndex(feed, atroVon) : null,
-    out: out.length ? saisonIndex(out, () => 1) : null,
+    outEnergie: targets.length ? saisonIndex(targets, kwhVon) : null,
+    outStofflich: stofflich.length
+      ? saisonIndex(stofflich, (s) => s.mengeWert ?? 0)
+      : null,
   };
 }
 
@@ -427,25 +482,59 @@ export function belegtypZeilen(recs: Strom[]): BelegtypZeile[] {
 
 const JAHRE = [2026, 2027, 2028, 2029, 2030, 2031];
 
-export function jahresBalken(recs: Strom[], sicht: Sicht, aktuellesJahr: number): JahresBalken[] {
-  const feedMode = sicht !== "outputs";
+/** Jahres-Summe je Kalenderjahr des Zeitraums; offene Zeitraeume zaehlen durchgehend. */
+function jahresWerte(recs: Strom[], wertVon: (s: Strom) => number): number[] {
   const jahrVon = (iso: string | null, fallback: number) =>
     iso ? Number(iso.slice(0, 4)) : fallback;
-  const werte = JAHRE.map((jahr) => {
-    const rs = recs.filter(
-      (s) =>
-        jahrVon(s.zeitraumVon, JAHRE[0]!) <= jahr &&
-        jahrVon(s.zeitraumBis, JAHRE[JAHRE.length - 1]!) >= jahr,
-    );
-    return feedMode ? sum(rs.filter((s) => s.art === "biomasse"), atroVon) : rs.length;
-  });
+  return JAHRE.map((jahr) =>
+    sum(
+      recs.filter(
+        (s) =>
+          jahrVon(s.zeitraumVon, JAHRE[0]!) <= jahr &&
+          jahrVon(s.zeitraumBis, JAHRE[JAHRE.length - 1]!) >= jahr,
+      ),
+      wertVon,
+    ),
+  );
+}
+
+function zuJahresBalken(werte: number[], aktuellesJahr: number): JahresBalken[] {
   const max = Math.max(1, ...werte);
   return JAHRE.map((jahr, i) => ({
     jahr,
-    wertText: fmtZahl(werte[i]!),
+    wertText: fmtZahl(Math.round(werte[i]!)),
     pct: Math.max(2, Math.round((werte[i]! / max) * 100)),
     aktuell: jahr === aktuellesJahr,
   }));
+}
+
+/** Feedstock: verfuegbare t atro je Jahr. */
+export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken[] {
+  return zuJahresBalken(
+    jahresWerte(recs.filter((s) => s.art === "biomasse"), atroVon),
+    aktuellesJahr,
+  );
+}
+
+/**
+ * Outputs (E13): Bedarfe je Jahr — Energie = Target-Outputs in MWh/a (ohne
+ * Waerme), Stofflich = CO2 + Asche in t/a. Gleicher Switch wie Saisonalitaet.
+ */
+export function outputJahre(
+  recs: Strom[],
+  aktuellesJahr: number,
+): { energie: JahresBalken[]; stofflich: JahresBalken[] } {
+  const out = recs.filter((s) => s.art === "output");
+  return {
+    energie: zuJahresBalken(
+      jahresWerte(out.filter((s) => s.kategorie === "target"), (s) => kwhVon(s) / 1000),
+      aktuellesJahr,
+    ),
+    stofflich: zuJahresBalken(
+      jahresWerte(out.filter(istStofflich), (s) => s.mengeWert ?? 0),
+      aktuellesJahr,
+    ),
+  };
 }
 
 /**
@@ -527,62 +616,247 @@ export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[
 }
 
 /**
- * Output-Preise (Review-Runde 3 Eric): drei getrennte Kennzahlen — Targets und
- * Waerme als ct/kWh (Umrechnung ueber Hu, lib/energie), CO2 als €/kg.
- * Belege ohne umrechenbaren Preis fallen aus der jeweiligen Gruppe.
+ * Euro-Potenzial eines Output-Belegs: energetisch ueber ct/kWh x kWh,
+ * stofflich (CO2/Asche) ueber €/kg x kg. Null ohne umrechenbaren Preis.
  */
-export function preisStats(recs: Strom[]): PreisStat[] {
-  const { out } = feedOut(recs);
-  const stats: PreisStat[] = [];
-  const runde2 = (x: number) => Math.round(x * 100) / 100;
+function potenzialEuro(s: Strom): number | null {
+  if (istStofflich(s)) {
+    const eurKg = preisEuroKg(s.preis, s.preisEinheit);
+    if (eurKg == null || s.mengeWert == null || s.mengeEinheit !== "t/a") return null;
+    return eurKg * s.mengeWert * 1000;
+  }
+  const ct = preisCtKwh(s.produktCode, s.preis, s.preisEinheit);
+  const kwh = energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit);
+  return ct != null && kwh != null ? (ct * kwh) / 100 : null;
+}
 
-  const targetPreise = out
-    .filter((s) => s.kategorie === "target")
-    .map((s) => ({
-      ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
-      kwh: energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit) ?? 0,
-    }))
-    .filter((x): x is { ct: number; kwh: number } => x.ct != null);
-  if (targetPreise.length) {
-    let tw = targetPreise.reduce((n, x) => n + x.kwh, 0);
+/** Zeilengerueste der Output-Module: energetisch (Gruppen + Waerme) und stofflich (CO2, Asche). */
+interface OutputRowDef {
+  facette: "gruppe" | "produkt";
+  key: string;
+  label: string;
+  orb: string;
+  farbe: string;
+  passt: (s: Strom) => boolean;
+}
+
+function outputRowDefs(pool: Strom[]): { energetisch: OutputRowDef[]; stofflich: OutputRowDef[] } {
+  const out = pool.filter((s) => s.art === "output");
+  const energetisch: OutputRowDef[] = [];
+  for (const g of Object.keys(OUTPUT_LABEL)) {
+    if (g === "add_ons") continue;
+    if (out.some((s) => s.gruppe === g))
+      energetisch.push({
+        facette: "gruppe",
+        key: g,
+        label: OUTPUT_LABEL[g] ?? g,
+        orb: `/orbs/output/${g}.webp`,
+        farbe: OUTPUT_FARBE[g] ?? "#b9c0bd",
+        passt: (s) => s.art === "output" && s.gruppe === g,
+      });
+  }
+  const produktDef = (code: string): OutputRowDef | null => {
+    const b = out.find((s) => s.produktCode === code);
+    return b
+      ? {
+          facette: "produkt",
+          key: code,
+          label: b.produktLabel ?? code,
+          orb: `/orbs/output/${code}.webp`,
+          farbe: OUTPUT_FARBE.add_ons ?? "#b9c0bd",
+          passt: (s) => s.art === "output" && s.produktCode === code,
+        }
+      : null;
+  };
+  const waerme = produktDef("waerme");
+  if (waerme) energetisch.push(waerme);
+  return {
+    energetisch,
+    stofflich: [produktDef("co2"), produktDef("asche")].filter(
+      (d): d is OutputRowDef => d != null,
+    ),
+  };
+}
+
+/** Produkt-Gruppen einer Output-Gruppe (Akkordeon); Keys aus dem Pool, Werte aus der Auswahl. */
+function produktGruppen(
+  poolRs: Strom[],
+  recsRs: Strom[],
+): { key: string; label: string; rs: Strom[] }[] {
+  const je = new Map<string, { key: string; label: string; rs: Strom[] }>();
+  for (const s of poolRs) {
+    const k = s.produktCode ?? "";
+    if (!je.has(k)) je.set(k, { key: k, label: s.produktLabel ?? "ohne Produkt", rs: [] });
+  }
+  for (const s of recsRs) je.get(s.produktCode ?? "")?.rs.push(s);
+  return [...je.values()];
+}
+
+const runde2 = (x: number) => Math.round(x * 100) / 100;
+
+/**
+ * bedarf je gruppe. (E13): energetische Zeilen in MWh/a (Targets nach Hu +
+ * Waerme), stoffliche in t/a (CO2, Asche). Produkt-Akkordeon je Gruppe.
+ */
+export function outputMengen(pool: Strom[], recs: Strom[]): OutputListen {
+  const defs = outputRowDefs(pool);
+  const outPool = pool.filter((s) => s.art === "output");
+  const outRecs = recs.filter((s) => s.art === "output");
+
+  const baue = (
+    ds: OutputRowDef[],
+    wertVon: (s: Strom) => number,
+    text: (v: number) => string,
+  ): OutputZeile[] => {
+    const werte = ds.map((d) => sum(outRecs.filter(d.passt), wertVon));
+    const max = Math.max(1, ...werte);
+    return ds.map((d, i) => ({
+      facette: d.facette,
+      key: d.key,
+      label: d.label,
+      orb: d.orb,
+      farbe: d.farbe,
+      pct: Math.round((werte[i]! / max) * 100),
+      wertText: text(werte[i]!),
+      meta: nBelege(outRecs.filter(d.passt).length),
+      unter:
+        d.facette === "gruppe"
+          ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
+              .map((g) => ({ g, v: sum(g.rs, wertVon) }))
+              .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
+              .map(({ g, v }) => ({
+                key: g.key,
+                label: g.label,
+                pct: Math.round((v / max) * 100),
+                wertText: text(v),
+                meta: nBelege(g.rs.length),
+              }))
+          : [],
+    }));
+  };
+
+  return {
+    energetisch: baue(defs.energetisch, (s) => kwhVon(s) / 1000, (v) => fmtZahl(Math.round(v))),
+    stofflich: baue(
+      defs.stofflich,
+      (s) => (s.mengeEinheit === "t/a" ? (s.mengeWert ?? 0) : 0),
+      (v) => fmtZahl(Math.round(v)),
+    ),
+  };
+}
+
+/** regionenpotenzial je gruppe. (E13): Preis x Menge in €/a, eine gemeinsame Skala. */
+export function outputPotenzialZeilen(pool: Strom[], recs: Strom[]): OutputZeile[] {
+  const defs = outputRowDefs(pool);
+  const ds = [...defs.energetisch, ...defs.stofflich];
+  const outPool = pool.filter((s) => s.art === "output");
+  const outRecs = recs.filter((s) => s.art === "output");
+
+  const wertUndMeta = (rs: Strom[]) => {
+    const werte = rs.map(potenzialEuro).filter((v): v is number => v != null);
+    const ohne = rs.filter((s) => potenzialEuro(s) == null).length;
+    return {
+      v: werte.length ? werte.reduce((a, b) => a + b, 0) : null,
+      meta: nBelege(rs.length) + (ohne ? ` · ${nBelege(ohne)} ohne Preis` : ""),
+    };
+  };
+
+  const zeilen = ds.map((d) => ({ d, ...wertUndMeta(outRecs.filter(d.passt)) }));
+  const max = Math.max(1, ...zeilen.map((z) => z.v ?? 0));
+  return zeilen.map(({ d, v, meta }) => ({
+    facette: d.facette,
+    key: d.key,
+    label: d.label,
+    orb: d.orb,
+    farbe: d.farbe,
+    pct: v == null ? 0 : Math.round((v / max) * 100),
+    wertText: v == null ? "–" : fmtZahl(Math.round(v)),
+    meta,
+    unter:
+      d.facette === "gruppe"
+        ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
+            .map((g) => ({ g, ...wertUndMeta(g.rs) }))
+            .sort((a, b) => (b.v ?? -1) - (a.v ?? -1) || a.g.label.localeCompare(b.g.label, "de"))
+            .map(({ g, v: gv, meta: gMeta }) => ({
+              key: g.key,
+              label: g.label,
+              pct: gv == null ? 0 : Math.round((gv / max) * 100),
+              wertText: gv == null ? "–" : fmtZahl(Math.round(gv)),
+              meta: gMeta,
+            }))
+        : [],
+  }));
+}
+
+/**
+ * preise je gruppe. (E13): energetische Zeilen als kWh-gewichteter ø in
+ * ct/kWh, stoffliche als ø €/kg — je Sektion eine Basiseinheit.
+ */
+export function outputPreisZeilen(pool: Strom[], recs: Strom[]): OutputListen {
+  const defs = outputRowDefs(pool);
+  const outPool = pool.filter((s) => s.art === "output");
+  const outRecs = recs.filter((s) => s.art === "output");
+
+  const ctMittel = (rs: Strom[]): number | null => {
+    const mitCt = rs
+      .map((s) => ({ ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit), kwh: kwhVon(s) }))
+      .filter((x): x is { ct: number; kwh: number } => x.ct != null);
+    if (!mitCt.length) return null;
+    let tw = mitCt.reduce((n, x) => n + x.kwh, 0);
     let gewicht = (x: { kwh: number }) => x.kwh;
     if (tw === 0) {
       gewicht = () => 1;
-      tw = targetPreise.length;
+      tw = mitCt.length;
     }
-    const mittel = targetPreise.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw;
-    stats.push({
-      wert: fmtPreis(runde2(mittel)),
-      einheit: "ct/kWh",
-      label: "ø preis target-outputs, kWh-gewichtet.",
-    });
-  }
+    return runde2(mitCt.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw);
+  };
+  const kgMittel = (rs: Strom[]): number | null => {
+    const werte = rs
+      .map((s) => preisEuroKg(s.preis, s.preisEinheit))
+      .filter((v): v is number => v != null);
+    return werte.length ? runde2(werte.reduce((a, b) => a + b, 0) / werte.length) : null;
+  };
 
-  const waermePreise = out
-    .filter((s) => s.produktCode === "waerme")
-    .map((s) => preisCtKwh(s.produktCode, s.preis, s.preisEinheit))
-    .filter((v): v is number => v != null);
-  if (waermePreise.length) {
-    stats.push({
-      wert: fmtPreis(runde2(waermePreise.reduce((a, b) => a + b, 0) / waermePreise.length)),
-      einheit: "ct/kWh",
-      label: "ø preis wärme.",
+  const baue = (ds: OutputRowDef[], mittel: (rs: Strom[]) => number | null): OutputZeile[] => {
+    const zeilen = ds.map((d) => {
+      const rs = outRecs.filter(d.passt);
+      const ohne = rs.filter((s) => s.preis == null).length;
+      return {
+        d,
+        v: mittel(rs),
+        meta: nBelege(rs.length) + (ohne ? ` · ${nBelege(ohne)} ohne Preis` : ""),
+      };
     });
-  }
+    const max = Math.max(...zeilen.map((z) => z.v ?? 0), 0.01);
+    return zeilen.map(({ d, v, meta }) => ({
+      facette: d.facette,
+      key: d.key,
+      label: d.label,
+      orb: d.orb,
+      farbe: d.farbe,
+      pct: v == null ? 0 : Math.round((v / max) * 100),
+      wertText: v == null ? "–" : fmtPreis(v),
+      meta,
+      unter:
+        d.facette === "gruppe"
+          ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
+              .map((g) => ({ g, v: mittel(g.rs) }))
+              .sort((a, b) => (b.v ?? -1) - (a.v ?? -1) || a.g.label.localeCompare(b.g.label, "de"))
+              .map(({ g, v: gv }) => ({
+                key: g.key,
+                label: g.label,
+                pct: gv == null ? 0 : Math.round((gv / max) * 100),
+                wertText: gv == null ? "–" : fmtPreis(gv),
+                meta: nBelege(g.rs.length),
+              }))
+          : [],
+    }));
+  };
 
-  const co2Preise = out
-    .filter((s) => s.produktCode === "co2")
-    .map((s) => preisEuroKg(s.preis, s.preisEinheit))
-    .filter((v): v is number => v != null);
-  if (co2Preise.length) {
-    stats.push({
-      wert: fmtPreis(runde2(co2Preise.reduce((a, b) => a + b, 0) / co2Preise.length)),
-      einheit: "€/kg",
-      label: "ø preis CO2.",
-    });
-  }
-
-  return stats;
+  return {
+    energetisch: baue(defs.energetisch, ctMittel),
+    stofflich: baue(defs.stofflich, kgMittel),
+  };
 }
 
 export function verifZeilen(recs: Strom[], heuteIso: string): VerifZeile[] {

@@ -14,7 +14,8 @@ import type {
   ClusterZeile,
   JahresBalken,
   KpiKarte,
-  PreisStat,
+  OutputListen,
+  OutputZeile,
   QualitaetsDaten,
   SaisonDaten,
   Sicht,
@@ -48,9 +49,12 @@ export function AuswertungAnsicht({
   saison,
   belegtypen,
   jahre,
-  preis,
   potenzial,
   preisKorridore,
+  outMengen,
+  outPotenzial,
+  outPreise,
+  outJahre,
   verif,
   facetten,
   auswahl,
@@ -71,9 +75,12 @@ export function AuswertungAnsicht({
   saison: SaisonDaten;
   belegtypen: BelegtypZeile[];
   jahre: JahresBalken[];
-  preis: PreisStat[];
   potenzial: SpannenZeile[];
   preisKorridore: SpannenZeile[];
+  outMengen: OutputListen | null;
+  outPotenzial: OutputZeile[];
+  outPreise: OutputListen | null;
+  outJahre: { energie: JahresBalken[]; stofflich: JahresBalken[] } | null;
   verif: VerifZeile[];
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
@@ -91,6 +98,10 @@ export function AuswertungAnsicht({
   // Akkordeon-Zustand je Modul+Cluster (rein clientseitig, nicht in der URL).
   const [offen, setOffen] = useState<Record<string, boolean>>({});
   const flip = (k: string) => setOffen((o) => ({ ...o, [k]: !o[k] }));
+  // Outputs (E13): Saisonalitaet und Jahres-Bedarfe schalten zwischen
+  // Energie (Targets, MWh) und Stofflichem (CO2 & Asche, t).
+  const [saisonStofflich, setSaisonStofflich] = useState(false);
+  const [jahreStofflich, setJahreStofflich] = useState(false);
   // Cluster-Zeilen togglen die Facette ihrer Art (wie die karte.-Legende):
   // Feedstock-Cluster -> cluster (filtert Biomasse), Output-Gruppen -> gruppe.
   const clusterFacette = feedMode ? "cluster" : "gruppe";
@@ -154,6 +165,110 @@ export function AuswertungAnsicht({
       </span>
       <span className="aw-caption">{u.maxText}</span>
     </span>
+  );
+
+  /** Energie/Stofflich-Umschalter der Output-Module. */
+  const miniSwitch = (stofflich: boolean, setze: (v: boolean) => void) => (
+    <span className="aw-mini-switch">
+      <button
+        type="button"
+        className={stofflich ? "" : "aktiv"}
+        aria-pressed={!stofflich}
+        onClick={() => setze(false)}
+      >
+        energie
+      </button>
+      <button
+        type="button"
+        className={stofflich ? "aktiv" : ""}
+        aria-pressed={stofflich}
+        onClick={() => setze(true)}
+      >
+        CO2 &amp; Asche
+      </button>
+    </span>
+  );
+
+  /** Output-Zeilen mit Balken und Produkt-Akkordeon (Mengen/Potenzial/Preise). */
+  const outputZeilenListe = (zeilen: OutputZeile[], modulKey: string) =>
+    zeilen.map((z) => {
+      const auf = !!offen[`${modulKey}:${z.key}`];
+      return (
+        <div className="aw-akk" key={z.key}>
+          <div className={zeilenKlasse("aw-clusterzeile", z.facette, z.key)}>
+            <button
+              type="button"
+              className="aw-akk-haupt"
+              aria-pressed={istAktiv(z.facette, z.key)}
+              onClick={() => toggle(z.facette, z.key)}
+            >
+              <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
+              <span className="aw-clusterzeile-mitte">
+                <span className="aw-clusterzeile-kopf">
+                  <span className="lbl">{z.label}</span>
+                  <span className="aw-caption">{z.meta}</span>
+                </span>
+                <span className="aw-balken">
+                  <span
+                    className="aw-balken-fill"
+                    style={{ width: `${z.pct}%`, background: z.farbe }}
+                  />
+                </span>
+              </span>
+              <span className="aw-zeilenwert">{z.wertText}</span>
+            </button>
+            {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf)}
+          </div>
+          {auf &&
+            z.unter.map((u) => (
+              <button
+                type="button"
+                key={u.key || u.label}
+                className={
+                  u.key
+                    ? zeilenKlasse("aw-unterzeile", "produkt", u.key)
+                    : "aw-unterzeile"
+                }
+                disabled={!u.key}
+                aria-pressed={u.key ? istAktiv("produkt", u.key) : undefined}
+                onClick={u.key ? () => toggle("produkt", u.key) : undefined}
+              >
+                <span className="lbl">{u.label}</span>
+                <span className="aw-balken aw-balken--fein">
+                  <span
+                    className="aw-balken-fill"
+                    style={{ width: `${u.pct}%`, background: z.farbe }}
+                  />
+                </span>
+                <span className="aw-caption">{u.meta}</span>
+                <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
+              </button>
+            ))}
+        </div>
+      );
+    });
+
+  /** Zweigeteiltes Output-Modul (energetisch / stofflich) mit Sektions-Captions. */
+  const outputListenModul = (
+    modulKey: string,
+    titel: string,
+    listen: OutputListen,
+    captionEnergetisch: string,
+    captionStofflich: string,
+  ) => (
+    <section className="aw-modul aw-modul--b2">
+      <h3 className="aw-kicker">{titel}</h3>
+      <div className="aw-zeilen aw-zeilen--scroll">
+        {listen.energetisch.length > 0 && (
+          <p className="aw-caption aw-sektion">{captionEnergetisch}</p>
+        )}
+        {outputZeilenListe(listen.energetisch, modulKey)}
+        {listen.stofflich.length > 0 && (
+          <p className="aw-caption aw-sektion">{captionStofflich}</p>
+        )}
+        {outputZeilenListe(listen.stofflich, modulKey)}
+      </div>
+    </section>
   );
 
   const kpiModule = kpis.map((k) => (
@@ -396,8 +511,8 @@ export function AuswertungAnsicht({
     </section>
   );
 
-  const saisonModul = (klasse: string) => (
-    <section className={klasse}>
+  const saisonModul = (
+    <section className="aw-modul aw-modul--w2">
       <header className="aw-kopf">
         <h3 className="aw-kicker">saisonalität.</h3>
         <span className="aw-caption">Monatsindex, 100 % = Jahresmittel</span>
@@ -410,11 +525,27 @@ export function AuswertungAnsicht({
           <SeasonBarsMini werte={saison.feed} hoehe={64} />
         </div>
       )}
-      {saison.out && (
+    </section>
+  );
+
+  const outSaisonWerte = saisonStofflich ? saison.outStofflich : saison.outEnergie;
+  const outSaisonModul = (
+    <section className="aw-modul aw-modul--w2">
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">saisonalität.</h3>
+        {miniSwitch(saisonStofflich, setSaisonStofflich)}
+      </header>
+      {outSaisonWerte ? (
         <div className="aw-saison">
-          <span className="aw-caption">bedarf · outputs, gleichgewichtet</span>
-          <SeasonBarsMini werte={saison.out} hoehe={64} />
+          <span className="aw-caption">
+            {saisonStofflich
+              ? "bedarf · CO2 & Asche, gewichtet nach t/a"
+              : "bedarf · target-outputs, gewichtet nach kWh"}
+          </span>
+          <SeasonBarsMini werte={outSaisonWerte} hoehe={64} />
         </div>
+      ) : (
+        <p className="aw-caption">Keine Belege in der Auswahl.</p>
       )}
     </section>
   );
@@ -445,50 +576,43 @@ export function AuswertungAnsicht({
     </section>
   );
 
+  const jahresBalkenListe = (balken: JahresBalken[]) => (
+    <div className="aw-jahre">
+      {balken.map((j) => (
+        <div className="aw-jahr" key={j.jahr} title={`${j.jahr}: ${j.wertText}`}>
+          <span className="aw-caption">{j.wertText}</span>
+          <span className="aw-jahr-track">
+            <span
+              className={`aw-jahr-fill${j.aktuell ? " aktuell" : ""}`}
+              style={{ height: `${j.pct}%` }}
+            />
+          </span>
+          <span className="aw-caption">{j.jahr}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   const jahreModul = (
     <section className="aw-modul aw-modul--w2">
       <header className="aw-kopf">
-        <h3 className="aw-kicker">
-          {feedMode ? "verfügbarer feedstock je jahr." : "aktive belege je jahr."}
-        </h3>
-        <span className="aw-caption">{feedMode ? "t atro/a" : "Belege"}</span>
+        <h3 className="aw-kicker">verfügbarer feedstock je jahr.</h3>
+        <span className="aw-caption">t atro/a</span>
       </header>
-      <div className="aw-jahre">
-        {jahre.map((j) => (
-          <div
-            className="aw-jahr"
-            key={j.jahr}
-            title={`${j.jahr}: ${j.wertText}`}
-          >
-            <span className="aw-caption">{j.wertText}</span>
-            <span className="aw-jahr-track">
-              <span
-                className={`aw-jahr-fill${j.aktuell ? " aktuell" : ""}`}
-                style={{ height: `${j.pct}%` }}
-              />
-            </span>
-            <span className="aw-caption">{j.jahr}</span>
-          </div>
-        ))}
-      </div>
+      {jahresBalkenListe(jahre)}
     </section>
   );
 
-  const preisModul = (
+  const outJahreModul = outJahre && (
     <section className="aw-modul aw-modul--w2">
-      <h3 className="aw-kicker">preise · outputs.</h3>
-      <div className="aw-preise">
-        {preis.map((ps) => (
-          <p className="aw-kpi-wert aw-kpi-wert--klein" key={ps.label}>
-            <strong>{ps.wert}</strong>
-            <span>{ps.einheit}</span>
-            <em className="aw-caption">{ps.label}</em>
-          </p>
-        ))}
-        {preis.length === 0 && (
-          <p className="aw-caption">Keine Preise in der Auswahl.</p>
-        )}
-      </div>
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">bedarfe je jahr.</h3>
+        {miniSwitch(jahreStofflich, setJahreStofflich)}
+      </header>
+      <p className="aw-caption">
+        {jahreStofflich ? "CO2 & Asche, t/a" : "target-outputs, MWh/a"}
+      </p>
+      {jahresBalkenListe(jahreStofflich ? outJahre.stofflich : outJahre.energie)}
     </section>
   );
 
@@ -557,7 +681,7 @@ export function AuswertungAnsicht({
                 <>
                   {kpiModule}
                   {clusterModul}
-                  {saisonModul("aw-modul aw-modul--w2")}
+                  {saisonModul}
                   {jahreModul}
                   {spannenModul(
                     "pot",
@@ -574,13 +698,36 @@ export function AuswertungAnsicht({
               ) : (
                 <>
                   {kpiModule}
-                  {clusterModul}
+                  {outMengen &&
+                    outputListenModul(
+                      "menge",
+                      "bedarf je gruppe.",
+                      outMengen,
+                      "energetisch · MWh/a",
+                      "stofflich · t/a",
+                    )}
+                  {outSaisonModul}
+                  {outJahreModul}
+                  <section className="aw-modul aw-modul--b2">
+                    <header className="aw-kopf">
+                      <h3 className="aw-kicker">regionenpotenzial je gruppe.</h3>
+                      <span className="aw-caption">Preis × Menge, €/a</span>
+                    </header>
+                    <div className="aw-zeilen aw-zeilen--scroll">
+                      {outputZeilenListe(outPotenzial, "pot")}
+                    </div>
+                  </section>
+                  {outPreise &&
+                    outputListenModul(
+                      "preis",
+                      "preise je gruppe.",
+                      outPreise,
+                      "energetisch · ct/kWh",
+                      "stofflich · €/kg",
+                    )}
                   {qualitaetModul}
                   {statusModul}
-                  {saisonModul("aw-modul aw-modul--b2")}
                   {belegtypenModul}
-                  {jahreModul}
-                  {preisModul}
                   {verifModul}
                 </>
               )}

@@ -6,9 +6,12 @@ import {
   clusterZeilen,
   jahresBalken,
   kpiKarten,
+  outputJahre,
+  outputMengen,
+  outputPotenzialZeilen,
+  outputPreisZeilen,
   potenzialZeilen,
   preisKorridorZeilen,
-  preisStats,
   qualitaetsDaten,
   saisonDaten,
   statusZeilen,
@@ -163,7 +166,9 @@ describe("kpiKarten", () => {
     expect(k[3]!.caption).toBe("Spanne 2.500.000 – 2.500.000 €/a");
   });
 
-  it("summiert bei sicht=outputs den Energiebedarf der Targets nach Hu und nennt CO2 separat", () => {
+  it("liefert bei sicht=outputs Pruefquote, Energiebedarf, ct/kWh-Preis und Potenzial", () => {
+    // o1: 500 MWh/a, 8 €/MWh -> 0,8 ct/kWh; h2: 120 t/a = 3.999,07 MWh, 5 €/kg
+    // -> 15,0035 ct/kWh; waerme: 5.800 MWh/a, 80 €/MWh; co2: 800 t/a, 80 €/t
     const h2 = strom({
       id: "oh2",
       art: "output",
@@ -172,6 +177,19 @@ describe("kpiKarten", () => {
       kategorie: "target",
       mengeWert: 120,
       mengeEinheit: "t/a",
+      preis: 5,
+      preisEinheit: "€/kg",
+    });
+    const waerme = strom({
+      id: "ow",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "waerme",
+      kategorie: "add_on",
+      mengeWert: 5800,
+      mengeEinheit: "MWh/a",
+      preis: 80,
+      preisEinheit: "€/MWh",
     });
     const co2 = strom({
       id: "oco2",
@@ -181,7 +199,23 @@ describe("kpiKarten", () => {
       kategorie: "add_on",
       mengeWert: 800,
       mengeEinheit: "t/a",
+      preis: 80,
+      preisEinheit: "€/t",
     });
+    const k = kpiKarten([o1, h2, waerme, co2], "outputs");
+    expect(k).toHaveLength(4);
+    expect(k[0]).toMatchObject({ einheit: "%", label: "belege geprüft." });
+    // Targets nach Hu: 500 + 3.999,07 = 4.499 MWh/a
+    expect(k[1]).toMatchObject({ wert: "4.499", einheit: "MWh/a", label: "energiebedarf." });
+    expect(k[1]!.caption).toContain("dazu 800 t CO2/a");
+    // kWh-gewichtet ueber Targets + Waerme:
+    // (0,8*500 + 15,0035*3.999,07 + 8*5.800) / 10.299,07 = 10,37
+    expect(k[2]).toMatchObject({ wert: "10,37", einheit: "ct/kWh", label: "ø preis." });
+    // Potenzial: 500*8 + 600.000 + 5.800*80 + 800*80 = 1.132.000 -> 1,13 Mio
+    expect(k[3]).toMatchObject({ wert: "1,13", einheit: "Mio. €/a", label: "regionenpotenzial." });
+  });
+
+  it("nutzt fuer Synthesegas in t/a den Referenz-Heizwert (E13)", () => {
     const syn = strom({
       id: "osyn",
       art: "output",
@@ -191,22 +225,17 @@ describe("kpiKarten", () => {
       mengeWert: 10,
       mengeEinheit: "t/a",
     });
-    const k = kpiKarten([o1, h2, co2, syn], "outputs");
-    expect(k[0]!.caption).toBe("3 Output-Gruppen");
-    // 500 MWh direkt + 120 t H2 * 33,326 kWh/kg = 3.999,07 MWh -> 4.499
-    expect(k[1]).toMatchObject({ wert: "4.499", einheit: "MWh/a", label: "energiebedarf." });
-    expect(k[1]!.caption).toContain("Hu");
-    expect(k[1]!.caption).toContain("dazu 800 t CO2/a");
-    expect(k[1]!.caption).toContain("1 Beleg ohne Heizwert");
-  });
-
-  it("laesst CO2- und ohne-Heizwert-Hinweis weg, wenn nichts da ist", () => {
-    const k = kpiKarten([o1], "outputs");
-    expect(k[1]).toMatchObject({ wert: "500", einheit: "MWh/a" });
-    expect(k[1]!.caption).not.toContain("CO2");
+    const k = kpiKarten([o1, syn], "outputs");
+    // 500 + 36,94 MWh
+    expect(k[1]).toMatchObject({ wert: "537", einheit: "MWh/a" });
     expect(k[1]!.caption).not.toContain("ohne Heizwert");
   });
 
+  it("zeigt bei Outputs ohne Preise einen Strich", () => {
+    const k = kpiKarten([{ ...o1, preis: null }], "outputs");
+    expect(k[2]).toMatchObject({ wert: "–", caption: "keine Preise in der Auswahl" });
+    expect(k[3]!.wert).toBe("–");
+  });
 });
 
 describe("auswahlZeile", () => {
@@ -331,18 +360,47 @@ describe("saisonDaten", () => {
     const s = saisonDaten([f1, f2]);
     // Januar: (100*110 + 50*100) / 150 = 106.66 -> 107
     expect(s.feed![0]).toBe(107);
-    expect(s.feed![11]).toBe(93);
-    expect(s.out).toBeNull();
+    expect(s.outEnergie).toBeNull();
+    expect(s.outStofflich).toBeNull();
   });
 
-  it("gewichtet den Bedarf gleich", () => {
-    const o = strom({
-      id: "o3",
+  it("gewichtet Energie nach kWh der Targets und Stoffliches nach t (CO2 + Asche)", () => {
+    // Targets: o1 500 MWh flach, e2 500 MWh mit Oktober-Spitze -> Mittel 110
+    const e2 = strom({
+      id: "e2",
       art: "output",
+      gruppe: "primaerprodukte",
+      produktCode: "strom",
+      kategorie: "target",
+      mengeWert: 500,
+      mengeEinheit: "MWh/a",
       saisonalitaet: [100, 100, 100, 100, 100, 100, 100, 100, 100, 120, 100, 100],
     });
-    const s = saisonDaten([f1, o]);
-    expect(s.out![9]).toBe(120);
+    const co2 = strom({
+      id: "sco2",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "co2",
+      kategorie: "add_on",
+      mengeWert: 800,
+      mengeEinheit: "t/a",
+      saisonalitaet: [80, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 120],
+    });
+    const s = saisonDaten([o1, e2, co2]);
+    expect(s.outEnergie![9]).toBe(110);
+    expect(s.outStofflich![0]).toBe(80);
+    // Waerme zaehlt nicht in die Energie-Saisonalitaet (nur Targets)
+    const waerme = strom({
+      id: "sw",
+      art: "output",
+      gruppe: "add_ons",
+      produktCode: "waerme",
+      kategorie: "add_on",
+      mengeWert: 5800,
+      mengeEinheit: "MWh/a",
+      saisonalitaet: [200, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 0],
+    });
+    expect(saisonDaten([o1, waerme]).outEnergie![0]).toBe(100);
   });
 });
 
@@ -356,8 +414,8 @@ describe("belegtypZeilen", () => {
 });
 
 describe("jahresBalken", () => {
-  it("zaehlt einen Strom fuer jedes Jahr seines Zeitraums (t atro im feed-Modus)", () => {
-    const j = jahresBalken([f1, f2], "feedstock", 2026);
+  it("summiert t atro fuer jedes Jahr des Zeitraums", () => {
+    const j = jahresBalken([f1, f2], 2026);
     expect(j.map((b) => b.jahr)).toEqual([2026, 2027, 2028, 2029, 2030, 2031]);
     expect(j[0]).toMatchObject({ wertText: "50", aktuell: true });
     expect(j[1]!.wertText).toBe("150");
@@ -365,10 +423,10 @@ describe("jahresBalken", () => {
     expect(j[1]!.pct).toBe(100);
   });
 
-  it("zaehlt offene Zeitraeume durchgehend und Outputs als Anzahl", () => {
-    const offen = strom({ id: "o4", art: "output", zeitraumVon: null, zeitraumBis: null });
-    const j = jahresBalken([offen], "outputs", 2026);
-    expect(j.every((b) => b.wertText === "1")).toBe(true);
+  it("zaehlt offene Zeitraeume durchgehend", () => {
+    const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
+    const j = jahresBalken([offen], 2026);
+    expect(j.every((b) => b.wertText === "5")).toBe(true);
   });
 });
 
@@ -488,55 +546,139 @@ describe("preisKorridorZeilen", () => {
   });
 });
 
-describe("preisStats", () => {
-  it("teilt die Output-Preise in Targets (ct/kWh), Waerme (ct/kWh) und CO2 (€/kg)", () => {
-    // o1: H2 target, 5 €/kg -> 15,00 ct/kWh, Energie 500 MWh
-    const target = { ...o1, preis: 5, preisEinheit: "€/kg" };
-    const strom2 = strom({
-      id: "ostrom",
-      art: "output",
-      gruppe: "primaerprodukte",
-      produktCode: "strom",
-      kategorie: "target",
-      mengeWert: 500,
-      mengeEinheit: "MWh/a",
-      preis: 120,
-      preisEinheit: "€/MWh",
+// Gemeinsame Output-Fixtures fuer die Modul-Funktionen.
+const oStrom = strom({
+  id: "ostrom",
+  art: "output",
+  gruppe: "primaerprodukte",
+  produktCode: "strom",
+  produktLabel: "Strom",
+  kategorie: "target",
+  mengeWert: 500,
+  mengeEinheit: "MWh/a",
+  preis: 120,
+  preisEinheit: "€/MWh",
+  zeitraumVon: "2026-01-01",
+  zeitraumBis: "2027-12-31",
+});
+const oSyn = strom({
+  id: "osyn",
+  art: "output",
+  gruppe: "primaerprodukte",
+  produktCode: "synthesegas",
+  produktLabel: "Synthesegas",
+  kategorie: "target",
+  mengeWert: 10,
+  mengeEinheit: "t/a",
+});
+const oWaerme = strom({
+  id: "owaerme",
+  art: "output",
+  gruppe: "add_ons",
+  produktCode: "waerme",
+  produktLabel: "Wärme",
+  kategorie: "add_on",
+  mengeWert: 5800,
+  mengeEinheit: "MWh/a",
+  preis: 80,
+  preisEinheit: "€/MWh",
+});
+const oCo2 = strom({
+  id: "oco2p",
+  art: "output",
+  gruppe: "add_ons",
+  produktCode: "co2",
+  produktLabel: "CO2",
+  kategorie: "add_on",
+  mengeWert: 800,
+  mengeEinheit: "t/a",
+  preis: 80,
+  preisEinheit: "€/t",
+  zeitraumVon: "2026-01-01",
+  zeitraumBis: "2026-12-31",
+});
+const oAsche = strom({
+  id: "oasche",
+  art: "output",
+  gruppe: "add_ons",
+  produktCode: "asche",
+  produktLabel: "Asche",
+  kategorie: "add_on",
+  mengeWert: 240,
+  mengeEinheit: "t/a",
+});
+const outputsAlle = [o1, oStrom, oSyn, oWaerme, oCo2, oAsche];
+
+describe("outputMengen", () => {
+  it("trennt energetische Zeilen (MWh/a) von stofflichen (t/a) mit Produkt-Unterzeilen", () => {
+    const m = outputMengen(outputsAlle, outputsAlle);
+    // Energetisch: Primaerprodukte 500+36,9 = 537, Wasserstoff 500, Waerme 5.800
+    expect(m.energetisch.map((z) => z.key)).toEqual([
+      "primaerprodukte",
+      "wasserstoff",
+      "waerme",
+    ]);
+    expect(m.energetisch[0]).toMatchObject({
+      facette: "gruppe",
+      wertText: "537",
+      meta: "2 Belege",
     });
-    const waerme = strom({
-      id: "owaerme",
-      art: "output",
-      gruppe: "add_ons",
-      produktCode: "waerme",
-      kategorie: "add_on",
-      mengeWert: 5800,
-      mengeEinheit: "MWh/a",
-      preis: 80,
-      preisEinheit: "€/MWh",
+    expect(m.energetisch[2]).toMatchObject({
+      facette: "produkt",
+      wertText: "5.800",
+      pct: 100,
     });
-    const co2 = strom({
-      id: "oco2p",
-      art: "output",
-      gruppe: "add_ons",
-      produktCode: "co2",
-      kategorie: "add_on",
-      mengeWert: 800,
-      mengeEinheit: "t/a",
-      preis: 80,
-      preisEinheit: "€/t",
-    });
-    const p = preisStats([target, strom2, waerme, co2]);
-    // Targets kWh-gewichtet, beide 500 MWh: (15,0035 + 12) / 2 = 13,50
-    expect(p[0]).toMatchObject({ wert: "13,50", einheit: "ct/kWh" });
-    expect(p[0]!.label).toContain("target");
-    expect(p[1]).toMatchObject({ wert: "8", einheit: "ct/kWh" });
-    expect(p[1]!.label).toContain("wärme");
-    expect(p[2]).toMatchObject({ wert: "0,08", einheit: "€/kg" });
-    expect(p[2]!.label).toContain("CO2");
+    expect(m.energetisch[0]!.unter.map((u) => u.label)).toEqual(["Strom", "Synthesegas"]);
+    expect(m.energetisch[0]!.unter[1]!.wertText).toBe("37");
+    // Stofflich: CO2 800, Asche 240
+    expect(m.stofflich.map((z) => z.key)).toEqual(["co2", "asche"]);
+    expect(m.stofflich[0]).toMatchObject({ facette: "produkt", wertText: "800", pct: 100 });
+    expect(m.stofflich[1]!.pct).toBe(30);
   });
 
-  it("laesst Preisgruppen ohne Daten weg", () => {
-    expect(preisStats([{ ...o1, preis: null }])).toHaveLength(0);
+  it("haelt Zeilen aus dem Pool sichtbar, wenn der Filter sie leert", () => {
+    const m = outputMengen(outputsAlle, [oCo2]);
+    expect(m.energetisch[0]!.wertText).toBe("0");
+    expect(m.stofflich[1]!.wertText).toBe("0");
+  });
+});
+
+describe("outputJahre", () => {
+  it("summiert Target-MWh (ohne Waerme) und stoffliche t je Jahr", () => {
+    const j = outputJahre([oStrom, oWaerme, oCo2], 2026);
+    expect(j.energie[0]).toMatchObject({ wertText: "500", aktuell: true });
+    expect(j.energie[1]!.wertText).toBe("500");
+    expect(j.energie[2]!.wertText).toBe("0");
+    expect(j.stofflich[0]!.wertText).toBe("800");
+    expect(j.stofflich[1]!.wertText).toBe("0");
+  });
+});
+
+describe("outputPotenzialZeilen", () => {
+  it("rechnet Preis x Menge je Zeile in €/a auf gemeinsamer Skala", () => {
+    const z = outputPotenzialZeilen(outputsAlle, outputsAlle);
+    // o1: 500 MWh * 8 €/MWh = 4.000; Strom 500*120 = 60.000; Waerme 464.000;
+    // CO2 64.000; Syn/Asche ohne Preis
+    const je = Object.fromEntries(z.map((r) => [r.key, r]));
+    expect(je.waerme).toMatchObject({ wertText: "464.000", pct: 100 });
+    expect(je.primaerprodukte!.wertText).toBe("60.000");
+    expect(je.primaerprodukte!.meta).toContain("1 Beleg ohne Preis");
+    expect(je.co2!.wertText).toBe("64.000");
+    expect(je.asche!.wertText).toBe("–");
+    expect(je.wasserstoff!.wertText).toBe("4.000");
+  });
+});
+
+describe("outputPreisZeilen", () => {
+  it("mittelt energetische Preise kWh-gewichtet in ct/kWh und stoffliche in €/kg", () => {
+    const p = outputPreisZeilen(outputsAlle, outputsAlle);
+    const je = Object.fromEntries(p.energetisch.map((r) => [r.key, r]));
+    // Primaerprodukte: nur Strom mit Preis -> 12 ct/kWh; Waerme 8; o1 0,8
+    expect(je.primaerprodukte!.wertText).toBe("12");
+    expect(je.waerme!.wertText).toBe("8");
+    expect(je.wasserstoff!.wertText).toBe("0,80");
+    expect(p.stofflich[0]).toMatchObject({ key: "co2", wertText: "0,08" });
+    expect(p.stofflich[1]).toMatchObject({ key: "asche", wertText: "–" });
   });
 });
 
