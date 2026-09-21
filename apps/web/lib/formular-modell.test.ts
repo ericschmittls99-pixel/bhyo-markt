@@ -152,6 +152,42 @@ describe("validiereFormular biomasse", () => {
   it("gültig → keine Fehler", () => {
     expect(validiereFormular("biomasse", eingabenOk)).toEqual({});
   });
+
+  it("verlangt die Reihenfolge Min ≤ Mittel ≤ Max (E14)", () => {
+    const f = validiereFormular("biomasse", {
+      ...eingabenOk,
+      preisMin: "10",
+      preisMittel: "5",
+      preisMax: "20",
+    });
+    expect(f.preis_mittel).toBe("Muss ≥ Min sein");
+    const g = validiereFormular("biomasse", {
+      ...eingabenOk,
+      preisMin: "-10",
+      preisMittel: "5",
+      preisMax: "2",
+    });
+    expect(g.preis_max).toBe("Muss ≥ Mittel sein");
+    // Teilweise befuellt: nur vorhandene Werte werden verglichen
+    const h = validiereFormular("biomasse", {
+      ...eingabenOk,
+      preisMin: "30",
+      preisMittel: "",
+      preisMax: "20",
+    });
+    expect(h.preis_max).toBe("Muss ≥ Min sein");
+  });
+
+  it("erlaubt Spannen mit Vorzeichenwechsel (Zahlungsstrom kann die Richtung wechseln)", () => {
+    expect(
+      validiereFormular("biomasse", {
+        ...eingabenOk,
+        preisMin: "-10",
+        preisMittel: "0",
+        preisMax: "15",
+      }),
+    ).toEqual({});
+  });
   it("Pflichtfelder fehlen → benannte Fehler", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, akteurId: "", begruendung: " " });
     expect(f.akteur_id).toBe("Pflichtfeld");

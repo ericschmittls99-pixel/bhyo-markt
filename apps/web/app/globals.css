@@ -315,7 +315,9 @@
 
   /* ======================= glass (nur schwebendes Chrome) ======================= */
   --glass-fill: rgba(255, 255, 255, 0.72);
-  --glass-fill-strong: rgba(255, 255, 255, 0.86);
+  /* 0.86 -> 0.94 (Eric 21.09.): Popover/Overlays waren zu durchscheinend,
+     der Hintergrund stoerte die Lesbarkeit. Blur bleibt als Identitaet. */
+  --glass-fill-strong: rgba(255, 255, 255, 0.94);
   --glass-solid: var(--bhyo-white);
   --glass-edge: rgba(255, 255, 255, 0.65);
   --glass-hairline: rgba(31, 46, 56, 0.08);
@@ -417,7 +419,8 @@
   --scrim: rgba(10, 18, 24, 0.6);
 
   --glass-fill: rgba(31, 46, 56, 0.62);
-  --glass-fill-strong: rgba(40, 58, 69, 0.84);
+  /* 0.84 -> 0.95, siehe Light-Token */
+  --glass-fill-strong: rgba(40, 58, 69, 0.95);
   --glass-solid: #283a45;
   --glass-edge: rgba(255, 255, 255, 0.1);
   --glass-hairline: rgba(255, 255, 255, 0.08);
@@ -3442,3 +3445,604 @@ table.st-tabelle tbody tr:focus-visible {
   font: 700 14px/1 var(--font-sans);
   letter-spacing: 1px;
 }
+
+/* ========================= auswertung. (AP1i PR 7) ========================= */
+/* Bento-Dashboard: 4 Spalten, Zeilenhoehe 168px, dense Flow (Mockup). Alle
+   Diagramme flach; Verlaeufe nur als Orb-Identitaet (>= 20 px). */
+
+.aw-seite {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+.aw-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-height: var(--toolbar-h);
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 4px var(--gutter) 12px;
+}
+.aw-toolbar-trenner {
+  width: 1px;
+  height: 24px;
+  background: var(--border-default);
+}
+.aw-export {
+  margin-left: auto;
+}
+.aw-inhalt {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 8px var(--gutter) var(--gutter);
+}
+.aw-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-auto-rows: 168px;
+  grid-auto-flow: row dense;
+  gap: 16px;
+}
+.aw-modul {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--glass-fill);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--shadow-card);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+}
+.aw-modul--b2 { grid-column: span 2; grid-row: span 2; }
+.aw-modul--h2 { grid-row: span 2; }
+.aw-modul--w2 { grid-column: span 2; }
+@media (max-width: 1000px) {
+  .aw-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 620px) {
+  .aw-grid { grid-template-columns: minmax(0, 1fr); }
+  .aw-modul--b2, .aw-modul--w2 { grid-column: span 1; }
+}
+
+.aw-kopf {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+.aw-kicker {
+  margin: 0;
+  font: var(--type-kicker);
+  color: var(--text-accent);
+}
+.aw-caption {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.aw-fuss { margin-top: auto; }
+
+/* KPI-Karten */
+.aw-kpi { justify-content: space-between; gap: 6px; }
+.aw-kpi-wert {
+  margin: 0;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+.aw-kpi-wert strong {
+  font: 600 36px/1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+.aw-kpi-wert span {
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-secondary);
+}
+.aw-kpi-wert--klein {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: baseline;
+  gap: 4px 6px;
+}
+.aw-kpi-wert--klein strong { font-size: 30px; }
+.aw-kpi-wert--klein .aw-caption { grid-column: 1 / -1; }
+.aw-kpi-label {
+  margin: 0;
+  font: var(--type-body-sm);
+  color: var(--text-primary);
+}
+
+/* Klick-filternde Zeilen (Mockup rowSt): aktiv = selected, andere dimmen */
+.aw-zeilen {
+  display: grid;
+  /* minmax(0,1fr) statt implizitem max-content-Track: die Zeilen-Buttons
+     duerfen nie breiter werden als die Karte, Ellipsis uebernimmt. */
+  grid-template-columns: minmax(0, 1fr);
+  gap: 2px;
+  align-content: start;
+  min-height: 0;
+  min-width: 0;
+}
+.aw-zeilen--scroll { flex: 1; overflow-y: auto; gap: 4px; }
+.aw-zeilen--status { gap: 6px; }
+.aw-clusterzeile,
+.aw-spannzeile,
+.aw-qualzeile,
+.aw-statuszeile,
+.aw-belegzeile,
+.aw-verifzeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: calc(100% + 16px);
+  margin: 0 -8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+.aw-clusterzeile:hover,
+.aw-spannzeile:hover,
+.aw-qualzeile:hover,
+.aw-statuszeile:hover,
+.aw-belegzeile:hover,
+.aw-verifzeile:hover { background: var(--surface-hover); }
+.aw-clusterzeile:focus-visible,
+.aw-spannzeile:focus-visible,
+.aw-qualzeile:focus-visible,
+.aw-statuszeile:focus-visible,
+.aw-belegzeile:focus-visible,
+.aw-verifzeile:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-clusterzeile.aktiv,
+.aw-spannzeile.aktiv,
+.aw-qualzeile.aktiv,
+.aw-statuszeile.aktiv,
+.aw-belegzeile.aktiv { background: var(--surface-selected); }
+.aw-clusterzeile.gedimmt,
+.aw-spannzeile.gedimmt,
+.aw-qualzeile.gedimmt,
+.aw-statuszeile.gedimmt,
+.aw-belegzeile.gedimmt { opacity: 0.45; }
+.aw-zeilen .lbl {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-zeilenwert {
+  font: 600 14px/1 var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+/* Cluster-Zeile: 32px-Orb + Name/Meta + flacher Balken + Wert */
+.aw-orb32 { width: 32px; height: 32px; border-radius: 50%; flex: 0 0 auto; }
+.aw-orb16 { width: 16px; height: 16px; border-radius: 50%; flex: 0 0 auto; }
+/* Wie .aw-spannzeile: eigenes Padding/Rundung statt des -8px-Ueberhangs,
+   damit das Klick-Highlight rund und gepolstert im Modul bleibt. */
+.aw-clusterzeile {
+  gap: 12px;
+  width: 100%;
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 12px;
+}
+.aw-clusterzeile-mitte {
+  flex: 1;
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.aw-clusterzeile-kopf {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 8px;
+}
+.aw-clusterzeile-kopf .lbl {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-clusterzeile .aw-zeilenwert { min-width: 64px; text-align: right; font-size: 16px; }
+
+/* Flache Balken auf sunken Track */
+.aw-balken {
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  overflow: hidden;
+}
+.aw-balken--fein { height: 6px; }
+.aw-balken-fill {
+  display: block;
+  height: 100%;
+  border-radius: var(--radius-pill);
+  transition: width var(--duration-slow) var(--ease-standard);
+}
+.aw-balken-fill--ink { background: var(--data-ink); }
+
+/* Status-Zeile: Pille + Wert oben, Balken darunter */
+.aw-statuszeile { flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; }
+.aw-statuszeile-kopf {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.aw-statuszeile .aw-balken { width: 100%; }
+
+/* Qualitaet: Donut in Navy-Rampe (dark: hell -> dunkel, wie Referenz) */
+:root {
+  --aw-qual-A: var(--bhyo-navy-900);
+  --aw-qual-B: var(--bhyo-navy-700);
+  --aw-qual-C: var(--bhyo-navy-300);
+  --aw-qual-D: var(--bhyo-navy-100);
+}
+[data-theme="dark"] {
+  --aw-qual-A: #eaf0f2;
+  --aw-qual-B: #a9b6bd;
+  --aw-qual-C: #55636b;
+  --aw-qual-D: #3a4750;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --aw-qual-A: #eaf0f2;
+    --aw-qual-B: #a9b6bd;
+    --aw-qual-C: #55636b;
+    --aw-qual-D: #3a4750;
+  }
+}
+.aw-donut {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+}
+.aw-donut svg { display: block; transform: rotate(-90deg); }
+.aw-donut-track { fill: none; stroke: var(--surface-sunken); }
+.aw-donut-seg {
+  fill: none;
+  transition:
+    stroke-dasharray var(--duration-slow) var(--ease-standard),
+    stroke-dashoffset var(--duration-slow) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+.aw-donut-seg--A { stroke: var(--aw-qual-A); }
+.aw-donut-seg--B { stroke: var(--aw-qual-B); }
+.aw-donut-seg--C { stroke: var(--aw-qual-C); }
+.aw-donut-seg--D { stroke: var(--aw-qual-D); }
+.aw-donut-seg.gedimmt { opacity: 0.3; }
+.aw-donut-mitte {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  /* place-content zentriert die ZWEIZEILIGE Gruppe (Wert + "A + B") als
+     Ganzes im Donut-Loch; place-items allein liess sie oben kleben. */
+  place-content: center;
+  justify-items: center;
+  gap: 2px;
+  text-align: center;
+  pointer-events: none;
+}
+.aw-donut-mitte > strong {
+  display: block;
+  font: 600 28px/1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+  font-variant-numeric: tabular-nums;
+}
+.aw-donut-mitte > strong span {
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-secondary);
+}
+
+/* Saisonalitaet */
+.aw-saison { display: grid; gap: 6px; }
+
+/* Belegtypen: zweispaltig */
+.aw-belegtypen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 2px 20px;
+  align-content: start;
+}
+.aw-belegzeile { display: grid; grid-template-columns: minmax(0, 1fr) 72px 28px; align-items: center; height: 28px; padding: 0 8px; }
+.aw-belegzeile .aw-zeilenwert { text-align: right; }
+@media (max-width: 620px) {
+  .aw-belegtypen { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* Jahre: dynamische Achse (E16) — Saeulen fuellen die Breite, ab ~8 Balken
+   greift die Mindestbreite und der Container scrollt horizontal. */
+.aw-jahre {
+  display: flex;
+  gap: 10px;
+  flex: 1;
+  min-height: 0;
+  align-items: end;
+  overflow-x: auto;
+}
+.aw-jahr {
+  flex: 1 0 52px;
+  min-width: 52px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  height: 100%;
+  min-height: 0;
+  text-align: center;
+}
+.aw-jahr .aw-caption { text-align: center; white-space: nowrap; }
+/* Vergangenheit gedimmt, mit Hairline zur Zukunft (E16) */
+.aw-jahr.vergangen .aw-jahr-fill { opacity: 0.4; }
+.aw-jahr.vergangen .aw-caption { opacity: 0.6; }
+.aw-jahr.vergangen:has(+ .aw-jahr:not(.vergangen)) {
+  border-right: 1px dashed var(--border-default);
+  padding-right: 10px;
+}
+.aw-jahr-track {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  align-items: flex-end;
+}
+.aw-jahr-fill {
+  display: block;
+  width: 100%;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--data-ink);
+  transition: height var(--duration-slow) var(--ease-standard);
+}
+.aw-jahr-fill.aktuell { background: var(--status-active); }
+
+/* Output-Preise */
+.aw-preise {
+  display: flex;
+  gap: 28px;
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+.aw-preise em { font-style: normal; }
+
+/* Auswahlzeile ueber den Kacheln */
+.aw-auswahl { padding: 8px 2px 18px; }
+
+/* Energie/Stofflich-Umschalter der Output-Module */
+.aw-mini-switch {
+  display: inline-flex;
+  gap: 2px;
+  padding: 2px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.aw-mini-switch button {
+  margin: 0;
+  padding: 2px 10px;
+  border: 0;
+  border-radius: var(--radius-pill);
+  background: transparent;
+  color: var(--text-secondary);
+  font: var(--type-caption);
+  cursor: pointer;
+  outline: none;
+}
+.aw-mini-switch button.aktiv {
+  background: var(--surface-card);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-card);
+}
+.aw-mini-switch button:focus-visible { box-shadow: var(--ring-focus-inset); }
+
+/* Sektions-Caption in zweigeteilten Output-Modulen */
+.aw-sektion { padding: 6px 2px 0; }
+
+/* KPI-Kachel mit mehreren kleinen Stats (ø-Preise, E14) */
+.aw-kpi-stats { display: grid; gap: 8px; }
+
+/* Info-Popover an KPI-Labels (Saldo-Erlaeuterung, E14) */
+.aw-info { position: relative; display: inline-block; margin-left: 6px; }
+.aw-info-knopf {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  outline: none;
+  vertical-align: middle;
+}
+.aw-info-knopf:hover { color: var(--text-primary); }
+.aw-info-knopf:focus-visible { box-shadow: var(--ring-focus-inset); border-radius: 4px; }
+.aw-info-pop {
+  position: absolute;
+  /* rechtsbuendig: die Saldo-Kachel sitzt am rechten Viewport-Rand */
+  right: -8px;
+  bottom: calc(100% + 6px);
+  z-index: 30;
+  width: 240px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  font: var(--type-caption);
+  color: var(--text-primary);
+  text-transform: none;
+  letter-spacing: normal;
+  white-space: normal;
+}
+
+/* Bandbreiten-Zeilen (Regionenpotenzial / Preiskorridor je Cluster).
+   Eigene Breite/Rundung statt des -8px-Ueberhangs der Basiszeilen: das
+   Klick-Highlight bleibt mit Padding und runden Ecken im Modul. */
+.aw-spannzeile {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  width: 100%;
+  margin: 0;
+  padding: 10px;
+  border-radius: 12px;
+}
+.aw-spannzeile-kopf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.aw-spannzeile-kopf .lbl { flex: 1; }
+.aw-spannzeile-band {
+  display: grid;
+  /* Feste Zahlenspalten, damit die Baender aller Zeilen buendig starten. */
+  grid-template-columns: 64px minmax(0, 1fr) 64px;
+  align-items: center;
+  gap: 8px;
+}
+.aw-spannzeile-band .aw-caption { white-space: nowrap; }
+.aw-spannzeile-band .aw-caption:first-child { text-align: right; }
+.aw-spannband {
+  position: relative;
+  display: block;
+  height: 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.aw-spannband-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--radius-pill);
+  opacity: 0.6;
+}
+.aw-spannband-punkt {
+  position: absolute;
+  top: -3px;
+  width: 14px;
+  height: 14px;
+  margin-left: -7px;
+  border-radius: 50%;
+  background: var(--status-active);
+  box-shadow: 0 0 0 3px var(--surface-card);
+  transition: left var(--duration-slow) var(--ease-standard);
+}
+
+/* Akkordeon: Cluster-Zeile + Caret-Knopf, darunter Materialart-Unterzeilen.
+   Die Filter-Flaeche und der Aufklapp-Pfeil sind getrennte Knoepfe, weil
+   Zeilenklick weiterhin die Facette togglet. */
+.aw-akk { display: flex; flex-direction: column; }
+.aw-akk-haupt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.aw-akk-haupt:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-akk-haupt--spalte { flex-direction: column; align-items: stretch; gap: 6px; }
+.aw-akk-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+.aw-akk-caret:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.aw-akk-caret:focus-visible { box-shadow: var(--ring-focus-inset); }
+/* Zeilen ohne Akkordeon reservieren den Caret-Platz, damit Balken und
+   Werte aller Zeilen rechts buendig enden. */
+.aw-akk-caret--platz { visibility: hidden; pointer-events: none; }
+.aw-spannzeile { position: relative; }
+.aw-spannzeile > .aw-akk-caret { position: absolute; top: 8px; right: 8px; }
+.aw-spannzeile .aw-spannzeile-kopf { padding-right: 26px; }
+
+.aw-unterzeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 24px;
+  /* rechts: 10px + Caret-Spalte (24px + 12px Gap) der Hauptzeilen */
+  padding: 6px 46px 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--type-caption);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+.aw-unterzeile:disabled { cursor: default; }
+.aw-unterzeile:not(:disabled):hover { background: var(--surface-hover); }
+.aw-unterzeile:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-unterzeile.aktiv { background: var(--surface-selected); }
+.aw-unterzeile.gedimmt { opacity: 0.45; }
+.aw-unterzeile .lbl {
+  /* Feste Spalte, damit alle Balken am selben Punkt starten; Ueberlaenge
+     wird mit Ellipsis gekappt. */
+  flex: 0 0 112px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-unterzeile .aw-balken { flex: 1; }
+.aw-unterzeile--spann {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  padding-right: 10px;
+}
+.aw-unterzeile--spann .lbl { max-width: none; }
+/* ø-Wert buendig zur Hauptzeile (die 26px fuer den absoluten Caret freihaelt) */
+.aw-unterzeile--spann .aw-spannzeile-kopf { padding-right: 26px; }
+.aw-zeilenwert--sm { font-size: 13px; min-width: 48px; text-align: right; }
+
+/* Naechste Verifizierung */
+.aw-verifzeile { height: 32px; padding: 0 8px; }
+.aw-verifdatum { white-space: nowrap; }

@@ -1,5 +1,10 @@
 import { currentUserEmail } from "@/lib/db";
-import { listBiomasse, type RegisterFilter } from "@/lib/register";
+import { ladeStroeme } from "@/lib/stroeme";
+import {
+  filterAusSearchParams,
+  filterStroeme,
+  type Strom,
+} from "@/lib/stroeme-modell";
 
 export const dynamic = "force-dynamic";
 
@@ -8,54 +13,62 @@ function csvFeld(v: unknown): string {
   return `"${s.replace(/"/g, '""')}"`;
 }
 
-/** CSV-Export der gefilterten Biomasseströme (AP1d; PDF ist AP4). */
+/**
+ * CSV-Export von auswertung. (E9, bleibt in V2): exportiert genau die
+ * Auswahl des Dashboards — dasselbe Querystring-Schema wie karte./auswertung.
+ * (mehrwertige Facetten kommagetrennt, sicht=), derselbe Datenpfad
+ * (ladeStroeme + filterStroeme statt eigener SQL). Beide Arten in einer
+ * Tabelle mit vereinheitlichten Spalten; Biomasse-Menge als t atro/a.
+ */
 export async function GET(req: Request) {
   if (!(await currentUserEmail())) {
     return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
   }
   const p = new URL(req.url).searchParams;
-  const val = (k: string) => {
-    const v = p.get(k)?.trim();
-    return v ? v : undefined;
-  };
-  const filter: RegisterFilter = {
-    regionId: val("region"),
-    suche: val("q"),
-    materialart: val("materialart"),
-    qualitaet: val("qualitaet"),
-    status: val("status"),
-    landkreis: val("landkreis"),
-    jahr: val("jahr"),
-    cluster: val("cluster"),
-  };
+  const roh: Record<string, string> = {};
+  for (const [k, v] of p.entries()) roh[k] = v;
+  const filter = filterAusSearchParams(roh);
+  const sicht = p.get("sicht") ?? "alle";
 
-  const rows = await listBiomasse(filter);
+  const [bio, out] = await Promise.all([
+    sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
+    sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
+  ]);
+  const rows = [...filterStroeme(bio, filter), ...filterStroeme(out, filter)];
+
   const header = [
+    "Art",
     "Bezeichnung",
     "Akteur",
     "Ort",
     "Landkreis",
-    "Materialart",
+    "Cluster/Gruppe",
+    "Materialart/Produkt",
     "Zeitraum von",
     "Zeitraum bis",
-    "Menge (t atro)",
+    "Menge",
+    "Einheit",
     "Qualitaet",
     "Status",
   ];
   const lines = [header.map(csvFeld).join(";")];
-  for (const r of rows) {
+  for (const s of rows) {
+    const feed = s.art === "biomasse";
     lines.push(
       [
-        r.bezeichnung,
-        r.akteurName,
-        r.ort,
-        r.landkreis,
-        r.kategorie,
-        r.zeitraumVon,
-        r.zeitraumBis,
-        r.mengeNum,
-        r.qualitaet,
-        r.status,
+        feed ? "Feedstock" : "Output",
+        s.bezeichnung,
+        s.akteurName,
+        s.ort,
+        s.landkreis,
+        feed ? s.cluster : s.gruppeLabel,
+        feed ? s.materialartLabel : s.produktLabel,
+        s.zeitraumVon,
+        s.zeitraumBis,
+        feed ? s.mengeAtro : s.mengeWert,
+        feed ? "t atro/a" : s.mengeEinheit,
+        s.qualitaet,
+        s.status,
       ]
         .map(csvFeld)
         .join(";"),
