@@ -208,9 +208,10 @@ describe("kpiKarten", () => {
     // Targets nach Hu: 500 + 3.999,07 = 4.499 MWh/a
     expect(k[1]).toMatchObject({ wert: "4.499", einheit: "MWh/a", label: "energiebedarf." });
     expect(k[1]!.caption).toContain("dazu 800 t CO2/a");
-    // kWh-gewichtet ueber Targets + Waerme:
-    // (0,8*500 + 15,0035*3.999,07 + 8*5.800) / 10.299,07 = 10,37
-    expect(k[2]).toMatchObject({ wert: "10,37", einheit: "ct/kWh", label: "ø preis." });
+    // kWh-gewichtet NUR ueber Target-Outputs (ohne Waerme):
+    // (0,8*500 + 15,0035*3.999,07) / 4.499,07 = 13,43
+    expect(k[2]).toMatchObject({ wert: "13,43", einheit: "ct/kWh", label: "ø preis." });
+    expect(k[2]!.caption).toContain("Target-Outputs");
     // Potenzial: 500*8 + 600.000 + 5.800*80 + 800*80 = 1.132.000 -> 1,13 Mio
     expect(k[3]).toMatchObject({ wert: "1,13", einheit: "Mio. €/a", label: "regionenpotenzial." });
   });

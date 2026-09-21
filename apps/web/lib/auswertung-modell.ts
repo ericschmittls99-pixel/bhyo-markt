@@ -255,8 +255,9 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
   if (sicht === "outputs") {
     // Outputs-Umbau (E13, Eric 21.09.): Kacheln wie beim Feedstock-Board —
     // Pruefquote, Energiebedarf, kWh-gewichteter ø Preis, Potenzial in €/a.
-    const energetisch = out.filter((s) => !istStofflich(s));
-    const mitCt = energetisch
+    // Nur Target-Outputs (Eric 21.09.): Waerme fliesst nicht in den ø Preis.
+    const mitCt = out
+      .filter((s) => s.kategorie === "target")
       .map((s) => ({
         ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
         kwh: kwhVon(s),
@@ -283,7 +284,7 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
         wert: fmtPreis(Math.round(mittel * 100) / 100),
         einheit: "ct/kWh",
         label: "ø preis.",
-        caption: `kWh-gewichtet über Targets & Wärme${ohnePreisNote}`,
+        caption: `kWh-gewichtet über Target-Outputs${ohnePreisNote}`,
       };
     }
 

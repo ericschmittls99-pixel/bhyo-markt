@@ -148,6 +148,9 @@ export function AuswertungAnsicht({
     </button>
   );
 
+  /** Unsichtbarer Caret-Platz, damit Balken und Werte aller Zeilen rechts buendig enden. */
+  const caretPlatz = <span className="aw-akk-caret aw-akk-caret--platz" aria-hidden />;
+
   /** Min–Max-Band mit ø-Punkt (Cluster- und Materialart-Zeilen). */
   const spannBand = (u: SpannenUnterzeile, farbe: string) => (
     <span className="aw-spannzeile-band">
@@ -184,7 +187,7 @@ export function AuswertungAnsicht({
         aria-pressed={stofflich}
         onClick={() => setze(true)}
       >
-        CO2 &amp; Asche
+        CO₂ &amp; Asche
       </button>
     </span>
   );
@@ -217,7 +220,9 @@ export function AuswertungAnsicht({
               </span>
               <span className="aw-zeilenwert">{z.wertText}</span>
             </button>
-            {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf, "Produkte")}
+            {z.unter.length > 0
+              ? caretKnopf(`${modulKey}:${z.key}`, auf, "Produkte")
+              : caretPlatz}
           </div>
           {auf &&
             z.unter.map((u) => (
@@ -319,7 +324,7 @@ export function AuswertungAnsicht({
                   </span>
                   <span className="aw-zeilenwert">{z.wertText}</span>
                 </button>
-                {z.unter.length > 0 && caretKnopf(`feed:${z.key}`, auf)}
+                {z.unter.length > 0 ? caretKnopf(`feed:${z.key}`, auf) : caretPlatz}
               </div>
               {auf &&
                 z.unter.map((u) => (
@@ -539,7 +544,7 @@ export function AuswertungAnsicht({
         <div className="aw-saison">
           <span className="aw-caption">
             {saisonStofflich
-              ? "bedarf · CO2 & Asche, gewichtet nach t/a"
+              ? "bedarf · CO₂ & Asche, gewichtet nach t/a"
               : "bedarf · target-outputs, gewichtet nach kWh"}
           </span>
           <SeasonBarsMini werte={outSaisonWerte} hoehe={64} />
@@ -610,7 +615,7 @@ export function AuswertungAnsicht({
         {miniSwitch(jahreStofflich, setJahreStofflich)}
       </header>
       <p className="aw-caption">
-        {jahreStofflich ? "CO2 & Asche, t/a" : "target-outputs, MWh/a"}
+        {jahreStofflich ? "CO₂ & Asche, t/a" : "target-outputs, MWh/a"}
       </p>
       {jahresBalkenListe(jahreStofflich ? outJahre.stofflich : outJahre.energie)}
     </section>
