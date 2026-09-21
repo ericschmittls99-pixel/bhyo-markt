@@ -3872,7 +3872,8 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-info-knopf:focus-visible { box-shadow: var(--ring-focus-inset); border-radius: 4px; }
 .aw-info-pop {
   position: absolute;
-  left: 0;
+  /* rechtsbuendig: die Saldo-Kachel sitzt am rechten Viewport-Rand */
+  right: -8px;
   bottom: calc(100% + 6px);
   z-index: 30;
   width: 240px;
