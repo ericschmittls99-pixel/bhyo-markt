@@ -243,11 +243,45 @@ describe("clusterZeilen", () => {
     expect(z[1]!.wertText).toBe("0");
   });
 
-  it("zaehlt bei sicht=outputs Belege je Gruppe; add_ons nutzt den waerme-Orb", () => {
+  it("gruppiert die Materialarten eines Clusters als Unterzeilen, groesste zuerst", () => {
+    const g1 = strom({
+      id: "g1",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "guelle",
+      materialartLabel: "Gülle",
+      mengeAtro: 100,
+    });
+    const g2 = strom({
+      id: "g2",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "biotonne",
+      materialartLabel: "Biotonne",
+      mengeAtro: 300,
+    });
+    const z = clusterZeilen([g1, g2], [g1, g2], "feedstock");
+    expect(z[0]!.unter.map((u) => u.label)).toEqual(["Biotonne", "Gülle"]);
+    // Skala wie die Cluster-Balken: Maximum 400 t atro
+    expect(z[0]!.unter[0]).toMatchObject({
+      key: "biotonne",
+      wertText: "300",
+      pct: 75,
+      meta: "1 Beleg",
+    });
+  });
+
+  it("fasst Belege ohne Materialart-Code als nicht filterbare Unterzeile", () => {
+    // f1 traegt nur ein Label (kein Code), f2 gar keine Materialart
+    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock");
+    expect(z[0]!.unter[0]).toMatchObject({ key: "", label: "Gülle" });
+    expect(z[1]!.unter[0]).toMatchObject({ key: "", label: "ohne Materialart" });
+  });
+
+  it("zaehlt bei sicht=outputs Belege je Gruppe ohne Unterzeilen; add_ons nutzt den waerme-Orb", () => {
     const addOn = strom({ id: "o2", art: "output", gruppe: "add_ons", mengeWert: 10, mengeEinheit: "t/a" });
     const z = clusterZeilen([o1, addOn], [o1, addOn], "outputs");
     expect(z.map((r) => r.key)).toEqual(["wasserstoff", "add_ons"]);
     expect(z[0]).toMatchObject({ wertText: "1 Beleg", meta: "500 MWh/a" });
+    expect(z[0]!.unter).toEqual([]);
     expect(z[1]!.orb).toBe("/orbs/output/waerme.webp");
   });
 });
@@ -349,6 +383,43 @@ describe("potenzialZeilen", () => {
     const z = potenzialZeilen([nurMittel, ohne], [nurMittel, ohne]);
     expect(z[0]).toMatchObject({ minText: "50", maxText: "50", leer: false });
     expect(z[1]!.leer).toBe(true);
+  });
+
+  it("liefert je Materialart eine Unterzeile auf derselben Skala", () => {
+    const z = potenzialZeilen([f1, f2], [f1, f2]);
+    expect(z[0]!.unter).toHaveLength(1);
+    expect(z[0]!.unter[0]).toMatchObject({
+      label: "Gülle",
+      minText: "500",
+      mittelText: "1.000",
+      maxText: "2.000",
+      vonPct: 25,
+      mittelPct: 50,
+      bisPct: 100,
+      leer: false,
+    });
+    expect(z[1]!.unter[0]!.label).toBe("ohne Materialart");
+  });
+
+  it("markiert Materialarten ohne Preis als leer und sortiert sie ans Ende", () => {
+    const mitPreis = strom({
+      id: "mp",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "guelle",
+      materialartLabel: "Gülle",
+      mengeAtro: 10,
+      preisMittel: 5,
+    });
+    const ohnePreis = strom({
+      id: "op",
+      cluster: "organische_rest_abfallstoffe",
+      materialartCode: "biotonne",
+      materialartLabel: "Biotonne",
+      mengeAtro: 99,
+    });
+    const z = potenzialZeilen([mitPreis, ohnePreis], [mitPreis, ohnePreis]);
+    expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
+    expect(z[0]!.unter[1]!.leer).toBe(true);
   });
 });
 

@@ -21,6 +21,15 @@ export interface KpiKarte {
   caption: string;
 }
 
+/** Akkordeon-Unterzeile je Materialart; key leer = kein Code, nicht filterbar. */
+export interface MaterialartZeile {
+  key: string;
+  label: string;
+  pct: number;
+  wertText: string;
+  meta: string;
+}
+
 export interface ClusterZeile {
   key: string;
   label: string;
@@ -29,6 +38,7 @@ export interface ClusterZeile {
   pct: number;
   wertText: string;
   meta: string;
+  unter: MaterialartZeile[];
 }
 
 export interface QualitaetsDaten {
@@ -69,11 +79,9 @@ export interface PreisStat {
   label: string;
 }
 
-export interface SpannenZeile {
+export interface SpannenUnterzeile {
   key: string;
   label: string;
-  orb: string;
-  farbe: string;
   minText: string;
   mittelText: string;
   maxText: string;
@@ -81,6 +89,12 @@ export interface SpannenZeile {
   mittelPct: number;
   bisPct: number;
   leer: boolean;
+}
+
+export interface SpannenZeile extends SpannenUnterzeile {
+  orb: string;
+  farbe: string;
+  unter: SpannenUnterzeile[];
 }
 
 export interface VerifZeile {
@@ -298,7 +312,39 @@ export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): Clust
     meta: feedMode
       ? `${nBelege(rs.length)} · ${pct(v, atroSum)} %`
       : einheitenText(rs),
+    unter: feedMode
+      ? materialartGruppen(rs.filter((s) => s.art === "biomasse"))
+          .map((g) => ({ g, v: sum(g.rs, atroVon) }))
+          .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
+          .map(({ g, v: gv }) => ({
+            key: g.key,
+            label: g.label,
+            pct: Math.round((gv / max) * 100),
+            wertText: fmtZahl(gv),
+            meta: nBelege(g.rs.length),
+          }))
+      : [],
   }));
+}
+
+/**
+ * Gruppiert Feedstock-Belege nach Materialart (Akkordeon-Unterzeilen).
+ * Gruppiert wird ueber Code oder ersatzweise Label; filterbar (key) ist nur,
+ * was einen materialart_code traegt — die Facette filtert ueber den Code.
+ */
+function materialartGruppen(rs: Strom[]): { key: string; label: string; rs: Strom[] }[] {
+  const je = new Map<string, { key: string; label: string; rs: Strom[] }>();
+  for (const s of rs) {
+    const gk = s.materialartCode ?? s.materialartLabel ?? "";
+    const g = je.get(gk) ?? {
+      key: s.materialartCode ?? "",
+      label: s.materialartLabel ?? "ohne Materialart",
+      rs: [],
+    };
+    g.rs.push(s);
+    je.set(gk, g);
+  }
+  return [...je.values()];
 }
 
 // Beschreibungen je Qualitaetsstufe (Mockup; die Stufe wird abgeleitet, nie gewaehlt).
@@ -404,24 +450,14 @@ function clusterSpannen(
   spanneVon: (mitPreis: Strom[]) => { min: number; mittel: number; max: number },
   fmt: (n: number) => string,
 ): SpannenZeile[] {
-  const keys = Object.keys(CLUSTER_LABEL).filter((k) =>
-    pool.some((s) => s.cluster === k),
-  );
-  const spannen = keys.map((k) => {
-    const mitPreis = recs.filter(
-      (s) => s.art === "biomasse" && s.cluster === k && s.preisMittel != null,
-    );
+  type Spanne = { min: number; mittel: number; max: number } | null;
+  const spanneAus = (rs: Strom[]): Spanne => {
+    const mitPreis = rs.filter((s) => s.preisMittel != null);
     return mitPreis.length ? spanneVon(mitPreis) : null;
-  });
-  const skala = Math.max(1, ...spannen.map((sp) => sp?.max ?? 0));
-  const anteil = (v: number) => Math.round((v / skala) * 100);
-  return keys.map((k, i) => {
-    const sp = spannen[i] ?? null;
+  };
+  const felder = (sp: Spanne, skala: number) => {
+    const anteil = (v: number) => Math.round((v / skala) * 100);
     return {
-      key: k,
-      label: CLUSTER_LABEL[k] ?? k,
-      orb: `/orbs/cluster/${k}.webp`,
-      farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
       minText: sp ? fmt(sp.min) : "–",
       mittelText: sp ? fmt(sp.mittel) : "–",
       maxText: sp ? fmt(sp.max) : "–",
@@ -430,7 +466,33 @@ function clusterSpannen(
       bisPct: sp ? anteil(sp.max) : 0,
       leer: !sp,
     };
-  });
+  };
+
+  const keys = Object.keys(CLUSTER_LABEL).filter((k) =>
+    pool.some((s) => s.cluster === k),
+  );
+  const clusterRecs = keys.map((k) =>
+    recs.filter((s) => s.art === "biomasse" && s.cluster === k),
+  );
+  const spannen = clusterRecs.map(spanneAus);
+  const skala = Math.max(1, ...spannen.map((sp) => sp?.max ?? 0));
+  return keys.map((k, i) => ({
+    key: k,
+    label: CLUSTER_LABEL[k] ?? k,
+    orb: `/orbs/cluster/${k}.webp`,
+    farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
+    ...felder(spannen[i] ?? null, skala),
+    // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
+    // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
+    unter: materialartGruppen(clusterRecs[i]!)
+      .map((g) => ({ g, sp: spanneAus(g.rs) }))
+      .sort(
+        (a, b) =>
+          (b.sp?.mittel ?? -1) - (a.sp?.mittel ?? -1) ||
+          a.g.label.localeCompare(b.g.label, "de"),
+      )
+      .map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, skala) })),
+  }));
 }
 
 /** Regionenpotenzial je Cluster: Spanne von Preis × t atro in €/a. */

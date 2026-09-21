@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { AuswertungToolbar } from "@/components/auswertung/AuswertungToolbar";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { Detail } from "@/components/stroeme/Detail";
@@ -16,6 +18,7 @@ import type {
   QualitaetsDaten,
   SaisonDaten,
   Sicht,
+  SpannenUnterzeile,
   SpannenZeile,
   StatusZeile,
   VerifZeile,
@@ -85,6 +88,9 @@ export function AuswertungAnsicht({
   const { setze } = useUrlZustand();
   const feedMode = sicht === "feedstock";
   const leer = anzahl === 0;
+  // Akkordeon-Zustand je Modul+Cluster (rein clientseitig, nicht in der URL).
+  const [offen, setOffen] = useState<Record<string, boolean>>({});
+  const flip = (k: string) => setOffen((o) => ({ ...o, [k]: !o[k] }));
   // Cluster-Zeilen togglen die Facette ihrer Art (wie die karte.-Legende):
   // Feedstock-Cluster -> cluster (filtert Biomasse), Output-Gruppen -> gruppe.
   const clusterFacette = feedMode ? "cluster" : "gruppe";
@@ -118,6 +124,38 @@ export function AuswertungAnsicht({
     return seg;
   });
 
+  /** Aufklapp-Pfeil des Akkordeons (eigener Knopf neben der Filter-Zeile). */
+  const caretKnopf = (k: string, auf: boolean) => (
+    <button
+      type="button"
+      className="aw-akk-caret"
+      aria-expanded={auf}
+      aria-label={auf ? "Materialarten verbergen" : "Materialarten anzeigen"}
+      onClick={() => flip(k)}
+    >
+      <i className={`ph-bold ph-caret-${auf ? "up" : "down"}`} aria-hidden />
+    </button>
+  );
+
+  /** Min–Max-Band mit ø-Punkt (Cluster- und Materialart-Zeilen). */
+  const spannBand = (u: SpannenUnterzeile, farbe: string) => (
+    <span className="aw-spannzeile-band">
+      <span className="aw-caption">{u.minText}</span>
+      <span className="aw-spannband">
+        <span
+          className="aw-spannband-fill"
+          style={{
+            left: `${u.vonPct}%`,
+            width: `${Math.max(2, u.bisPct - u.vonPct)}%`,
+            background: farbe,
+          }}
+        />
+        <span className="aw-spannband-punkt" style={{ left: `${u.mittelPct}%` }} />
+      </span>
+      <span className="aw-caption">{u.maxText}</span>
+    </span>
+  );
+
   const kpiModule = kpis.map((k) => (
     <section className="aw-modul aw-kpi" key={k.label}>
       <p className="aw-kpi-wert">
@@ -140,81 +178,135 @@ export function AuswertungAnsicht({
         </span>
       </header>
       <div className="aw-zeilen aw-zeilen--scroll">
-        {cluster.map((z) => (
-          <button
-            type="button"
-            key={z.key}
-            className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}
-            aria-pressed={istAktiv(clusterFacette, z.key)}
-            onClick={() => toggle(clusterFacette, z.key)}
-          >
-            <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
-            <span className="aw-clusterzeile-mitte">
-              <span className="aw-clusterzeile-kopf">
-                <span className="lbl">{z.label}</span>
-                <span className="aw-caption">{z.meta}</span>
-              </span>
-              <span className="aw-balken">
-                <span
-                  className="aw-balken-fill"
-                  style={{ width: `${z.pct}%`, background: z.farbe }}
-                />
-              </span>
-            </span>
-            <span className="aw-zeilenwert">{z.wertText}</span>
-          </button>
-        ))}
+        {cluster.map((z) => {
+          const auf = !!offen[`feed:${z.key}`];
+          return (
+            <div className="aw-akk" key={z.key}>
+              <div className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}>
+                <button
+                  type="button"
+                  className="aw-akk-haupt"
+                  aria-pressed={istAktiv(clusterFacette, z.key)}
+                  onClick={() => toggle(clusterFacette, z.key)}
+                >
+                  <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
+                  <span className="aw-clusterzeile-mitte">
+                    <span className="aw-clusterzeile-kopf">
+                      <span className="lbl">{z.label}</span>
+                      <span className="aw-caption">{z.meta}</span>
+                    </span>
+                    <span className="aw-balken">
+                      <span
+                        className="aw-balken-fill"
+                        style={{ width: `${z.pct}%`, background: z.farbe }}
+                      />
+                    </span>
+                  </span>
+                  <span className="aw-zeilenwert">{z.wertText}</span>
+                </button>
+                {z.unter.length > 0 && caretKnopf(`feed:${z.key}`, auf)}
+              </div>
+              {auf &&
+                z.unter.map((u) => (
+                  <button
+                    type="button"
+                    key={u.key || u.label}
+                    className={
+                      u.key
+                        ? zeilenKlasse("aw-unterzeile", "materialart", u.key)
+                        : "aw-unterzeile"
+                    }
+                    disabled={!u.key}
+                    aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
+                    onClick={u.key ? () => toggle("materialart", u.key) : undefined}
+                  >
+                    <span className="lbl">{u.label}</span>
+                    <span className="aw-balken aw-balken--fein">
+                      <span
+                        className="aw-balken-fill"
+                        style={{ width: `${u.pct}%`, background: z.farbe }}
+                      />
+                    </span>
+                    <span className="aw-caption">{u.meta}</span>
+                    <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
+                  </button>
+                ))}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
 
-  /** Bandbreiten-Modul (Feedstock): eine Korridor-Zeile je Cluster. */
-  const spannenModul = (titel: string, caption: string, zeilen: SpannenZeile[]) => (
+  /** Bandbreiten-Modul (Feedstock): eine Korridor-Zeile je Cluster, aufklappbar je Materialart. */
+  const spannenModul = (
+    modulKey: string,
+    titel: string,
+    caption: string,
+    zeilen: SpannenZeile[],
+  ) => (
     <section className="aw-modul aw-modul--b2">
       <header className="aw-kopf">
         <h3 className="aw-kicker">{titel}</h3>
         <span className="aw-caption">{caption}</span>
       </header>
       <div className="aw-zeilen aw-zeilen--scroll">
-        {zeilen.map((z) => (
-          <button
-            type="button"
-            key={z.key}
-            className={zeilenKlasse("aw-spannzeile", "cluster", z.key)}
-            aria-pressed={istAktiv("cluster", z.key)}
-            onClick={() => toggle("cluster", z.key)}
-          >
-            <span className="aw-spannzeile-kopf">
-              <img className="aw-orb16" src={z.orb} alt="" aria-hidden />
-              <span className="lbl">{z.label}</span>
-              <span className="aw-zeilenwert">
-                {z.leer ? "–" : `ø ${z.mittelText}`}
-              </span>
-            </span>
-            {z.leer ? (
-              <span className="aw-caption">keine Preise im Cluster</span>
-            ) : (
-              <span className="aw-spannzeile-band">
-                <span className="aw-caption">{z.minText}</span>
-                <span className="aw-spannband">
-                  <span
-                    className="aw-spannband-fill"
-                    style={{
-                      left: `${z.vonPct}%`,
-                      width: `${Math.max(2, z.bisPct - z.vonPct)}%`,
-                      background: z.farbe,
-                    }}
-                  />
-                  <span
-                    className="aw-spannband-punkt"
-                    style={{ left: `${z.mittelPct}%` }}
-                  />
-                </span>
-                <span className="aw-caption">{z.maxText}</span>
-              </span>
-            )}
-          </button>
-        ))}
+        {zeilen.map((z) => {
+          const auf = !!offen[`${modulKey}:${z.key}`];
+          return (
+            <div className="aw-akk" key={z.key}>
+              <div className={zeilenKlasse("aw-spannzeile", "cluster", z.key)}>
+                <button
+                  type="button"
+                  className="aw-akk-haupt aw-akk-haupt--spalte"
+                  aria-pressed={istAktiv("cluster", z.key)}
+                  onClick={() => toggle("cluster", z.key)}
+                >
+                  <span className="aw-spannzeile-kopf">
+                    <img className="aw-orb16" src={z.orb} alt="" aria-hidden />
+                    <span className="lbl">{z.label}</span>
+                    <span className="aw-zeilenwert">
+                      {z.leer ? "–" : `ø ${z.mittelText}`}
+                    </span>
+                  </span>
+                  {z.leer ? (
+                    <span className="aw-caption">keine Preise im Cluster</span>
+                  ) : (
+                    spannBand(z, z.farbe)
+                  )}
+                </button>
+                {z.unter.length > 0 && caretKnopf(`${modulKey}:${z.key}`, auf)}
+              </div>
+              {auf &&
+                z.unter.map((u) => (
+                  <button
+                    type="button"
+                    key={u.key || u.label}
+                    className={`${
+                      u.key
+                        ? zeilenKlasse("aw-unterzeile", "materialart", u.key)
+                        : "aw-unterzeile"
+                    } aw-unterzeile--spann`}
+                    disabled={!u.key}
+                    aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
+                    onClick={u.key ? () => toggle("materialart", u.key) : undefined}
+                  >
+                    <span className="aw-spannzeile-kopf">
+                      <span className="lbl">{u.label}</span>
+                      <span className="aw-zeilenwert aw-zeilenwert--sm">
+                        {u.leer ? "–" : `ø ${u.mittelText}`}
+                      </span>
+                    </span>
+                    {u.leer ? (
+                      <span className="aw-caption">keine Preise</span>
+                    ) : (
+                      spannBand(u, z.farbe)
+                    )}
+                  </button>
+                ))}
+            </div>
+          );
+        })}
       </div>
     </section>
   );
@@ -468,11 +560,12 @@ export function AuswertungAnsicht({
                   {saisonModul("aw-modul aw-modul--w2")}
                   {jahreModul}
                   {spannenModul(
+                    "pot",
                     "regionenpotenzial je cluster.",
                     "Preis × Menge, €/a",
                     potenzial,
                   )}
-                  {spannenModul("preiskorridor je cluster.", "€/t", preisKorridore)}
+                  {spannenModul("kor", "preiskorridor je cluster.", "€/t", preisKorridore)}
                   {qualitaetModul}
                   {statusModul}
                   {belegtypenModul}

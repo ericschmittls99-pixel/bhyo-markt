@@ -3871,6 +3871,88 @@ table.st-tabelle tbody tr:focus-visible {
   transition: left var(--duration-slow) var(--ease-standard);
 }
 
+/* Akkordeon: Cluster-Zeile + Caret-Knopf, darunter Materialart-Unterzeilen.
+   Die Filter-Flaeche und der Aufklapp-Pfeil sind getrennte Knoepfe, weil
+   Zeilenklick weiterhin die Facette togglet. */
+.aw-akk { display: flex; flex-direction: column; }
+.aw-akk-haupt {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+}
+.aw-akk-haupt:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-akk-haupt--spalte { flex-direction: column; align-items: stretch; gap: 6px; }
+.aw-akk-caret {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: 14px;
+  cursor: pointer;
+  outline: none;
+}
+.aw-akk-caret:hover { background: var(--surface-sunken); color: var(--text-primary); }
+.aw-akk-caret:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-spannzeile { position: relative; }
+.aw-spannzeile > .aw-akk-caret { position: absolute; top: 8px; right: 8px; }
+.aw-spannzeile .aw-spannzeile-kopf { padding-right: 26px; }
+
+.aw-unterzeile {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-left: 24px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--type-caption);
+  text-align: left;
+  cursor: pointer;
+  outline: none;
+  transition:
+    background-color var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard);
+}
+.aw-unterzeile:disabled { cursor: default; }
+.aw-unterzeile:not(:disabled):hover { background: var(--surface-hover); }
+.aw-unterzeile:focus-visible { box-shadow: var(--ring-focus-inset); }
+.aw-unterzeile.aktiv { background: var(--surface-selected); }
+.aw-unterzeile.gedimmt { opacity: 0.45; }
+.aw-unterzeile .lbl {
+  flex: 0 1 auto;
+  max-width: 45%;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.aw-unterzeile .aw-balken { flex: 1; }
+.aw-unterzeile--spann { flex-direction: column; align-items: stretch; gap: 4px; }
+.aw-unterzeile--spann .lbl { max-width: none; }
+.aw-unterzeile--spann .aw-spannzeile-kopf { padding-right: 0; }
+.aw-zeilenwert--sm { font-size: 13px; min-width: 48px; text-align: right; }
+
 /* Naechste Verifizierung */
 .aw-verifzeile { height: 32px; padding: 0 8px; }
 .aw-verifdatum { white-space: nowrap; }
