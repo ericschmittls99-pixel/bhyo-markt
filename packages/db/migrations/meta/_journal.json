@@ -78,6 +78,13 @@
       "when": 1790069903604,
       "tag": "0010_reserviert_seit",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790073600000,
+      "tag": "0011_materialarten_seed_v2",
+      "breakpoints": true
     }
   ]
 }
