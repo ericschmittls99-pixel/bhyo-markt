@@ -8,6 +8,7 @@ import {
   VerfuegbarkeitsPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { fmtOutputPreis } from "@/lib/energie";
 import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
 
@@ -18,8 +19,8 @@ function preisText(s: Strom): string {
     if (s.preisMin == null && s.preisMax == null) return "–";
     return `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"} €/t`;
   }
-  if (s.preis == null) return "–";
-  return `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim();
+  // E20: erfasste Einheit nicht roh anzeigen, sondern umrechnen (€/MWh, €/t).
+  return fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit);
 }
 
 /** Foto-Grid von stroeme. (V2, Default-Ansicht). Klick oeffnet das Detail-Modal. */

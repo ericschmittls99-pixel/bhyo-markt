@@ -9,6 +9,7 @@ import {
   VerfuegbarkeitsPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { fmtOutputPreis } from "@/lib/energie";
 import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { CLUSTER_LABEL } from "@/lib/farben";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
@@ -111,9 +112,8 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
           ? s.preisMin != null || s.preisMax != null
             ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"}`
             : "–"
-          : s.preis != null
-            ? `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim()
-            : "–",
+          : // E20: umgerechnet in die Anzeigeeinheit statt erfasster Einheit roh.
+            fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit),
     },
     {
       sortKey: "von",
