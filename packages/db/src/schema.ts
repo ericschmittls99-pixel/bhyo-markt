@@ -227,6 +227,9 @@ export const biomassestrom = pgTable("biomassestrom", {
   belegId: uuid("beleg_id").references(() => beleg.id),
   qualitaet: qualitaetsStufe("qualitaet"),
   status: datensatzStatus("status").notNull(),
+  // Weiche Markierung ohne Zeitraum (AP1j): verfuegbar, aber fuer bhyo
+  // reserviert (Projekt steht noch nicht). Unabhaengig von vergabe_zeitraum.
+  reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -272,6 +275,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   belegId: uuid("beleg_id").references(() => beleg.id),
   qualitaet: qualitaetsStufe("qualitaet"),
   status: datensatzStatus("status").notNull(),
+  // Weiche Markierung ohne Zeitraum (AP1j), analog biomassestrom.
+  reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -279,6 +284,48 @@ export const outputBedarf = pgTable("output_bedarf", {
     .notNull()
     .defaultNow(),
 });
+
+/**
+ * Vergabezeitraum (AP1j): Abschnitt innerhalb des Verfuegbarkeitszeitraums,
+ * in dem ein Strom an Dritte oder an bhyo vergeben ist; 0..n je Strom,
+ * genau EIN Elternbezug. Der Verfuegbarkeitsstatus (verfuegbar / vergeben /
+ * reserviert / abgelaufen / noch nicht verfuegbar) wird daraus abgeleitet,
+ * nie gespeichert — Hierarchie und Konventionen in
+ * docs/ap1j-handoff-verfuegbarkeit-vergabe.md. Offene Enden: vergeben_von
+ * leer = ab Verfuegbarkeitsbeginn, vergeben_bis leer = unbefristet; eine
+ * Zeile ganz ohne Datum ist keine Vergabe (CHECK), der Strom bleibt
+ * verfuegbar.
+ */
+export const vergabeZeitraum = pgTable(
+  "vergabe_zeitraum",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
+    outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    vergebenVon: date("vergeben_von"),
+    vergebenBis: date("vergeben_bis"),
+    // Empfaenger als Freitext — Beleg/Begruendung tragen die Quelle.
+    vergebenAn: text("vergeben_an"),
+    // true = an bhyo vergeben (gewonnene Ausschreibung), false = extern.
+    anBhyo: boolean("an_bhyo").notNull().default(false),
+    createdAt: timestamp("created_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      "vergabe_ein_elternteil_check",
+      sql`(${t.biomassestromId} IS NULL) <> (${t.outputBedarfId} IS NULL)`,
+    ),
+    check(
+      "vergabe_mindestens_ein_datum_check",
+      sql`${t.vergebenVon} IS NOT NULL OR ${t.vergebenBis} IS NOT NULL`,
+    ),
+  ],
+);
 
 /** Interesse eines Akteurs an einer Region (max. ein Datensatz je Paar). */
 export const akteurInteresse = pgTable(
