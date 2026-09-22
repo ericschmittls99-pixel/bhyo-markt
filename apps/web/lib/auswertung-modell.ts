@@ -199,6 +199,14 @@ function potenzialWert(v: number): { wert: string; einheit: string } {
     : { wert: fmtZahl(Math.round(v)), einheit: "€/a" };
 }
 
+/** Kumulation (Summe im Zeitraum): /a aus der Einheit nehmen. */
+function skaliereEinheit(
+  kpi: { wert: string; einheit: string },
+  einheitJahr: (u: string) => string,
+): { wert: string; einheit: string } {
+  return { wert: kpi.wert, einheit: einheitJahr(kpi.einheit) };
+}
+
 /** Atro-gewichtetes Preismittel; ohne Atro-Gewichte gleichgewichtet. */
 function preisMittelGewichtet(mitPreis: Strom[]): number {
   let tw = sum(mitPreis, atroVon);
@@ -210,9 +218,15 @@ function preisMittelGewichtet(mitPreis: Strom[]): number {
   return Math.round(sum(mitPreis, (s) => s.preisMittel! * w(s)) / tw);
 }
 
-export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
+export function kpiKarten(
+  recs: Strom[],
+  sicht: Sicht,
+  /** true = Summe im Zeitraum (Kumulation): Raten-Einheiten verlieren das /a. */
+  kumuliert = false,
+): KpiKarte[] {
   const { feed, out } = feedOut(recs);
   const atroSum = sum(feed, atroVon);
+  const einheitJahr = (u: string) => (kumuliert ? u.replace(/\/a\b/g, "") : u);
 
   let mengeKpi: KpiKarte;
   if (sicht === "outputs") {
@@ -234,7 +248,7 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
     );
     mengeKpi = {
       wert: fmtZahl(kwh / 1000),
-      einheit: "MWh/a",
+      einheit: einheitJahr("MWh/a"),
       label: "energiebedarf.",
       caption: [
         "Target-Outputs nach Hu",
@@ -249,9 +263,9 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
     // keine Output-Belege, ein Bedarfszusatz entfaellt.
     mengeKpi = {
       wert: fmtZahl(atroSum),
-      einheit: "t atro/a",
+      einheit: einheitJahr("t atro/a"),
       label: "trockenmasse.",
-      caption: `aus ${fmtZahl(sum(feed, (s) => s.mengeFm ?? 0))} t FM/a`,
+      caption: `aus ${fmtZahl(sum(feed, (s) => s.mengeFm ?? 0))} ${einheitJahr("t FM/a")}`,
     };
   }
 
@@ -304,7 +318,7 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
       potenziale.length === 0
         ? { wert: "–", einheit: "", label: "erlöspotenzial.", caption: "keine Preise in der Auswahl" }
         : {
-            ...potenzialWert(potenziale.reduce((a, b) => a + b, 0)),
+            ...skaliereEinheit(potenzialWert(potenziale.reduce((a, b) => a + b, 0)), einheitJahr),
             label: "erlöspotenzial.",
             caption: `Preis × Menge${ohnePreisNote}`,
           };
@@ -331,7 +345,7 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
       caption: `atro-gewichtet · − = Annahmeentgelt${ohneNote}`,
     };
     potenzialKpi = {
-      ...potenzialWert(potenzialSumme(mitPreis).mittel),
+      ...skaliereEinheit(potenzialWert(potenzialSumme(mitPreis).mittel), einheitJahr),
       label: "feedstock-potenzial.",
       caption: `Verwertungserlöse − Beschaffungskosten${ohneNote}`,
     };

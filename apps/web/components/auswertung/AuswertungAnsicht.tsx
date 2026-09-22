@@ -60,6 +60,10 @@ export function AuswertungAnsicht({
   auswahl,
   bereich,
   sicht,
+  zeitmodus,
+  agg,
+  jahreAuswahl,
+  poolAchse,
   irgendeinFilter,
   detailStrom,
   historie,
@@ -86,6 +90,11 @@ export function AuswertungAnsicht({
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
   sicht: Sicht;
+  /** Zeitbezug (AP1j PR 4): Fenster-Zustand aus der URL. */
+  zeitmodus: "einzeljahr" | "zeitraum";
+  agg: "oe" | "summe";
+  jahreAuswahl: number[];
+  poolAchse: number[];
   irgendeinFilter: boolean;
   detailStrom: Strom | null;
   historie: { zeitpunkt: string; text: string }[];
@@ -590,7 +599,12 @@ export function AuswertungAnsicht({
               style={{ height: `${j.pct}%` }}
             />
           </span>
-          <span className="aw-caption">{j.jahr}</span>
+          <span className="aw-caption">
+            {j.jahr}
+            {j.ueberlaufBis != null && (
+              <span className="aw-jahr-ueberlauf">+ bis {j.ueberlaufBis}</span>
+            )}
+          </span>
         </div>
       ))}
     </div>
@@ -654,6 +668,70 @@ export function AuswertungAnsicht({
         sicht={sicht}
         irgendeinFilter={irgendeinFilter}
       />
+
+      {/* Zeitbezug (AP1j PR 4): Einzeljahr <-> Zeitraum, Jahr-Pillen aus der
+          gedeckelten Pool-Achse, oe <-> Summe nur im Zeitraum-Modus. */}
+      <div className="aw-zeit" role="group" aria-label="Zeitbezug">
+        <span className="aw-mini-switch">
+          <button
+            type="button"
+            className={zeitmodus === "einzeljahr" ? "aktiv" : ""}
+            aria-pressed={zeitmodus === "einzeljahr"}
+            onClick={() => setze({ zeitmodus: null, jahre: null, agg: null })}
+          >
+            Einzeljahr
+          </button>
+          <button
+            type="button"
+            className={zeitmodus === "zeitraum" ? "aktiv" : ""}
+            aria-pressed={zeitmodus === "zeitraum"}
+            onClick={() =>
+              setze({ zeitmodus: "zeitraum", jahre: jahreAuswahl.join(",") })
+            }
+          >
+            Zeitraum
+          </button>
+        </span>
+        <span className="aw-jahr-pillen" role="group" aria-label="Jahre">
+          {poolAchse.map((j) => (
+            <button
+              key={j}
+              type="button"
+              className={`fchip${jahreAuswahl.includes(j) ? " aktiv" : ""}`}
+              aria-pressed={jahreAuswahl.includes(j)}
+              onClick={() => {
+                if (zeitmodus === "einzeljahr") return setze({ jahre: String(j) });
+                const neu = jahreAuswahl.includes(j)
+                  ? jahreAuswahl.filter((x) => x !== j)
+                  : [...jahreAuswahl, j].sort();
+                setze({ jahre: neu.length ? neu.join(",") : null });
+              }}
+            >
+              {j}
+            </button>
+          ))}
+        </span>
+        {zeitmodus === "zeitraum" && (
+          <span className="aw-mini-switch">
+            <button
+              type="button"
+              className={agg === "oe" ? "aktiv" : ""}
+              aria-pressed={agg === "oe"}
+              onClick={() => setze({ agg: null })}
+            >
+              ø pro Jahr
+            </button>
+            <button
+              type="button"
+              className={agg === "summe" ? "aktiv" : ""}
+              aria-pressed={agg === "summe"}
+              onClick={() => setze({ agg: "summe" })}
+            >
+              Summe im Zeitraum
+            </button>
+          </span>
+        )}
+      </div>
 
       <div className="aw-inhalt">
         {leer ? (
