@@ -62,8 +62,6 @@ Nebentag: Die Reservierung erscheint immer zusätzlich als kleiner
 **Stempel mit der Bildmarke** (`res-stempel`, 22 px, quiet-Ton, Tooltip
 „Für bhyo reserviert"), sobald sie nicht selbst der Haupttag ist — bewusst
 keine zweite große Pille, damit die Zeile einspurig bleibt.
-Die zwei auswertung.-Switches (Einzeljahr ↔ Zeitraum, ø ↔ Summe) folgen
-mit AP1j PR 4.
 
 Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
@@ -148,11 +146,22 @@ sunken Track (`--surface-sunken`, Pill-Radius), aktive Option als Karte
 (`--surface-card` + Kartenschatten), Caption-Typo. CO₂ mit tiefgestellter
 2. Schaltet nur die Datenreihe des Moduls, nie die URL.
 
+Ausnahme (AP1j PR 4): Die **Zeitbezug-Zeile** der auswertung. nutzt
+dieselbe Optik für zwei URL-getriebene Switches — Einzeljahr ↔ Zeitraum
+und ø pro Jahr ↔ Summe im Zeitraum (nur im Zeitraum-Modus sichtbar) —
+plus Jahr-Pillen (`fchip`) aus der gedeckelten Pool-Achse. Sie ändern die
+Datenbasis der ganzen Seite und leben deshalb in der URL
+(`zeitmodus`/`jahre`/`agg`).
+
 ## Jahresachse (E16/E17)
 
 - Achse **dynamisch aus den Belegzeiträumen**, lückenlos vom frühesten bis
   zum spätesten Jahr; Jahre ohne Belege als **0-Balken**, nie als Lücke.
   Offene Zeiträume beginnen ab dem aktuellen Jahr (E17).
+- **E16-Deckel** (AP1j PR 4): Die Achse endet bei min(spätestes
+  Zeitraumende, aktuelles Jahr + 10); läuft ein Beleg darüber hinaus,
+  trägt die letzte Säule den Überlauf-Marker „+ bis JJJJ"
+  (Caption, `--text-tertiary`).
 - Säulen füllen die Modulbreite bis ~7 Stück; ab **8 Balken** greift die
   Mindestbreite **52 px** und der Container scrollt horizontal.
 - **Vergangenheit**: Balken-Füllung `0.4`, Beschriftung `0.6`, dazu eine
