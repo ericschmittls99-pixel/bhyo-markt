@@ -342,6 +342,15 @@ zur Verfügung):
   `production` eintippen → Migration läuft, der Deploy folgt
   automatisch.
 - Merge OHNE Migration → schema-gate grün → Deploy wie bisher.
+- „Produktions-DB nicht erreichbar" ist eine EIGENE Fehlerklasse (Exit 2,
+  eigene Meldung nach 3 Versuchen mit Wartezeit gegen den Neon-Kaltstart)
+  und bedeutet NICHT „Migration ausstehend" — Migrate Production hilft
+  dann nicht, sondern Neustart des Laufs bzw. Neon-Status prüfen.
+- Notausgang (Break-Glass): Blockiert ein defektes Gate seine eigene
+  Reparatur, lässt sich der Deploy-Workflow manuell mit dem Eingabefeld
+  `gate_umgehen` = wörtlich `ja` starten — nur auf dem dispatch-Pfad,
+  nie bei einem Push, mit lauter Warnung im Log. Danach Schema-Stand von
+  Hand prüfen und den Gate-Defekt sofort beheben.
 
 **Neon-Endpoints (vor JEDER manuellen Migration den Host der
 DATABASE_URL gegen diese Tabelle prüfen):**

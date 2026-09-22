@@ -9,6 +9,15 @@ on:
   # kein Token-/paths-Problem — Einzelfall-Drop). Damit laesst sich der
   # Production-Deploy ohne leeren Trigger-Commit nachholen.
   workflow_dispatch:
+    inputs:
+      # Break-Glass fuer das schema-gate (E21): Ein fehlerhaftes Gate wuerde
+      # sonst auch den Deploy seiner eigenen Reparatur blockieren —
+      # geschlossene Schleife. Greift NUR auf dem dispatch-Pfad, nie bei
+      # einem Push; bewusst unbequem (woertliche Eingabe).
+      gate_umgehen:
+        description: 'NOTAUSGANG: schema-gate umgehen — nur bei kaputtem Gate, woertlich "ja" eintippen'
+        required: false
+        default: ""
 
 # Pro Ziel-Ref nur ein Deploy gleichzeitig; laufende überholte Deploys abbrechen.
 concurrency:
@@ -46,10 +55,21 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      # Der Notausgang greift nur hier: Bei einem Push existiert der Input
+      # nicht (leer), das Gate laeuft also IMMER. Nur ein manueller
+      # workflow_dispatch mit woertlich "ja" ueberspringt die Pruefung.
       - name: Schema-Stand pruefen (read-only)
+        if: inputs.gate_umgehen != 'ja'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: pnpm --filter @bhyo/db schema-gate
+      - name: "NOTAUSGANG aktiv: Gate uebersprungen"
+        if: inputs.gate_umgehen == 'ja'
+        run: |
+          echo "::warning title=SCHEMA-GATE UEBERSPRUNGEN::Break-Glass gate_umgehen=ja — der Deploy laeuft OHNE Schema-Pruefung. Nur zulaessig, wenn das Gate selbst defekt ist. Schema-Stand danach von Hand pruefen (pnpm --filter @bhyo/db schema-stand) und den Gate-Defekt sofort beheben."
+          echo "=============================================================="
+          echo "  NOTAUSGANG: schema-gate wurde bewusst umgangen (gate_umgehen=ja)"
+          echo "=============================================================="
 
   deploy:
     needs: [schema-gate]

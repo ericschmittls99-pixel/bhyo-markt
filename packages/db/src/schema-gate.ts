@@ -8,7 +8,8 @@
  *
  * Aufruf: tsx src/schema-gate.ts [stand]
  *   ohne Argument  Gate: Exit 1 mit Handlungsanweisung, wenn die DB hinter
- *                  dem Journal zurueckliegt
+ *                  dem Journal zurueckliegt; Exit 2, wenn die DB nicht
+ *                  erreichbar ist (kein Schema-Befund — andere Fehlerklasse)
  *   "stand"        gibt den angewendeten Stand aus (Anzahl + letzte Migration)
  */
 import { readFileSync } from "node:fs";
@@ -30,15 +31,53 @@ if (!url) {
   process.exit(1);
 }
 
-const sql = postgres(url, { max: 1, fetch_types: false });
-let whens: number[] = [];
-try {
-  const rows = await sql`SELECT created_at FROM drizzle.__drizzle_migrations`;
-  whens = rows.map((r) => Number(r.created_at));
-} catch {
-  // Migrationstabelle fehlt (nie migrierte DB) -> alles gilt als ausstehend.
-} finally {
-  await sql.end().catch(() => {});
+// Zwei Fehlerklassen, die NICHT dieselbe Meldung bekommen duerfen (Review
+// Eric 22.09.2026): Eine fehlende Migrationstabelle (Postgres 42P01,
+// undefined_table) ist ein echter Schema-Befund — nie migrierte DB, alles
+// ausstehend. Jeder andere Fehler (Timeout, Auth, DNS) ist KEIN Befund zum
+// Schema-Stand; wer beide vermischt, trainiert sich an, Blockaden per
+// Neustart wegzuklicken. Neon suspendiert bei Inaktivitaet, deshalb faengt
+// eine kurze Retry-Schleife den Kaltstart ab, bevor "nicht erreichbar"
+// gemeldet wird.
+const VERSUCHE = 3;
+const WARTE_MS = 5000;
+
+// Node verpackt parallele Connect-Fehler (IPv4+IPv6) als AggregateError,
+// dessen String-Form die Ursache verschluckt — fuer die Meldung auspacken.
+function fehlerText(f: unknown): string {
+  if (f instanceof AggregateError && f.errors[0] !== undefined) return String(f.errors[0]);
+  return f instanceof Error ? `${f.name}: ${f.message}` : String(f);
+}
+
+let whens: number[] | null = null;
+let letzterFehler: unknown;
+for (let versuch = 1; versuch <= VERSUCHE && whens === null; versuch++) {
+  const sql = postgres(url, { max: 1, fetch_types: false, connect_timeout: 20 });
+  try {
+    const rows = await sql`SELECT created_at FROM drizzle.__drizzle_migrations`;
+    whens = rows.map((r) => Number(r.created_at));
+  } catch (fehler) {
+    if ((fehler as { code?: string }).code === "42P01") {
+      whens = []; // Migrationstabelle fehlt: nie migrierte DB, alles ausstehend.
+    } else {
+      letzterFehler = fehler;
+      console.error(`Verbindungsversuch ${versuch}/${VERSUCHE} fehlgeschlagen: ${fehlerText(fehler)}`);
+      if (versuch < VERSUCHE) await new Promise((r) => setTimeout(r, WARTE_MS));
+    }
+  } finally {
+    await sql.end().catch(() => {});
+  }
+}
+
+if (whens === null) {
+  console.error(
+    `Produktions-DB nicht erreichbar (${VERSUCHE} Versuche): ${fehlerText(letzterFehler)}. ` +
+      `Das ist KEIN Schema-Rueckstand, sondern ein Verbindungsproblem — es gibt keinen ` +
+      `Befund zum Schema-Stand. Moegliche Ursache: Neon-Kaltstart oder Netz. ` +
+      `Lauf erneut starten; bei wiederholtem Fehlschlag DB-Status in Neon pruefen. ` +
+      `NICHT der Fall "Migration ausstehend" — Migrate Production hilft hier nicht.`,
+  );
+  process.exit(2);
 }
 
 const angewendet = new Set(whens);
