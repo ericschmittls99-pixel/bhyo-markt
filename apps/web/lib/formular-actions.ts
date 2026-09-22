@@ -1,6 +1,6 @@
 "use server";
 
-import { biomassestrom, outputBedarf } from "@bhyo/db/schema";
+import { biomassestrom, outputBedarf, vergabeZeitraum } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -13,7 +13,7 @@ import {
   text,
   ValidierungsFehler,
 } from "@/lib/beleg-server";
-import { currentUserEmail, withDb } from "@/lib/db";
+import { currentUserEmail, withDb, type AppDb } from "@/lib/db";
 import {
   herkunftOderNull,
   monatZuBis,
@@ -23,6 +23,11 @@ import {
   type FormularEingaben,
 } from "@/lib/formular-modell";
 import type { StromArt } from "@/lib/stroeme-modell";
+import {
+  validiereVergaben,
+  vergabenZuWerten,
+  type VergabeFormZeile,
+} from "@/lib/verfuegbarkeit";
 
 export interface SpeichernErgebnis {
   ok?: boolean;
@@ -77,7 +82,23 @@ export async function stromSpeichern(
   if (!email) return { fehler: "Nicht authentifiziert." };
 
   const eingaben = eingabenAus(formData);
-  const feldFehler = validiereFormular(art, eingaben);
+  // Vergabezeilen (AP1j): das Panel nummeriert lueckenlos ab 0 und legt je
+  // Zeile einen Marker ab — auch Leerzeilen, damit die Fehler-Indizes passen.
+  const vergaben: VergabeFormZeile[] = [];
+  for (let i = 0; formData.get(`vergabe_${i}_marker`) != null; i++) {
+    vergaben.push({
+      vonMonat: s(text(formData, `vergabe_${i}_von`)),
+      bisMonat: s(text(formData, `vergabe_${i}_bis`)),
+      an: s(text(formData, `vergabe_${i}_an`)),
+      anBhyo: formData.get(`vergabe_${i}_bhyo`) === "on",
+    });
+  }
+  const reserviertBhyo = formData.get("reserviert_bhyo") === "on";
+
+  const feldFehler = {
+    ...validiereFormular(art, eingaben),
+    ...validiereVergaben(eingaben.vonMonat, eingaben.bisMonat, vergaben),
+  };
   // Erst validieren, dann hochladen — ein Validierungsfehler darf keine
   // R2-Waisen erzeugen (wie bisher).
   if (Object.keys(feldFehler).length > 0) return { feldFehler };
@@ -95,6 +116,30 @@ export async function stromSpeichern(
       zeitraumVon: monatZuVon(eingaben.vonMonat),
       zeitraumBis: monatZuBis(eingaben.bisMonat),
       saisonalitaet: saisonAusFormData(formData),
+      reserviertBhyo,
+    };
+
+    // Vergabezeilen sind Formular-verwaltete Attribute ohne eigenen Status:
+    // je Speichern vollstaendig ersetzen — die Nachvollziehbarkeit liegt in
+    // der Aenderungshistorie ueber die Begruendungspflicht.
+    const vergabenSpeichern = async (
+      tx: Parameters<Parameters<AppDb["transaction"]>[0]>[0],
+      stromId: string,
+    ) => {
+      const elternSpalte =
+        art === "biomasse"
+          ? vergabeZeitraum.biomassestromId
+          : vergabeZeitraum.outputBedarfId;
+      await tx.delete(vergabeZeitraum).where(eq(elternSpalte, stromId));
+      const werte = vergabenZuWerten(vergaben);
+      if (werte.length)
+        await tx.insert(vergabeZeitraum).values(
+          werte.map((v) => ({
+            ...v,
+            biomassestromId: art === "biomasse" ? stromId : null,
+            outputBedarfId: art === "biomasse" ? null : stromId,
+          })),
+        );
     };
 
     const werte =
@@ -135,6 +180,7 @@ export async function stromSpeichern(
                 status: "entwurf",
               } as never)
               .returning({ id: biomassestrom.id });
+            await vergabenSpeichern(tx, row!.id);
             await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
           } else {
             const [row] = await tx
@@ -146,6 +192,7 @@ export async function stromSpeichern(
                 status: "entwurf",
               } as never)
               .returning({ id: outputBedarf.id });
+            await vergabenSpeichern(tx, row!.id);
             await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
           }
           return;
@@ -173,6 +220,7 @@ export async function stromSpeichern(
             updatedAt: new Date(),
           } as never)
           .where(eq(tabelle.id, id));
+        await vergabenSpeichern(tx, id);
         await logAenderung(tx, entitaetTyp, id, email, begruendung);
       }),
     );
