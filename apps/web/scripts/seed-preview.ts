@@ -24,20 +24,15 @@ import {
   vergabenZuFormZeilen,
 } from "../lib/verfuegbarkeit";
 import { baueSeedDaten, MARKER, STICHTAG } from "./seed-daten";
+import { pruefeSeedZiel } from "./seed-guard";
 
-const url = process.env.SEED_DATABASE_URL_PREVIEW;
-if (!url) {
-  console.error(
-    "Abbruch: SEED_DATABASE_URL_PREVIEW fehlt. Dieses Skript kennt bewusst nur diese eine Variable.",
-  );
-  process.exit(1);
-}
-if (/prod/i.test(url)) {
-  console.error("Abbruch: die URL sieht nach Production aus. Kein Override vorgesehen.");
+const ziel = pruefeSeedZiel(process.env);
+if ("fehler" in ziel) {
+  console.error(`Abbruch: ${ziel.fehler}`);
   process.exit(1);
 }
 
-const sql = createSql(url);
+const sql = createSql(ziel.url);
 const BELEG_MARKER = "SEED-v2 (synthetisch)";
 
 async function main() {
