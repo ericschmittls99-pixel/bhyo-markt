@@ -62,6 +62,8 @@ export interface Strom {
   status: string;
   /** Weiche bhyo-Reservierung (AP1j) — der Verfuegbarkeitsstatus wird daraus abgeleitet. */
   reserviertBhyo: boolean;
+  /** Stempel der Reservierung (Migration 0010); null = nicht reserviert. */
+  reserviertSeit: string | null;
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;

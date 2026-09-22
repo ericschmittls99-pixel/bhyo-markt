@@ -90,6 +90,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           qualitaet: biomassestrom.qualitaet,
           status: biomassestrom.status,
           reserviertBhyo: biomassestrom.reserviertBhyo,
+          reserviertSeit: biomassestrom.reserviertSeit,
           createdAt: biomassestrom.createdAt,
           ...belegSelect,
         })
@@ -132,6 +133,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         qualitaet: outputBedarf.qualitaet,
         status: outputBedarf.status,
         reserviertBhyo: outputBedarf.reserviertBhyo,
+        reserviertSeit: outputBedarf.reserviertSeit,
         createdAt: outputBedarf.createdAt,
         ...belegSelect,
       })
@@ -258,6 +260,7 @@ export function ladeFormularWerte(
           saisonalitaet: biomassestrom.saisonalitaet,
           status: biomassestrom.status,
           reserviertBhyo: biomassestrom.reserviertBhyo,
+          reserviertSeit: biomassestrom.reserviertSeit,
           belegId: biomassestrom.belegId,
           belegTyp: beleg.typ,
           belegLinkUrl: beleg.linkUrl,
@@ -310,6 +313,7 @@ export function ladeFormularWerte(
         saisonalitaet: outputBedarf.saisonalitaet,
         status: outputBedarf.status,
         reserviertBhyo: outputBedarf.reserviertBhyo,
+        reserviertSeit: outputBedarf.reserviertSeit,
         belegId: outputBedarf.belegId,
         belegTyp: beleg.typ,
         belegLinkUrl: beleg.linkUrl,

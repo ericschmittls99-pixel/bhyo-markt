@@ -16,6 +16,7 @@ import {
   fmtPreis,
   fmtZahl,
   fmtZahlungsstrom,
+  fmtMonat,
   fmtZeitraum,
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
@@ -366,7 +367,10 @@ export function Detail({
                   <p className="ov-note">Keine Vergabezeiträume erfasst.</p>
                 )}
                 {s.reserviertBhyo && (
-                  <p className="ov-note">Für bhyo reserviert (ohne Zeitraum).</p>
+                  <p className="ov-note">
+                    Für bhyo reserviert (ohne Zeitraum)
+                    {s.reserviertSeit ? `, seit ${fmtMonat(s.reserviertSeit)}` : ""}.
+                  </p>
                 )}
               </section>
             )}

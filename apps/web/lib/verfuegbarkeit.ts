@@ -86,6 +86,20 @@ export function vergabeLabel(von: string | null, bis: string | null): string {
   return `ab ${fmtMonat(von)} (unbefristet)`;
 }
 
+/**
+ * Stempel-Regel fuer reserviert_seit (Migration 0010): Setzen stempelt den
+ * uebergebenen Stichtag, Editieren bei bestehendem Stempel verjuengt NICHT
+ * (sonst wuerde jedes Speichern die Zusage auffrischen), Abwaehlen nullt.
+ */
+export function naechsteReserviertSeit(
+  reserviert: boolean,
+  bisher: string | null,
+  heute: string,
+): string | null {
+  if (!reserviert) return null;
+  return bisher ?? heute;
+}
+
 // --- Formular-Ebene (Monats-Strings, "" = offenes Ende) ----------------------
 
 export interface VergabeFormZeile {

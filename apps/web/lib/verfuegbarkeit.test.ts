@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
+  naechsteReserviertSeit,
   validiereVergaben,
   vergabeLabel,
   vergabenZuFormZeilen,
@@ -214,6 +215,20 @@ describe("vergabenZuFormZeilen", () => {
         },
       ]),
     ).toEqual([{ vonMonat: "2027-01", bisMonat: "", an: "X", anBhyo: true }]);
+  });
+});
+
+describe("naechsteReserviertSeit", () => {
+  it("Setzen stempelt heute", () => {
+    expect(naechsteReserviertSeit(true, null, "2026-09-22")).toBe("2026-09-22");
+  });
+  it("Editieren stempelt nicht neu — die Zusage wird nicht verjuengt", () => {
+    expect(naechsteReserviertSeit(true, "2026-03-01", "2026-09-22")).toBe(
+      "2026-03-01",
+    );
+  });
+  it("Abwaehlen nullt", () => {
+    expect(naechsteReserviertSeit(false, "2026-03-01", "2026-09-22")).toBeNull();
   });
 });
 

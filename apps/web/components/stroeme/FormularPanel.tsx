@@ -16,7 +16,7 @@ import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
-import { fmtAnteil, fmtDatum, fmtZahl } from "@/lib/format";
+import { fmtAnteil, fmtDatum, fmtMonat, fmtZahl } from "@/lib/format";
 import {
   clusterVonMaterialart,
   gruppeVonProdukt,
@@ -549,6 +549,9 @@ export function FormularPanel({
               <span className="fp-toggle-text">
                 <span>Für bhyo reserviert</span>
                 <span className="c">
+                  {reserviert && werte?.reserviertSeit
+                    ? `Reserviert seit ${fmtMonat(werte.reserviertSeit)}. `
+                    : ""}
                   Weiche Markierung ohne Zeitraum – unabhängig von den
                   Vergabezeiträumen.
                 </span>
