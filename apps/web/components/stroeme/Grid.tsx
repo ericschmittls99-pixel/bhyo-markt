@@ -2,7 +2,11 @@
 
 import { Foto } from "@/components/stroeme/Foto";
 import { Orb } from "@/components/stroeme/Orb";
-import { KonfidenzPill, StatusPillV2 } from "@/components/stroeme/Pillen";
+import {
+  KonfidenzPill,
+  StatusPillV2,
+  VerfuegbarkeitsPill,
+} from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
 import { KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
@@ -97,7 +101,10 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
                 <span className="st-card-neben">{preisText(s)}</span>
               </span>
               <span className="st-card-verf">
-                Verfügbar {fmtZeitraum(s.zeitraumVon, s.zeitraumBis)}
+                {s.verfuegbarkeit && (
+                  <VerfuegbarkeitsPill art={s.art} ergebnis={s.verfuegbarkeit} />
+                )}
+                <span>Verfügbar {fmtZeitraum(s.zeitraumVon, s.zeitraumBis)}</span>
               </span>
             </span>
           </button>

@@ -2604,6 +2604,9 @@ button.leg-toggle.aus {
   white-space: nowrap;
 }
 .st-card-verf {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   font: var(--type-caption);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
