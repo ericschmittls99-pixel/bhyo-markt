@@ -9,8 +9,9 @@
  * sie nach dem Insert nochmals aus der Datenbank.
  *
  * Dokumentierte Spec-Abweichungen (Stammdaten nicht geraten):
- * - "Pflanzenkohle" existiert nicht in output_produkt -> die 6 Slots laufen
- *   als methanol (derivate/target) mit den Pflanzenkohle-Preisen in €/kg.
+ * - Pflanzenkohle ist kein bhyo-Output (Beschluss 22.09.2026, der feste
+ *   Rueckstand des Prozesses ist Asche) -> die 6 urspruenglichen Spec-Slots
+ *   sind umverteilt auf +3 CO2, +2 Synthesegas, +1 Asche.
  * - CO2 ist per Referenztabelle add_on (stofflich, E13), nicht "target".
  */
 
@@ -262,13 +263,12 @@ interface ProduktPlan {
 const PRODUKTE: ProduktPlan[] = [
   { code: "h2_niederdruck", label: "H2 (Niederdruck)", n: 7, einheiten: ["t/a", "MWh/a"], menge: [20, 400], preis: [180, 280], preisEinheit: "€/MWh", abnehmer: ["ÖPNV-Betrieb", "Spedition", "Tankstellenbetreiber"], saison: () => GLEICH },
   { code: "h2_hochdruck", label: "H2 (Hochdruck)", n: 7, einheiten: ["t/a", "MWh/a"], menge: [20, 400], preis: [180, 280], preisEinheit: "€/MWh", abnehmer: ["Chemiepark", "Glasindustrie", "Spedition"], saison: () => GLEICH },
-  { code: "synthesegas", label: "Synthesegas", n: 8, einheiten: ["MWh/a", "Nm³/a"], menge: [2000, 40000], preis: [60, 120], preisEinheit: "€/MWh", abnehmer: ["Industriebetrieb", "Ziegelei", "Papierfabrik"], saison: () => GLEICH },
+  { code: "synthesegas", label: "Synthesegas", n: 10, einheiten: ["MWh/a", "Nm³/a"], menge: [2000, 40000], preis: [60, 120], preisEinheit: "€/MWh", abnehmer: ["Industriebetrieb", "Ziegelei", "Papierfabrik"], saison: () => GLEICH },
   { code: "waerme", label: "Wärme", n: 9, einheiten: ["MWh/a"], menge: [1000, 30000], preis: [40, 90], preisEinheit: "€/MWh", abnehmer: ["Stadtwerke", "Fernwärmenetz", "Schwimmbad", "Gewächshaus"], saison: () => WINTER },
-  { code: "co2", label: "CO2", n: 10, einheiten: ["t/a"], menge: [300, 12000], preis: [0.1, 0.3], preisEinheit: "€/kg", abnehmer: ["Getränkehersteller", "Gewächshaus", "Trockeneis-Service", "Betonwerk"], saison: (a) => (a === "Gewächshaus" ? FRUEHJAHR : a === "Getränkehersteller" ? SOMMER : GLEICH) },
-  // Spec: "Pflanzenkohle (target, 6)" — Code existiert nicht in output_produkt;
-  // dokumentierte Ersatzbelegung als methanol (derivate/target), Preise €/kg.
-  { code: "methanol", label: "Methanol (Ersatz für Pflanzenkohle)", n: 6, einheiten: ["t/a"], menge: [50, 1500], preis: [0.3, 0.8], preisEinheit: "€/kg", abnehmer: ["Landwirtschaft", "Kompostwerk", "Substrathersteller"], saison: () => GLEICH },
-  { code: "asche", label: "Asche", n: 3, einheiten: ["t/a"], menge: [100, 2000], preis: [0, 0.04], preisEinheit: "€/kg", abnehmer: ["Zementwerk", "Baustoffhandel"], saison: () => GLEICH },
+  { code: "co2", label: "CO2", n: 13, einheiten: ["t/a"], menge: [300, 12000], preis: [0.1, 0.3], preisEinheit: "€/kg", abnehmer: ["Getränkehersteller", "Gewächshaus", "Trockeneis-Service", "Betonwerk"], saison: (a) => (a === "Gewächshaus" ? FRUEHJAHR : a === "Getränkehersteller" ? SOMMER : GLEICH) },
+  // Pflanzenkohle entfernt (Beschluss 22.09.2026): kein bhyo-Output, der
+  // feste Rueckstand ist Asche. Die 6 Slots: +3 CO2, +2 Synthesegas, +1 Asche.
+  { code: "asche", label: "Asche", n: 4, einheiten: ["t/a"], menge: [100, 2000], preis: [0, 0.04], preisEinheit: "€/kg", abnehmer: ["Zementwerk", "Baustoffhandel"], saison: () => GLEICH },
 ];
 
 const OUT_SONDER: Record<string, Sonder> = {
@@ -287,9 +287,11 @@ const OUT_SONDER: Record<string, Sonder> = {
   "synthesegas#0": { extern: "laufend", bucket: 2 },
   "synthesegas#1": { bhyo: true, bucket: 2 },
   "synthesegas#2": { ohnePreis: true },
-  "methanol#0": { extern: "teil", bucket: 2 },
-  "methanol#1": { reserviert: true, bucket: 2 },
-  "methanol#2": { ohnePreis: true },
+  // Sonderrollen der entfernten Pflanzenkohle-Slots, 1:1 auf die
+  // aufgestockten Produkte verschoben (§2-Zaehlungen bleiben identisch).
+  "co2#10": { extern: "teil", bucket: 2 },
+  "synthesegas#8": { reserviert: true, bucket: 2 },
+  "asche#3": { ohnePreis: true },
   "asche#0": { reserviert: true, bucket: 2 },
   "asche#1": { ohnePreis: true },
 };

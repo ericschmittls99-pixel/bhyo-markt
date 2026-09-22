@@ -202,15 +202,14 @@ describe("Feedstock §1", () => {
 });
 
 describe("Outputs §2", () => {
-  it("Produkt-Verteilung (Pflanzenkohle-Slots dokumentiert als methanol)", () => {
+  it("Produkt-Verteilung (Pflanzenkohle entfernt: +3 CO2, +2 Synthesegas, +1 Asche)", () => {
     const soll: Record<string, number> = {
       h2_niederdruck: 7,
       h2_hochdruck: 7,
-      synthesegas: 8,
+      synthesegas: 10,
       waerme: 9,
-      co2: 10,
-      methanol: 6,
-      asche: 3,
+      co2: 13,
+      asche: 4,
     };
     const ist: Record<string, number> = {};
     for (const s of outputs) ist[s.produktCode!] = (ist[s.produktCode!] ?? 0) + 1;
@@ -225,7 +224,7 @@ describe("Outputs §2", () => {
         expect(["t/a", "MWh/a"]).toContain(s.mengeEinheit);
       if (p === "synthesegas")
         expect(["MWh/a", "Nm³/a"]).toContain(s.mengeEinheit);
-      if (["waerme", "co2", "methanol", "asche"].includes(p))
+      if (["waerme", "co2", "asche"].includes(p))
         expect(s.mengeEinheit).toBe(p === "waerme" ? "MWh/a" : "t/a");
       if (s.preis == null) continue;
       if (p.startsWith("h2_")) {
