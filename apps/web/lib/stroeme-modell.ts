@@ -2,6 +2,12 @@
 // oder Netzwerkzugriff, damit Client-Komponenten Typen, Labels und die
 // Filter-/Sortierlogik importieren koennen. Die Loader liegen in lib/stroeme.ts.
 
+import {
+  verfuegbarkeitLabel,
+  type VerfuegbarkeitsErgebnis,
+  type VerfuegbarkeitsStatus,
+} from "./verfuegbarkeit";
+
 export type StromArt = "biomasse" | "output";
 
 export interface StromBeleg {
@@ -64,6 +70,8 @@ export interface Strom {
   reserviertBhyo: boolean;
   /** Stempel der Reservierung (Migration 0010); null = nicht reserviert. */
   reserviertSeit: string | null;
+  /** Abgeleiteter Verfuegbarkeitsstatus (PR 3) — nur gesetzt, wo angereichert. */
+  verfuegbarkeit?: VerfuegbarkeitsErgebnis;
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;
@@ -78,6 +86,8 @@ export interface StroemeFilter {
   materialart: string[];
   qualitaet: string[];
   status: string[];
+  /** Abgeleiteter Verfuegbarkeitsstatus (PR 3), Werte = VerfuegbarkeitsStatus. */
+  verfuegbarkeit: string[];
   belegtyp: string[];
   landkreis: string[];
   produkt: string[];
@@ -100,6 +110,7 @@ export const LEERER_FILTER: StroemeFilter = {
   materialart: [],
   qualitaet: [],
   status: [],
+  verfuegbarkeit: [],
   belegtyp: [],
   landkreis: [],
   produkt: [],
@@ -120,6 +131,7 @@ export const FACETTEN: Record<StromArt, { key: keyof StroemeFilter; label: strin
     { key: "materialart", label: "Materialart" },
     { key: "qualitaet", label: "Qualität" },
     { key: "status", label: "Status" },
+    { key: "verfuegbarkeit", label: "Verfügbarkeit" },
     { key: "belegtyp", label: "Belegtyp" },
   ],
   output: [
@@ -129,6 +141,7 @@ export const FACETTEN: Record<StromArt, { key: keyof StroemeFilter; label: strin
     { key: "produkt", label: "Output" },
     { key: "qualitaet", label: "Qualität" },
     { key: "status", label: "Status" },
+    { key: "verfuegbarkeit", label: "Verfügbarkeit" },
     { key: "belegtyp", label: "Belegtyp" },
   ],
 };
@@ -202,6 +215,8 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
       return s.qualitaet ? [s.qualitaet] : [];
     case "status":
       return [s.status];
+    case "verfuegbarkeit":
+      return s.verfuegbarkeit ? [s.verfuegbarkeit.status] : [];
     case "belegtyp":
       return s.beleg ? [s.beleg.typ] : [];
     case "landkreis":
@@ -357,6 +372,18 @@ export function facettenOptionen(
       { wert: "geprueft", label: "Geprüft" },
       { wert: "verworfen", label: "Verworfen" },
     ],
+    // Feste 6er-Liste (kein ausPool: der Status ist abgeleitet und soll auch
+    // waehlbar sein, wenn er gerade nicht vorkommt); Labels je Stromart.
+    verfuegbarkeit: (
+      [
+        "verfuegbar",
+        "vergeben_extern",
+        "vergeben_bhyo",
+        "reserviert_bhyo",
+        "noch_nicht_verfuegbar",
+        "abgelaufen",
+      ] as VerfuegbarkeitsStatus[]
+    ).map((w) => ({ wert: w, label: verfuegbarkeitLabel(art, w) })),
     belegtyp: fest(BELEG_LABEL),
   };
 
@@ -404,6 +431,7 @@ export function filterAusSearchParams(sp: SearchParamsRoh): StroemeFilter {
     materialart: liste(sp.materialart),
     qualitaet: liste(sp.qualitaet),
     status: liste(sp.status),
+    verfuegbarkeit: liste(sp.verfuegbarkeit),
     belegtyp: liste(sp.belegtyp),
     landkreis: liste(sp.landkreis),
     produkt: liste(sp.produkt),
@@ -432,6 +460,7 @@ export const GETEILTE_FILTER_PARAMS = [
   "kategorie",
   "qualitaet",
   "status",
+  "verfuegbarkeit",
   "belegtyp",
   "landkreis",
   "mengeMin",

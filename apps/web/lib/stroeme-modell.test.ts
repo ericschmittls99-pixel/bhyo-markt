@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  facettenOptionen,
   filterAusSearchParams,
   filterStroeme,
   GETEILTE_FILTER_PARAMS,
@@ -83,6 +84,41 @@ describe("gruppe-Facette", () => {
   });
   it("leere Facette lässt alles durch", () => {
     expect(filterStroeme(pool, LEERER_FILTER)).toHaveLength(3);
+  });
+});
+
+describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
+  it("filtert nach dem abgeleiteten Status; Stroeme ohne Ableitung fallen raus", () => {
+    const frei = strom({
+      id: "f",
+      verfuegbarkeit: { status: "verfuegbar", reserviertZusatz: false },
+    });
+    const weg = strom({
+      id: "w",
+      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false },
+    });
+    const ohne = strom({ id: "o" });
+    const erg = filterStroeme([frei, weg, ohne], {
+      ...LEERER_FILTER,
+      verfuegbarkeit: ["verfuegbar"],
+    });
+    expect(erg.map((s) => s.id)).toEqual(["f"]);
+  });
+
+  it("facettenOptionen liefert die feste 6er-Liste mit Art-Labels", () => {
+    const opt = facettenOptionen("output", [], [], {});
+    expect(opt.verfuegbarkeit!.map((o) => o.wert)).toEqual([
+      "verfuegbar",
+      "vergeben_extern",
+      "vergeben_bhyo",
+      "reserviert_bhyo",
+      "noch_nicht_verfuegbar",
+      "abgelaufen",
+    ]);
+    expect(opt.verfuegbarkeit![0]!.label).toBe("Offen");
+    expect(facettenOptionen("biomasse", [], [], {}).verfuegbarkeit![0]!.label).toBe(
+      "Verfügbar",
+    );
   });
 });
 

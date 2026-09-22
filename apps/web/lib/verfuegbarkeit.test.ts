@@ -4,12 +4,14 @@ import {
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
   naechsteReserviertSeit,
+  reichereVerfuegbarkeitAn,
   verfuegbarkeitLabel,
   verfuegbarkeitPill,
   validiereVergaben,
   vergabeLabel,
   vergabenZuFormZeilen,
   vergabenZuWerten,
+  type VerfuegbarkeitsErgebnis,
   type VergabeDaten,
   type VergabeFormZeile,
 } from "./verfuegbarkeit";
@@ -132,6 +134,42 @@ describe("leiteVerfuegbarkeitAb", () => {
         v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
       ]).status,
     ).toBe("reserviert_bhyo");
+  });
+});
+
+describe("reichereVerfuegbarkeitAn", () => {
+  type S = {
+    id: string;
+    zeitraumVon: string | null;
+    zeitraumBis: string | null;
+    reserviertBhyo: boolean;
+    verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+  };
+  const b: Omit<S, "id"> = {
+    zeitraumVon: "2026-01-01",
+    zeitraumBis: "2030-12-31",
+    reserviertBhyo: false,
+  };
+  it("setzt das Feld je Strom aus der Vergaben-Map", () => {
+    const map = new Map([
+      ["a", [v({ vergebenVon: "2026-01-01", vergebenBis: "2027-12-31" })]],
+    ]);
+    const [a, c] = reichereVerfuegbarkeitAn<S>(
+      [
+        { ...b, id: "a" },
+        { ...b, id: "c", reserviertBhyo: true },
+      ],
+      map,
+      "2026-09-22",
+    );
+    expect(a!.verfuegbarkeit?.status).toBe("vergeben_extern");
+    expect(c!.verfuegbarkeit?.status).toBe("reserviert_bhyo");
+  });
+  it("laesst Stroeme ohne Zeitraum unangereichert (kein Raten)", () => {
+    const s: S = { ...b, id: "o", zeitraumVon: null };
+    expect(
+      reichereVerfuegbarkeitAn([s], new Map(), "2026-09-22")[0]!.verfuegbarkeit,
+    ).toBeUndefined();
   });
 });
 

@@ -122,6 +122,42 @@ export function leiteVerfuegbarkeitAb(
   return mit("verfuegbar");
 }
 
+/**
+ * Reichert Stroeme um den abgeleiteten Status an (serverseitig, EIN stichtag
+ * je Request, PR 3). Stroeme ohne vollstaendigen Verfuegbarkeitszeitraum
+ * bleiben unangereichert — kein stummes Raten.
+ */
+export function reichereVerfuegbarkeitAn<
+  T extends {
+    id: string;
+    zeitraumVon: string | null;
+    zeitraumBis: string | null;
+    reserviertBhyo: boolean;
+    verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+  },
+>(
+  stroeme: T[],
+  vergabenJeStrom: Map<string, VergabeDaten[]>,
+  stichtag: string,
+): T[] {
+  return stroeme.map((s) =>
+    s.zeitraumVon && s.zeitraumBis
+      ? {
+          ...s,
+          verfuegbarkeit: leiteVerfuegbarkeitAb(
+            stichtag,
+            {
+              zeitraumVon: s.zeitraumVon,
+              zeitraumBis: s.zeitraumBis,
+              reserviertBhyo: s.reserviertBhyo,
+            },
+            vergabenJeStrom.get(s.id) ?? [],
+          ),
+        }
+      : s,
+  );
+}
+
 /** Anzeige eines Vergabezeitraums; offene Enden nach Handoff-Konvention. */
 export function vergabeLabel(von: string | null, bis: string | null): string {
   if (von && bis) return `${fmtMonat(von)} – ${fmtMonat(bis)}`;
