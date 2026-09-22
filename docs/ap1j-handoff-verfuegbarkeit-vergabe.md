@@ -297,3 +297,41 @@ zum zeitnahen Merge oder zum expliziten Rollback — sonst trägt die
 Preview-DB einen Zustand, der in der Migrationskette von main nicht
 existiert, und der nächste Migrations-PR baut auf etwas auf, das niemand
 mehr rekonstruieren kann.
+
+## E21 — Produktions-Schema-Guardrail (22.09.2026)
+
+**Regel: Eine Migration wird IMMER angewendet, BEVOR der Code deployt
+wird, der sie braucht — nie danach.** Additive, nullable Migrationen
+vertragen sich mit altem Code; umgekehrt gilt das nicht. E21 ist das
+Spiegelbild des Preview-Guardrails oben: dort muss das Schema dem Merge
+vorauslaufen, hier darf der Code dem Schema nie vorauslaufen.
+
+Absicherung (beides im Deploy-Workflow):
+
+- `/api/health` vergleicht die im Build enthaltenen Migrationen
+  (Drizzle-Journal) mit den in der DB angewendeten und antwortet bei
+  Rückstand mit HTTP 503, `schema: behind` und den Namen der fehlenden.
+  Der Production-Deploy ruft den Check nach dem Rollout auf (per
+  Access-Service-Token) und schlägt dann fehl — der Deploy bricht, nicht
+  /register.
+- Der `migrate-production`-Job läuft VOR dem Code-Deploy, sobald ein
+  main-Push Migrationsdateien enthält — hinter dem GitHub-Environment
+  „production" (Secret `DATABASE_URL_PRODUCTION`, Protection Rule mit
+  Pflicht-Freigabe durch Eric). Die Leitplanke „Produktions-DB nur mit
+  ausdrücklicher Freigabe" bleibt; vergessen geht nicht mehr.
+
+**Neon-Endpoints (vor JEDER manuellen Migration den Host der
+DATABASE_URL gegen diese Tabelle prüfen):**
+
+| Umgebung | Hyperdrive | Neon-Host |
+| --- | --- | --- |
+| Production | `bhyo-markt-db` | `ep-purple-glade-b2tra1g7.c-6.eu-central-1.aws.neon.tech` |
+| Preview | `bhyo-markt-db-preview` | `ep-rough-term-b29rvd6c.c-6.eu-central-1.aws.neon.tech` |
+
+Post-Mortem: Am 22.09.2026 waren ströme./karte./auswertung. in
+Production mehrere Stunden ohne Funktion (Merge von PR #35 um 09:47 UTC
+bis zur Migration am Abend), weil 0009/0010 nie auf der Produktions-DB
+lagen und der erste Behebungsversuch den Snapshot- statt den
+Production-Branch migrierte. Künftig verhindert durch die Regel
+Schema-vor-Code samt Workflow-Erzwingung, den Schema-Check in
+/api/health und die Endpoint-Tabelle oben.

@@ -16,7 +16,66 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # E21 (22.09.2026): Stellt fest, ob dieser main-Push Migrationen mitbringt.
+  # Nur dann verlangt der Deploy die Produktions-Migration vorab.
+  migrationsdiff:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      geaendert: ${{ steps.diff.outputs.geaendert }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - id: diff
+        run: |
+          if git diff --name-only HEAD^ HEAD | grep -q '^packages/db/migrations/'; then
+            echo "geaendert=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "geaendert=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # E21: Produktions-Migration LAEUFT VOR dem Code-Deploy (Regel: Schema immer
+  # vor dem Code, der es braucht). Das GitHub-Environment "production" traegt
+  # das Secret DATABASE_URL_PRODUCTION und eine Protection Rule mit
+  # Pflicht-Freigabe durch Eric — die Leitplanke "Produktions-DB nur mit
+  # ausdruecklicher Freigabe" bleibt, der Schritt kann aber nicht mehr
+  # vergessen werden. (Einmalig in den Repo-Settings anzulegen: Environment
+  # "production", Required reviewer Eric, Secret DATABASE_URL_PRODUCTION.)
+  migrate-production:
+    needs: migrationsdiff
+    if: github.event_name != 'pull_request' && needs.migrationsdiff.outputs.geaendert == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Migrate Production-DB
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm exec drizzle-kit migrate
+
   deploy:
+    needs: [migrationsdiff, migrate-production]
+    # PRs laufen immer; main-Pushes nur, wenn die Migration durch ist oder
+    # keine anstand (skipped). Bricht die Migration, deployt kein Code —
+    # dann bricht der Deploy statt /register (E21).
+    if: >-
+      always() && !cancelled() &&
+      (github.event_name == 'pull_request' ||
+       needs.migrate-production.result == 'success' ||
+       needs.migrate-production.result == 'skipped')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -35,9 +94,9 @@ jobs:
 
       # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
       # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
-      # werden muessen. Production wird bewusst NICHT automatisch migriert – das
-      # bleibt ein manueller Schritt mit Freigabe. Der direkte Neon-Connection-
-      # String kommt aus dem Repo-Secret, nie aus dem Repo.
+      # werden muessen. Production laeuft oben im migrate-production-Job mit
+      # Environment-Freigabe (E21). Der direkte Neon-Connection-String kommt aus
+      # dem Repo-Secret, nie aus dem Repo.
       - name: Migrate Preview-DB
         if: github.event_name == 'pull_request'
         working-directory: packages/db
@@ -55,12 +114,34 @@ jobs:
 
       # Push auf main -> Production (Top-Level-Umgebung).
       - name: Deploy Production
-        if: github.event_name == 'push'
+        if: github.event_name != 'pull_request'
         working-directory: apps/web
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy --env=""
+
+      # E21: Nach dem Rollout /api/health befragen — meldet die Antwort
+      # "schema: behind", SCHLAEGT der Deploy FEHL. Braucht ein
+      # Access-Service-Token (Secrets CF_ACCESS_CLIENT_ID/-SECRET), weil
+      # Cloudflare Access curl sonst mit 302 abfaengt; ohne Token wird der
+      # Check uebersprungen und deutlich benannt.
+      - name: Health-Check Production (Schema)
+        if: github.event_name != 'pull_request'
+        env:
+          CF_ACCESS_CLIENT_ID: ${{ secrets.CF_ACCESS_CLIENT_ID }}
+          CF_ACCESS_CLIENT_SECRET: ${{ secrets.CF_ACCESS_CLIENT_SECRET }}
+        run: |
+          if [ -z "$CF_ACCESS_CLIENT_ID" ]; then
+            echo "::warning::Health-Check uebersprungen: CF_ACCESS_CLIENT_ID/-SECRET (Access-Service-Token) fehlen als Secrets."
+            exit 0
+          fi
+          antwort=$(curl -sS --max-time 30 \
+            -H "CF-Access-Client-Id: $CF_ACCESS_CLIENT_ID" \
+            -H "CF-Access-Client-Secret: $CF_ACCESS_CLIENT_SECRET" \
+            https://bhyo-markt.bhyo.workers.dev/api/health)
+          echo "$antwort"
+          echo "$antwort" | grep -q '"schema":"ok"' || { echo "::error::Production-Schema liegt zurueck oder Health nicht lesbar."; exit 1; }
 
       # Pull Request -> Preview-Umgebung.
       - name: Deploy Preview
