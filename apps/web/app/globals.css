@@ -2605,8 +2605,10 @@ button.leg-toggle.aus {
 }
 .st-card-verf {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 4px 8px;
+  min-width: 0;
   font: var(--type-caption);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;
