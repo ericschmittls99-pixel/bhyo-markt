@@ -29,7 +29,7 @@ import {
 import { stromSpeichern, type SpeichernErgebnis } from "@/lib/formular-actions";
 import {
   leiteVerfuegbarkeitAb,
-  VERFUEGBARKEIT_PILL,
+  verfuegbarkeitPill,
   vergabenZuWerten,
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
@@ -564,9 +564,9 @@ export function FormularPanel({
                 {verfuegbarkeit ? (
                   <>
                     <span
-                      className={`spill spill--${VERFUEGBARKEIT_PILL[verfuegbarkeit.status].tone}`}
+                      className={`spill spill--${verfuegbarkeitPill(art, verfuegbarkeit.status).tone}`}
                     >
-                      {VERFUEGBARKEIT_PILL[verfuegbarkeit.status].text}
+                      {verfuegbarkeitPill(art, verfuegbarkeit.status).text}
                     </span>
                     {verfuegbarkeit.reserviertZusatz && (
                       <span className="pill">reserviert (bhyo).</span>

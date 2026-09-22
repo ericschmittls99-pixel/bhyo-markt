@@ -4,6 +4,8 @@ import {
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
   naechsteReserviertSeit,
+  verfuegbarkeitLabel,
+  verfuegbarkeitPill,
   validiereVergaben,
   vergabeLabel,
   vergabenZuFormZeilen,
@@ -130,6 +132,41 @@ describe("leiteVerfuegbarkeitAb", () => {
         v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
       ]).status,
     ).toBe("reserviert_bhyo");
+  });
+});
+
+describe("verfuegbarkeitPill — Label-Saetze je Stromart (Beschluss 22.09.2026)", () => {
+  it("Feedstock-Labels", () => {
+    expect(verfuegbarkeitPill("biomasse", "vergeben_extern").text).toBe(
+      "vergeben (extern).",
+    );
+    expect(verfuegbarkeitPill("biomasse", "verfuegbar").text).toBe("verfügbar.");
+  });
+  it("Output-Labels: gedeckt/offen", () => {
+    expect(verfuegbarkeitPill("output", "vergeben_extern").text).toBe(
+      "gedeckt (extern).",
+    );
+    expect(verfuegbarkeitPill("output", "vergeben_bhyo").text).toBe(
+      "gedeckt (bhyo).",
+    );
+    expect(verfuegbarkeitPill("output", "verfuegbar").text).toBe("offen.");
+    expect(verfuegbarkeitPill("output", "reserviert_bhyo").text).toBe(
+      "reserviert (bhyo).",
+    );
+  });
+  it("Toene sind je Status identisch, unabhaengig von der Art", () => {
+    expect(verfuegbarkeitPill("output", "verfuegbar").tone).toBe(
+      verfuegbarkeitPill("biomasse", "verfuegbar").tone,
+    );
+  });
+  it("Filter-Labels in normaler Orthographie", () => {
+    expect(verfuegbarkeitLabel("biomasse", "vergeben_extern")).toBe(
+      "Vergeben (extern)",
+    );
+    expect(verfuegbarkeitLabel("output", "verfuegbar")).toBe("Offen");
+    expect(verfuegbarkeitLabel("biomasse", "noch_nicht_verfuegbar")).toBe(
+      "Noch nicht verfügbar",
+    );
   });
 });
 
