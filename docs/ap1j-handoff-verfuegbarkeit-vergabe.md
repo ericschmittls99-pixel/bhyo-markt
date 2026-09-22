@@ -165,7 +165,18 @@ Monate bis 06/2028 zählen zur vergebenen Menge, ab 07/2028 zur freien.
   Einzeljahr sind beide identisch.
 - **Status-Filter**: verfügbar / vergeben (extern) / vergeben (bhyo) /
   reserviert (bhyo) / noch nicht verfügbar / abgelaufen.
-  **Default: alles außer abgelaufen.**
+  **Ohne Vorauswahl** (Nachtrag 22.09.2026 — der frühere Default „alles
+  außer abgelaufen" ist gestrichen): Bezugsjahr (E18) und monatsscharfe
+  Rechnung (E19) entscheiden bereits, was zählt — ein Beleg außerhalb
+  des Bezugsjahres fällt mit 0 Monatsanteilen heraus. Zwei Mechanismen
+  für dieselbe Aufgabe, einer davon unsichtbar, wären einer zu viel.
+  Der Status-Filter bleibt manuelles Werkzeug, nicht Default.
+- Offene Beobachtung, **keine Entscheidung** (22.09.2026): Ein Beleg mit
+  Verfügbarkeit bis 06/2026 ist heute „abgelaufen", trägt aber für
+  Bezugsjahr 2026 seine Jan–Jun-Anteile bei. Rechnerisch korrekt, für
+  eine vorausschauende Bewertung möglicherweise zu viel. Falls das mit
+  echten Daten stört: „ab Monat"-Bezug innerhalb des Bezugsjahres, kein
+  Status-Vorfilter. Erst beobachten.
 - Der Status-Filter wirkt in auswertung. **fensterbezogen**, nicht auf
   heute: „verfügbar" + Fenster ab 07/2028 zeigt einen bis 06/2028
   vergebenen Strom mit seiner freien Menge; im Fenster 2026–2027
@@ -187,9 +198,8 @@ Status-Filter auf heute — deckungsgleich mit der Pille am Beleg. Der Tag
 ist dort in Grid-Karten, Tabelle, Detail und Karten-Panel sichtbar und
 überall filterbar. Zwei Festlegungen für PR ③ (22.09.2026):
 
-- Der Status-Filter startet **ohne Vorauswahl** (alle Status sichtbar);
-  der auswertung.-Default „alles außer abgelaufen" oben bleibt davon
-  unberührt.
+- Der Status-Filter startet **ohne Vorauswahl** (alle Status sichtbar) —
+  wie überall: seit dem Nachtrag oben gilt das auch in auswertung.
 - **Aggregierte Kartenmarker werden nicht nach Status eingefärbt** — die
   Mengen-Codierung (Größe) bleibt unverändert; der Status erscheint je
   Strom im Popover.
