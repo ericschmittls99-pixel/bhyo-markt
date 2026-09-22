@@ -203,6 +203,33 @@ ist dort in Grid-Karten, Tabelle, Detail und Karten-Panel sichtbar und
 - **Aggregierte Kartenmarker werden nicht nach Status eingefärbt** — die
   Mengen-Codierung (Größe) bleibt unverändert; der Status erscheint je
   Strom im Popover.
+- **Exklusiv filtern** (Karten-Review 22.09.2026): In der Sicht „alle"
+  blendet ein aktiver Cluster-Filter die Outputs vollständig aus, ein
+  Gruppe-Filter spiegelbildlich die Feedstocks. Bisher wirkte cluster nur
+  auf die eigene Art und alle Output-Marker (z. B. CO₂) blieben stehen —
+  fühlte sich wie ein wirkungsloser Filter an.
+- **Pool-Prinzip auch auf der Karte**: Facetten-Optionen aus dem
+  UNGEFILTERTEN Pool (wie ströme., nicht wie bisher aus dem gefilterten);
+  in der Sicht „alle" speisen BEIDE Arten die Optionslisten (bisher nur
+  Feedstock). Die Legende zählt aus dem Pool — aktive Auswahl wird
+  markiert, nicht auf 0 genullt — und der Kopf sagt ehrlich
+  „x von y Strömen · n ohne Karten-Pin".
+- **Regionsdarstellung**: Umrisse deutlicher; das Regions-Label wandert
+  hinter die Marker (z-Index) — es überlappte die Orbs.
+- **Grid-Karten ströme.**: Die Verfügbarkeits-Pille steht in der letzten
+  Zeile VOR dem „Verfügbar …"-Datum.
+- Das karte.-Detail (Sidebar) erhält mit PR ③ dieselben Props wie das
+  Register-Detail: Verfügbarkeits-Pille und Sektion vergabe. inkl.
+  „vergeben an" (in PR ② bewusst nur im Register verdrahtet).
+
+## Beleg-ID sichtbar und suchbar (eigenes kleines Paket, 22.09.2026)
+
+Jeder Beleg hat bereits eine UUID (`beleg.id`) — sie wird nutzbar
+gemacht, kein Schema-Change:
+
+- Detail (Popup/Sidebar): Beleg-ID unterhalb des Kopfes anzeigen,
+  kopierbar (Monospace-Caption).
+- Die ströme.-Suche matcht zusätzlich die Beleg-ID (Prefix reicht).
 
 ## Verifikations-Kopplung
 
