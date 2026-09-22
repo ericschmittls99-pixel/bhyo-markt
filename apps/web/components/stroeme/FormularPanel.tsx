@@ -54,6 +54,7 @@ export function FormularPanel({
   produkte,
   landkreise,
   zurueckHref,
+  modal,
 }: {
   art: StromArt;
   werte: FormularWerte | null;
@@ -61,6 +62,8 @@ export function FormularPanel({
   produkte: OutputProduktOption[];
   landkreise: string[];
   zurueckHref?: string;
+  /** true im Grid-Kontext: zentrales Modal wie das Detail, sonst Slide-in-Panel. */
+  modal?: boolean;
 }) {
   const feed = art === "biomasse";
   const neu = werte == null;
@@ -200,7 +203,10 @@ export function FormularPanel({
     : "Ein Bedarf je Abnehmer × Output × Zeitraum.";
 
   return (
-    <div className="ov ov--panel">
+    <>
+      {/* Scrim ohne Klick-Schliessen: ein Fehlklick darf keine Eingaben verwerfen. */}
+      {modal && <div className="ov-scrim" aria-hidden />}
+      <div className={`ov ${modal ? "ov--modal" : "ov--panel"}`}>
       <section role="dialog" aria-label={titel} className="ov-flaeche">
         <div className="ov-kopf">
           <div className="ov-kopf-text">
@@ -883,6 +889,7 @@ export function FormularPanel({
           {toast}
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 }

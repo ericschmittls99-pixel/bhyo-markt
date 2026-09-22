@@ -14,21 +14,11 @@ import { naechsteVerifizierung } from "./verifizierung";
 
 export type Sicht = "feedstock" | "outputs";
 
-export interface KpiStat {
-  wert: string;
-  einheit: string;
-  label: string;
-}
-
 export interface KpiKarte {
   wert: string;
   einheit: string;
   label: string;
   caption: string;
-  /** Ersetzt den grossen Einzelwert durch mehrere kleine Stats (ø-Preise, E14). */
-  stats?: KpiStat[];
-  /** Erlaeuterungstext fuer ein Info-Popover (Feedstock-Saldo, E14). */
-  hinweis?: string;
 }
 
 /** Akkordeon-Unterzeile je Materialart; key leer = kein Code, nicht filterbar. */
@@ -181,29 +171,29 @@ export function auswahlZeile(recs: Strom[]): string {
 }
 
 /**
- * Feedstock-Saldo = Σ Preis × Menge (E14): preis_* ist der signierte
- * Zahlungsstrom aus Sicht bhyo (positiv = bhyo zahlt, negativ = bhyo
- * erhaelt). Die Spanne summiert Min/Max je Position (Rueckfall auf
- * preisMittel) — mengengewichtet, kein Konfidenzintervall.
+ * Feedstock-Potenzial (E18, revidiert aus E14-Saldo): auf Beleg-Ebene bleibt
+ * preis_* der signierte Zahlungsstrom aus Sicht bhyo (positiv = bhyo zahlt,
+ * negativ = bhyo erhaelt Annahmeentgelt). Das POTENZIAL flippt das Vorzeichen
+ * der Aggregation: positiv = Nettoerloes aus Verwertung (gut fuer bhyo),
+ * negativ = Nettobeschaffungskosten. Spanne = Min/Max je Position,
+ * mengengewichtet — beim Flip tauschen Min und Max die Seiten.
  */
-function saldoSumme(mitPreis: Strom[]) {
+function potenzialSumme(mitPreis: Strom[]) {
+  const saldoMin = sum(mitPreis, (s) => (s.preisMin ?? s.preisMittel!) * atroVon(s));
+  const saldoMax = sum(mitPreis, (s) => (s.preisMax ?? s.preisMittel!) * atroVon(s));
   return {
-    min: sum(mitPreis, (s) => (s.preisMin ?? s.preisMittel!) * atroVon(s)),
-    mittel: sum(mitPreis, (s) => s.preisMittel! * atroVon(s)),
-    max: sum(mitPreis, (s) => (s.preisMax ?? s.preisMittel!) * atroVon(s)),
+    min: -saldoMax,
+    mittel: -sum(mitPreis, (s) => s.preisMittel! * atroVon(s)),
+    max: -saldoMin,
   };
 }
 
 /** Anzeige-Skalierung ab |1 Mio| auf Mio. €/a, Vorzeichen bleibt sichtbar. */
-function saldoWert(v: number): { wert: string; einheit: string } {
+function potenzialWert(v: number): { wert: string; einheit: string } {
   return Math.abs(v) >= 1_000_000
     ? { wert: fmtPreis(Math.round(v / 10_000) / 100), einheit: "Mio. €/a" }
     : { wert: fmtZahl(Math.round(v)), einheit: "€/a" };
 }
-
-export const SALDO_HINWEIS =
-  "Zahlungsstrom aus Sicht bhyo: positiv = Nettobeschaffungskosten (bhyo zahlt), " +
-  "negativ = Nettoerlös aus Annahme (bhyo erhält Annahme-/Entsorgungsentgelte).";
 
 /** Atro-gewichtetes Preismittel; ohne Atro-Gewichte gleichgewichtet. */
 function preisMittelGewichtet(mitPreis: Strom[]): number {
@@ -310,7 +300,7 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
       potenziale.length === 0
         ? { wert: "–", einheit: "", label: "erlöspotenzial.", caption: "keine Preise in der Auswahl" }
         : {
-            ...saldoWert(potenziale.reduce((a, b) => a + b, 0)),
+            ...potenzialWert(potenziale.reduce((a, b) => a + b, 0)),
             label: "erlöspotenzial.",
             caption: `Preis × Menge${ohnePreisNote}`,
           };
@@ -318,52 +308,32 @@ export function kpiKarten(recs: Strom[], sicht: Sicht): KpiKarte[] {
     return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
   }
 
-  // Feedstock (E12/E14): Pruefquote, Menge, getrennte ø-Preise, Saldo —
-  // Belegzahl und Erfassungsgrad wandern in die auswahlZeile. Ein gemischter
-  // ø ueber beide Vorzeichen laege nahe null und waere bedeutungslos, darum
-  // Einkaufspreise (>= 0) und Annahmeentgelte (< 0) getrennt.
+  // Feedstock (E12/E18): Pruefquote, Menge, EIN signierter ø-Preis,
+  // Potenzial — Belegzahl und Erfassungsgrad wandern in die auswahlZeile.
   const mitPreis = feed.filter((s) => s.preisMittel != null);
   const ohnePreis = feed.length - mitPreis.length;
   const ohneNote = ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : "";
   let preisKpi: KpiKarte;
-  let saldoKpi: KpiKarte;
+  let potenzialKpi: KpiKarte;
   if (mitPreis.length === 0) {
     const keine = { wert: "–", einheit: "", caption: "keine Preise in der Auswahl" };
-    preisKpi = { ...keine, label: "ø preise." };
-    saldoKpi = { ...keine, label: "feedstock-saldo.", hinweis: SALDO_HINWEIS };
+    preisKpi = { ...keine, label: "ø preis." };
+    potenzialKpi = { ...keine, label: "feedstock-potenzial." };
   } else {
-    const einkauf = mitPreis.filter((s) => s.preisMittel! >= 0);
-    const annahme = mitPreis.filter((s) => s.preisMittel! < 0);
-    const stats: KpiStat[] = [];
-    if (einkauf.length)
-      stats.push({
-        wert: fmtPreis(preisMittelGewichtet(einkauf)),
-        einheit: "€/t",
-        label: `ø einkaufspreis (n=${einkauf.length})`,
-      });
-    if (annahme.length)
-      stats.push({
-        wert: fmtPreis(-preisMittelGewichtet(annahme)),
-        einheit: "€/t",
-        label: `ø annahmeentgelt (n=${annahme.length})`,
-      });
     preisKpi = {
-      wert: "",
-      einheit: "",
-      label: "ø preise.",
-      caption: `atro-gewichtet${ohneNote}`,
-      stats,
+      wert: fmtPreis(preisMittelGewichtet(mitPreis)),
+      einheit: "€/t",
+      label: "ø preis.",
+      caption: `atro-gewichtet · − = Annahmeentgelt${ohneNote}`,
     };
-    const s = saldoSumme(mitPreis);
-    saldoKpi = {
-      ...saldoWert(s.mittel),
-      label: "feedstock-saldo.",
-      caption: `Spanne ${fmtZahl(Math.round(s.min))} – ${fmtZahl(Math.round(s.max))} €/a · Min/Max je Position, mengengewichtet`,
-      hinweis: SALDO_HINWEIS,
+    potenzialKpi = {
+      ...potenzialWert(potenzialSumme(mitPreis).mittel),
+      label: "feedstock-potenzial.",
+      caption: `Verwertungserlöse − Beschaffungskosten${ohneNote}`,
     };
   }
 
-  return [geprueftKpi, mengeKpi, preisKpi, saldoKpi];
+  return [geprueftKpi, mengeKpi, preisKpi, potenzialKpi];
 }
 
 /**
@@ -528,15 +498,25 @@ function jahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
       .filter((iso): iso is string => iso != null)
       .map((iso) => Number(iso.slice(0, 4))),
   );
+  // Offene Zeitraeume (E17) starten ab dem aktuellen Jahr — das gehoert
+  // dann auch auf die Achse, selbst wenn kein Beleg es explizit nennt.
+  if (recs.some((s) => s.zeitraumVon == null || s.zeitraumBis == null))
+    jahre.push(aktuellesJahr);
   const lo = jahre.length ? Math.min(...jahre) : aktuellesJahr;
   const hi = jahre.length ? Math.max(...jahre) : aktuellesJahr;
   return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
 }
 
-/** Jahres-Summe je Kalenderjahr des Zeitraums; offene Zeitraeume zaehlen ueber die ganze Achse. */
+/**
+ * Jahres-Summe je Kalenderjahr des Zeitraums. Offene Zeitraeume (E17):
+ * ohne Von-Datum zaehlt ein Beleg erst AB dem aktuellen Jahr — nie
+ * rueckwirkend in Jahre, die nur durch fremde historische Belege auf der
+ * Achse sind; ohne Bis-Datum laeuft er bis zum Achsenende durch.
+ */
 function jahresWerte(
   recs: Strom[],
   achse: number[],
+  aktuellesJahr: number,
   wertVon: (s: Strom) => number,
 ): number[] {
   const jahrVon = (iso: string | null, fallback: number) =>
@@ -545,7 +525,7 @@ function jahresWerte(
     sum(
       recs.filter(
         (s) =>
-          jahrVon(s.zeitraumVon, achse[0]!) <= jahr &&
+          jahrVon(s.zeitraumVon, aktuellesJahr) <= jahr &&
           jahrVon(s.zeitraumBis, achse[achse.length - 1]!) >= jahr,
       ),
       wertVon,
@@ -572,7 +552,7 @@ function zuJahresBalken(
 export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken[] {
   const feed = recs.filter((s) => s.art === "biomasse");
   const achse = jahresAchse(feed, aktuellesJahr);
-  return zuJahresBalken(achse, jahresWerte(feed, achse, atroVon), aktuellesJahr);
+  return zuJahresBalken(achse, jahresWerte(feed, achse, aktuellesJahr, atroVon), aktuellesJahr);
 }
 
 /**
@@ -589,12 +569,12 @@ export function outputJahre(
   return {
     energie: zuJahresBalken(
       achse,
-      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, (s) => kwhVon(s) / 1000),
+      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, aktuellesJahr, (s) => kwhVon(s) / 1000),
       aktuellesJahr,
     ),
     stofflich: zuJahresBalken(
       achse,
-      jahresWerte(out.filter(istStofflich), achse, (s) => s.mengeWert ?? 0),
+      jahresWerte(out.filter(istStofflich), achse, aktuellesJahr, (s) => s.mengeWert ?? 0),
       aktuellesJahr,
     ),
   };
@@ -616,8 +596,9 @@ function clusterSpannen(
     const mitPreis = rs.filter((s) => s.preisMittel != null);
     return mitPreis.length ? spanneVon(mitPreis) : null;
   };
-  // Skala ueber alle Zeilen; mit E14 koennen Salden/Preise negativ sein,
-  // daher spannt sie von min(0, kleinstes Min) bis zum groessten Max.
+  // Eine gemeinsame Skala fuer alle Cluster: exakt vom kleinsten Min bis
+  // zum groessten Max ueber alle Zeilen (Eric, E18-Nachtrag) — kein
+  // 0-Anker, die Baender nutzen die volle Breite.
   const felder = (sp: Spanne, lo: number, hi: number) => {
     const anteil = (v: number) => Math.round(((v - lo) / (hi - lo)) * 100);
     return {
@@ -641,30 +622,39 @@ function clusterSpannen(
     recs.filter((s) => s.art === "biomasse" && s.cluster === k),
   );
   const spannen = clusterRecs.map(spanneAus);
-  const lo = Math.min(0, ...spannen.map((sp) => sp?.min ?? 0));
-  const hi = Math.max(lo + 1, ...spannen.map((sp) => sp?.max ?? 0));
+  // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
+  // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
+  const unterje = keys.map((_, i) =>
+    materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
+      .map((g) => ({ g, sp: spanneAus(g.rs) }))
+      .sort(
+        (a, b) =>
+          (b.sp?.mittel ?? Number.NEGATIVE_INFINITY) - (a.sp?.mittel ?? Number.NEGATIVE_INFINITY) ||
+          a.g.label.localeCompare(b.g.label, "de"),
+      ),
+  );
+  // Die Skala umfasst neben den Cluster-Spannen auch jede Materialart —
+  // bei gemischten Vorzeichen ragt eine Materialart sonst ueber die
+  // Cluster-Summe hinaus und Band/oe-Punkt laufen aus der Spur.
+  const belegt = [...spannen, ...unterje.flat().map((u) => u.sp)].filter(
+    (sp): sp is NonNullable<typeof sp> => sp != null,
+  );
+  const lo = belegt.length ? Math.min(...belegt.map((sp) => sp.min)) : 0;
+  const hiRoh = belegt.length ? Math.max(...belegt.map((sp) => sp.max)) : 1;
+  const hi = hiRoh === lo ? lo + 1 : hiRoh;
   return keys.map((k, i) => ({
     key: k,
     label: CLUSTER_LABEL[k] ?? k,
     orb: `/orbs/cluster/${k}.webp`,
     farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
     ...felder(spannen[i] ?? null, lo, hi),
-    // Akkordeon: Materialarten des Clusters auf derselben Skala; ohne Preis
-    // ans Ende (leer markiert), sonst nach Mittelwert absteigend.
-    unter: materialartGruppen(clusterPool[i]!, clusterRecs[i]!)
-      .map((g) => ({ g, sp: spanneAus(g.rs) }))
-      .sort(
-        (a, b) =>
-          (b.sp?.mittel ?? -1) - (a.sp?.mittel ?? -1) ||
-          a.g.label.localeCompare(b.g.label, "de"),
-      )
-      .map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
+    unter: unterje[i]!.map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
   }));
 }
 
-/** Feedstock-Saldo je Cluster (E14): Σ Preis × t atro in €/a, Min/Max je Position. */
-export function saldoZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
-  return clusterSpannen(pool, recs, saldoSumme, (n) => fmtZahl(Math.round(n)));
+/** Feedstock-Potenzial je Cluster (E18): -Σ Preis × t atro in €/a, Min/Max je Position. */
+export function potenzialZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
+  return clusterSpannen(pool, recs, potenzialSumme, (n) => fmtZahl(Math.round(n)));
 }
 
 /**

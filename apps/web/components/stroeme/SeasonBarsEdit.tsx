@@ -93,7 +93,18 @@ export function SeasonBarsEdit({
               onBlur={() => setAktiv((a) => (a === i ? null : a))}
               onKeyDown={(e) => onKey(e, i)}
             >
-              {aktiv === i && <span className="sbe-wert">{v} %</span>}
+              {aktiv === i && (
+                <span
+                  className="sbe-wert"
+                  // Ueber der Balkenspitze, aber in die Flaeche geclampt —
+                  // sonst kollidiert das Label mit der Ueberschrift darueber.
+                  style={{
+                    bottom: `min(calc(100% - 16px), calc(${Math.max(3, v)}% + 4px))`,
+                  }}
+                >
+                  {v} %
+                </span>
+              )}
               <div
                 className="sbar-fill"
                 style={{ height: `${Math.max(3, v)}%` }}
