@@ -122,6 +122,30 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
   });
 });
 
+describe("Beleg-ID-Suche", () => {
+  it("die Freitextsuche findet einen Strom ueber die Beleg-ID (Praefix reicht)", () => {
+    const mit = strom({
+      id: "m",
+      beleg: {
+        id: "3f2a91c4-0000-4000-8000-000000000001",
+        typ: "vertrag",
+        quellenangabe: null,
+        href: null,
+        externNachvollziehbar: false,
+        gueltigBis: null,
+        erhebungsdatum: null,
+        amtlich: null,
+        gespraechsdatum: null,
+        gespraechspartner: null,
+        kernnotiz: null,
+      },
+    });
+    const ohne = strom({ id: "o" });
+    const erg = filterStroeme([mit, ohne], { ...LEERER_FILTER, q: "3f2a91c4" });
+    expect(erg.map((s) => s.id)).toEqual(["m"]);
+  });
+});
+
 describe("GETEILTE_FILTER_PARAMS", () => {
   it("enthält die karte./auswertung.-Parameter inkl. sicht und gruppe", () => {
     expect(GETEILTE_FILTER_PARAMS).toContain("sicht");

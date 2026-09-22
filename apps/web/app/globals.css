@@ -2199,6 +2199,24 @@ button.leg-toggle.aus {
 .fp-zeile--3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
+/* Beleg-ID im Detail-Kopf (Beschluss 22.09.2026): kopierbar, suchbar. */
+.beleg-id {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  font: var(--type-caption);
+  font-family: ui-monospace, "SF Mono", Menlo, monospace;
+  color: var(--text-tertiary);
+}
+.beleg-id:hover {
+  color: var(--text-secondary);
+}
+
 /* AP1j PR 3: Reservierungs-Stempel — Bildmarke statt grosser Pille (Review),
    quiet-Ton wie die reserviert-Pille, passt neben die Verfuegbarkeits-Pille. */
 .res-stempel {

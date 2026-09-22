@@ -11,6 +11,8 @@ import {
 export type StromArt = "biomasse" | "output";
 
 export interface StromBeleg {
+  /** Beleg-UUID — sichtbar im Detail, suchbar in der Freitextsuche (Beschluss 22.09.2026). */
+  id: string;
   typ: string;
   quellenangabe: string | null;
   href: string | null;
@@ -269,6 +271,8 @@ export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
         s.landkreis,
         s.materialartLabel,
         s.produktLabel,
+        // Beleg-ID mitsuchen (Praefix reicht als Substring, niemand tippt 36 Zeichen).
+        s.beleg?.id,
         ...s.regionNamen,
       ]
         .filter(Boolean)
