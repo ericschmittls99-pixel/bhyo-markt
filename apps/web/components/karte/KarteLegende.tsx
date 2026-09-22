@@ -25,7 +25,8 @@ const DEFAULT_HOEHE = 320;
  */
 export function KarteLegende({
   punkte,
-  gesamt,
+  poolPunkte,
+  gesamtStroeme,
   umrisseAn,
   onUmrisseToggle,
   onClusterKlick,
@@ -35,7 +36,9 @@ export function KarteLegende({
   initial,
 }: {
   punkte: KartePunkt[];
-  gesamt: number;
+  /** Ungefilterte Pins — Zeilen-Zaehlung nach Pool-Prinzip (PR 3). */
+  poolPunkte: KartePunkt[];
+  gesamtStroeme: number;
   /** Master-Toggle regionsumrisse. (Review Eric: ohne Einzelauswahl). */
   umrisseAn: boolean;
   onUmrisseToggle: () => void;
@@ -106,8 +109,12 @@ export function KarteLegende({
     speichere({ offen: !zu, hoehe: neu });
   }
 
+  // Pool-Prinzip (Karten-Review 22.09.2026): Zeilen zaehlen aus dem
+  // UNGEFILTERTEN Pool — ein aktiver Filter nullt die uebrigen Zeilen nicht,
+  // die Auswahl bleibt ueber .aktiv markiert.
   const zaehle = (art: "biomasse" | "output", key: string) =>
-    punkte.filter((p) => p.art === art && p.farbeKey === key).length;
+    poolPunkte.filter((p) => p.art === art && p.farbeKey === key).length;
+  const ohnePin = gesamtStroeme - poolPunkte.length;
 
   return (
     <section
@@ -132,7 +139,8 @@ export function KarteLegende({
       <header className="km-legende-kopf">
         <h2>legende.</h2>
         <span className="km-legende-zahl">
-          {punkte.length} von {gesamt}
+          {punkte.length} von {gesamtStroeme} Strömen
+          {ohnePin > 0 ? ` · ${ohnePin} ohne Pin` : ""}
         </span>
         <button
           type="button"

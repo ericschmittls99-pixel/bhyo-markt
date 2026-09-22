@@ -103,6 +103,16 @@ describe("stromZuPunkt", () => {
     expect(spy).not.toHaveBeenCalled();
     spy.mockRestore();
   });
+  it("nimmt den Status-Text mit (Label je Art, PR 3)", () => {
+    const p = stromZuPunkt({
+      ...outputStrom,
+      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false },
+    })!;
+    expect(p.statusText).toBe("gedeckt (extern).");
+  });
+  it("ohne abgeleiteten Status: leerer Text", () => {
+    expect(stromZuPunkt(basis)!.statusText).toBe("");
+  });
 });
 
 describe("markerGroesse (Mockup: 30 + 32·√v, v geclampt 0–1)", () => {

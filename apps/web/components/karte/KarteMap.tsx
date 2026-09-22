@@ -323,7 +323,10 @@ export function KarteMap({
         const ring = qualitaetsRing(p.qualitaet);
         halo.style.border = `${ring.breite}px ${ring.stil} ${ring.farbe}`;
         if (p.id === aktiv) orbEl.classList.add("is-active");
-        el.title = `${p.titel} · ${p.untertitel}`;
+        // Status im Tooltip statt Marker-Faerbung (Beschluss 22.09.2026).
+        el.title = [p.titel, p.untertitel, p.statusText]
+          .filter(Boolean)
+          .join(" · ");
         orbEl.append(halo, fillEl(p.orb));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -366,7 +369,9 @@ export function KarteMap({
         };
         mitglieder.slice(0, layout.sichtbar).forEach((p, i) => {
           const part = machePart(i);
-          part.title = `${p.titel} · ${p.untertitel}`;
+          part.title = [p.titel, p.untertitel, p.statusText]
+            .filter(Boolean)
+            .join(" · ");
           part.style.backgroundImage = `url(${p.orb})`;
           part.addEventListener("click", (e) => {
             e.stopPropagation();
