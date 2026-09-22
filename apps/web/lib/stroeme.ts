@@ -42,6 +42,7 @@ import {
 // --- Laden -----------------------------------------------------------------
 
 const belegSelect = {
+  belegId: beleg.id,
   belegTyp: beleg.typ,
   belegDateiKey: beleg.dateiKey,
   belegLinkUrl: beleg.linkUrl,

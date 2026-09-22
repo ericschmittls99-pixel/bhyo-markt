@@ -243,6 +243,20 @@ export function Detail({
                   )}
                   <span className="pill pill--num">{s.vollstaendigkeit} % vollständig.</span>
                 </div>
+                {s.beleg && (
+                  <button
+                    type="button"
+                    className="beleg-id"
+                    title="Beleg-ID kopieren"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(s.beleg!.id);
+                      zeigeToast("Beleg-ID kopiert");
+                    }}
+                  >
+                    Beleg-ID {s.beleg.id}
+                    <i className="ph ph-copy" aria-hidden />
+                  </button>
+                )}
               </div>
             </div>
             <div className="ov-kopf-aktionen">

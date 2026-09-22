@@ -54,6 +54,7 @@ function num(v: string | null): number | null {
 }
 
 export type BelegZeile = {
+  belegId: string | null;
   belegTyp: string | null;
   belegDateiKey: string | null;
   belegLinkUrl: string | null;
@@ -64,9 +65,10 @@ export type BelegZeile = {
 };
 
 function belegAus(r: BelegZeile): StromBeleg | null {
-  if (!r.belegTyp) return null;
+  if (!r.belegTyp || !r.belegId) return null;
   const m = (r.belegMetadata ?? {}) as Record<string, unknown>;
   return {
+    id: r.belegId,
     typ: r.belegTyp,
     quellenangabe: str(m.quellenangabe),
     href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
