@@ -60,6 +60,8 @@ export interface Strom {
   saisonalitaet: number[] | null;
   qualitaet: string | null;
   status: string;
+  /** Weiche bhyo-Reservierung (AP1j) — der Verfuegbarkeitsstatus wird daraus abgeleitet. */
+  reserviertBhyo: boolean;
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;

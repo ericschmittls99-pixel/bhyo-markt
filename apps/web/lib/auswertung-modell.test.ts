@@ -71,6 +71,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   saisonalitaet: null,
   qualitaet: null,
   status: "entwurf",
+  reserviertBhyo: false,
   erstelltAm: "2026-09-01",
   beleg: null,
   vollstaendigkeit: 0,

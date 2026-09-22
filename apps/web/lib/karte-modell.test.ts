@@ -57,6 +57,7 @@ const basis: Strom = {
   saisonalitaet: null,
   qualitaet: "B",
   status: "geprueft",
+  reserviertBhyo: false,
   erstelltAm: "2026-09-01",
   beleg: null,
   vollstaendigkeit: 70,

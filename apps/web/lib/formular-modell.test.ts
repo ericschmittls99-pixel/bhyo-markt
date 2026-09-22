@@ -44,6 +44,7 @@ const zeile: FormularZeile = {
   preisHerkunft: "schaetzung",
   saisonalitaet: [0, 0, 0, 10, 10, 10, 10, 10, 10, 10, 10, 20],
   status: "entwurf",
+  reserviertBhyo: false,
   belegId: "beleg1",
   belegTyp: "gespraech",
   belegLinkUrl: null,
