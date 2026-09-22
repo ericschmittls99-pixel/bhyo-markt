@@ -5,6 +5,8 @@ import {
   monatZuVon,
   type FeldFehler,
 } from "./formular-modell";
+// Nur Typ-Import — kein Laufzeit-Zyklus mit stroeme-modell.
+import type { StromArt } from "./stroeme-modell";
 
 /**
  * Verfuegbarkeits-/Vergabe-Modell (AP1j PR 2) — reine Logik ohne Datenbank.
@@ -36,26 +38,66 @@ export interface VerfuegbarkeitsErgebnis {
   reserviertZusatz: boolean;
 }
 
-/** Pillen-Text (Kleinschreibung mit Schlusspunkt, V2) und spill-Ton — keine Ampel. */
-export const VERFUEGBARKEIT_PILL: Record<
-  VerfuegbarkeitsStatus,
-  { text: string; tone: string }
-> = {
-  verfuegbar: { text: "verfügbar.", tone: "active" },
-  vergeben_bhyo: { text: "vergeben (bhyo).", tone: "running" },
-  vergeben_extern: { text: "vergeben (extern).", tone: "inactive" },
-  reserviert_bhyo: { text: "reserviert (bhyo).", tone: "quiet" },
-  noch_nicht_verfuegbar: { text: "noch nicht verfügbar.", tone: "quiet" },
-  abgelaufen: { text: "abgelaufen.", tone: "inactive" },
+// Pillen-Texte (Kleinschreibung mit Schlusspunkt, V2) je Stromart — Beschluss
+// 22.09.2026: Ein "vergebener" Output-Bedarf wird in Wirklichkeit bereits von
+// jemand anderem GEDECKT; die Feedstock-Formulierung laese sich falsch herum.
+// Toene je Status identisch, keine Ampel.
+const PILL_TEXT: Record<StromArt, Record<VerfuegbarkeitsStatus, string>> = {
+  biomasse: {
+    verfuegbar: "verfügbar.",
+    vergeben_bhyo: "vergeben (bhyo).",
+    vergeben_extern: "vergeben (extern).",
+    reserviert_bhyo: "reserviert (bhyo).",
+    noch_nicht_verfuegbar: "noch nicht verfügbar.",
+    abgelaufen: "abgelaufen.",
+  },
+  output: {
+    verfuegbar: "offen.",
+    vergeben_bhyo: "gedeckt (bhyo).",
+    vergeben_extern: "gedeckt (extern).",
+    reserviert_bhyo: "reserviert (bhyo).",
+    noch_nicht_verfuegbar: "noch nicht verfügbar.",
+    abgelaufen: "abgelaufen.",
+  },
 };
+
+const PILL_TONE: Record<VerfuegbarkeitsStatus, string> = {
+  verfuegbar: "active",
+  vergeben_bhyo: "running",
+  vergeben_extern: "inactive",
+  reserviert_bhyo: "quiet",
+  noch_nicht_verfuegbar: "quiet",
+  abgelaufen: "inactive",
+};
+
+/** Pillen-Text und -Ton je Stromart (Handoff-Tabelle „Label-Sätze je Stromart"). */
+export function verfuegbarkeitPill(
+  art: StromArt,
+  status: VerfuegbarkeitsStatus,
+): { text: string; tone: string } {
+  return { text: PILL_TEXT[art][status], tone: PILL_TONE[status] };
+}
+
+/** Filter-Options-Label: Pill-Text ohne Schlusspunkt, Grossschreibung am Anfang. */
+export function verfuegbarkeitLabel(
+  art: StromArt,
+  status: VerfuegbarkeitsStatus,
+): string {
+  const t = PILL_TEXT[art][status].slice(0, -1);
+  return t.charAt(0).toUpperCase() + t.slice(1);
+}
 
 /**
  * Erste zutreffende Regel gewinnt (Handoff-Hierarchie 1-5). Offene Enden
  * werden fuer die Pruefung durch Verfuegbarkeitsbeginn/-ende ersetzt.
  * ISO-Strings vergleichen lexikographisch korrekt — kein Date-Parsing noetig.
+ *
+ * `stichtag` statt "heute" (Review 22.09.2026): stroeme./karte. uebergeben
+ * das Serverdatum; auswertung. rechnet fensterbezogen ueber die
+ * Monatszerlegung (PR 4) und ruft diese Funktion NICHT mit einem Jahr auf.
  */
 export function leiteVerfuegbarkeitAb(
-  heute: string,
+  stichtag: string,
   strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean },
   vergaben: VergabeDaten[],
 ): VerfuegbarkeitsErgebnis {
@@ -67,17 +109,53 @@ export function leiteVerfuegbarkeitAb(
     reserviertZusatz: strom.reserviertBhyo && status !== "reserviert_bhyo",
   });
 
-  if (heute > strom.zeitraumBis) return mit("abgelaufen");
-  if (heute < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
+  if (stichtag > strom.zeitraumBis) return mit("abgelaufen");
+  if (stichtag < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
 
   const aktiv = vergaben.find(
     (v) =>
-      heute >= (v.vergebenVon ?? strom.zeitraumVon) &&
-      heute <= (v.vergebenBis ?? strom.zeitraumBis),
+      stichtag >= (v.vergebenVon ?? strom.zeitraumVon) &&
+      stichtag <= (v.vergebenBis ?? strom.zeitraumBis),
   );
   if (aktiv) return mit(aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern");
   if (strom.reserviertBhyo) return mit("reserviert_bhyo");
   return mit("verfuegbar");
+}
+
+/**
+ * Reichert Stroeme um den abgeleiteten Status an (serverseitig, EIN stichtag
+ * je Request, PR 3). Stroeme ohne vollstaendigen Verfuegbarkeitszeitraum
+ * bleiben unangereichert — kein stummes Raten.
+ */
+export function reichereVerfuegbarkeitAn<
+  T extends {
+    id: string;
+    zeitraumVon: string | null;
+    zeitraumBis: string | null;
+    reserviertBhyo: boolean;
+    verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+  },
+>(
+  stroeme: T[],
+  vergabenJeStrom: Map<string, VergabeDaten[]>,
+  stichtag: string,
+): T[] {
+  return stroeme.map((s) =>
+    s.zeitraumVon && s.zeitraumBis
+      ? {
+          ...s,
+          verfuegbarkeit: leiteVerfuegbarkeitAb(
+            stichtag,
+            {
+              zeitraumVon: s.zeitraumVon,
+              zeitraumBis: s.zeitraumBis,
+              reserviertBhyo: s.reserviertBhyo,
+            },
+            vergabenJeStrom.get(s.id) ?? [],
+          ),
+        }
+      : s,
+  );
 }
 
 /** Anzeige eines Vergabezeitraums; offene Enden nach Handoff-Konvention. */

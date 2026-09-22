@@ -21,9 +21,9 @@ import {
   ladeFormularWerte,
   ladeHistorie,
   ladeLandkreisOptionen,
+  ladeAlleVergaben,
   ladeRegionOptionen,
   ladeStroeme,
-  ladeVergaben,
 } from "@/lib/stroeme";
 import {
   FACETTEN,
@@ -34,7 +34,7 @@ import {
   sortiereStroeme,
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
-import { leiteVerfuegbarkeitAb } from "@/lib/verfuegbarkeit";
+import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -69,11 +69,18 @@ export async function RegisterInhalt({
     : "erstellt";
   const richtung = ersterWert(sp.richtung) === "auf" ? ("auf" as const) : ("ab" as const);
 
-  const [pool, regionen, ui] = await Promise.all([
+  const [poolRoh, vergabenMap, regionen, ui] = await Promise.all([
     ladeStroeme(art),
+    ladeAlleVergaben(art),
     ladeRegionOptionen(),
     cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
   ]);
+
+  // AP1j PR 3: Verfuegbarkeitsstatus EINMAL je Request an den Pool anreichern
+  // (stichtag = Serverdatum) — Grid, Tabelle, Detail und die neue Facette
+  // lesen alle dasselbe Feld.
+  const stichtag = new Date().toISOString().slice(0, 10);
+  const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
 
   const gefiltert = filterStroeme(pool, filter);
   const stroeme = sortiereStroeme(gefiltert, sortKey, richtung);
@@ -122,8 +129,12 @@ export async function RegisterInhalt({
   // Nicht im Pool (jenseits des 500er-Limits)? Dann gezielt per ID nachladen.
   const detailId = ersterWert(sp.detail);
   let detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
-  if (detailId && !detailStrom)
-    detailStrom = (await ladeStroeme(art, detailId))[0] ?? null;
+  if (detailId && !detailStrom) {
+    const nachgeladen = (await ladeStroeme(art, detailId))[0] ?? null;
+    detailStrom = nachgeladen
+      ? reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag)[0]!
+      : null;
+  }
   const [historie, ersteAenderung] = detailStrom
     ? await Promise.all([
         ladeHistorie(art, detailStrom.id),
@@ -136,22 +147,9 @@ export async function RegisterInhalt({
       ? ersteAenderung.slice(ersteAenderung.indexOf(": ") + 2)
       : null;
 
-  // AP1j: Vergaben nur fuer das offene Detail laden; EIN heute je Request,
-  // damit Pille und Sektion konsistent aus demselben Stichtag entstehen.
-  const vergaben = detailStrom ? await ladeVergaben(art, detailStrom.id) : [];
-  const heute = new Date().toISOString().slice(0, 10);
-  const verfuegbarkeit =
-    detailStrom?.zeitraumVon && detailStrom.zeitraumBis
-      ? leiteVerfuegbarkeitAb(
-          heute,
-          {
-            zeitraumVon: detailStrom.zeitraumVon,
-            zeitraumBis: detailStrom.zeitraumBis,
-            reserviertBhyo: detailStrom.reserviertBhyo,
-          },
-          vergaben,
-        )
-      : null;
+  // Detail liest denselben angereicherten Status wie Grid/Tabelle/Facette.
+  const vergaben = detailStrom ? (vergabenMap.get(detailStrom.id) ?? []) : [];
+  const verfuegbarkeit = detailStrom?.verfuegbarkeit ?? null;
 
   const resetHref = `/register${art === "output" ? "?tab=output" : ""}`;
 

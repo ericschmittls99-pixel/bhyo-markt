@@ -3,14 +3,19 @@
 import type { ReactNode } from "react";
 
 import { Orb } from "@/components/stroeme/Orb";
-import { KonfidenzPill, StatusPillV2 } from "@/components/stroeme/Pillen";
+import {
+  KonfidenzPill,
+  StatusPillV2,
+  VerfuegbarkeitsPill,
+} from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
 import { CLUSTER_LABEL } from "@/lib/farben";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
 
 interface Spalte {
-  sortKey: string;
+  /** Ohne sortKey ist die Spalte nicht sortierbar (z. B. abgeleiteter Status). */
+  sortKey?: string;
   label: string;
   align?: "right";
   render: (s: Strom) => ReactNode;
@@ -126,6 +131,16 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       render: (s) => <StatusPillV2 status={s.status} />,
     },
     {
+      // Abgeleiteter Verfuegbarkeitsstatus (AP1j PR 3); bewusst ohne sortKey.
+      label: "Verfügbarkeit",
+      render: (s) =>
+        s.verfuegbarkeit ? (
+          <VerfuegbarkeitsPill art={s.art} ergebnis={s.verfuegbarkeit} />
+        ) : (
+          "–"
+        ),
+    },
+    {
       sortKey: "belegtyp",
       label: "Beleg",
       render: (s) => (s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "–"),
@@ -167,22 +182,30 @@ export function Tabelle({
                   key={i}
                   className={c.align === "right" ? "rechts" : undefined}
                   aria-sort={
-                    c.sortKey === sortKey
+                    c.sortKey != null && c.sortKey === sortKey
                       ? richtung === "auf"
                         ? "ascending"
                         : "descending"
                       : undefined
                   }
                 >
-                  <button type="button" className="th-sort" onClick={() => sortiere(c.sortKey)}>
-                    {c.label}
-                    {c.sortKey === sortKey && (
-                      <i
-                        className={`ph-bold ph-arrow-${richtung === "auf" ? "up" : "down"}`}
-                        aria-hidden
-                      />
-                    )}
-                  </button>
+                  {c.sortKey != null ? (
+                    <button
+                      type="button"
+                      className="th-sort"
+                      onClick={() => sortiere(c.sortKey!)}
+                    >
+                      {c.label}
+                      {c.sortKey === sortKey && (
+                        <i
+                          className={`ph-bold ph-arrow-${richtung === "auf" ? "up" : "down"}`}
+                          aria-hidden
+                        />
+                      )}
+                    </button>
+                  ) : (
+                    <span className="th-sort">{c.label}</span>
+                  )}
                 </th>
               ))}
             </tr>

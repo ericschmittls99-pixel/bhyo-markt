@@ -4,10 +4,14 @@ import {
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
   naechsteReserviertSeit,
+  reichereVerfuegbarkeitAn,
+  verfuegbarkeitLabel,
+  verfuegbarkeitPill,
   validiereVergaben,
   vergabeLabel,
   vergabenZuFormZeilen,
   vergabenZuWerten,
+  type VerfuegbarkeitsErgebnis,
   type VergabeDaten,
   type VergabeFormZeile,
 } from "./verfuegbarkeit";
@@ -130,6 +134,77 @@ describe("leiteVerfuegbarkeitAb", () => {
         v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
       ]).status,
     ).toBe("reserviert_bhyo");
+  });
+});
+
+describe("reichereVerfuegbarkeitAn", () => {
+  type S = {
+    id: string;
+    zeitraumVon: string | null;
+    zeitraumBis: string | null;
+    reserviertBhyo: boolean;
+    verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+  };
+  const b: Omit<S, "id"> = {
+    zeitraumVon: "2026-01-01",
+    zeitraumBis: "2030-12-31",
+    reserviertBhyo: false,
+  };
+  it("setzt das Feld je Strom aus der Vergaben-Map", () => {
+    const map = new Map([
+      ["a", [v({ vergebenVon: "2026-01-01", vergebenBis: "2027-12-31" })]],
+    ]);
+    const [a, c] = reichereVerfuegbarkeitAn<S>(
+      [
+        { ...b, id: "a" },
+        { ...b, id: "c", reserviertBhyo: true },
+      ],
+      map,
+      "2026-09-22",
+    );
+    expect(a!.verfuegbarkeit?.status).toBe("vergeben_extern");
+    expect(c!.verfuegbarkeit?.status).toBe("reserviert_bhyo");
+  });
+  it("laesst Stroeme ohne Zeitraum unangereichert (kein Raten)", () => {
+    const s: S = { ...b, id: "o", zeitraumVon: null };
+    expect(
+      reichereVerfuegbarkeitAn([s], new Map(), "2026-09-22")[0]!.verfuegbarkeit,
+    ).toBeUndefined();
+  });
+});
+
+describe("verfuegbarkeitPill — Label-Saetze je Stromart (Beschluss 22.09.2026)", () => {
+  it("Feedstock-Labels", () => {
+    expect(verfuegbarkeitPill("biomasse", "vergeben_extern").text).toBe(
+      "vergeben (extern).",
+    );
+    expect(verfuegbarkeitPill("biomasse", "verfuegbar").text).toBe("verfügbar.");
+  });
+  it("Output-Labels: gedeckt/offen", () => {
+    expect(verfuegbarkeitPill("output", "vergeben_extern").text).toBe(
+      "gedeckt (extern).",
+    );
+    expect(verfuegbarkeitPill("output", "vergeben_bhyo").text).toBe(
+      "gedeckt (bhyo).",
+    );
+    expect(verfuegbarkeitPill("output", "verfuegbar").text).toBe("offen.");
+    expect(verfuegbarkeitPill("output", "reserviert_bhyo").text).toBe(
+      "reserviert (bhyo).",
+    );
+  });
+  it("Toene sind je Status identisch, unabhaengig von der Art", () => {
+    expect(verfuegbarkeitPill("output", "verfuegbar").tone).toBe(
+      verfuegbarkeitPill("biomasse", "verfuegbar").tone,
+    );
+  });
+  it("Filter-Labels in normaler Orthographie", () => {
+    expect(verfuegbarkeitLabel("biomasse", "vergeben_extern")).toBe(
+      "Vergeben (extern)",
+    );
+    expect(verfuegbarkeitLabel("output", "verfuegbar")).toBe("Offen");
+    expect(verfuegbarkeitLabel("biomasse", "noch_nicht_verfuegbar")).toBe(
+      "Noch nicht verfügbar",
+    );
   });
 });
 

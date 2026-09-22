@@ -21,6 +21,10 @@ import {
 } from "@/lib/karte-modell";
 import type { Strom } from "@/lib/stroeme-modell";
 import { updateUiCookie } from "@/lib/ui-state";
+import type {
+  VerfuegbarkeitsErgebnis,
+  VergabeDaten,
+} from "@/lib/verfuegbarkeit";
 
 type Bbox = [number, number, number, number];
 interface PixelBox {
@@ -38,7 +42,8 @@ interface PixelBox {
  */
 export function KarteAnsicht({
   punkte,
-  gesamt,
+  poolPunkte,
+  gesamtStroeme,
   regionen,
   facetten,
   auswahl,
@@ -46,6 +51,8 @@ export function KarteAnsicht({
   sicht,
   detailPunkt,
   detailStrom,
+  detailVerfuegbarkeit,
+  detailVergaben,
   historie,
   begruendung,
   verifizierung,
@@ -55,7 +62,9 @@ export function KarteAnsicht({
   irgendeinFilter,
 }: {
   punkte: KartePunkt[];
-  gesamt: number;
+  /** Ungefilterte Pins beider Arten — Pool-Zaehlung der Legende (PR 3). */
+  poolPunkte: KartePunkt[];
+  gesamtStroeme: number;
   regionen: KarteRegion[];
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
@@ -63,6 +72,8 @@ export function KarteAnsicht({
   sicht: "alle" | "feedstock" | "outputs";
   detailPunkt: KartePunkt | null;
   detailStrom: Strom | null;
+  detailVerfuegbarkeit: VerfuegbarkeitsErgebnis | null;
+  detailVergaben: VergabeDaten[];
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   verifizierung: string | null;
@@ -184,7 +195,8 @@ export function KarteAnsicht({
 
       <KarteLegende
         punkte={punkte}
-        gesamt={gesamt}
+        poolPunkte={poolPunkte}
+        gesamtStroeme={gesamtStroeme}
         umrisseAn={umrisseAn}
         onUmrisseToggle={umrisseToggle}
         onClusterKlick={(k) => facetteToggle("cluster", k)}
@@ -200,6 +212,8 @@ export function KarteAnsicht({
           historie={historie}
           begruendung={begruendung}
           verifizierung={verifizierung}
+          verfuegbarkeit={detailVerfuegbarkeit}
+          vergaben={detailVergaben}
           modal={false}
           canEdit={false}
           stroemeHref={`/register?tab=${detailStrom.art === "biomasse" ? "biomasse" : "output"}&detail=${detailStrom.id}`}

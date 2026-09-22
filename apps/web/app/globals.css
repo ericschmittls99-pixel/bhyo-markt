@@ -2199,6 +2199,23 @@ button.leg-toggle.aus {
 .fp-zeile--3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
+/* AP1j PR 3: Reservierungs-Stempel — Bildmarke statt grosser Pille (Review),
+   quiet-Ton wie die reserviert-Pille, passt neben die Verfuegbarkeits-Pille. */
+.res-stempel {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken-strong);
+}
+.res-stempel img {
+  width: 12px;
+  height: 12px;
+}
+
 /* AP1j: Vergabezeile — Ab/Bis/An + bhyo-Toggle + Entfernen, bricht schmal um. */
 .fp-vergabe {
   display: grid;
@@ -2604,6 +2621,11 @@ button.leg-toggle.aus {
   white-space: nowrap;
 }
 .st-card-verf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  min-width: 0;
   font: var(--type-caption);
   color: var(--text-secondary);
   font-variant-numeric: tabular-nums;

@@ -86,7 +86,9 @@ Hierarchie: Nach dem Vergabe-Ende fällt der Strom auf den Zustand zurück,
 der dann gilt (verfügbar, oder abgelaufen, oder reserviert …).
 
 Nebentag-Regel (präzisiert 22.09.2026): `reserviert_bhyo` erzeugt
-**immer** den Nebentag „reserviert (bhyo)." als kleine Pille, sobald es
+**immer** den Nebentag als kleinen **Stempel mit der Bildmarke** (nicht als
+große Pille — Review 22.09.2026, passt in dieselbe Zeile wie die
+Verfügbarkeits-Pille; Tooltip „Für bhyo reserviert"), sobald es
 nicht selbst der Haupttag ist — nicht nur bei aktiver externer Vergabe.
 Regeln 1–3 bestimmen den Haupttag. Test: Strom mit Reservierung +
 Verfügbarkeit ab 2028, heute 2026 → Haupttag „noch nicht verfügbar.",
@@ -212,8 +214,9 @@ ist dort in Grid-Karten, Tabelle, Detail und Karten-Panel sichtbar und
   UNGEFILTERTEN Pool (wie ströme., nicht wie bisher aus dem gefilterten);
   in der Sicht „alle" speisen BEIDE Arten die Optionslisten (bisher nur
   Feedstock). Die Legende zählt aus dem Pool — aktive Auswahl wird
-  markiert, nicht auf 0 genullt — und der Kopf sagt ehrlich
-  „x von y Strömen · n ohne Karten-Pin".
+  markiert, nicht auf 0 genullt — und der Kopf sagt
+  „x von y Strömen" (ohne Pin-Zusatz, Review 22.09.2026; der Hinweis auf
+  Ströme ohne Karten-Pin bleibt im Legenden-Text).
 - **Regionsdarstellung**: Umrisse deutlicher; das Regions-Label wandert
   hinter die Marker (z-Index) — es überlappte die Orbs.
 - **Grid-Karten ströme.**: Die Verfügbarkeits-Pille steht in der letzten

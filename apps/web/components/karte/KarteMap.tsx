@@ -310,6 +310,8 @@ export function KarteMap({
       el.className = "km-marker";
       el.style.width = `${W}px`;
       el.style.height = `${W}px`;
+      // Ueber den Regions-Labeln (Karten-Review: Label ueberlappte die Orbs).
+      el.style.zIndex = "2";
       const orbEl = document.createElement("div");
       orbEl.className = "km-orb km-neu";
       el.appendChild(orbEl);
@@ -323,7 +325,10 @@ export function KarteMap({
         const ring = qualitaetsRing(p.qualitaet);
         halo.style.border = `${ring.breite}px ${ring.stil} ${ring.farbe}`;
         if (p.id === aktiv) orbEl.classList.add("is-active");
-        el.title = `${p.titel} · ${p.untertitel}`;
+        // Status im Tooltip statt Marker-Faerbung (Beschluss 22.09.2026).
+        el.title = [p.titel, p.untertitel, p.statusText]
+          .filter(Boolean)
+          .join(" · ");
         orbEl.append(halo, fillEl(p.orb));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -366,7 +371,9 @@ export function KarteMap({
         };
         mitglieder.slice(0, layout.sichtbar).forEach((p, i) => {
           const part = machePart(i);
-          part.title = `${p.titel} · ${p.untertitel}`;
+          part.title = [p.titel, p.untertitel, p.statusText]
+            .filter(Boolean)
+            .join(" · ");
           part.style.backgroundImage = `url(${p.orb})`;
           part.addEventListener("click", (e) => {
             e.stopPropagation();
@@ -451,17 +458,19 @@ export function KarteMap({
       bestehend.setData(data as never);
     } else {
       map.addSource(src, { type: "geojson", data: data as never });
+      // Karten-Review 22.09.2026: Umrisse waren zu schwach — Fuellung und
+      // Linie moderat angehoben (Region ist Datenmarkierung, kein Marker).
       map.addLayer({
         id: "km-regionen-fill",
         type: "fill",
         source: src,
-        paint: { "fill-color": LIME, "fill-opacity": 0.06 },
+        paint: { "fill-color": LIME, "fill-opacity": 0.09 },
       });
       map.addLayer({
         id: "km-regionen-line",
         type: "line",
         source: src,
-        paint: { "line-color": LIME, "line-width": 1.5 },
+        paint: { "line-color": LIME, "line-width": 2, "line-opacity": 0.9 },
       });
     }
 
@@ -477,6 +486,8 @@ export function KarteMap({
         const el = document.createElement("button");
         el.type = "button";
         el.className = "km-region-label";
+        // Hinter die Strom-Marker (Karten-Review 22.09.2026).
+        el.style.zIndex = "1";
         el.innerHTML = `<span>${r.name}</span><em>${r.anzahl}</em>`;
         el.addEventListener("click", (e) => {
           e.stopPropagation();

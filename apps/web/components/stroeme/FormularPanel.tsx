@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { AkteurCombobox } from "@/components/AkteurCombobox";
+import { ReserviertStempel } from "@/components/stroeme/Pillen";
 import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
@@ -29,7 +30,7 @@ import {
 import { stromSpeichern, type SpeichernErgebnis } from "@/lib/formular-actions";
 import {
   leiteVerfuegbarkeitAb,
-  VERFUEGBARKEIT_PILL,
+  verfuegbarkeitPill,
   vergabenZuWerten,
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
@@ -564,13 +565,11 @@ export function FormularPanel({
                 {verfuegbarkeit ? (
                   <>
                     <span
-                      className={`spill spill--${VERFUEGBARKEIT_PILL[verfuegbarkeit.status].tone}`}
+                      className={`spill spill--${verfuegbarkeitPill(art, verfuegbarkeit.status).tone}`}
                     >
-                      {VERFUEGBARKEIT_PILL[verfuegbarkeit.status].text}
+                      {verfuegbarkeitPill(art, verfuegbarkeit.status).text}
                     </span>
-                    {verfuegbarkeit.reserviertZusatz && (
-                      <span className="pill">reserviert (bhyo).</span>
-                    )}
+                    {verfuegbarkeit.reserviertZusatz && <ReserviertStempel />}
                   </>
                 ) : (
                   <span className="konf konf--leer">–</span>

@@ -9,7 +9,7 @@ import {
   region,
   vergabeZeitraum,
 } from "@bhyo/db/schema";
-import { and, desc, eq, sql } from "drizzle-orm";
+import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { withDb, type AppDb } from "@/lib/db";
 import {
@@ -178,6 +178,39 @@ export function ladeVergaben(
   id: string,
 ): Promise<VergabeDaten[]> {
   return withDb((db) => vergabenQuery(db, art, id));
+}
+
+/** Alle Vergaben einer Art als Map Strom-ID -> Zeilen (Pool-Anreicherung, PR 3). */
+export function ladeAlleVergaben(
+  art: StromArt,
+): Promise<Map<string, VergabeDaten[]>> {
+  return withDb(async (db) => {
+    const elternSpalte =
+      art === "biomasse"
+        ? vergabeZeitraum.biomassestromId
+        : vergabeZeitraum.outputBedarfId;
+    const rows = await db
+      .select({
+        stromId: elternSpalte,
+        vergebenVon: vergabeZeitraum.vergebenVon,
+        vergebenBis: vergabeZeitraum.vergebenBis,
+        vergebenAn: vergabeZeitraum.vergebenAn,
+        anBhyo: vergabeZeitraum.anBhyo,
+      })
+      .from(vergabeZeitraum)
+      .where(isNotNull(elternSpalte))
+      .orderBy(
+        sql`${vergabeZeitraum.vergebenVon} NULLS FIRST`,
+        vergabeZeitraum.vergebenBis,
+      );
+    const map = new Map<string, VergabeDaten[]>();
+    for (const { stromId, ...v } of rows) {
+      const liste = map.get(stromId!) ?? [];
+      liste.push(v);
+      map.set(stromId!, liste);
+    }
+    return map;
+  });
 }
 
 /** Aenderungshistorie eines Stroms (neueste zuerst). */

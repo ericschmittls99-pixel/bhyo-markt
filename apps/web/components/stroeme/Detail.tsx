@@ -234,7 +234,7 @@ export function Detail({
                     )}
                   </span>
                   {verfuegbarkeit && (
-                    <VerfuegbarkeitsPill ergebnis={verfuegbarkeit} />
+                    <VerfuegbarkeitsPill art={s.art} ergebnis={verfuegbarkeit} />
                   )}
                   {s.beleg && (
                     <span className="pill">

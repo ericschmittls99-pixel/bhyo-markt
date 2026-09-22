@@ -1,5 +1,6 @@
 import { orbSrc } from "./farben";
 import type { Strom } from "./stroeme-modell";
+import { verfuegbarkeitPill } from "./verfuegbarkeit";
 
 /**
  * Reine Karten-Logik (AP1i PR 6) — ohne DOM-, MapLibre- oder DB-Zugriff.
@@ -24,6 +25,8 @@ export interface KartePunkt {
   titel: string;
   untertitel: string;
   ort: string | null;
+  /** Abgeleiteter Verfuegbarkeitsstatus als Pill-Text (PR 3); "" ohne Ableitung. */
+  statusText: string;
 }
 
 /** Strom → Kartenpunkt; null ohne Pin (legitim, kein Fehlerfall). */
@@ -43,6 +46,9 @@ export function stromZuPunkt(s: Strom): KartePunkt | null {
     titel: s.akteurName ?? s.bezeichnung ?? "–",
     untertitel: (feed ? s.materialartLabel : s.produktLabel) ?? "",
     ort: s.ort,
+    statusText: s.verfuegbarkeit
+      ? verfuegbarkeitPill(s.art, s.verfuegbarkeit.status).text
+      : "",
   };
 }
 

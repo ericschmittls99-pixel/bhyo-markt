@@ -7,6 +7,7 @@ import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import { stromZuPunkt, type KartePunkt } from "@/lib/karte-modell";
 import { listRegionGebiete } from "@/lib/register";
 import {
+  ladeAlleVergaben,
   ladeErsteAenderung,
   ladeHistorie,
   ladeRegionOptionen,
@@ -16,9 +17,14 @@ import {
   facettenOptionen,
   filterAusSearchParams,
   filterStroeme,
+  type FacettenOption,
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
+import {
+  reichereVerfuegbarkeitAn,
+  type VergabeDaten,
+} from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
 
@@ -48,23 +54,37 @@ export default async function KartePage({
     : sichtRoh === "outputs" ? ("outputs" as const)
     : ("alle" as const);
 
-  const [bio, out, regionen, umrisse, ui] = await Promise.all([
-    sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
-    sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
-    ladeRegionOptionen(),
-    listRegionGebiete(),
-    cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
-  ]);
+  const leereMap = new Map<string, VergabeDaten[]>();
+  const [bioRoh, outRoh, regionen, umrisse, ui, vergabenBio, vergabenOut] =
+    await Promise.all([
+      sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
+      sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
+      ladeRegionOptionen(),
+      listRegionGebiete(),
+      cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
+      sicht !== "outputs" ? ladeAlleVergaben("biomasse") : Promise.resolve(leereMap),
+      sicht !== "feedstock" ? ladeAlleVergaben("output") : Promise.resolve(leereMap),
+    ]);
 
-  const bioGefiltert = filterStroeme(bio, filter);
-  const outGefiltert = filterStroeme(out, filter);
+  // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
+  // Sidebar und die neue Facette lesen dasselbe Feld.
+  const stichtag = new Date().toISOString().slice(0, 10);
+  const bio = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
+  const out = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
+
+  // Exklusiv filtern (Beschluss 22.09.2026): cluster blendet Outputs aus,
+  // gruppe blendet Feedstock aus — sonst bleibt die fremde Art ungefiltert
+  // stehen (CO2-Orb trotz Cluster-Filter).
+  const bioGefiltert = filter.gruppe.length ? [] : filterStroeme(bio, filter);
+  const outGefiltert = filter.cluster.length ? [] : filterStroeme(out, filter);
   const pool = [...bioGefiltert, ...outGefiltert];
   const punkte = pool
     .map(stromZuPunkt)
     .filter((p): p is KartePunkt => p != null);
-  const gesamt = [...bio, ...out]
+  const poolPunkte = [...bio, ...out]
     .map(stromZuPunkt)
-    .filter((p) => p != null).length;
+    .filter((p): p is KartePunkt => p != null);
+  const gesamtStroeme = bio.length + out.length;
 
   // Regionen: Umriss + Anzahl der (gefilterten) Stroeme, deren Standort in
   // der Region liegt (regionIds kommen fertig aus dem PR-3-Datenpfad).
@@ -75,11 +95,30 @@ export default async function KartePage({
     anzahl: pool.filter((s) => s.regionIds.includes(r.id) && s.lng != null).length,
   }));
 
-  // Facetten je sicht (Delta 1.4): gemeinsame Listen aus facettenOptionen,
-  // gruppe aus den festen Gruppen-Labels.
-  const bioOpt = facettenOptionen("biomasse", bioGefiltert, regionen, CLUSTER_LABEL);
-  const outOpt = facettenOptionen("output", outGefiltert, regionen, CLUSTER_LABEL);
-  const basisOpt = sicht === "outputs" ? outOpt : bioOpt;
+  // Facetten je sicht (Delta 1.4): Optionen aus dem UNGEFILTERTEN Pool
+  // (Pool-Prinzip wie stroeme., Karten-Review 22.09.2026) — Filtern laesst
+  // die Optionslisten nicht mehr zusammenschrumpfen. In der Sicht "alle"
+  // speisen BEIDE Arten die gemeinsamen Listen (Union nach Wert; bei
+  // Label-Konflikt gewinnt Feedstock, dokumentiert im Handoff).
+  const bioOpt = facettenOptionen("biomasse", bio, regionen, CLUSTER_LABEL);
+  const outOpt = facettenOptionen("output", out, regionen, CLUSTER_LABEL);
+  const misch = (a: FacettenOption[] = [], b: FacettenOption[] = []) => {
+    const map = new Map(b.map((o) => [o.wert, o]));
+    for (const o of a) map.set(o.wert, o);
+    return [...map.values()].sort((x, y) => x.label.localeCompare(y.label, "de"));
+  };
+  const basisOpt =
+    sicht === "outputs"
+      ? outOpt
+      : sicht === "feedstock"
+        ? bioOpt
+        : {
+            region: misch(bioOpt.region, outOpt.region),
+            qualitaet: misch(bioOpt.qualitaet, outOpt.qualitaet),
+            status: misch(bioOpt.status, outOpt.status),
+            verfuegbarkeit: misch(bioOpt.verfuegbarkeit, outOpt.verfuegbarkeit),
+            belegtyp: misch(bioOpt.belegtyp, outOpt.belegtyp),
+          };
   const gruppeOptionen = Object.entries(OUTPUT_LABEL).map(([wert, label]) => ({
     wert,
     label,
@@ -105,6 +144,11 @@ export default async function KartePage({
       : []),
     { key: "qualitaet", label: "Qualität", optionen: basisOpt.qualitaet ?? [] },
     { key: "status", label: "Status", optionen: basisOpt.status ?? [] },
+    {
+      key: "verfuegbarkeit",
+      label: "Verfügbarkeit",
+      optionen: basisOpt.verfuegbarkeit ?? [],
+    },
     { key: "belegtyp", label: "Belegtyp", optionen: basisOpt.belegtyp ?? [] },
   ];
 
@@ -125,11 +169,24 @@ export default async function KartePage({
   let detailStrom: Strom | null = detailId
     ? ([...bio, ...out].find((s) => s.id === detailId) ?? null)
     : null;
-  if (detailId && !detailStrom)
-    detailStrom =
+  if (detailId && !detailStrom) {
+    const nachgeladen =
       (await ladeStroeme("biomasse", detailId))[0] ??
       (await ladeStroeme("output", detailId))[0] ??
       null;
+    detailStrom = nachgeladen
+      ? reichereVerfuegbarkeitAn(
+          [nachgeladen],
+          nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut,
+          stichtag,
+        )[0]!
+      : null;
+  }
+  const detailVergaben = detailStrom
+    ? ((detailStrom.art === "biomasse" ? vergabenBio : vergabenOut).get(
+        detailStrom.id,
+      ) ?? [])
+    : [];
   const [historie, ersteAenderung] = detailStrom
     ? await Promise.all([
         ladeHistorie(detailStrom.art, detailStrom.id),
@@ -147,7 +204,8 @@ export default async function KartePage({
   return (
     <KarteAnsicht
       punkte={punkte}
-      gesamt={gesamt}
+      poolPunkte={poolPunkte}
+      gesamtStroeme={gesamtStroeme}
       regionen={karteRegionen}
       facetten={facetten}
       auswahl={auswahl}
@@ -155,6 +213,8 @@ export default async function KartePage({
       sicht={sicht}
       detailPunkt={detailPunkt}
       detailStrom={detailStrom}
+      detailVerfuegbarkeit={detailStrom?.verfuegbarkeit ?? null}
+      detailVergaben={detailVergaben}
       historie={historie}
       begruendung={begruendung}
       verifizierung={
