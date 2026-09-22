@@ -379,22 +379,26 @@ export function AuswertungAnsicht({
           const auf = !!offen[`${modulKey}:${z.key}`];
           return (
             <div className="aw-akk" key={z.key}>
-              <div className={zeilenKlasse("aw-spannzeile", "cluster", z.key)}>
+              {/* Fall C (keine Menge im Bezugsjahr): Zeile gedimmt, Hinweis statt Spanne. */}
+              <div
+                className={`${zeilenKlasse("aw-spannzeile", "cluster", z.key)}${z.leer && z.hinweis ? " stumm" : ""}`}
+              >
                 <button
                   type="button"
                   className="aw-akk-haupt aw-akk-haupt--spalte"
                   aria-pressed={istAktiv("cluster", z.key)}
                   onClick={() => toggle("cluster", z.key)}
+                  title={z.hinweis ?? undefined}
                 >
                   <span className="aw-spannzeile-kopf">
                     <img className="aw-orb16" src={z.orb} alt="" aria-hidden />
                     <span className="lbl">{z.label}</span>
                     <span className="aw-zeilenwert">
-                      {z.leer ? "–" : `ø ${z.mittelText}`}
+                      {z.leer ? "–" : `ø ${z.mittelText}${z.zusatz ? ` ${z.zusatz}` : ""}`}
                     </span>
                   </span>
                   {z.leer ? (
-                    <span className="aw-caption">keine Preise im Cluster</span>
+                    <span className="aw-caption">{z.hinweis ?? "keine Preise im Cluster"}</span>
                   ) : (
                     spannBand(z, z.farbe)
                   )}
@@ -409,19 +413,20 @@ export function AuswertungAnsicht({
                     className={`${
                       u.key
                         ? zeilenKlasse("aw-unterzeile", "materialart", u.key)
-                        : "aw-unterzeile"}`}
+                        : "aw-unterzeile"}${u.leer && u.hinweis ? " stumm" : ""}`}
                     disabled={!u.key}
                     aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
                     onClick={u.key ? () => toggle("materialart", u.key) : undefined}
+                    title={u.hinweis ?? undefined}
                   >
                     <span className="aw-spannzeile-kopf">
                       <span className="lbl">{u.label}</span>
                       <span className="aw-zeilenwert aw-zeilenwert--sm">
-                        {u.leer ? "–" : `ø ${u.mittelText}`}
+                        {u.leer ? "–" : `ø ${u.mittelText}${u.zusatz ? ` ${u.zusatz}` : ""}`}
                       </span>
                     </span>
                     {u.leer ? (
-                      <span className="aw-caption">keine Preise</span>
+                      <span className="aw-caption">{u.hinweis ?? "keine Preise"}</span>
                     ) : (
                       spannBand(u, z.farbe)
                     )}

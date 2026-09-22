@@ -116,6 +116,10 @@ export interface SpannenUnterzeile {
   mittelPct: number;
   bisPct: number;
   leer: boolean;
+  /** Suffix hinter dem ø-Wert, z. B. "(n=7 von 9)" oder "· ungewichtet". */
+  zusatz: string | null;
+  /** Popover-/Caption-Text, z. B. "2 Belege, keine Menge im Bezugsjahr". */
+  hinweis: string | null;
 }
 
 export interface SpannenZeile extends SpannenUnterzeile {
@@ -207,16 +211,43 @@ function skaliereEinheit(
   return { wert: kpi.wert, einheit: einheitJahr(kpi.einheit) };
 }
 
-/** Atro-gewichtetes Preismittel; ohne Atro-Gewichte gleichgewichtet. */
-function preisMittelGewichtet(mitPreis: Strom[]): number {
-  let tw = sum(mitPreis, atroVon);
-  let w = atroVon;
-  if (tw === 0) {
-    w = () => 1;
-    tw = mitPreis.length;
+/**
+ * Basis des atro-gewichteten ø-Preises — drei Faelle, sauber getrennt
+ * (Eric, 22.09.2026). Entscheidend ist null gegen 0 bei mengeAtro:
+ * null = atro-Menge nicht ableitbar (z. B. TS-Anteil fehlt),
+ * 0 = Gewicht vorhanden, aber im Bezugsjahr auf 0 skaliert (wendeFensterAn).
+ * Die beiden NIE zusammenfassen — ein stiller Rueckfall auf ungewichtet
+ * zeigt sonst Preise, wo das Mengenmodul 0 ausweist (Guelle/Mist, 22.09.).
+ * Eine gemeinsame Funktion fuer Korridor-Modul UND KPI-Kachel, damit die
+ * beiden nicht wieder auseinanderlaufen koennen.
+ */
+type PreisBasis =
+  | { fall: "gewichtet"; oe: (f: (s: Strom) => number) => number; n: number; nGesamt: number }
+  | { fall: "ungewichtet"; oe: (f: (s: Strom) => number) => number }
+  | { fall: "keine_menge"; n: number };
+
+function preisBasis(mitPreis: Strom[]): PreisBasis {
+  const gewichtbar = mitPreis.filter((s) => (s.mengeAtro ?? 0) > 0);
+  if (gewichtbar.length) {
+    const tw = sum(gewichtbar, atroVon);
+    return {
+      fall: "gewichtet",
+      oe: (f) => sum(gewichtbar, (s) => f(s) * atroVon(s)) / tw,
+      n: gewichtbar.length,
+      nGesamt: mitPreis.length,
+    };
   }
-  return Math.round(sum(mitPreis, (s) => s.preisMittel! * w(s)) / tw);
+  if (mitPreis.every((s) => s.mengeAtro == null))
+    return { fall: "ungewichtet", oe: (f) => sum(mitPreis, f) / mitPreis.length };
+  // Mischfall null + 0: mindestens eine Position HAT ein Gewicht, im
+  // Bezugsjahr ist alles 0 → Fall C, kein Preis. Kein Rueckfall.
+  return { fall: "keine_menge", n: mitPreis.length };
 }
+
+const HINWEIS_OHNE_ATRO = "für diese Positionen ist keine atro-Menge ableitbar";
+const hinweisKeineMenge = (n: number) => `${nBelege(n)}, keine Menge im Bezugsjahr`;
+const nAngabe = (b: { n: number; nGesamt: number }) =>
+  b.n < b.nGesamt ? `(n=${b.n} von ${b.nGesamt})` : null;
 
 export function kpiKarten(
   recs: Strom[],
@@ -338,12 +369,23 @@ export function kpiKarten(
     preisKpi = { ...keine, label: "ø preis." };
     potenzialKpi = { ...keine, label: "feedstock-potenzial." };
   } else {
-    preisKpi = {
-      wert: fmtPreis(preisMittelGewichtet(mitPreis)),
-      einheit: "€/t",
-      label: "ø preis.",
-      caption: `atro-gewichtet · − = Annahmeentgelt${ohneNote}`,
-    };
+    // Dieselben drei Faelle wie preisKorridorZeilen (gemeinsame preisBasis),
+    // damit Kachel und Modul nie verschiedene ø zeigen.
+    const basis = preisBasis(mitPreis);
+    if (basis.fall === "keine_menge") {
+      preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: hinweisKeineMenge(basis.n) };
+    } else {
+      const art =
+        basis.fall === "ungewichtet"
+          ? "ungewichtet · keine atro-Menge ableitbar"
+          : ["atro-gewichtet", nAngabe(basis)].filter(Boolean).join(" ");
+      preisKpi = {
+        wert: fmtPreis(Math.round(basis.oe((s) => s.preisMittel!))),
+        einheit: "€/t",
+        label: "ø preis.",
+        caption: `${art} · − = Annahmeentgelt${ohneNote}`,
+      };
+    }
     potenzialKpi = {
       ...skaliereEinheit(potenzialWert(potenzialSumme(mitPreis).mittel), einheitJahr),
       label: "feedstock-potenzial.",
@@ -629,30 +671,51 @@ export function outputJahre(
  * als Korridor je Cluster). Keys aus dem Pool wie clusterZeilen, damit
  * gefilterte Zeilen sichtbar bleiben und nur dimmen.
  */
+/** Ergebnis je Zeile: eine Spanne mit optionaler Kennzeichnung — oder bewusst leer (Fall C / keine Preise). */
+type SpannenErgebnis =
+  | { leer: false; min: number; mittel: number; max: number; zusatz: string | null; hinweis: string | null }
+  | { leer: true; hinweis: string | null };
+
+const mittelOderMinusInf = (sp: SpannenErgebnis) =>
+  sp.leer ? Number.NEGATIVE_INFINITY : sp.mittel;
+
 function clusterSpannen(
   pool: Strom[],
   recs: Strom[],
-  spanneVon: (mitPreis: Strom[]) => { min: number; mittel: number; max: number },
+  spanneVon: (mitPreis: Strom[]) => SpannenErgebnis,
   fmt: (n: number) => string,
 ): SpannenZeile[] {
-  type Spanne = { min: number; mittel: number; max: number } | null;
-  const spanneAus = (rs: Strom[]): Spanne => {
+  const spanneAus = (rs: Strom[]): SpannenErgebnis => {
     const mitPreis = rs.filter((s) => s.preisMittel != null);
-    return mitPreis.length ? spanneVon(mitPreis) : null;
+    return mitPreis.length ? spanneVon(mitPreis) : { leer: true, hinweis: null };
   };
   // Eine gemeinsame Skala fuer alle Cluster: exakt vom kleinsten Min bis
   // zum groessten Max ueber alle Zeilen (Eric, E18-Nachtrag) — kein
   // 0-Anker, die Baender nutzen die volle Breite.
-  const felder = (sp: Spanne, lo: number, hi: number) => {
+  const felder = (sp: SpannenErgebnis, lo: number, hi: number) => {
+    if (sp.leer)
+      return {
+        minText: "–",
+        mittelText: "–",
+        maxText: "–",
+        vonPct: 0,
+        mittelPct: 0,
+        bisPct: 0,
+        leer: true,
+        zusatz: null,
+        hinweis: sp.hinweis,
+      };
     const anteil = (v: number) => Math.round(((v - lo) / (hi - lo)) * 100);
     return {
-      minText: sp ? fmt(sp.min) : "–",
-      mittelText: sp ? fmt(sp.mittel) : "–",
-      maxText: sp ? fmt(sp.max) : "–",
-      vonPct: sp ? anteil(sp.min) : 0,
-      mittelPct: sp ? anteil(sp.mittel) : 0,
-      bisPct: sp ? anteil(sp.max) : 0,
-      leer: !sp,
+      minText: fmt(sp.min),
+      mittelText: fmt(sp.mittel),
+      maxText: fmt(sp.max),
+      vonPct: anteil(sp.min),
+      mittelPct: anteil(sp.mittel),
+      bisPct: anteil(sp.max),
+      leer: false,
+      zusatz: sp.zusatz,
+      hinweis: sp.hinweis,
     };
   };
 
@@ -673,7 +736,7 @@ function clusterSpannen(
       .map((g) => ({ g, sp: spanneAus(g.rs) }))
       .sort(
         (a, b) =>
-          (b.sp?.mittel ?? Number.NEGATIVE_INFINITY) - (a.sp?.mittel ?? Number.NEGATIVE_INFINITY) ||
+          mittelOderMinusInf(b.sp) - mittelOderMinusInf(a.sp) ||
           a.g.label.localeCompare(b.g.label, "de"),
       ),
   );
@@ -681,7 +744,7 @@ function clusterSpannen(
   // bei gemischten Vorzeichen ragt eine Materialart sonst ueber die
   // Cluster-Summe hinaus und Band/oe-Punkt laufen aus der Spur.
   const belegt = [...spannen, ...unterje.flat().map((u) => u.sp)].filter(
-    (sp): sp is NonNullable<typeof sp> => sp != null,
+    (sp): sp is Extract<SpannenErgebnis, { leer: false }> => !sp.leer,
   );
   const lo = belegt.length ? Math.min(...belegt.map((sp) => sp.min)) : 0;
   const hiRoh = belegt.length ? Math.max(...belegt.map((sp) => sp.max)) : 1;
@@ -691,38 +754,43 @@ function clusterSpannen(
     label: CLUSTER_LABEL[k] ?? k,
     orb: `/orbs/cluster/${k}.webp`,
     farbe: CLUSTER_FARBE[k] ?? "#b9c0bd",
-    ...felder(spannen[i] ?? null, lo, hi),
+    ...felder(spannen[i]!, lo, hi),
     unter: unterje[i]!.map(({ g, sp }) => ({ key: g.key, label: g.label, ...felder(sp, lo, hi) })),
   }));
 }
 
 /** Feedstock-Potenzial je Cluster (E18): -Σ Preis × t atro in €/a, Min/Max je Position. */
 export function potenzialZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
-  return clusterSpannen(pool, recs, potenzialSumme, (n) => fmtZahl(Math.round(n)));
+  return clusterSpannen(
+    pool,
+    recs,
+    (mitPreis) => ({ leer: false, ...potenzialSumme(mitPreis), zusatz: null, hinweis: null }),
+    (n) => fmtZahl(Math.round(n)),
+  );
 }
 
 /**
  * Preiskorridor je Cluster in €/t: Min/Mittel/Max je Position atro-
  * mengengewichtet (E14) — dieselbe Regel wie die Saldo-Spanne, nur als
- * ø statt Summe. Kein Konfidenzintervall.
+ * ø statt Summe. Kein Konfidenzintervall. Die drei Faelle der
+ * Gewichtungsbasis (gewichtet / ungewichtet / keine Menge im Bezugsjahr)
+ * kommen aus preisBasis — identisch zur KPI-Kachel.
  */
 export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
   return clusterSpannen(
     pool,
     recs,
     (mitPreis) => {
-      let tw = sum(mitPreis, atroVon);
-      let w = atroVon;
-      if (tw === 0) {
-        w = () => 1;
-        tw = mitPreis.length;
-      }
-      const gewichtet = (f: (s: Strom) => number) =>
-        sum(mitPreis, (s) => f(s) * w(s)) / tw;
+      const basis = preisBasis(mitPreis);
+      if (basis.fall === "keine_menge")
+        return { leer: true, hinweis: hinweisKeineMenge(basis.n) };
       return {
-        min: gewichtet((s) => s.preisMin ?? s.preisMittel!),
-        mittel: Math.round(gewichtet((s) => s.preisMittel!)),
-        max: gewichtet((s) => s.preisMax ?? s.preisMittel!),
+        leer: false,
+        min: basis.oe((s) => s.preisMin ?? s.preisMittel!),
+        mittel: Math.round(basis.oe((s) => s.preisMittel!)),
+        max: basis.oe((s) => s.preisMax ?? s.preisMittel!),
+        zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : nAngabe(basis),
+        hinweis: basis.fall === "ungewichtet" ? HINWEIS_OHNE_ATRO : null,
       };
     },
     fmtPreis,

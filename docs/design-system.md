@@ -126,6 +126,17 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   aller Positionen — kein 0-Anker, volle Bandbreite (E18).
 - **Zweigeteilte Listen** (energetisch/stofflich, E13) trennen Sektionen
   durch eine Caption-Zeile („energetisch · MWh/a"), nicht durch Rahmen.
+- **ø-Preis-Kennzeichnung** (drei Fälle der Rechenbasis, 22.09.2026):
+  Fließen nicht alle Positionen in den gewichteten ø ein, steht die
+  Zählung als Suffix hinter dem Wert — „ø −64 (n=7 von 9)". Ein
+  ungewichteter ø (keine atro-Menge ableitbar) trägt sichtbar
+  „· ungewichtet" hinter dem Wert, der Grund steht im Popover
+  (`title`). Zeilen **ohne ausweisbaren Wert** (Belege vorhanden, aber
+  keine Menge im Bezugsjahr) zeigen keinen Preis und keine Spanne: Zeile
+  gedimmt auf `0.45` (Klasse `stumm`, gleiche Optik wie das
+  Vergangenheits-Dimming der Jahresachse, getrennt vom Filter-Dimming),
+  Hinweis „n Belege, keine Menge im Bezugsjahr" als Caption und Popover.
+  In der KPI-Kachel stehen dieselben Kennzeichnungen in der Caption.
 
 ## Akkordeon-Muster (Materialarten/Produkte)
 
