@@ -85,6 +85,16 @@ zugeordnet nach Handhabung und Preisbildung, nicht nach Stoffchemie.
 Falls später Faserschlamm und Deinking-Schlamm unterschieden werden, wird
 aus `papierschlamm` ein Codepaar.
 
+## 6. Pflanzenkohle ist kein bhyo-Output
+
+Entschieden am 22.09.2026 (Eric): Pflanzenkohle wird nicht als
+Output-Produkt geführt — der feste Rückstand des bhyo-Prozesses ist
+**Asche**. Ein Stammdatum `pflanzenkohle` hat in `output_produkt` nie
+existiert (die 15 Produkte aus 0006/0008 enthalten es nicht); die sechs
+Pflanzenkohle-Positionen des Seed-v2-Auftrags wurden umverteilt auf
++3 CO2, +2 Synthesegas, +1 Asche. Die Frage ist damit abschließend
+beantwortet und wird nicht erneut gestellt.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

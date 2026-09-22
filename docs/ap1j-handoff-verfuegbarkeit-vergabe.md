@@ -277,6 +277,15 @@ der Gesamtscore-Aggregation — dort als sichtbare, begründete Entscheidung.
   Migrationskette. Nicht frei editierbar — die Taxonomie steuert die
   Cluster-Zuordnung und später den Eignungsscore.
 
+## Referenzdaten-Regel (22.09.2026)
+
+Referenzdaten (Materialarten, Output-Produkte …), die bereits verwendet
+werden, werden **NIE gelöscht, sondern deaktiviert**. Ein `aktiv`-Flag
+auf den Referenztabellen wird eingeführt, sobald das erste Mal ein
+BENUTZTES Stammdatum stillgelegt werden muss — vorher nicht: Für eine
+unreferenzierte Zeile wäre es überdimensioniert, die darf per Migration
+entfernt werden.
+
 ## Handoff-Delta zu F5 (Filter vs. Erfassung, 22.09.2026)
 
 Facetten-Filter blenden Optionen mit Anzahl 0 aus. Die
