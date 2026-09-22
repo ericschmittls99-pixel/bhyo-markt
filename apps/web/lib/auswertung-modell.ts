@@ -12,7 +12,7 @@ import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farb
 import { fmtDatum, fmtPreis, fmtZahl } from "./format";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
-import { naechsteVerifizierung } from "./verifizierung";
+import { verifikationsFaelligkeit } from "./verifizierung";
 
 export type Sicht = "feedstock" | "outputs";
 
@@ -973,11 +973,19 @@ export function outputPreisZeilen(pool: Strom[], recs: Strom[]): OutputListen {
   };
 }
 
-export function verifZeilen(recs: Strom[], heuteIso: string): VerifZeile[] {
+export function verifZeilen(
+  recs: Strom[],
+  heuteIso: string,
+  /** Vergaben je Strom (AP1j PR 5): koppelt die Faelligkeit an Ablaufdaten. */
+  vergabenMap: Map<string, VergabeDaten[]> = new Map(),
+): VerifZeile[] {
   return recs
     .flatMap((s) => {
-      if (!s.beleg) return [];
-      const datum = naechsteVerifizierung(s.beleg);
+      const datum = verifikationsFaelligkeit(
+        s.beleg,
+        s,
+        vergabenMap.get(s.id) ?? [],
+      );
       return datum ? [{ s, datum }] : [];
     })
     .sort((a, b) => (a.datum < b.datum ? -1 : 1))
@@ -992,7 +1000,10 @@ export function verifZeilen(recs: Strom[], heuteIso: string): VerifZeile[] {
             ? `/orbs/output/${s.produktCode}.webp`
             : `/orbs/output/${s.gruppe ?? "primaerprodukte"}.webp`,
       titel: s.akteurName ?? s.bezeichnung ?? "–",
-      sub: [s.materialartLabel ?? s.produktLabel, BELEG_LABEL[s.beleg!.typ] ?? s.beleg!.typ]
+      sub: [
+        s.materialartLabel ?? s.produktLabel,
+        s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "ohne Beleg",
+      ]
         .filter(Boolean)
         .join(" · "),
       datum: fmtDatum(datum),

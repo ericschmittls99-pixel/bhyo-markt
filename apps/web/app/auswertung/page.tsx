@@ -38,7 +38,7 @@ import {
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
-import { naechsteVerifizierung } from "@/lib/verifizierung";
+import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 
 export const dynamic = "force-dynamic";
 
@@ -210,7 +210,7 @@ export default async function AuswertungPage({
           ? outputJahre(recsHeute, aktuellesJahr, vergabenMap, fensterKats)
           : null
       }
-      verif={verifZeilen(recs, heuteIso)}
+      verif={verifZeilen(recs, heuteIso, vergabenMap)}
       facetten={facetten}
       auswahl={auswahl}
       bereich={bereich}
@@ -224,7 +224,13 @@ export default async function AuswertungPage({
       historie={historie}
       begruendung={begruendung}
       verifizierung={
-        detailStrom?.beleg ? naechsteVerifizierung(detailStrom.beleg) : null
+        detailStrom
+          ? verifikationsFaelligkeit(
+              detailStrom.beleg,
+              detailStrom,
+              vergabenMap.get(detailStrom.id) ?? [],
+            )
+          : null
       }
     />
   );

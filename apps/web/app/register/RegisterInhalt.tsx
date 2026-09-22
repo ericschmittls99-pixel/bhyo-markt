@@ -35,7 +35,7 @@ import {
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
-import { naechsteVerifizierung } from "@/lib/verifizierung";
+import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -243,9 +243,11 @@ export async function RegisterInhalt({
             strom={detailStrom}
             historie={historie}
             begruendung={begruendung}
-            verifizierung={
-              detailStrom.beleg ? naechsteVerifizierung(detailStrom.beleg) : null
-            }
+            verifizierung={verifikationsFaelligkeit(
+              detailStrom.beleg,
+              detailStrom,
+              vergaben,
+            )}
             modal={ansicht === "grid"}
             canEdit={canEdit}
             verfuegbarkeit={verfuegbarkeit}
