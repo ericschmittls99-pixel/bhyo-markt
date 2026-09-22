@@ -143,3 +143,16 @@ describe("reserviert_bhyo (AP1j)", () => {
     }
   });
 });
+
+describe("reserviert_seit (AP1j, Migration 0010)", () => {
+  it("existiert auf beiden Stromtabellen als nullbares Datum ohne Default", () => {
+    // null = nicht reserviert; der Stempel kommt aus der Server-Action beim
+    // Setzen der Checkbox, nie aus einem DB-Default (sonst stempelt jede
+    // Migration/jeder Insert faelschlich "heute").
+    for (const spalte of [biomassestrom.reserviertSeit, outputBedarf.reserviertSeit]) {
+      expect(spalte.name).toBe("reserviert_seit");
+      expect(spalte.notNull).toBe(false);
+      expect(spalte.hasDefault).toBe(false);
+    }
+  });
+});

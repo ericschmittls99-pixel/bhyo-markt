@@ -50,6 +50,23 @@ Weiche Markierung **ohne** Zeitraum: Die Kommune hat verfügbare Biomasse,
 bhyo nimmt sie noch nicht ab (Projekt steht noch nicht), sie gilt aber
 als reserviert. Unabhängig von den Vergabezeiträumen.
 
+### Neu: `reserviert_seit` (date, nullable, beide Stromtabellen — Migration 0010)
+
+Eine Reservierung ist eine Zusage mit Halbwertszeit; ein reines Häkchen
+veraltet lautlos (Review 22.09.2026). Deshalb ein Datumsstempel:
+
+- Wird beim **Setzen** der Checkbox automatisch gefüllt, bleibt beim
+  Editieren stehen (kein Neustempeln — sonst verjüngt jedes Speichern die
+  Zusage), wird beim Abwählen genullt. `null` = nicht reserviert.
+- Anzeige: „reserviert (bhyo), seit MM/JJJJ".
+- **Veraltung läuft über die Verifikations-Fälligkeit (PR ⑤), nicht über
+  eine eigene Schwelle**: 12 Monate sind die Gültigkeitsdauer des Typs
+  „Reservierung" in derselben Tabelle wie die übrigen Beleg-Typen — ein
+  Mechanismus, kein Sonderweg. Migration 0010 liefert nur Spalte und
+  „seit"-Anzeige, keine Veraltungs-Optik; die kommt ausschließlich über
+  die Fälligkeit in PR ⑤ (sonst zwei Wahrheiten darüber, wann eine
+  Reservierung alt ist).
+
 ## Abgeleiteter Verfügbarkeitsstatus
 
 Der Status wird **nie gespeichert, immer abgeleitet** (dasselbe Prinzip
@@ -72,6 +89,25 @@ Randfall: Checkbox gesetzt + aktive externe Vergabe → Haupttag ist
 „vergeben (extern).", die Reservierung erscheint zusätzlich als kleine
 Pille.
 
+### Label-Sätze je Stromart (Beschluss 22.09.2026, Umsetzung PR ③)
+
+Dieselbe Hierarchie und dasselbe Datenmodell für beide Stromarten, aber
+zwei Label-Sätze, gesteuert über `art`: Ein „vergebener" Output-Bedarf
+wird in Wirklichkeit bereits von jemand anderem **gedeckt** — die
+Feedstock-Formulierung läse sich falsch herum, als hätte bhyo etwas
+weggegeben.
+
+| Regel | Feedstock | Output |
+| --- | --- | --- |
+| 3 extern | vergeben (extern). | gedeckt (extern). |
+| 3 bhyo | vergeben (bhyo). | gedeckt (bhyo). |
+| 4 | reserviert (bhyo). | reserviert (bhyo). |
+| 5 | verfügbar. | offen. |
+
+Regeln 1–2 (abgelaufen., noch nicht verfügbar.) sind für beide Arten
+gleich. Reine Beschriftung — Enum-Werte, Ableitung und Persistenz bleiben
+identisch.
+
 ### Konvention offener Enden
 
 - vergeben-von leer → Vergabe gilt ab Verfügbarkeitsbeginn
@@ -82,6 +118,13 @@ Pille.
 Für Hierarchie, Überlappungsprüfung und Rechnung werden leere Enden
 intern durch Verfügbarkeitsbeginn/-ende ersetzt — danach ist jeder Monat
 wieder exakt einmal zugeordnet.
+
+Klarstellung (Review 22.09.2026): „unbefristet" heißt immer **bis zum
+Verfügbarkeitsende** — `zeitraum_bis` ist Pflichtfeld, ein beidseitig
+offener Fall existiert im Modell nicht (zusätzlich abgesichert durch den
+CHECK „mindestens ein Datum"). Nach dem Verfügbarkeitsende greift ohnehin
+Regel 1 (abgelaufen); ein unbefristet vergebener Strom verschwindet also
+nicht aus allen künftigen Jahren, sondern genau bis zu seinem Ende.
 
 ### Validierung (Formular)
 
@@ -127,6 +170,14 @@ Monate bis 06/2028 zählen zur vergebenen Menge, ab 07/2028 zur freien.
   zeigen ihn anteilig in beiden Kategorien.
 - Alle KPIs und Module (auch Preis/Potenzial: Preis × fensterbezogene
   Menge) nutzen dieselbe Fenster-Menge.
+- **E16-Deckel** (Review 22.09.2026): Die Jahresachse endet bei
+  min(spätestes Zeitraumende, aktuelles Jahr + 10), Überlauf an der
+  letzten Säule markieren („+ bis JJJJ"). Grund: `zeitraum_bis` ist
+  Pflichtfeld ohne „unbefristet"-Option, Erfasser werden für dauerhafte
+  Ströme (Kläranlage, Grünschnitt) Fernjahre eintragen — eine einzelne
+  2099-Eingabe erzeugt sonst 74 Säulen. Test: Beleg bis 2099 → Achse
+  endet bei aktuellem Jahr + 10, Überlauf-Marker vorhanden. Umsetzung
+  in PR ④.
 
 In **ströme.** und **karte.** (kein Jahresfenster) wirkt der
 Status-Filter auf heute — deckungsgleich mit der Pille am Beleg. Der Tag
@@ -140,6 +191,37 @@ verifikationsfällig: Fälligkeit = das frühere von bisheriger
 Verifikationsfrist und Ablaufdatum (verfügbar-bis bzw. vergeben-bis).
 Zweck: Beim Freiwerden nachfassen.
 
+Zusätzlich (Review 22.09.2026): **Reservierungen** laufen über denselben
+Mechanismus — der Typ „Reservierung" bekommt 12 Monate Gültigkeitsdauer
+(ab `reserviert_seit`) in derselben Tabelle wie die übrigen Beleg-Typen.
+Aus der Veraltet-Optik wird damit ein Nachfass-Prozess.
+
+## Score-Spezifikation (Notiz für den Rechenkern, hier nicht implementieren)
+
+Die fünf Status sind eine UI-Aussage. Für die Bewertung zählen **drei
+getrennte, jeweils erklärbare Größen** — keine Gewichtungsfaktoren vor
+echten Daten (Review 22.09.2026, Vorzeichen-Argument analog E14:
+„vergeben" ist je nach Gegenpartei das Beste oder das Schlechteste):
+
+- Mengenpotenzial = gesichert + frei (fremdvergeben zählt nicht mit)
+- Sicherungsgrad = gesichert / (gesichert + frei), 0–1
+- Wettbewerbsdruck = fremdvergeben / (gesichert + frei + fremdvergeben), 0–1
+
+mit gesichert = vergeben (bhyo) + reserviert (bhyo), frei = verfügbar /
+noch nicht verfügbar, fremdvergeben = vergeben (extern); jeweils in
+t atro/a und €/a. Fremdvergebenes ist so Mengenabzug **und** Warnsignal,
+ohne doppelt gezählt zu werden. Die Gewichtungsfrage stellt sich erst bei
+der Gesamtscore-Aggregation — dort als sichtbare, begründete Entscheidung.
+
+## Backlog (bewusst nicht jetzt)
+
+- **Optimistic Locking für das Stromformular**: `updated_at` als
+  Hidden-Field mitschicken, Server vergleicht, bei Abweichung Fehler
+  „wurde zwischenzeitlich geändert, bitte neu laden". Begründung: Das
+  Ersetz-Modell der Vergabezeilen löscht bei parallelem Edit fremde
+  Zeilen spurlos — qualitativ mehr als das Feld-Überschreiben des
+  übrigen Formulars. Umsetzen, sobald Mehrbenutzerbetrieb real wird.
+
 ## Sonstiges
 
 - CSV-Export nimmt die neuen Felder mit.
@@ -151,8 +233,17 @@ Zweck: Beim Freiwerden nachfassen.
 
 | PR | Inhalt |
 | --- | --- |
-| ① | Migration: `vergabe_zeitraum`, `reserviert_bhyo` (dieser Branch) |
-| ② | Formular/Detail: Zeitraum-Liste mit „+", Validierung, Status-Pille |
-| ③ | ströme./karte.: Tag + Status-Filter (heute-bezogen) |
-| ④ | auswertung.: monatsscharfe Rechnung, Jahr-Filter, beide Switches, fensterbezogener Status-Filter |
-| ⑤ | Verifikations-Kopplung |
+| ① | Migration: `vergabe_zeitraum`, `reserviert_bhyo` (#34, gemerged) |
+| ② | Formular/Detail: Zeitraum-Liste mit „+", Validierung, Status-Pille (#35) |
+| 0010 | Migration: `reserviert_seit` (eigener PR, kein Feature-Code) |
+| ②b | Stempel-Logik + Anzeige „reserviert (bhyo), seit MM/JJJJ" (nach 0010) |
+| ③ | ströme./karte.: Tag + Status-Filter (heute-bezogen); dabei Rename `heute` → `stichtag` in `leiteVerfuegbarkeitAb` |
+| ④ | auswertung.: monatsscharfe Rechnung, Jahr-Filter, beide Switches, fensterbezogener Status-Filter, E16-Deckel |
+| ⑤ | Verifikations-Kopplung inkl. Reservierungs-Gültigkeit (12 Monate) |
+
+Guardrail (22.09.2026): Der Preview-Deploy wendet Migrationen **vor** dem
+Merge auf die Preview-DB an. Eine dort angewendete Migration verpflichtet
+zum zeitnahen Merge oder zum expliziten Rollback — sonst trägt die
+Preview-DB einen Zustand, der in der Migrationskette von main nicht
+existiert, und der nächste Migrations-PR baut auf etwas auf, das niemand
+mehr rekonstruieren kann.

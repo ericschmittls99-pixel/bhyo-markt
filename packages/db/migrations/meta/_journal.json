@@ -71,6 +71,13 @@
       "when": 1790024373478,
       "tag": "0009_vergabe",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790069903604,
+      "tag": "0010_reserviert_seit",
+      "breakpoints": true
     }
   ]
 }

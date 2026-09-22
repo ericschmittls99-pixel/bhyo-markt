@@ -230,6 +230,11 @@ export const biomassestrom = pgTable("biomassestrom", {
   // Weiche Markierung ohne Zeitraum (AP1j): verfuegbar, aber fuer bhyo
   // reserviert (Projekt steht noch nicht). Unabhaengig von vergabe_zeitraum.
   reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
+  // Stempel beim SETZEN der Checkbox (Review AP1j PR 2): bleibt beim
+  // Editieren stehen, wird beim Abwaehlen genullt. Die Veraltung laeuft
+  // ueber die Verifikations-Faelligkeit (PR 5), nicht ueber eine eigene
+  // Schwelle. null = nicht reserviert.
+  reserviertSeit: date("reserviert_seit"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -277,6 +282,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   status: datensatzStatus("status").notNull(),
   // Weiche Markierung ohne Zeitraum (AP1j), analog biomassestrom.
   reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
+  // Stempel-Semantik wie biomassestrom.reserviert_seit.
+  reserviertSeit: date("reserviert_seit"),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
