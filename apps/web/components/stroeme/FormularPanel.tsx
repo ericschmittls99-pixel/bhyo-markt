@@ -535,7 +535,8 @@ export function FormularPanel({
             </button>
             <p className="fp-hinweis">
               Leer gelassene Enden gelten ab Verfügbarkeitsbeginn bzw.
-              unbefristet; eine Zeile ganz ohne Datum wird nicht gespeichert.
+              unbefristet (bis Verfügbarkeitsende); eine Zeile ganz ohne Datum
+              wird nicht gespeichert.
             </p>
 
             <label className="fp-toggle">
