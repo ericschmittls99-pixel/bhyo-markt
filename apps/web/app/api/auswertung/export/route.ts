@@ -1,10 +1,16 @@
 import { currentUserEmail } from "@/lib/db";
-import { ladeStroeme } from "@/lib/stroeme";
+import { ladeAlleVergaben, ladeStroeme } from "@/lib/stroeme";
 import {
   filterAusSearchParams,
   filterStroeme,
   type Strom,
 } from "@/lib/stroeme-modell";
+import {
+  reichereVerfuegbarkeitAn,
+  vergabeLabel,
+  verfuegbarkeitPill,
+  type VergabeDaten,
+} from "@/lib/verfuegbarkeit";
 
 export const dynamic = "force-dynamic";
 
@@ -30,11 +36,25 @@ export async function GET(req: Request) {
   const filter = filterAusSearchParams(roh);
   const sicht = p.get("sicht") ?? "alle";
 
-  const [bio, out] = await Promise.all([
+  const leereMap = new Map<string, VergabeDaten[]>();
+  const [bioRoh, outRoh, vergabenBio, vergabenOut] = await Promise.all([
     sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
     sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
+    sicht !== "outputs" ? ladeAlleVergaben("biomasse") : Promise.resolve(leereMap),
+    sicht !== "feedstock" ? ladeAlleVergaben("output") : Promise.resolve(leereMap),
   ]);
+  // Neue Felder (AP1j): heutiger Verfuegbarkeitsstatus + Vergaben je Zeile.
+  const stichtag = new Date().toISOString().slice(0, 10);
+  const bio = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
+  const out = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
   const rows = [...filterStroeme(bio, filter), ...filterStroeme(out, filter)];
+  const vergabenVon = (s: Strom) =>
+    ((s.art === "biomasse" ? vergabenBio : vergabenOut).get(s.id) ?? [])
+      .map(
+        (v) =>
+          `${vergabeLabel(v.vergebenVon, v.vergebenBis)} an ${v.vergebenAn ?? "–"} (${v.anBhyo ? "bhyo" : "extern"})`,
+      )
+      .join(" | ");
 
   const header = [
     "Art",
@@ -50,6 +70,10 @@ export async function GET(req: Request) {
     "Einheit",
     "Qualitaet",
     "Status",
+    "Verfuegbarkeitsstatus (heute)",
+    "Reserviert (bhyo)",
+    "Reserviert seit",
+    "Vergaben",
   ];
   const lines = [header.map(csvFeld).join(";")];
   for (const s of rows) {
@@ -69,6 +93,12 @@ export async function GET(req: Request) {
         feed ? "t atro/a" : s.mengeEinheit,
         s.qualitaet,
         s.status,
+        s.verfuegbarkeit
+          ? verfuegbarkeitPill(s.art, s.verfuegbarkeit.status).text
+          : "",
+        s.reserviertBhyo ? "ja" : "nein",
+        s.reserviertSeit ?? "",
+        vergabenVon(s),
       ]
         .map(csvFeld)
         .join(";"),
