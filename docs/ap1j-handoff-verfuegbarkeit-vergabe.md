@@ -89,6 +89,25 @@ Randfall: Checkbox gesetzt + aktive externe Vergabe → Haupttag ist
 „vergeben (extern).", die Reservierung erscheint zusätzlich als kleine
 Pille.
 
+### Label-Sätze je Stromart (Beschluss 22.09.2026, Umsetzung PR ③)
+
+Dieselbe Hierarchie und dasselbe Datenmodell für beide Stromarten, aber
+zwei Label-Sätze, gesteuert über `art`: Ein „vergebener" Output-Bedarf
+wird in Wirklichkeit bereits von jemand anderem **gedeckt** — die
+Feedstock-Formulierung läse sich falsch herum, als hätte bhyo etwas
+weggegeben.
+
+| Regel | Feedstock | Output |
+| --- | --- | --- |
+| 3 extern | vergeben (extern). | gedeckt (extern). |
+| 3 bhyo | vergeben (bhyo). | gedeckt (bhyo). |
+| 4 | reserviert (bhyo). | reserviert (bhyo). |
+| 5 | verfügbar. | offen. |
+
+Regeln 1–2 (abgelaufen., noch nicht verfügbar.) sind für beide Arten
+gleich. Reine Beschriftung — Enum-Werte, Ableitung und Persistenz bleiben
+identisch.
+
 ### Konvention offener Enden
 
 - vergeben-von leer → Vergabe gilt ab Verfügbarkeitsbeginn
@@ -221,3 +240,10 @@ der Gesamtscore-Aggregation — dort als sichtbare, begründete Entscheidung.
 | ③ | ströme./karte.: Tag + Status-Filter (heute-bezogen); dabei Rename `heute` → `stichtag` in `leiteVerfuegbarkeitAb` |
 | ④ | auswertung.: monatsscharfe Rechnung, Jahr-Filter, beide Switches, fensterbezogener Status-Filter, E16-Deckel |
 | ⑤ | Verifikations-Kopplung inkl. Reservierungs-Gültigkeit (12 Monate) |
+
+Guardrail (22.09.2026): Der Preview-Deploy wendet Migrationen **vor** dem
+Merge auf die Preview-DB an. Eine dort angewendete Migration verpflichtet
+zum zeitnahen Merge oder zum expliziten Rollback — sonst trägt die
+Preview-DB einen Zustand, der in der Migrationskette von main nicht
+existiert, und der nächste Migrations-PR baut auf etwas auf, das niemand
+mehr rekonstruieren kann.
