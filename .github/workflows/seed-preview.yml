@@ -1,0 +1,28 @@
+name: Seed Preview (v2)
+
+# NUR manuell (workflow_dispatch) und NUR gegen die Preview-DB: der Job kennt
+# ausschliesslich das Secret DATABASE_URL_PREVIEW (dasselbe, mit dem der
+# Deploy-Workflow Preview-Migrationen faehrt); ein Production-DB-Secret
+# existiert im Repo nicht. Das Skript selbst prueft die URL zusaetzlich und
+# kennt kein Override-Flag.
+on:
+  workflow_dispatch:
+
+jobs:
+  seed:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Seed Preview-DB
+        env:
+          SEED_DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter web seed:preview
