@@ -26,7 +26,7 @@ import {
   type VergabeDaten,
 } from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
-import { naechsteVerifizierung } from "@/lib/verifizierung";
+import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 
 export const dynamic = "force-dynamic";
 
@@ -218,7 +218,9 @@ export default async function KartePage({
       historie={historie}
       begruendung={begruendung}
       verifizierung={
-        detailStrom?.beleg ? naechsteVerifizierung(detailStrom.beleg) : null
+        detailStrom
+          ? verifikationsFaelligkeit(detailStrom.beleg, detailStrom, detailVergaben)
+          : null
       }
       filterOffenInitial={!!ui.filterOffen?.karte}
       legendeInitial={ui.legende ?? { offen: true }}
