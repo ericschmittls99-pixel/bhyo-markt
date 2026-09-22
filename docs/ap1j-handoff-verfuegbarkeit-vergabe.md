@@ -246,6 +246,19 @@ Mechanismus — der Typ „Reservierung" bekommt 12 Monate Gültigkeitsdauer
 (ab `reserviert_seit`) in derselben Tabelle wie die übrigen Beleg-Typen.
 Aus der Veraltet-Optik wird damit ein Nachfass-Prozess.
 
+## Vorzeichenkonventionen der Preise (22.09.2026)
+
+Beide Konventionen und die Rechenregel gehören zusammen gelesen —
+absichtlich in einem Absatz: **Feedstock:** `preis` ist der
+Zahlungsstrom aus Sicht bhyo — positiv = bhyo zahlt (Einkauf), negativ =
+bhyo erhält (Annahmeentgelt). **Output:** `preis` ist der Verkaufspreis
+— positiv = bhyo erhält. „Positiv" bedeutet auf den beiden Seiten also
+Gegenteiliges; das ist kaufmännisch richtig (Einkaufs- gegen
+Verkaufspreis), aber deshalb dürfen die beiden Salden nie addiert
+werden. Die Rechenregel lautet:
+
+    Rohmarge = Erlöspotenzial (Outputs) − Feedstock-Saldo
+
 ## Score-Spezifikation (Notiz für den Rechenkern, hier nicht implementieren)
 
 Die fünf Status sind eine UI-Aussage. Für die Bewertung zählen **drei
