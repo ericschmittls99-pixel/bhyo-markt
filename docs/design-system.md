@@ -197,6 +197,20 @@ Manrope 700/800 für Überschriften und Kennzahlen, Inter 400/600 für Fließtex
 und Tabellen, Ziffern mit `tabular-nums`. Self-hosted über `next/font/google`,
 kein Laufzeit-Request.
 
+## Zahlenformate (E20, 22.09.2026)
+
+Keine Nachkommastellen in der Darstellung — passt eine Größe damit nicht,
+wechselt die **Einheit**, nicht die Regel: Feedstock-Preise €/t atro
+(„78 · −124"), stoffliche Output-Preise €/t (vorher €/kg), energetische
+Output-Preise €/MWh (vorher ct/kWh), Mengen ganzzahlig, Quoten und
+Anteile ganzzahlig, Saisonanteile per Largest-Remainder mit Summe exakt
+100. Formatiert wird ausschließlich über die Funktionen je Größenart in
+`lib/format.ts` — kein `toFixed`, keine punktuellen Formatierungen in
+Komponenten. Genau zwei Ausnahmen: die Mio.-Darstellung ab 1 Mio €/a
+behält **eine** Nachkommastelle, und Faktoren sichtbar dargestellter
+Rechenketten (TS-Gehalt, Aschegehalt, Umwegfaktor, km-Satz, Nutzlast)
+behalten die erfasste Genauigkeit.
+
 ## Haltung (gilt unverändert seit V1)
 
 - Führung über Farbe, Schriftgewicht und Weißraum, nicht über Linien.

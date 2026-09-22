@@ -89,7 +89,10 @@ export async function GET(req: Request) {
         feed ? s.materialartLabel : s.produktLabel,
         s.zeitraumVon,
         s.zeitraumBis,
-        feed ? s.mengeAtro : s.mengeWert,
+        // E20: Mengen ganzzahlig — der CSV zaehlt als Darstellung.
+        feed
+          ? (s.mengeAtro == null ? "" : Math.round(s.mengeAtro))
+          : (s.mengeWert == null ? "" : Math.round(s.mengeWert)),
         feed ? "t atro/a" : s.mengeEinheit,
         s.qualitaet,
         s.status,

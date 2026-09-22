@@ -8,7 +8,7 @@ import {
   VerfuegbarkeitsPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
-import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
 
 const RING_UMFANG = 65.97; // 2 * PI * r bei r = 10,5
@@ -79,16 +79,16 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
                 <span className="pill-wert">
                   {s.art === "biomasse"
                     ? s.mengeFm != null
-                      ? `${fmtZahl(s.mengeFm)} t FM/a`
+                      ? `${fmtMenge(s.mengeFm)} t FM/a`
                       : "–"
                     : s.mengeWert != null
-                      ? `${fmtZahl(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
+                      ? `${fmtMenge(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
                       : "–"}
                 </span>
                 <span className="st-card-neben">
                   {s.art === "biomasse"
                     ? s.mengeAtro != null
-                      ? `${fmtZahl(s.mengeAtro)} t atro/a`
+                      ? `${fmtMenge(s.mengeAtro)} t atro/a`
                       : ""
                     : (s.kategorie && KATEGORIE_LABEL[s.kategorie]) || ""}
                 </span>

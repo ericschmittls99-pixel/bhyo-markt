@@ -26,6 +26,8 @@
 //
 // BEWUSST OHNE Faktor: co2, asche — stoffliche Outputs, kein Energieaequivalent.
 
+import { fmtFaktor, fmtPreis } from "./format";
+
 interface Heizwert {
   kwhProKg?: number;
   kwhProNm3?: number;
@@ -66,31 +68,59 @@ export function energieKwh(
   return null;
 }
 
-/** Preis eines Output-Belegs in ct/kWh, oder null ohne Heizwert-Faktor. */
-export function preisCtKwh(
+/**
+ * Preis eines energetischen Output-Belegs in €/MWh (E20-Anzeigeeinheit,
+ * ersetzt ct/kWh), oder null ohne Heizwert-Faktor.
+ */
+export function preisEuroMwh(
   produktCode: string | null,
   preis: number | null,
   preisEinheit: string | null,
 ): number | null {
   if (preis == null || !preisEinheit) return null;
-  if (preisEinheit === "€/MWh") return preis / 10;
+  if (preisEinheit === "€/MWh") return preis;
   const hw = HEIZWERT[produktCode ?? ""];
   if (preisEinheit === "€/kg")
-    return hw?.kwhProKg != null ? (preis / hw.kwhProKg) * 100 : null;
+    return hw?.kwhProKg != null ? (preis / hw.kwhProKg) * 1000 : null;
   if (preisEinheit === "€/t")
-    return hw?.kwhProKg != null ? (preis / 1000 / hw.kwhProKg) * 100 : null;
+    return hw?.kwhProKg != null ? preis / hw.kwhProKg : null;
   if (preisEinheit === "€/Nm³")
-    return hw?.kwhProNm3 != null ? (preis / hw.kwhProNm3) * 100 : null;
+    return hw?.kwhProNm3 != null ? (preis / hw.kwhProNm3) * 1000 : null;
   return null;
 }
 
-/** CO2-Preis in €/kg (aus €/t oder €/kg), sonst null. */
-export function preisEuroKg(
+/** Stofflicher Preis in €/t (E20-Anzeigeeinheit, aus €/t oder €/kg), sonst null. */
+export function preisEuroT(
   preis: number | null,
   preisEinheit: string | null,
 ): number | null {
   if (preis == null) return null;
-  if (preisEinheit === "€/kg") return preis;
-  if (preisEinheit === "€/t") return preis / 1000;
+  if (preisEinheit === "€/kg") return preis * 1000;
+  if (preisEinheit === "€/t") return preis;
   return null;
+}
+
+/** Stoffliche Output-Produkte (Rest energetisch) — eine Quelle fuer Modell und Detail. */
+export const STOFFLICHE_PRODUKTE = new Set(["co2", "asche"]);
+
+/**
+ * Output-Preis fuer die Anzeige (E20): die erfasste Einheit wird nicht mehr
+ * roh gezeigt, sondern in die Anzeigeeinheit umgerechnet — stofflich €/t,
+ * energetisch €/MWh, jeweils ganzzahlig. Ist keine Umrechnung belegbar
+ * (kein Referenz-Heizwert), bleibt der Rohwert in erfasster Genauigkeit.
+ */
+export function fmtOutputPreis(
+  produktCode: string | null,
+  preis: number | null,
+  preisEinheit: string | null,
+): string {
+  if (preis == null) return "–";
+  if (STOFFLICHE_PRODUKTE.has(produktCode ?? "")) {
+    const eurT = preisEuroT(preis, preisEinheit);
+    if (eurT != null) return `${fmtPreis(eurT)} €/t`;
+  } else {
+    const eurMwh = preisEuroMwh(produktCode, preis, preisEinheit);
+    if (eurMwh != null) return `${fmtPreis(eurMwh)} €/MWh`;
+  }
+  return `${fmtFaktor(preis)} ${preisEinheit ?? ""}`.trim();
 }

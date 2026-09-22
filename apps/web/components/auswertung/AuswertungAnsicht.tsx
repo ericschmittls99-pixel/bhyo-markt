@@ -822,8 +822,8 @@ export function AuswertungAnsicht({
                       "preis",
                       "preise je gruppe.",
                       outPreise,
-                      "energetisch · ct/kWh",
-                      "stofflich · €/kg",
+                      "energetisch · €/MWh",
+                      "stofflich · €/t",
                     )}
                   {qualitaetModul}
                   {statusModul}
