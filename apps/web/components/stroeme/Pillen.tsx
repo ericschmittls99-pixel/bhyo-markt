@@ -17,6 +17,23 @@ export function StatusPillV2({ status }: { status: string }) {
   return <span className={`spill spill--${p.tone}`}>{p.text}</span>;
 }
 
+/**
+ * Reservierungs-Stempel (Review 22.09.2026): kleine Bildmarke statt grosser
+ * Pille — passt in dieselbe Zeile wie die Verfuegbarkeits-Pille.
+ */
+export function ReserviertStempel() {
+  return (
+    <span
+      className="res-stempel"
+      title="Für bhyo reserviert"
+      aria-label="Für bhyo reserviert"
+    >
+      <img src="/logo/bhyo-mark-navy.svg" alt="" aria-hidden className="logo-light" />
+      <img src="/logo/bhyo-mark-white.svg" alt="" aria-hidden className="logo-dark" />
+    </span>
+  );
+}
+
 /** Verfuegbarkeits-Pille (AP1j): Label-Satz je Stromart + Zusatz-Reservierung. */
 export function VerfuegbarkeitsPill({
   art,
@@ -29,9 +46,7 @@ export function VerfuegbarkeitsPill({
   return (
     <>
       <span className={`spill spill--${p.tone}`}>{p.text}</span>
-      {ergebnis.reserviertZusatz && (
-        <span className="pill">reserviert (bhyo).</span>
-      )}
+      {ergebnis.reserviertZusatz && <ReserviertStempel />}
     </>
   );
 }

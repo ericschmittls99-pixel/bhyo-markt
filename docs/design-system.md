@@ -58,8 +58,10 @@ je Stromart"), die Töne je Status identisch:
 | reserviert_bhyo | reserviert (bhyo). | reserviert (bhyo). | `quiet` |
 | noch_nicht_verfuegbar | noch nicht verfügbar. | noch nicht verfügbar. | `quiet` |
 
-Nebentag: Die Reservierung erscheint immer zusätzlich als neutrale kleine
-`pill` („reserviert (bhyo)."), sobald sie nicht selbst der Haupttag ist.
+Nebentag: Die Reservierung erscheint immer zusätzlich als kleiner
+**Stempel mit der Bildmarke** (`res-stempel`, 22 px, quiet-Ton, Tooltip
+„Für bhyo reserviert"), sobald sie nicht selbst der Haupttag ist — bewusst
+keine zweite große Pille, damit die Zeile einspurig bleibt.
 Die zwei auswertung.-Switches (Einzeljahr ↔ Zeitraum, ø ↔ Summe) folgen
 mit AP1j PR 4.
 

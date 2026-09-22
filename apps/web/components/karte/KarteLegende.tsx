@@ -114,7 +114,6 @@ export function KarteLegende({
   // die Auswahl bleibt ueber .aktiv markiert.
   const zaehle = (art: "biomasse" | "output", key: string) =>
     poolPunkte.filter((p) => p.art === art && p.farbeKey === key).length;
-  const ohnePin = gesamtStroeme - poolPunkte.length;
 
   return (
     <section
@@ -140,7 +139,6 @@ export function KarteLegende({
         <h2>legende.</h2>
         <span className="km-legende-zahl">
           {punkte.length} von {gesamtStroeme} Strömen
-          {ohnePin > 0 ? ` · ${ohnePin} ohne Pin` : ""}
         </span>
         <button
           type="button"

@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { AkteurCombobox } from "@/components/AkteurCombobox";
+import { ReserviertStempel } from "@/components/stroeme/Pillen";
 import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
@@ -568,9 +569,7 @@ export function FormularPanel({
                     >
                       {verfuegbarkeitPill(art, verfuegbarkeit.status).text}
                     </span>
-                    {verfuegbarkeit.reserviertZusatz && (
-                      <span className="pill">reserviert (bhyo).</span>
-                    )}
+                    {verfuegbarkeit.reserviertZusatz && <ReserviertStempel />}
                   </>
                 ) : (
                   <span className="konf konf--leer">–</span>
