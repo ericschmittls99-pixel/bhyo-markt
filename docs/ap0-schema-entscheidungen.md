@@ -95,6 +95,10 @@ Pflanzenkohle-Positionen des Seed-v2-Auftrags wurden umverteilt auf
 +3 CO2, +2 Synthesegas, +1 Asche. Die Frage ist damit abschließend
 beantwortet und wird nicht erneut gestellt.
 
+Ergänzung (22.09.2026): **Asche ist für bhyo ein Erlös, keine
+Entsorgungsposition.** Preise durchgehend positiv, 10–40 €/t (Einheit
+nach E20).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

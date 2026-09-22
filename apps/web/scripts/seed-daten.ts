@@ -268,7 +268,9 @@ const PRODUKTE: ProduktPlan[] = [
   { code: "co2", label: "CO2", n: 13, einheiten: ["t/a"], menge: [300, 12000], preis: [0.1, 0.3], preisEinheit: "€/kg", abnehmer: ["Getränkehersteller", "Gewächshaus", "Trockeneis-Service", "Betonwerk"], saison: (a) => (a === "Gewächshaus" ? FRUEHJAHR : a === "Getränkehersteller" ? SOMMER : GLEICH) },
   // Pflanzenkohle entfernt (Beschluss 22.09.2026): kein bhyo-Output, der
   // feste Rueckstand ist Asche. Die 6 Slots: +3 CO2, +2 Synthesegas, +1 Asche.
-  { code: "asche", label: "Asche", n: 4, einheiten: ["t/a"], menge: [100, 2000], preis: [0, 0.04], preisEinheit: "€/kg", abnehmer: ["Zementwerk", "Baustoffhandel"], saison: () => GLEICH },
+  // Asche ist fuer bhyo ein ERLOES, keine Entsorgungsposition (Beschluss
+  // 22.09.2026): 10..40 €/t (E20-Einheit), durchgehend positiv.
+  { code: "asche", label: "Asche", n: 4, einheiten: ["t/a"], menge: [100, 2000], preis: [10, 40], preisEinheit: "€/t", abnehmer: ["Zementwerk", "Baustoffhandel"], saison: () => GLEICH },
 ];
 
 const OUT_SONDER: Record<string, Sonder> = {

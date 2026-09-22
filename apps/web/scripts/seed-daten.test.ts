@@ -241,6 +241,12 @@ describe("Outputs §2", () => {
         expect(s.preis).toBeGreaterThanOrEqual(0.1);
         expect(s.preis).toBeLessThanOrEqual(0.3);
       }
+      // Beschluss 22.09.2026: Asche ist Erloes, nie Entsorgungsposition.
+      if (p === "asche") {
+        expect(s.preisEinheit).toBe("€/t");
+        expect(s.preis).toBeGreaterThanOrEqual(10);
+        expect(s.preis).toBeLessThanOrEqual(40);
+      }
     }
   });
 
