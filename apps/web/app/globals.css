@@ -3695,6 +3695,11 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-qualzeile.gedimmt,
 .aw-statuszeile.gedimmt,
 .aw-belegzeile.gedimmt { opacity: 0.45; }
+/* stumm = Zeile ohne ausweisbaren Wert (keine Menge im Bezugsjahr) —
+   gleiche Optik wie das Vergangenheits-Dimming, getrennt vom
+   Filter-Dimming (.gedimmt), damit sich beide kombinieren lassen. */
+.aw-spannzeile.stumm,
+.aw-unterzeile.stumm { opacity: 0.45; }
 .aw-zeilen .lbl {
   flex: 1;
   min-width: 0;

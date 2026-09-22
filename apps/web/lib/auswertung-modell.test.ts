@@ -768,6 +768,73 @@ describe("preisKorridorZeilen", () => {
   });
 });
 
+// Drei Faelle der ø-Preis-Basis (Eric, 22.09.2026): null = atro-Menge nicht
+// ableitbar, 0 = im Bezugsjahr auf 0 skaliert — nie zusammenfassen.
+describe("Rechenbasis ø-Preis: drei Faelle in Korridor UND KPI-Kachel", () => {
+  const cluster = "organische_rest_abfallstoffe";
+
+  it("Fall C: Gewichte auf 0 skaliert -> Menge 0 UND kein ø-Preis, konsistent", () => {
+    // Wie Guelle/Mist auf der Preview: Belege ausserhalb des Bezugsjahres.
+    const a = strom({ id: "a", cluster, mengeAtro: 0, preisMin: 5, preisMittel: 7, preisMax: 9 });
+    const b = strom({ id: "b", cluster, mengeAtro: 0, preisMin: 2, preisMittel: 4, preisMax: 6 });
+    const z = preisKorridorZeilen([a, b], [a, b]);
+    expect(z[0]).toMatchObject({
+      leer: true,
+      mittelText: "–",
+      hinweis: "2 Belege, keine Menge im Bezugsjahr",
+    });
+    const k = kpiKarten([a, b], "feedstock");
+    expect(k[1]!.wert).toBe("0"); // Mengenmodul-Basis: Menge 0
+    expect(k[2]).toMatchObject({ wert: "–", caption: "2 Belege, keine Menge im Bezugsjahr" });
+  });
+
+  it("Fall C auch im Mischfall null + 0: mindestens ein Gewicht vorhanden, alle 0", () => {
+    const nullAtro = strom({ id: "n", cluster, mengeAtro: null, preisMittel: 99 });
+    const nullJahr = strom({ id: "j", cluster, mengeAtro: 0, preisMittel: 7 });
+    const z = preisKorridorZeilen([nullAtro, nullJahr], [nullAtro, nullJahr]);
+    expect(z[0]).toMatchObject({ leer: true, hinweis: "2 Belege, keine Menge im Bezugsjahr" });
+  });
+
+  it("Fall B: alle Positionen ohne ableitbare atro-Menge -> ungewichtet, gekennzeichnet", () => {
+    const a = strom({ id: "a", cluster, mengeAtro: null, preisMin: 5, preisMittel: 10, preisMax: 20 });
+    const b = strom({ id: "b", cluster, mengeAtro: null, preisMin: 8, preisMittel: 16, preisMax: 24 });
+    const z = preisKorridorZeilen([a, b], [a, b]);
+    expect(z[0]).toMatchObject({
+      mittelText: "13", // (10+16)/2, ungewichtet
+      zusatz: "· ungewichtet",
+      hinweis: "für diese Positionen ist keine atro-Menge ableitbar",
+      leer: false,
+    });
+    const k = kpiKarten([a, b], "feedstock");
+    expect(k[2]!.wert).toBe("13");
+    expect(k[2]!.caption).toContain("ungewichtet");
+  });
+
+  it("Fall A gemischt: gewichtet nur ueber gewichtbare, n-Angabe nennt beide Zahlen", () => {
+    const gewichtet = strom({ id: "g", cluster, mengeAtro: 100, preisMittel: 10 });
+    const ohneAtro = strom({ id: "o", cluster, mengeAtro: null, preisMittel: 99 });
+    const z = preisKorridorZeilen([gewichtet, ohneAtro], [gewichtet, ohneAtro]);
+    expect(z[0]).toMatchObject({ mittelText: "10", zusatz: "(n=1 von 2)" });
+    const k = kpiKarten([gewichtet, ohneAtro], "feedstock");
+    expect(k[2]!.wert).toBe("10");
+    expect(k[2]!.caption).toContain("(n=1 von 2)");
+  });
+
+  it("Fall A ohne Ausschluesse: keine n-Angabe, kein Kennzeichen", () => {
+    const z = preisKorridorZeilen([f1], [f1]);
+    expect(z[0]).toMatchObject({ mittelText: "10", zusatz: null, hinweis: null });
+  });
+
+  it("Kachel und Modul zeigen fuer denselben Datensatz denselben ø", () => {
+    const a = strom({ id: "a", cluster, mengeAtro: 120, preisMittel: -64 });
+    const b = strom({ id: "b", cluster, mengeAtro: 40, preisMittel: -30 });
+    const c = strom({ id: "c", cluster, mengeAtro: null, preisMittel: 5 });
+    const z = preisKorridorZeilen([a, b, c], [a, b, c]);
+    const k = kpiKarten([a, b, c], "feedstock");
+    expect(z[0]!.mittelText).toBe(k[2]!.wert);
+  });
+});
+
 // Gemeinsame Output-Fixtures fuer die Modul-Funktionen.
 const oStrom = strom({
   id: "ostrom",
