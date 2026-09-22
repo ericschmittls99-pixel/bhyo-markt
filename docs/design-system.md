@@ -66,6 +66,73 @@ Zielzustand, nicht den Code-Stand.
 256×256 px WebP, benannt nach dem Enum-Code – Auflösung per Template-String,
 keine Mapping-Tabelle im Code.
 
+## Glas-Flächen (Stand PR 7, E-Log §8)
+
+Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
+
+- `--glass-fill` (Light `rgba(255,255,255,.72)` · Dark `rgba(31,46,56,.62)`):
+  Karten und Module, die auf der Seitenfläche liegen.
+- `--glass-fill-strong` (Light **`.94`** · Dark **`.95`**): alles, was über
+  fremdem Inhalt schwebt — Filter-Popover, Comboboxen, Konto-Menü, Toasts,
+  Karten-Overlays (Toolbar, Legende, Zeichnen-Dialog). Erhöht von .86/.84,
+  weil durchscheinender Hintergrund die Lesbarkeit störte; der Blur bleibt
+  als Identität.
+
+## auswertung.-Module (Bento, Stand PR 7)
+
+- **KPI-Kacheln**: genau eine große Kennzahl mit Einheit, Label lowercase
+  mit Punkt, Caption darunter (E18). Erläuterungen — etwa die
+  Vorzeichen-Konvention („− = Annahmeentgelt") — stehen **in der Caption**,
+  nie hinter einem ⓘ-Popover und nie als Stat-Mehrfachwerte in einer
+  Kachel.
+- **Zeilen-Module filtern per Klick** (Pool-Prinzip): Zeilen und
+  Unterzeilen kommen aus dem ungefilterten Pool, Werte aus der Auswahl —
+  beim Filtern bleiben Zeilen sichtbar und **dimmen auf `0.45`**, die
+  aktive Zeile trägt `--surface-selected`. Klick-Highlights sind rund
+  (`12px`) mit Innenabstand, nie randbündige Rechtecke.
+- **Zeilen-Layout**: jede Zeile ist zweizeilig — Kopfzeile (Orb, Label,
+  Meta-Caption, Wert rechtsbündig) über einem Balken bzw. Spannenband in
+  **voller Modulbreite**. Haupt- und Akkordeon-Unterzeilen teilen dieselbe
+  Spur: alle Balken starten und enden am selben Punkt, keine Label- oder
+  Zahlenspalten neben dem Balken.
+- **Balken** tragen die Flachfarbe des Clusters bzw. der Output-Gruppe.
+  **Spannenbänder** (Min–ø–Max) sind 8-px-Pillen mit Farbfüllung (`0.6`)
+  und ø-Punkt in `--status-active`. Die Skala ist **für alle Zeilen des
+  Moduls gemeinsam** und läuft exakt vom kleinsten Min bis zum größten Max
+  aller Positionen — kein 0-Anker, volle Bandbreite (E18).
+- **Zweigeteilte Listen** (energetisch/stofflich, E13) trennen Sektionen
+  durch eine Caption-Zeile („energetisch · MWh/a"), nicht durch Rahmen.
+
+## Akkordeon-Muster (Materialarten/Produkte)
+
+- Der Aufklapp-Pfeil ist ein **eigener Knopf** (`aria-expanded`, Phosphor
+  `caret-down/up`), absolut oben rechts in der Zeile positioniert —
+  Zeilenklick togglet die Facette, Caret klappt auf. Beides nie auf
+  demselben Element. Die Kopfzeile reserviert dafür rechts 26 px
+  Innenabstand, sodass Werte mit und ohne Caret bündig enden.
+- Unterzeilen: Kopfzeile 24 px eingerückt, Caption-Typo, der Balken läuft
+  aber in **voller Modulbreite auf derselben Spur und Skala wie die
+  Elternzeilen**; klickbar auf ihre eigene Facette (materialart/produkt),
+  ohne Code nicht klickbar. Zustand rein clientseitig, nicht in der URL.
+
+## Mini-Switch (Modul-Umschalter)
+
+Pillen-SegmentedControl im Modulkopf (z. B. „energie ↔ CO₂ & Asche"):
+sunken Track (`--surface-sunken`, Pill-Radius), aktive Option als Karte
+(`--surface-card` + Kartenschatten), Caption-Typo. CO₂ mit tiefgestellter
+2. Schaltet nur die Datenreihe des Moduls, nie die URL.
+
+## Jahresachse (E16/E17)
+
+- Achse **dynamisch aus den Belegzeiträumen**, lückenlos vom frühesten bis
+  zum spätesten Jahr; Jahre ohne Belege als **0-Balken**, nie als Lücke.
+  Offene Zeiträume beginnen ab dem aktuellen Jahr (E17).
+- Säulen füllen die Modulbreite bis ~7 Stück; ab **8 Balken** greift die
+  Mindestbreite **52 px** und der Container scrollt horizontal.
+- **Vergangenheit**: Balken-Füllung `0.4`, Beschriftung `0.6`, dazu eine
+  gestrichelte Hairline vor dem ersten nicht-vergangenen Jahr. Das
+  **aktuelle Jahr** füllt in `--status-active`; Zukunft normal.
+
 ## Formen und Rahmen
 
 - Ein Radius: **14 px** für alles Rechteckige, ohne Ausnahme.
