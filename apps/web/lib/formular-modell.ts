@@ -1,4 +1,7 @@
 import type { StromArt } from "./stroeme-modell";
+// Nur Typ-Import: verfuegbarkeit.ts importiert zur Laufzeit aus dieser Datei,
+// die Gegenrichtung bleibt typenreiner Import ohne Zykluswirkung.
+import type { VergabeFormZeile } from "./verfuegbarkeit";
 
 /**
  * Reine Formular-Logik fuer das Panel (AP1i PR 5) — ohne Datenbank- oder
@@ -259,6 +262,8 @@ export interface FormularWerte {
   preisHerkunft: string;
   saisonalitaet: number[];
   status: string;
+  reserviertBhyo: boolean;
+  vergaben: VergabeFormZeile[];
   beleg: FormularBeleg | null;
 }
 
@@ -290,6 +295,7 @@ export type FormularZeile = {
   preisHerkunft: string | null;
   saisonalitaet: unknown;
   status: string;
+  reserviertBhyo: boolean;
   belegId: string | null;
   belegTyp: string | null;
   belegLinkUrl: string | null;
@@ -323,7 +329,11 @@ function belegAusZeile(r: FormularZeile): FormularBeleg | null {
   };
 }
 
-export function formularZeileZuWerte(art: StromArt, r: FormularZeile): FormularWerte {
+export function formularZeileZuWerte(
+  art: StromArt,
+  r: FormularZeile,
+  vergaben: VergabeFormZeile[] = [],
+): FormularWerte {
   return {
     id: r.id,
     art,
@@ -352,6 +362,8 @@ export function formularZeileZuWerte(art: StromArt, r: FormularZeile): FormularW
     preisHerkunft: s(r.preisHerkunft),
     saisonalitaet: saisonOderLeer(r.saisonalitaet, `strom ${r.id}`),
     status: r.status,
+    reserviertBhyo: r.reserviertBhyo,
+    vergaben,
     beleg: belegAusZeile(r),
   };
 }

@@ -6,7 +6,7 @@ import { type ReactNode, useEffect, useRef, useState, useTransition } from "reac
 
 import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { Orb } from "@/components/stroeme/Orb";
-import { KonfidenzPill } from "@/components/stroeme/Pillen";
+import { KonfidenzPill, VerfuegbarkeitsPill } from "@/components/stroeme/Pillen";
 import { SeasonBarsMini } from "@/components/stroeme/SeasonBarsMini";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL } from "@/lib/farben";
@@ -21,6 +21,11 @@ import {
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
+import {
+  vergabeLabel,
+  type VerfuegbarkeitsErgebnis,
+  type VergabeDaten,
+} from "@/lib/verfuegbarkeit";
 
 const HERKUNFT_LABEL: Record<string, string> = {
   eigene_datenbank: "eigene Datenbank",
@@ -62,6 +67,8 @@ export function Detail({
   modal,
   canEdit,
   stroemeHref,
+  verfuegbarkeit,
+  vergaben,
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -71,6 +78,9 @@ export function Detail({
   canEdit: boolean;
   /** Gesetzt im karte.-Kontext: Ziel fuer "In ströme. öffnen". */
   stroemeHref?: string;
+  /** AP1j, optional: karte./auswertung. reichen noch nichts durch (PR 3/4). */
+  verfuegbarkeit?: VerfuegbarkeitsErgebnis | null;
+  vergaben?: VergabeDaten[];
 }) {
   const s = strom;
   const { setze } = useUrlZustand();
@@ -222,6 +232,9 @@ export function Detail({
                       </span>
                     )}
                   </span>
+                  {verfuegbarkeit && (
+                    <VerfuegbarkeitsPill ergebnis={verfuegbarkeit} />
+                  )}
                   {s.beleg && (
                     <span className="pill">
                       {(BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ).toLowerCase()}.
@@ -335,6 +348,28 @@ export function Detail({
                 <Kv label="Verfügbar" wert={fmtZeitraum(s.zeitraumVon, s.zeitraumBis)} />
               </div>
             </section>
+
+            {verfuegbarkeit && (
+              <section className="ov-sec">
+                <h3>vergabe.</h3>
+                {(vergaben ?? []).length ? (
+                  <div className="kv">
+                    {(vergaben ?? []).map((vz, i) => (
+                      <Kv
+                        key={i}
+                        label={vz.anBhyo ? "an bhyo" : (vz.vergebenAn ?? "extern")}
+                        wert={vergabeLabel(vz.vergebenVon, vz.vergebenBis)}
+                      />
+                    ))}
+                  </div>
+                ) : (
+                  <p className="ov-note">Keine Vergabezeiträume erfasst.</p>
+                )}
+                {s.reserviertBhyo && (
+                  <p className="ov-note">Für bhyo reserviert (ohne Zeitraum).</p>
+                )}
+              </section>
+            )}
 
             <section className="ov-sec">
               <h3>{feed ? "mengen." : "bedarfsmenge."}</h3>

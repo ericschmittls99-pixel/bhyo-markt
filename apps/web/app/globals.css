@@ -2199,6 +2199,30 @@ button.leg-toggle.aus {
 .fp-zeile--3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
+/* AP1j: Vergabezeile — Ab/Bis/An + bhyo-Toggle + Entfernen, bricht schmal um. */
+.fp-vergabe {
+  display: grid;
+  gap: 4px;
+}
+.fp-vergabe-zeile {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1.3fr auto auto;
+  gap: 12px;
+  align-items: end;
+}
+.fp-vergabe-bhyo {
+  align-self: end;
+  padding-bottom: 8px;
+}
+.fp-vergabe-zeile .icon-btn {
+  align-self: end;
+  margin-bottom: 2px;
+}
+@media (max-width: 720px) {
+  .fp-vergabe-zeile {
+    grid-template-columns: 1fr 1fr;
+  }
+}
 .fp-optional {
   font: var(--type-caption);
   font-style: normal;

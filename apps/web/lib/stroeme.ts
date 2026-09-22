@@ -7,15 +7,20 @@ import {
   outputBedarf,
   outputProdukt,
   region,
+  vergabeZeitraum,
 } from "@bhyo/db/schema";
 import { and, desc, eq, sql } from "drizzle-orm";
 
-import { withDb } from "@/lib/db";
+import { withDb, type AppDb } from "@/lib/db";
 import {
   formularZeileZuWerte,
   type FormularWerte,
 } from "@/lib/formular-modell";
 import { type Strom, type StromArt } from "@/lib/stroeme-modell";
+import {
+  vergabenZuFormZeilen,
+  type VergabeDaten,
+} from "@/lib/verfuegbarkeit";
 import {
   biomasseZeileZuStrom,
   outputZeileZuStrom,
@@ -84,6 +89,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           saisonalitaet: biomassestrom.saisonalitaet,
           qualitaet: biomassestrom.qualitaet,
           status: biomassestrom.status,
+          reserviertBhyo: biomassestrom.reserviertBhyo,
           createdAt: biomassestrom.createdAt,
           ...belegSelect,
         })
@@ -125,6 +131,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         saisonalitaet: outputBedarf.saisonalitaet,
         qualitaet: outputBedarf.qualitaet,
         status: outputBedarf.status,
+        reserviertBhyo: outputBedarf.reserviertBhyo,
         createdAt: outputBedarf.createdAt,
         ...belegSelect,
       })
@@ -138,6 +145,37 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
 
     return rows.map(outputZeileZuStrom);
   });
+}
+
+// --- Vergaben (AP1j) ---------------------------------------------------------
+
+function vergabenQuery(db: AppDb, art: StromArt, id: string) {
+  const elternSpalte =
+    art === "biomasse"
+      ? vergabeZeitraum.biomassestromId
+      : vergabeZeitraum.outputBedarfId;
+  return db
+    .select({
+      vergebenVon: vergabeZeitraum.vergebenVon,
+      vergebenBis: vergabeZeitraum.vergebenBis,
+      vergebenAn: vergabeZeitraum.vergebenAn,
+      anBhyo: vergabeZeitraum.anBhyo,
+    })
+    .from(vergabeZeitraum)
+    .where(eq(elternSpalte, id))
+    .orderBy(
+      // Offenes von = ab Verfuegbarkeitsbeginn, also nach vorn sortieren.
+      sql`${vergabeZeitraum.vergebenVon} NULLS FIRST`,
+      vergabeZeitraum.vergebenBis,
+    );
+}
+
+/** Vergabezeitraeume eines Stroms, sortiert nach normalisiertem Beginn (AP1j). */
+export function ladeVergaben(
+  art: StromArt,
+  id: string,
+): Promise<VergabeDaten[]> {
+  return withDb((db) => vergabenQuery(db, art, id));
 }
 
 /** Aenderungshistorie eines Stroms (neueste zuerst). */
@@ -219,6 +257,7 @@ export function ladeFormularWerte(
           preisHerkunft: biomassestrom.preisHerkunft,
           saisonalitaet: biomassestrom.saisonalitaet,
           status: biomassestrom.status,
+          reserviertBhyo: biomassestrom.reserviertBhyo,
           belegId: biomassestrom.belegId,
           belegTyp: beleg.typ,
           belegLinkUrl: beleg.linkUrl,
@@ -234,16 +273,20 @@ export function ladeFormularWerte(
         .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
         .where(eq(biomassestrom.id, id))
         .limit(1);
-      return row
-        ? formularZeileZuWerte("biomasse", {
-            ...row,
-            produktCode: null,
-            mengeWert: null,
-            mengeEinheit: null,
-            preis: null,
-            preisEinheit: null,
-          })
-        : null;
+      if (!row) return null;
+      const vergaben = await vergabenQuery(db, art, id);
+      return formularZeileZuWerte(
+        "biomasse",
+        {
+          ...row,
+          produktCode: null,
+          mengeWert: null,
+          mengeEinheit: null,
+          preis: null,
+          preisEinheit: null,
+        },
+        vergabenZuFormZeilen(vergaben),
+      );
     }
 
     const [row] = await db
@@ -266,6 +309,7 @@ export function ladeFormularWerte(
         preisHerkunft: outputBedarf.preisHerkunft,
         saisonalitaet: outputBedarf.saisonalitaet,
         status: outputBedarf.status,
+        reserviertBhyo: outputBedarf.reserviertBhyo,
         belegId: outputBedarf.belegId,
         belegTyp: beleg.typ,
         belegLinkUrl: beleg.linkUrl,
@@ -280,19 +324,23 @@ export function ladeFormularWerte(
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
       .where(eq(outputBedarf.id, id))
       .limit(1);
-    return row
-      ? formularZeileZuWerte("output", {
-          ...row,
-          materialartCode: null,
-          cluster: null,
-          mengeRohFm: null,
-          tsAnteilPct: null,
-          aschegehaltPct: null,
-          preisMin: null,
-          preisMittel: null,
-          preisMax: null,
-        })
-      : null;
+    if (!row) return null;
+    const vergaben = await vergabenQuery(db, art, id);
+    return formularZeileZuWerte(
+      "output",
+      {
+        ...row,
+        materialartCode: null,
+        cluster: null,
+        mengeRohFm: null,
+        tsAnteilPct: null,
+        aschegehaltPct: null,
+        preisMin: null,
+        preisMittel: null,
+        preisMax: null,
+      },
+      vergabenZuFormZeilen(vergaben),
+    );
   });
 }
 

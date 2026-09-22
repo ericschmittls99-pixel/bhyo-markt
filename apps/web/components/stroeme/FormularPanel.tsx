@@ -27,6 +27,13 @@ import {
   type FormularWerte,
 } from "@/lib/formular-modell";
 import { stromSpeichern, type SpeichernErgebnis } from "@/lib/formular-actions";
+import {
+  leiteVerfuegbarkeitAb,
+  VERFUEGBARKEIT_PILL,
+  vergabenZuWerten,
+  type VergabeFormZeile,
+} from "@/lib/verfuegbarkeit";
+import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
 import { deriveQualitaet, type BelegTyp } from "@/lib/qualitaet";
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
@@ -88,6 +95,15 @@ export function FormularPanel({
   const [ts, setTs] = useState(werte?.tsAnteilPct ?? "");
   const [asche, setAsche] = useState(werte?.aschegehaltPct ?? "");
   const [mengeEinheit, setMengeEinheit] = useState(werte?.mengeEinheit ?? "t/a");
+
+  // Vergabe (AP1j): Zeitraum-Inputs kontrolliert, damit die Live-Pille auf
+  // sie reagiert; Zeilen und Reservierung als lokaler Zustand.
+  const [vonMonat, setVonMonat] = useState(werte?.vonMonat ?? "");
+  const [bisMonat, setBisMonat] = useState(werte?.bisMonat ?? "");
+  const [reserviert, setReserviert] = useState(werte?.reserviertBhyo ?? false);
+  const [vergaben, setVergaben] = useState<VergabeFormZeile[]>(
+    () => werte?.vergaben ?? [],
+  );
 
   // Saisonalitaet (E10) + Beleg-Zustand fuer die Qualitaets-Ableitung.
   const [saison, setSaison] = useState<number[]>(
@@ -155,6 +171,28 @@ export function FormularPanel({
       ergebnis: true,
     },
   ];
+
+  const setzeVergabe = (i: number, patch: Partial<VergabeFormZeile>) =>
+    setVergaben((v) =>
+      v.map((zeile, j) => (j === i ? { ...zeile, ...patch } : zeile)),
+    );
+  const entferneVergabe = (i: number) =>
+    setVergaben((v) => v.filter((_, j) => j !== i));
+
+  // Live-Ableitung wie die Qualitaets-Box: reine Anzeige, heute vom Client.
+  const heute = new Date().toISOString().slice(0, 10);
+  const verfuegbarkeit =
+    vonMonat && bisMonat
+      ? leiteVerfuegbarkeitAb(
+          heute,
+          {
+            zeitraumVon: monatZuVon(vonMonat),
+            zeitraumBis: monatZuBis(bisMonat),
+            reserviertBhyo: reserviert,
+          },
+          vergabenZuWerten(vergaben),
+        )
+      : null;
 
   const qualitaet = typ
     ? deriveQualitaet({
@@ -382,7 +420,8 @@ export function FormularPanel({
                   <input
                     type="month"
                     name="zeitraum_von"
-                    defaultValue={werte?.vonMonat ?? ""}
+                    value={vonMonat}
+                    onChange={(e) => setVonMonat(e.target.value)}
                     aria-invalid={f.zeitraum_von ? true : undefined}
                   />
                 </span>
@@ -396,12 +435,148 @@ export function FormularPanel({
                   <input
                     type="month"
                     name="zeitraum_bis"
-                    defaultValue={werte?.bisMonat ?? ""}
+                    value={bisMonat}
+                    onChange={(e) => setBisMonat(e.target.value)}
                     aria-invalid={f.zeitraum_bis ? true : undefined}
                   />
                 </span>
                 {f.zeitraum_bis && <span className="pf-fehler">{f.zeitraum_bis}</span>}
               </label>
+            </div>
+          </section>
+
+          <section className="ov-sec">
+            <h3>vergabe.</h3>
+            {vergaben.map((zeile, i) => (
+              <div key={i} className="fp-vergabe">
+                <input type="hidden" name={`vergabe_${i}_marker`} value="1" />
+                <div className="fp-vergabe-zeile">
+                  <label className="pf">
+                    <span>Vergeben ab</span>
+                    <span className="pf-feld">
+                      <input
+                        type="month"
+                        name={`vergabe_${i}_von`}
+                        value={zeile.vonMonat}
+                        onChange={(e) =>
+                          setzeVergabe(i, { vonMonat: e.target.value })
+                        }
+                        aria-invalid={f[`vergabe_${i}_von`] ? true : undefined}
+                      />
+                    </span>
+                  </label>
+                  <label className="pf">
+                    <span>Vergeben bis</span>
+                    <span className="pf-feld">
+                      <input
+                        type="month"
+                        name={`vergabe_${i}_bis`}
+                        value={zeile.bisMonat}
+                        onChange={(e) =>
+                          setzeVergabe(i, { bisMonat: e.target.value })
+                        }
+                        aria-invalid={f[`vergabe_${i}_bis`] ? true : undefined}
+                      />
+                    </span>
+                  </label>
+                  <label className="pf">
+                    <span>Vergeben an</span>
+                    <span className="pf-feld">
+                      <input
+                        type="text"
+                        name={`vergabe_${i}_an`}
+                        value={zeile.an}
+                        onChange={(e) => setzeVergabe(i, { an: e.target.value })}
+                        placeholder="z. B. Stadtwerke"
+                      />
+                    </span>
+                  </label>
+                  <label className="fp-toggle fp-vergabe-bhyo">
+                    <input
+                      type="checkbox"
+                      name={`vergabe_${i}_bhyo`}
+                      checked={zeile.anBhyo}
+                      onChange={(e) =>
+                        setzeVergabe(i, { anBhyo: e.target.checked })
+                      }
+                    />
+                    <span className="fp-toggle-text">
+                      <span>an bhyo</span>
+                    </span>
+                  </label>
+                  <button
+                    type="button"
+                    className="icon-btn"
+                    aria-label="Vergabezeitraum entfernen"
+                    onClick={() => entferneVergabe(i)}
+                  >
+                    <i className="ph ph-x" aria-hidden />
+                  </button>
+                </div>
+                {(f[`vergabe_${i}_von`] || f[`vergabe_${i}_bis`]) && (
+                  <span className="pf-fehler">
+                    {f[`vergabe_${i}_von`] ?? f[`vergabe_${i}_bis`]}
+                  </span>
+                )}
+              </div>
+            ))}
+            <button
+              type="button"
+              className="btn btn--sm"
+              onClick={() =>
+                setVergaben((v) => [
+                  ...v,
+                  { vonMonat: "", bisMonat: "", an: "", anBhyo: false },
+                ])
+              }
+            >
+              <i className="ph ph-plus" aria-hidden />
+              Vergabezeitraum
+            </button>
+            <p className="fp-hinweis">
+              Leer gelassene Enden gelten ab Verfügbarkeitsbeginn bzw.
+              unbefristet (bis Verfügbarkeitsende); eine Zeile ganz ohne Datum
+              wird nicht gespeichert.
+            </p>
+
+            <label className="fp-toggle">
+              <input
+                type="checkbox"
+                name="reserviert_bhyo"
+                checked={reserviert}
+                onChange={(e) => setReserviert(e.target.checked)}
+              />
+              <span className="fp-toggle-text">
+                <span>Für bhyo reserviert</span>
+                <span className="c">
+                  Weiche Markierung ohne Zeitraum – unabhängig von den
+                  Vergabezeiträumen.
+                </span>
+              </span>
+            </label>
+
+            <div className="qual-box">
+              <span className="qual-label">Verfügbarkeit (abgeleitet)</span>
+              <span className="qual-pillen">
+                {verfuegbarkeit ? (
+                  <>
+                    <span
+                      className={`spill spill--${VERFUEGBARKEIT_PILL[verfuegbarkeit.status].tone}`}
+                    >
+                      {VERFUEGBARKEIT_PILL[verfuegbarkeit.status].text}
+                    </span>
+                    {verfuegbarkeit.reserviertZusatz && (
+                      <span className="pill">reserviert (bhyo).</span>
+                    )}
+                  </>
+                ) : (
+                  <span className="konf konf--leer">–</span>
+                )}
+              </span>
+              <span className="c">
+                Aus Zeitraum, Vergaben und Reservierung berechnet, nicht
+                editierbar.
+              </span>
             </div>
           </section>
 

@@ -23,6 +23,7 @@ import {
   ladeLandkreisOptionen,
   ladeRegionOptionen,
   ladeStroeme,
+  ladeVergaben,
 } from "@/lib/stroeme";
 import {
   FACETTEN,
@@ -33,6 +34,7 @@ import {
   sortiereStroeme,
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
+import { leiteVerfuegbarkeitAb } from "@/lib/verfuegbarkeit";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -134,6 +136,23 @@ export async function RegisterInhalt({
       ? ersteAenderung.slice(ersteAenderung.indexOf(": ") + 2)
       : null;
 
+  // AP1j: Vergaben nur fuer das offene Detail laden; EIN heute je Request,
+  // damit Pille und Sektion konsistent aus demselben Stichtag entstehen.
+  const vergaben = detailStrom ? await ladeVergaben(art, detailStrom.id) : [];
+  const heute = new Date().toISOString().slice(0, 10);
+  const verfuegbarkeit =
+    detailStrom?.zeitraumVon && detailStrom.zeitraumBis
+      ? leiteVerfuegbarkeitAb(
+          heute,
+          {
+            zeitraumVon: detailStrom.zeitraumVon,
+            zeitraumBis: detailStrom.zeitraumBis,
+            reserviertBhyo: detailStrom.reserviertBhyo,
+          },
+          vergaben,
+        )
+      : null;
+
   const resetHref = `/register${art === "output" ? "?tab=output" : ""}`;
 
   return (
@@ -231,6 +250,8 @@ export async function RegisterInhalt({
             }
             modal={ansicht === "grid"}
             canEdit={canEdit}
+            verfuegbarkeit={verfuegbarkeit}
+            vergaben={vergaben}
           />
         )
       )}

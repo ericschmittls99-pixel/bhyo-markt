@@ -99,6 +99,7 @@ type GemeinsameZeile = BelegZeile & {
   saisonalitaet: unknown;
   qualitaet: string | null;
   status: string;
+  reserviertBhyo: boolean;
   createdAt: Date;
 };
 
@@ -167,6 +168,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     saisonalitaet: parseSaison(r.saisonalitaet),
     qualitaet: r.qualitaet,
     status: r.status,
+    reserviertBhyo: r.reserviertBhyo,
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
   };
@@ -239,6 +241,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     saisonalitaet: parseSaison(r.saisonalitaet),
     qualitaet: r.qualitaet,
     status: r.status,
+    reserviertBhyo: r.reserviertBhyo,
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
   };

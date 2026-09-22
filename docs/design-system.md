@@ -39,6 +39,24 @@ Output nach Gruppe (Raute):
 Qualität A–D als Ring und Pille, Graustufen, keine Ampelfarben:
 A `#1F2E38` · B `#4A5C66` · C `#97A4AB` · D `#D5D8D6`.
 
+### Verfügbarkeits-Pillen (AP1j)
+
+Der Verfügbarkeitsstatus wird **nie gespeichert, immer abgeleitet** (Hierarchie
+in `docs/ap1j-handoff-verfuegbarkeit-vergabe.md`, Code in
+`apps/web/lib/verfuegbarkeit.ts`). Die Pille nutzt die bestehenden
+`spill`-Töne, keine Ampel:
+
+| Status | Ton |
+| --- | --- |
+| verfügbar. | `active` (Lime) |
+| vergeben (bhyo). | `running` (Waldgrün) |
+| vergeben (extern). · abgelaufen. | `inactive` |
+| reserviert (bhyo). · noch nicht verfügbar. | `quiet` |
+
+Randfall: Reservierung bei aktiver externer Vergabe erscheint zusätzlich als
+neutrale kleine `pill` („reserviert (bhyo)."). Die zwei auswertung.-Switches
+(Einzeljahr ↔ Zeitraum, ø ↔ Summe) folgen mit AP1j PR 4.
+
 Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
 Zielzustand, nicht den Code-Stand.
