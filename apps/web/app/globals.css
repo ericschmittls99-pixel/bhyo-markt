@@ -3534,7 +3534,9 @@ table.st-tabelle tbody tr:focus-visible {
   width: 100%;
   max-width: calc(var(--content-max) + 2 * var(--gutter));
   margin: 0 auto;
-  padding: 4px var(--gutter) 12px;
+  /* Symmetrisch wie .st-toolbar: sonst sitzen die Tabs 4 px hoeher als in
+     stroeme. und die Kopfzeile springt beim Seitenwechsel. */
+  padding: 4px var(--gutter);
 }
 .aw-toolbar-trenner {
   width: 1px;
@@ -3895,8 +3897,13 @@ table.st-tabelle tbody tr:focus-visible {
   flex-wrap: wrap;
   align-items: center;
   gap: 10px;
-  padding: 0 var(--seite-pad, 24px);
-  margin-top: 10px;
+  /* Fluchtet mit der st-filterzeile (Beginn 124 px, Ende 172 px): gleiche
+     Gutter-Ausrichtung wie die Toolbar, 12 px Boden, kein Extra-Margin —
+     sonst springen Zweitzeile und Inhaltskante beim Seitenwechsel. */
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 0 var(--gutter) 12px;
 }
 .aw-jahr-pillen {
   display: flex;
