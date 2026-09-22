@@ -10,6 +10,7 @@ import {
   outputMengen,
   outputPotenzialZeilen,
   outputPreisZeilen,
+  poolJahresAchse,
   potenzialZeilen,
   preisKorridorZeilen,
   qualitaetsDaten,
@@ -17,8 +18,14 @@ import {
   statusZeilen,
   verifZeilen,
 } from "@/lib/auswertung-modell";
+import {
+  ALLE_FENSTER_KATEGORIEN,
+  wendeFensterAn,
+  type FensterKategorie,
+} from "@/lib/fenster";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import {
+  ladeAlleVergaben,
   ladeErsteAenderung,
   ladeHistorie,
   ladeRegionOptionen,
@@ -60,15 +67,62 @@ export default async function AuswertungPage({
   const sicht = sichtRoh === "outputs" ? ("outputs" as const) : ("feedstock" as const);
   const art = sicht === "outputs" ? ("output" as const) : ("biomasse" as const);
 
-  const [pool, regionen] = await Promise.all([
+  const [pool, regionen, vergabenMap] = await Promise.all([
     ladeStroeme(art),
     ladeRegionOptionen(),
+    ladeAlleVergaben(art),
   ]);
-  const recs = filterStroeme(pool, filter);
 
   const jetzt = new Date();
   const heuteIso = jetzt.toISOString().slice(0, 10);
   const aktuellesJahr = Number(heuteIso.slice(0, 4));
+
+  // Zeitbezug (AP1j PR 4): Einzeljahr (Default aktuelles Jahr) oder
+  // Zeitraum; oe pro Jahr oder Summe (beim Einzeljahr identisch).
+  const zeitmodus =
+    ersterWert(sp.zeitmodus) === "zeitraum"
+      ? ("zeitraum" as const)
+      : ("einzeljahr" as const);
+  const agg =
+    zeitmodus === "zeitraum" && ersterWert(sp.agg) === "summe"
+      ? ("summe" as const)
+      : ("oe" as const);
+  const jahreRoh = ersterWert(sp.jahre)
+    .split(",")
+    .map(Number)
+    .filter((n) => Number.isInteger(n));
+  const poolAchse = poolJahresAchse(pool, aktuellesJahr);
+  const jahre =
+    zeitmodus === "einzeljahr"
+      ? [
+          jahreRoh.find((j) => poolAchse.includes(j)) ??
+            (poolAchse.includes(aktuellesJahr)
+              ? aktuellesJahr
+              : poolAchse[poolAchse.length - 1]!),
+        ]
+      : jahreRoh.filter((j) => poolAchse.includes(j)).length
+        ? jahreRoh.filter((j) => poolAchse.includes(j)).sort()
+        : poolAchse;
+
+  // verfuegbarkeit wirkt hier FENSTERBEZOGEN (Handoff), nicht auf heute —
+  // deshalb aus dem normalen Filter heraushalten und ueber wendeFensterAn
+  // anwenden; alle Module rechnen mit den fensterbezogen skalierten Kopien.
+  const recsHeute = filterStroeme(pool, { ...filter, verfuegbarkeit: [] });
+  const recs = wendeFensterAn(
+    recsHeute,
+    vergabenMap,
+    jahre,
+    filter.verfuegbarkeit,
+    agg,
+  );
+  const fensterKats: ReadonlySet<FensterKategorie> | null =
+    filter.verfuegbarkeit.length
+      ? new Set(
+          ALLE_FENSTER_KATEGORIEN.filter((k) =>
+            filter.verfuegbarkeit.includes(k),
+          ),
+        )
+      : null;
 
   // Facetten identisch zu karte. (geteiltes Filterschema, Delta 1.4),
   // je sicht: Feedstock -> Cluster/Materialart, Outputs -> Gruppe/Output.
@@ -91,6 +145,11 @@ export default async function AuswertungPage({
         ]),
     { key: "qualitaet", label: "Qualität", optionen: opt.qualitaet ?? [] },
     { key: "status", label: "Status", optionen: opt.status ?? [] },
+    {
+      key: "verfuegbarkeit",
+      label: "Verfügbarkeit",
+      optionen: opt.verfuegbarkeit ?? [],
+    },
     { key: "belegtyp", label: "Belegtyp", optionen: opt.belegtyp ?? [] },
   ];
 
@@ -128,7 +187,7 @@ export default async function AuswertungPage({
 
   return (
     <AuswertungAnsicht
-      kpis={kpiKarten(recs, sicht)}
+      kpis={kpiKarten(recs, sicht, agg === "summe")}
       auswahlText={auswahlZeile(recs)}
       anzahl={recs.length}
       cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht) : []}
@@ -136,18 +195,30 @@ export default async function AuswertungPage({
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}
       belegtypen={belegtypZeilen(recs)}
-      jahre={sicht === "feedstock" ? jahresBalken(recs, aktuellesJahr) : []}
+      jahre={
+        sicht === "feedstock"
+          ? jahresBalken(recsHeute, aktuellesJahr, vergabenMap, fensterKats)
+          : []
+      }
       potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
       outMengen={sicht === "outputs" ? outputMengen(pool, recs) : null}
       outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : []}
       outPreise={sicht === "outputs" ? outputPreisZeilen(pool, recs) : null}
-      outJahre={sicht === "outputs" ? outputJahre(recs, aktuellesJahr) : null}
+      outJahre={
+        sicht === "outputs"
+          ? outputJahre(recsHeute, aktuellesJahr, vergabenMap, fensterKats)
+          : null
+      }
       verif={verifZeilen(recs, heuteIso)}
       facetten={facetten}
       auswahl={auswahl}
       bereich={bereich}
       sicht={sicht}
+      zeitmodus={zeitmodus}
+      agg={agg}
+      jahreAuswahl={jahre}
+      poolAchse={poolAchse}
       irgendeinFilter={irgendeinFilter}
       detailStrom={detailStrom}
       historie={historie}

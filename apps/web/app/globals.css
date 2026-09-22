@@ -3889,6 +3889,26 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-auswahl { padding: 8px 2px 18px; }
 
 /* Energie/Stofflich-Umschalter der Output-Module */
+/* AP1j PR 4: Zeitbezug-Zeile — Switches + Jahr-Pillen unter der Toolbar. */
+.aw-zeit {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 0 var(--seite-pad, 24px);
+  margin-top: 10px;
+}
+.aw-jahr-pillen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.aw-jahr-ueberlauf {
+  display: block;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+}
+
 .aw-mini-switch {
   display: inline-flex;
   gap: 2px;
