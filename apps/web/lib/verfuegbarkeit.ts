@@ -1,4 +1,10 @@
 import { fmtMonat } from "./format";
+import {
+  datumZuMonat,
+  monatZuBis,
+  monatZuVon,
+  type FeldFehler,
+} from "./formular-modell";
 
 /**
  * Verfuegbarkeits-/Vergabe-Modell (AP1j PR 2) — reine Logik ohne Datenbank.
@@ -78,4 +84,88 @@ export function vergabeLabel(von: string | null, bis: string | null): string {
   if (von && bis) return `${fmtMonat(von)} – ${fmtMonat(bis)}`;
   if (bis) return `bis ${fmtMonat(bis)}`;
   return `ab ${fmtMonat(von)} (unbefristet)`;
+}
+
+// --- Formular-Ebene (Monats-Strings, "" = offenes Ende) ----------------------
+
+export interface VergabeFormZeile {
+  vonMonat: string;
+  bisMonat: string;
+  an: string;
+  anBhyo: boolean;
+}
+
+/** Beide Daten leer = keine Vergabe (Handoff) — wird nie gespeichert. */
+export function istLeereVergabe(zeile: VergabeFormZeile): boolean {
+  return !zeile.vonMonat && !zeile.bisMonat;
+}
+
+/**
+ * Die vier Handoff-Regeln; Keys passen zur Inline-Anzeige im Panel
+ * (vergabe_<index>_von / _bis, Index = Position im uebergebenen Array,
+ * Leerzeilen behalten ihren Index). Fuer die Ueberlappungspruefung werden
+ * offene Enden durch Verfuegbarkeitsbeginn/-ende ersetzt; damit ist auch
+ * "hoechstens ein offenes Ende je Richtung" abgedeckt — zwei offene Anfaenge
+ * ueberlappen nach Normalisierung immer.
+ */
+export function validiereVergaben(
+  vonMonat: string,
+  bisMonat: string,
+  zeilen: VergabeFormZeile[],
+): FeldFehler {
+  const f: FeldFehler = {};
+  const belegt = zeilen
+    .map((zeile, i) => ({ zeile, i }))
+    .filter(({ zeile }) => !istLeereVergabe(zeile));
+
+  for (const { zeile, i } of belegt) {
+    if (zeile.vonMonat && zeile.bisMonat && zeile.bisMonat < zeile.vonMonat)
+      f[`vergabe_${i}_bis`] = "Bis liegt vor Ab";
+    if (vonMonat && zeile.vonMonat && zeile.vonMonat < vonMonat)
+      f[`vergabe_${i}_von`] = "Liegt vor dem Verfügbarkeitsbeginn";
+    if (bisMonat) {
+      if (zeile.vonMonat && zeile.vonMonat > bisMonat)
+        f[`vergabe_${i}_von`] = "Liegt nach dem Verfügbarkeitsende";
+      if (zeile.bisMonat && zeile.bisMonat > bisMonat)
+        f[`vergabe_${i}_bis`] = "Liegt nach dem Verfügbarkeitsende";
+    }
+  }
+
+  const normalisiert = belegt
+    .map(({ zeile, i }) => ({
+      i,
+      von: zeile.vonMonat || vonMonat,
+      bis: zeile.bisMonat || bisMonat,
+    }))
+    .sort((a, b) => (a.von < b.von ? -1 : a.von > b.von ? 1 : a.i - b.i));
+  for (let k = 1; k < normalisiert.length; k++) {
+    if (normalisiert[k]!.von <= normalisiert[k - 1]!.bis)
+      f[`vergabe_${normalisiert[k]!.i}_von`] =
+        "Überschneidet sich mit einem anderen Vergabezeitraum";
+  }
+  return f;
+}
+
+/** Formular -> Persistenz: Leerzeilen weg, Monat -> Datum, leere Enden -> null. */
+export function vergabenZuWerten(zeilen: VergabeFormZeile[]): VergabeDaten[] {
+  return zeilen
+    .filter((zeile) => !istLeereVergabe(zeile))
+    .map((zeile) => ({
+      vergebenVon: zeile.vonMonat ? monatZuVon(zeile.vonMonat) : null,
+      vergebenBis: zeile.bisMonat ? monatZuBis(zeile.bisMonat) : null,
+      vergebenAn: zeile.an.trim() || null,
+      anBhyo: zeile.anBhyo,
+    }));
+}
+
+/** Persistenz -> Formular (Edit-Prefill). */
+export function vergabenZuFormZeilen(
+  daten: VergabeDaten[],
+): VergabeFormZeile[] {
+  return daten.map((d) => ({
+    vonMonat: datumZuMonat(d.vergebenVon),
+    bisMonat: datumZuMonat(d.vergebenBis),
+    an: d.vergebenAn ?? "",
+    anBhyo: d.anBhyo,
+  }));
 }

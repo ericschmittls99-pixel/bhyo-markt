@@ -1,9 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  istLeereVergabe,
   leiteVerfuegbarkeitAb,
+  validiereVergaben,
   vergabeLabel,
+  vergabenZuFormZeilen,
+  vergabenZuWerten,
   type VergabeDaten,
+  type VergabeFormZeile,
 } from "./verfuegbarkeit";
 
 const strom = {
@@ -108,5 +113,113 @@ describe("vergabeLabel", () => {
   });
   it("offenes bis", () => {
     expect(vergabeLabel("2027-01-01", null)).toBe("ab 01/2027 (unbefristet)");
+  });
+});
+
+const z = (o: Partial<VergabeFormZeile>): VergabeFormZeile => ({
+  vonMonat: "",
+  bisMonat: "",
+  an: "",
+  anBhyo: false,
+  ...o,
+});
+
+describe("validiereVergaben", () => {
+  it("leer und Leerzeilen sind gueltig", () => {
+    expect(validiereVergaben("2026-01", "2030-12", [])).toEqual({});
+    expect(validiereVergaben("2026-01", "2030-12", [z({})])).toEqual({});
+  });
+
+  it("bis vor von", () => {
+    const f = validiereVergaben("2026-01", "2030-12", [
+      z({ vonMonat: "2028-01", bisMonat: "2027-01" }),
+    ]);
+    expect(f.vergabe_0_bis).toBe("Bis liegt vor Ab");
+  });
+
+  it("ausserhalb des Verfuegbarkeitszeitraums", () => {
+    const f = validiereVergaben("2026-01", "2030-12", [
+      z({ vonMonat: "2025-06" }),
+      z({ vonMonat: "2031-01", bisMonat: "2031-06" }),
+    ]);
+    expect(f.vergabe_0_von).toBe("Liegt vor dem Verfügbarkeitsbeginn");
+    expect(f.vergabe_1_von).toBe("Liegt nach dem Verfügbarkeitsende");
+    expect(f.vergabe_1_bis).toBe("Liegt nach dem Verfügbarkeitsende");
+  });
+
+  it("Ueberlappung zweier Zeitraeume", () => {
+    const f = validiereVergaben("2026-01", "2030-12", [
+      z({ vonMonat: "2026-01", bisMonat: "2027-06" }),
+      z({ vonMonat: "2027-06", bisMonat: "2028-01" }),
+    ]);
+    expect(f.vergabe_1_von).toBe(
+      "Überschneidet sich mit einem anderen Vergabezeitraum",
+    );
+  });
+
+  it("zwei offene Enden in dieselbe Richtung ueberlappen nach Normalisierung", () => {
+    const f = validiereVergaben("2026-01", "2030-12", [
+      z({ bisMonat: "2027-06" }),
+      z({ bisMonat: "2028-06" }),
+    ]);
+    expect(f.vergabe_1_von).toBe(
+      "Überschneidet sich mit einem anderen Vergabezeitraum",
+    );
+  });
+
+  it("ueberlappungsfreie Zeitraeume inkl. offener Enden sind gueltig", () => {
+    expect(
+      validiereVergaben("2026-01", "2030-12", [
+        z({ bisMonat: "2027-06" }),
+        z({ vonMonat: "2027-07" }),
+      ]),
+    ).toEqual({});
+  });
+});
+
+describe("vergabenZuWerten", () => {
+  it("laesst Leerzeilen weg und normalisiert Monat -> Datum", () => {
+    expect(
+      vergabenZuWerten([
+        z({}),
+        z({ vonMonat: "2027-01", bisMonat: "2028-06", an: "  Stadtwerke  " }),
+        z({ bisMonat: "2028-06", anBhyo: true }),
+      ]),
+    ).toEqual([
+      {
+        vergebenVon: "2027-01-01",
+        vergebenBis: "2028-06-30",
+        vergebenAn: "Stadtwerke",
+        anBhyo: false,
+      },
+      {
+        vergebenVon: null,
+        vergebenBis: "2028-06-30",
+        vergebenAn: null,
+        anBhyo: true,
+      },
+    ]);
+  });
+});
+
+describe("vergabenZuFormZeilen", () => {
+  it("Datum -> Monat, null -> leer", () => {
+    expect(
+      vergabenZuFormZeilen([
+        {
+          vergebenVon: "2027-01-01",
+          vergebenBis: null,
+          vergebenAn: "X",
+          anBhyo: true,
+        },
+      ]),
+    ).toEqual([{ vonMonat: "2027-01", bisMonat: "", an: "X", anBhyo: true }]);
+  });
+});
+
+describe("istLeereVergabe", () => {
+  it("beide Monate leer = Leerzeile, auch mit Text", () => {
+    expect(istLeereVergabe(z({ an: "jemand" }))).toBe(true);
+    expect(istLeereVergabe(z({ vonMonat: "2027-01" }))).toBe(false);
   });
 });
