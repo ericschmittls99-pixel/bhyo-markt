@@ -976,6 +976,72 @@ describe("outputPreisZeilen", () => {
   });
 });
 
+// Dieselben drei Faelle wie auf der Feedstock-Seite (Eric, 22.09.2026),
+// ueber dieselbe Hilfsfunktion: Gewicht = Energiemenge (kWh); null = nicht
+// ableitbar, 0 = im Bezugsjahr auf 0 skaliert.
+describe("Rechenbasis ø-Preis Outputs: drei Faelle in Kachel und preise-Modul", () => {
+  const target = (patch: Partial<Strom>): Strom =>
+    strom({
+      art: "output",
+      gruppe: "wasserstoff",
+      produktCode: "h2_niederdruck",
+      kategorie: "target",
+      mengeEinheit: "MWh/a",
+      preisEinheit: "€/MWh",
+      ...patch,
+    });
+
+  it("Fall C: Energiemengen auf 0 skaliert -> kein ø, gedimmt gekennzeichnet", () => {
+    const a = target({ id: "a", mengeWert: 0, preis: 80 });
+    const b = target({ id: "b", mengeWert: 0, preis: 40 });
+    const k = kpiKarten([a, b], "outputs");
+    expect(k[2]).toMatchObject({ wert: "–", caption: "2 Belege, keine Menge im Bezugsjahr" });
+    const h2 = outputPreisZeilen([a, b], [a, b]).energetisch.find((r) => r.key === "wasserstoff")!;
+    expect(h2).toMatchObject({
+      wertText: "–",
+      hinweis: "2 Belege, keine Menge im Bezugsjahr",
+      stumm: true,
+    });
+  });
+
+  it("Fall B: keine Energiemenge ableitbar -> ungewichtet, sichtbar gekennzeichnet", () => {
+    const a = target({ id: "a", mengeWert: null, preis: 80 }); // 8 ct/kWh
+    const b = target({ id: "b", mengeWert: null, preis: 40 }); // 4 ct/kWh
+    const k = kpiKarten([a, b], "outputs");
+    expect(k[2]!.wert).toBe("6");
+    expect(k[2]!.caption).toContain("ungewichtet");
+    const h2 = outputPreisZeilen([a, b], [a, b]).energetisch.find((r) => r.key === "wasserstoff")!;
+    expect(h2).toMatchObject({
+      wertText: "6",
+      zusatz: "· ungewichtet",
+      hinweis: "für diese Positionen ist keine Energiemenge ableitbar",
+    });
+  });
+
+  it("Fall A gemischt: gewichtet nur ueber Positionen mit Energiemenge, n-Angabe", () => {
+    const mitMenge = target({ id: "m", mengeWert: 500, preis: 80 }); // 8 ct, 500 MWh
+    const ohneMenge = target({ id: "o", mengeWert: null, preis: 999 });
+    const k = kpiKarten([mitMenge, ohneMenge], "outputs");
+    expect(k[2]!.wert).toBe("8");
+    expect(k[2]!.caption).toContain("(n=1 von 2)");
+    const h2 = outputPreisZeilen([mitMenge, ohneMenge], [mitMenge, ohneMenge]).energetisch.find(
+      (r) => r.key === "wasserstoff",
+    )!;
+    expect(h2).toMatchObject({ wertText: "8", zusatz: "(n=1 von 2)" });
+  });
+
+  it("Kachel und Modul zeigen fuer denselben Datensatz denselben ø", () => {
+    const a = target({ id: "a", mengeWert: 1000, preis: 100 }); // 10 ct
+    const b = target({ id: "b", mengeWert: 500, preis: 40 }); // 4 ct -> gewichtet 8
+    const c = target({ id: "c", mengeWert: null, preis: 77 });
+    const k = kpiKarten([a, b, c], "outputs");
+    const h2 = outputPreisZeilen([a, b, c], [a, b, c]).energetisch.find(
+      (r) => r.key === "wasserstoff",
+    )!;
+    expect(h2.wertText).toBe(k[2]!.wert);
+  });
+});
+
 describe("verifZeilen", () => {
   it("sortiert nach Faelligkeit, markiert Ueberfaelliges und liefert hoechstens drei", () => {
     const z = verifZeilen(alle, "2026-11-01");

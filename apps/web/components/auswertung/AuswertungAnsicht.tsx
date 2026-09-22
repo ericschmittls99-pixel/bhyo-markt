@@ -204,18 +204,23 @@ export function AuswertungAnsicht({
       const auf = !!offen[`${modulKey}:${z.key}`];
       return (
         <div className="aw-akk" key={z.key}>
-          <div className={zeilenKlasse("aw-clusterzeile", z.facette, z.key)}>
+          {/* Fall C (keine Menge im Bezugsjahr): Zeile gedimmt, Hinweis als Popover. */}
+          <div className={`${zeilenKlasse("aw-clusterzeile", z.facette, z.key)}${z.stumm ? " stumm" : ""}`}>
             <button
               type="button"
               className="aw-akk-haupt aw-akk-haupt--spalte"
               aria-pressed={istAktiv(z.facette, z.key)}
               onClick={() => toggle(z.facette, z.key)}
+              title={z.hinweis ?? undefined}
             >
               <span className="aw-spannzeile-kopf">
                 <img className="aw-orb32" src={z.orb} alt="" aria-hidden />
                 <span className="lbl">{z.label}</span>
-                <span className="aw-caption">{z.meta}</span>
-                <span className="aw-zeilenwert">{z.wertText}</span>
+                <span className="aw-caption">{z.hinweis && z.stumm ? z.hinweis : z.meta}</span>
+                <span className="aw-zeilenwert">
+                  {z.wertText}
+                  {z.zusatz ? ` ${z.zusatz}` : ""}
+                </span>
               </span>
               <span className="aw-balken">
                 <span
@@ -231,19 +236,23 @@ export function AuswertungAnsicht({
               <button
                 type="button"
                 key={u.key || u.label}
-                className={
+                className={`${
                   u.key
                     ? zeilenKlasse("aw-unterzeile", "produkt", u.key)
                     : "aw-unterzeile"
-                }
+                }${u.stumm ? " stumm" : ""}`}
                 disabled={!u.key}
                 aria-pressed={u.key ? istAktiv("produkt", u.key) : undefined}
                 onClick={u.key ? () => toggle("produkt", u.key) : undefined}
+                title={u.hinweis ?? undefined}
               >
                 <span className="aw-spannzeile-kopf">
                   <span className="lbl">{u.label}</span>
-                  <span className="aw-caption">{u.meta}</span>
-                  <span className="aw-zeilenwert aw-zeilenwert--sm">{u.wertText}</span>
+                  <span className="aw-caption">{u.hinweis && u.stumm ? u.hinweis : u.meta}</span>
+                  <span className="aw-zeilenwert aw-zeilenwert--sm">
+                    {u.wertText}
+                    {u.zusatz ? ` ${u.zusatz}` : ""}
+                  </span>
                 </span>
                 <span className="aw-balken aw-balken--fein">
                   <span

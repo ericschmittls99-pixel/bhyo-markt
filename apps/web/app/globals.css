@@ -3699,6 +3699,7 @@ table.st-tabelle tbody tr:focus-visible {
    gleiche Optik wie das Vergangenheits-Dimming, getrennt vom
    Filter-Dimming (.gedimmt), damit sich beide kombinieren lassen. */
 .aw-spannzeile.stumm,
+.aw-clusterzeile.stumm,
 .aw-unterzeile.stumm { opacity: 0.45; }
 .aw-zeilen .lbl {
   flex: 1;

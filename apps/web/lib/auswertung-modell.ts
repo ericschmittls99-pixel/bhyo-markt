@@ -69,6 +69,12 @@ export interface OutputUnterzeile {
   pct: number;
   wertText: string;
   meta: string;
+  /** Suffix hinter dem Wert, z. B. "(n=7 von 9)" oder "· ungewichtet". */
+  zusatz?: string | null;
+  /** Popover-/Caption-Text, z. B. "2 Belege, keine Menge im Bezugsjahr". */
+  hinweis?: string | null;
+  /** Fall C: kein ausweisbarer Wert — Zeile wird gedimmt dargestellt. */
+  stumm?: boolean;
 }
 
 /**
@@ -221,30 +227,39 @@ function skaliereEinheit(
  * Eine gemeinsame Funktion fuer Korridor-Modul UND KPI-Kachel, damit die
  * beiden nicht wieder auseinanderlaufen koennen.
  */
-type PreisBasis =
-  | { fall: "gewichtet"; oe: (f: (s: Strom) => number) => number; n: number; nGesamt: number }
-  | { fall: "ungewichtet"; oe: (f: (s: Strom) => number) => number }
+type GewichtungsBasis<T> =
+  | { fall: "gewichtet"; oe: (f: (t: T) => number) => number; n: number; nGesamt: number }
+  | { fall: "ungewichtet"; oe: (f: (t: T) => number) => number }
   | { fall: "keine_menge"; n: number };
 
-function preisBasis(mitPreis: Strom[]): PreisBasis {
-  const gewichtbar = mitPreis.filter((s) => (s.mengeAtro ?? 0) > 0);
+/** EINE Implementierung fuer Feedstock (atro) und Outputs (kWh) — zwei liefen auseinander. */
+function gewichtungsBasis<T>(
+  items: T[],
+  gewichtVon: (t: T) => number | null,
+): GewichtungsBasis<T> {
+  const gewichtbar = items.filter((t) => (gewichtVon(t) ?? 0) > 0);
   if (gewichtbar.length) {
-    const tw = sum(gewichtbar, atroVon);
+    const tw = gewichtbar.reduce((n, t) => n + gewichtVon(t)!, 0);
     return {
       fall: "gewichtet",
-      oe: (f) => sum(gewichtbar, (s) => f(s) * atroVon(s)) / tw,
+      oe: (f) => gewichtbar.reduce((n, t) => n + f(t) * gewichtVon(t)!, 0) / tw,
       n: gewichtbar.length,
-      nGesamt: mitPreis.length,
+      nGesamt: items.length,
     };
   }
-  if (mitPreis.every((s) => s.mengeAtro == null))
-    return { fall: "ungewichtet", oe: (f) => sum(mitPreis, f) / mitPreis.length };
+  if (items.every((t) => gewichtVon(t) == null))
+    return { fall: "ungewichtet", oe: (f) => items.reduce((n, t) => n + f(t), 0) / items.length };
   // Mischfall null + 0: mindestens eine Position HAT ein Gewicht, im
   // Bezugsjahr ist alles 0 → Fall C, kein Preis. Kein Rueckfall.
-  return { fall: "keine_menge", n: mitPreis.length };
+  return { fall: "keine_menge", n: items.length };
+}
+
+function preisBasis(mitPreis: Strom[]): GewichtungsBasis<Strom> {
+  return gewichtungsBasis(mitPreis, (s) => s.mengeAtro);
 }
 
 const HINWEIS_OHNE_ATRO = "für diese Positionen ist keine atro-Menge ableitbar";
+const HINWEIS_OHNE_ENERGIE = "für diese Positionen ist keine Energiemenge ableitbar";
 const hinweisKeineMenge = (n: number) => `${nBelege(n)}, keine Menge im Bezugsjahr`;
 const nAngabe = (b: { n: number; nGesamt: number }) =>
   b.n < b.nGesamt ? `(n=${b.n} von ${b.nGesamt})` : null;
@@ -313,13 +328,15 @@ export function kpiKarten(
     // Outputs-Umbau (E13, Eric 21.09.): Kacheln wie beim Feedstock-Board —
     // Pruefquote, Energiebedarf, kWh-gewichteter ø Preis, Potenzial in €/a.
     // Nur Target-Outputs (Eric 21.09.): Waerme fliesst nicht in den ø Preis.
+    // kwh bleibt null|0 unterschieden: null = kein Energieaequivalent
+    // ableitbar, 0 = Menge im Bezugsjahr auf 0 skaliert (drei Faelle).
     const mitCt = out
       .filter((s) => s.kategorie === "target")
       .map((s) => ({
         ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
-        kwh: kwhVon(s),
+        kwh: energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit),
       }))
-      .filter((x): x is { ct: number; kwh: number } => x.ct != null);
+      .filter((x): x is { ct: number; kwh: number | null } => x.ct != null);
     const potenziale = out
       .map(potenzialEuro)
       .filter((v): v is number => v != null);
@@ -330,19 +347,22 @@ export function kpiKarten(
     if (mitCt.length === 0) {
       preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: "keine Preise in der Auswahl" };
     } else {
-      let tw = mitCt.reduce((n, x) => n + x.kwh, 0);
-      let gewicht = (x: { kwh: number }) => x.kwh;
-      if (tw === 0) {
-        gewicht = () => 1;
-        tw = mitCt.length;
+      // Dieselben drei Faelle wie die Feedstock-Kachel (gewichtungsBasis).
+      const basis = gewichtungsBasis(mitCt, (x) => x.kwh);
+      if (basis.fall === "keine_menge") {
+        preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: hinweisKeineMenge(basis.n) };
+      } else {
+        const art =
+          basis.fall === "ungewichtet"
+            ? "ungewichtet · keine Energiemenge ableitbar"
+            : ["kWh-gewichtet über Target-Outputs", nAngabe(basis)].filter(Boolean).join(" ");
+        preisKpi = {
+          wert: fmtPreis(runde2(basis.oe((x) => x.ct))),
+          einheit: "ct/kWh",
+          label: "ø preis.",
+          caption: `${art}${ohnePreisNote}`,
+        };
       }
-      const mittel = mitCt.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw;
-      preisKpi = {
-        wert: fmtPreis(Math.round(mittel * 100) / 100),
-        einheit: "ct/kWh",
-        label: "ø preis.",
-        caption: `kWh-gewichtet über Target-Outputs${ohnePreisNote}`,
-      };
     }
 
     const potenzialKpi: KpiKarte =
@@ -979,56 +999,74 @@ export function outputPreisZeilen(pool: Strom[], recs: Strom[]): OutputListen {
   const outPool = pool.filter((s) => s.art === "output");
   const outRecs = recs.filter((s) => s.art === "output");
 
-  const ctMittel = (rs: Strom[]): number | null => {
+  /** ø-Ergebnis einer Zeile inkl. der Drei-Faelle-Kennzeichnung. */
+  type PreisWert = { v: number | null; zusatz: string | null; hinweis: string | null; stumm: boolean };
+  const wert = (v: number | null, zusatz: string | null = null, hinweis: string | null = null, stumm = false): PreisWert =>
+    ({ v, zusatz, hinweis, stumm });
+
+  // Energetisch: dieselben drei Faelle wie die ø-Preis-Kachel, ueber
+  // dieselbe gewichtungsBasis. kwh: null = kein Energieaequivalent
+  // ableitbar, 0 = Menge im Bezugsjahr auf 0 skaliert — nie zusammenfassen.
+  const ctMittel = (rs: Strom[]): PreisWert => {
     const mitCt = rs
-      .map((s) => ({ ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit), kwh: kwhVon(s) }))
-      .filter((x): x is { ct: number; kwh: number } => x.ct != null);
-    if (!mitCt.length) return null;
-    let tw = mitCt.reduce((n, x) => n + x.kwh, 0);
-    let gewicht = (x: { kwh: number }) => x.kwh;
-    if (tw === 0) {
-      gewicht = () => 1;
-      tw = mitCt.length;
-    }
-    return runde2(mitCt.reduce((n, x) => n + x.ct * gewicht(x), 0) / tw);
+      .map((s) => ({
+        ct: preisCtKwh(s.produktCode, s.preis, s.preisEinheit),
+        kwh: energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit),
+      }))
+      .filter((x): x is { ct: number; kwh: number | null } => x.ct != null);
+    if (!mitCt.length) return wert(null);
+    const basis = gewichtungsBasis(mitCt, (x) => x.kwh);
+    if (basis.fall === "keine_menge")
+      return wert(null, null, hinweisKeineMenge(basis.n), true);
+    return wert(
+      runde2(basis.oe((x) => x.ct)),
+      basis.fall === "ungewichtet" ? "· ungewichtet" : nAngabe(basis),
+      basis.fall === "ungewichtet" ? HINWEIS_OHNE_ENERGIE : null,
+    );
   };
-  const kgMittel = (rs: Strom[]): number | null => {
+  const kgMittel = (rs: Strom[]): PreisWert => {
     const werte = rs
       .map((s) => preisEuroKg(s.preis, s.preisEinheit))
       .filter((v): v is number => v != null);
-    return werte.length ? runde2(werte.reduce((a, b) => a + b, 0) / werte.length) : null;
+    return wert(werte.length ? runde2(werte.reduce((a, b) => a + b, 0) / werte.length) : null);
   };
 
-  const baue = (ds: OutputRowDef[], mittel: (rs: Strom[]) => number | null): OutputZeile[] => {
+  const baue = (ds: OutputRowDef[], mittel: (rs: Strom[]) => PreisWert): OutputZeile[] => {
     const zeilen = ds.map((d) => {
       const rs = outRecs.filter(d.passt);
       const ohne = rs.filter((s) => s.preis == null).length;
       return {
         d,
-        v: mittel(rs),
+        w: mittel(rs),
         meta: nBelege(rs.length) + (ohne ? ` · ${nBelege(ohne)} ohne Preis` : ""),
       };
     });
-    const max = Math.max(...zeilen.map((z) => z.v ?? 0), 0.01);
-    return zeilen.map(({ d, v, meta }) => ({
+    const max = Math.max(...zeilen.map((z) => z.w.v ?? 0), 0.01);
+    return zeilen.map(({ d, w, meta }) => ({
       facette: d.facette,
       key: d.key,
       label: d.label,
       orb: d.orb,
       farbe: d.farbe,
-      pct: v == null ? 0 : Math.round((v / max) * 100),
-      wertText: v == null ? "–" : fmtPreis(v),
+      pct: w.v == null ? 0 : Math.round((w.v / max) * 100),
+      wertText: w.v == null ? "–" : fmtPreis(w.v),
+      zusatz: w.zusatz,
+      hinweis: w.hinweis,
+      stumm: w.stumm,
       meta,
       unter:
         d.facette === "gruppe"
           ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
-              .map((g) => ({ g, v: mittel(g.rs) }))
-              .sort((a, b) => (b.v ?? -1) - (a.v ?? -1) || a.g.label.localeCompare(b.g.label, "de"))
-              .map(({ g, v: gv }) => ({
+              .map((g) => ({ g, w: mittel(g.rs) }))
+              .sort((a, b) => (b.w.v ?? -1) - (a.w.v ?? -1) || a.g.label.localeCompare(b.g.label, "de"))
+              .map(({ g, w: gw }) => ({
                 key: g.key,
                 label: g.label,
-                pct: gv == null ? 0 : Math.round((gv / max) * 100),
-                wertText: gv == null ? "–" : fmtPreis(gv),
+                pct: gw.v == null ? 0 : Math.round((gw.v / max) * 100),
+                wertText: gw.v == null ? "–" : fmtPreis(gw.v),
+                zusatz: gw.zusatz,
+                hinweis: gw.hinweis,
+                stumm: gw.stumm,
                 meta: nBelege(g.rs.length),
               }))
           : [],

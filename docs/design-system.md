@@ -137,6 +137,9 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   Vergangenheits-Dimming der Jahresachse, getrennt vom Filter-Dimming),
   Hinweis „n Belege, keine Menge im Bezugsjahr" als Caption und Popover.
   In der KPI-Kachel stehen dieselben Kennzeichnungen in der Caption.
+  Gilt identisch auf der Outputs-Seite (Gewicht = Energiemenge in kWh,
+  Kennzeichen „keine Energiemenge ableitbar") — eine gemeinsame
+  Rechenbasis-Funktion, keine zweite Implementierung.
 
 ## Akkordeon-Muster (Materialarten/Produkte)
 
