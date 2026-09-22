@@ -306,19 +306,42 @@ vertragen sich mit altem Code; umgekehrt gilt das nicht. E21 ist das
 Spiegelbild des Preview-Guardrails oben: dort muss das Schema dem Merge
 vorauslaufen, hier darf der Code dem Schema nie vorauslaufen.
 
-Absicherung (beides im Deploy-Workflow):
+Absicherung — die Freigabe läuft über einen manuell ausgelösten
+Migrationsjob, der blockierende Vorab-Check verhindert das Vergessen
+(Required Reviewers stehen im GitHub-Free-Plan für private Repos nicht
+zur Verfügung):
 
-- `/api/health` vergleicht die im Build enthaltenen Migrationen
-  (Drizzle-Journal) mit den in der DB angewendeten und antwortet bei
-  Rückstand mit HTTP 503, `schema: behind` und den Namen der fehlenden.
-  Der Production-Deploy ruft den Check nach dem Rollout auf (per
-  Access-Service-Token) und schlägt dann fehl — der Deploy bricht, nicht
-  /register.
-- Der `migrate-production`-Job läuft VOR dem Code-Deploy, sobald ein
-  main-Push Migrationsdateien enthält — hinter dem GitHub-Environment
-  „production" (Secret `DATABASE_URL_PRODUCTION`, Protection Rule mit
-  Pflicht-Freigabe durch Eric). Die Leitplanke „Produktions-DB nur mit
-  ausdrücklicher Freigabe" bleibt; vergessen geht nicht mehr.
+- **`schema-gate` im Deploy-Workflow (tragende Prüfung):** Bei jedem
+  main-Push liest der erste Job mit `DATABASE_URL_PRODUCTION` (read-only
+  Query auf `drizzle.__drizzle_migrations`) den angewendeten Stand und
+  vergleicht ihn mit dem Journal im Build. Liegt die DB zurück, schlägt
+  er fehl („Migration 00XX ausstehend — zuerst Workflow Migrate
+  Production ausführen") und der Code-Deploy läuft NICHT. Der alte
+  Worker läuft mit dem alten Schema weiter — das ist der funktionierende
+  Zustand, exakt umgekehrt zum Vorfall vom 22.09.
+- **Workflow `Migrate Production` (`migrate-production.yml`), nur
+  manuell:** Pflicht-Eingabe „bestaetigung" muss wörtlich `production`
+  lauten; erster Schritt ist die Host-Prüfung (DATABASE_URL muss auf
+  `ep-purple-glade-b2tra1g7` zeigen, siehe Tabelle unten); dann
+  `pnpm --filter @bhyo/db migrate`, Ausgabe des angewendeten Stands,
+  abschließend automatisches Auslösen des Deploy-Workflows für main.
+  Das manuelle Auslösen ist die ausdrückliche Freigabe aus der
+  Leitplanke „Produktion braucht Freigabe".
+- **`/api/health`** vergleicht die im Build enthaltenen Migrationen mit
+  den in der DB angewendeten und antwortet bei Rückstand mit HTTP 503
+  und `schema: behind`; die Namen der fehlenden Migrationen erscheinen
+  in Production nur für Access-authentifizierte Aufrufer. Der
+  Health-Check nach dem Rollout ist nur zusätzliche Bestätigung — die
+  tragende Prüfung ist das schema-gate; fehlt das Access-Service-Token,
+  wird er ohne Lücke übersprungen.
+
+**Ablauf im Alltag:**
+
+- Merge MIT Migration → Deploy bricht im schema-gate mit „Migration
+  ausstehend" ab → Actions → „Migrate Production" ausführen,
+  `production` eintippen → Migration läuft, der Deploy folgt
+  automatisch.
+- Merge OHNE Migration → schema-gate grün → Deploy wie bisher.
 
 **Neon-Endpoints (vor JEDER manuellen Migration den Host der
 DATABASE_URL gegen diese Tabelle prüfen):**

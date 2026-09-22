@@ -16,38 +16,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # E21 (22.09.2026): Stellt fest, ob dieser main-Push Migrationen mitbringt.
-  # Nur dann verlangt der Deploy die Produktions-Migration vorab.
-  migrationsdiff:
+  # E21 (22.09.2026): Vorab-Check statt Auto-Migration — dieser Workflow
+  # migriert Production NIE selbst. Migrationen laufen ausschliesslich ueber
+  # den manuell ausgeloesten Workflow migrate-production.yml (Leitplanke
+  # "Produktions-DB nur mit ausdruecklicher Freigabe"). Das Gate verhindert
+  # das Vergessen: Es liest mit DATABASE_URL_PRODUCTION (read-only Query auf
+  # drizzle.__drizzle_migrations) den angewendeten Stand und vergleicht ihn
+  # mit dem Journal im Checkout. Liegt die DB zurueck, SCHLAEGT das Gate FEHL
+  # ("Migration 00XX ausstehend — zuerst Migrate Production ausfuehren") und
+  # der deploy-Job laeuft nicht: Es wird kein Code deployt, dessen Schema
+  # fehlt — der alte Worker laeuft mit dem alten Schema weiter, das ist der
+  # funktionierende Zustand (exakt umgekehrt zum Vorfall vom 22.09.).
+  # Dieses Gate ist die TRAGENDE Pruefung; der Health-Check nach dem Rollout
+  # ist nur zusaetzliche Bestaetigung.
+  schema-gate:
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-    outputs:
-      geaendert: ${{ steps.diff.outputs.geaendert }}
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 2
-      - id: diff
-        run: |
-          if git diff --name-only HEAD^ HEAD | grep -q '^packages/db/migrations/'; then
-            echo "geaendert=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "geaendert=false" >> "$GITHUB_OUTPUT"
-          fi
-
-  # E21: Produktions-Migration LAEUFT VOR dem Code-Deploy (Regel: Schema immer
-  # vor dem Code, der es braucht). Das GitHub-Environment "production" traegt
-  # das Secret DATABASE_URL_PRODUCTION und eine Protection Rule mit
-  # Pflicht-Freigabe durch Eric — die Leitplanke "Produktions-DB nur mit
-  # ausdruecklicher Freigabe" bleibt, der Schritt kann aber nicht mehr
-  # vergessen werden. (Einmalig in den Repo-Settings anzulegen: Environment
-  # "production", Required reviewer Eric, Secret DATABASE_URL_PRODUCTION.)
-  migrate-production:
-    needs: migrationsdiff
-    if: github.event_name != 'pull_request' && needs.migrationsdiff.outputs.geaendert == 'true'
-    runs-on: ubuntu-latest
+    # Environment nur wegen des Secrets DATABASE_URL_PRODUCTION; das Gate
+    # liest ausschliesslich.
     environment: production
     permissions:
       contents: read
@@ -60,22 +46,18 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
-      - name: Migrate Production-DB
-        working-directory: packages/db
+      - name: Schema-Stand pruefen (read-only)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
-        run: pnpm exec drizzle-kit migrate
+        run: pnpm --filter @bhyo/db schema-gate
 
   deploy:
-    needs: [migrationsdiff, migrate-production]
-    # PRs laufen immer; main-Pushes nur, wenn die Migration durch ist oder
-    # keine anstand (skipped). Bricht die Migration, deployt kein Code —
-    # dann bricht der Deploy statt /register (E21).
+    needs: [schema-gate]
+    # PRs laufen immer; main-Pushes nur, wenn das schema-gate gruen ist.
     if: >-
       always() && !cancelled() &&
       (github.event_name == 'pull_request' ||
-       needs.migrate-production.result == 'success' ||
-       needs.migrate-production.result == 'skipped')
+       needs.schema-gate.result == 'success')
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -94,9 +76,9 @@ jobs:
 
       # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
       # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
-      # werden muessen. Production laeuft oben im migrate-production-Job mit
-      # Environment-Freigabe (E21). Der direkte Neon-Connection-String kommt aus
-      # dem Repo-Secret, nie aus dem Repo.
+      # werden muessen. Production migriert dieser Workflow NIE — nur der
+      # manuell ausgeloeste Workflow migrate-production.yml (E21). Der direkte
+      # Neon-Connection-String kommt aus dem Repo-Secret, nie aus dem Repo.
       - name: Migrate Preview-DB
         if: github.event_name == 'pull_request'
         working-directory: packages/db
@@ -122,10 +104,11 @@ jobs:
         run: pnpm exec wrangler deploy --env=""
 
       # E21: Nach dem Rollout /api/health befragen — meldet die Antwort
-      # "schema: behind", SCHLAEGT der Deploy FEHL. Braucht ein
-      # Access-Service-Token (Secrets CF_ACCESS_CLIENT_ID/-SECRET), weil
-      # Cloudflare Access curl sonst mit 302 abfaengt; ohne Token wird der
-      # Check uebersprungen und deutlich benannt.
+      # "schema: behind", SCHLAEGT der Deploy FEHL. Diese Abfrage ist NUR
+      # zusaetzliche Bestaetigung: die tragende Pruefung ist das schema-gate
+      # oben, das direkt mit der DB spricht. Ohne Access-Service-Token
+      # (Secrets CF_ACCESS_CLIENT_ID/-SECRET; Access faengt curl sonst mit
+      # 302 ab) wird der Check uebersprungen — ohne Luecke.
       - name: Health-Check Production (Schema)
         if: github.event_name != 'pull_request'
         env:

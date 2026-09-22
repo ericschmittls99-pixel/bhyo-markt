@@ -47,8 +47,14 @@ async function checkDb(
  * Health-Check ohne Secrets und ohne Nutzerdaten. Zeigt DB-Status und
  * Schema-Stand, damit ein zurueckliegendes Produktionsschema von aussen
  * sichtbar wird (HTTP 503 + "schema: behind"), statt erst im Seiten-Crash.
+ *
+ * Die NAMEN der fehlenden Migrationen verraten Schema-Interna; in Production
+ * erscheinen sie deshalb nur fuer Aufrufer, die durch Cloudflare Access
+ * gekommen sind (Browser-Login oder Service-Token — beide tragen das
+ * Assertion-JWT). Sollte der Endpunkt je per Access-Bypass fuer Monitoring
+ * geoeffnet werden, bleiben von aussen nur status/db/schema sichtbar.
  */
-export async function GET() {
+export async function GET(request: Request) {
   // `env` kommt aus der wrangler-Variable ENVIRONMENT (production | preview);
   // ausserhalb des Worker-Kontexts (reiner Node-Aufruf) faellt sie auf
   // "development" zurueck, `db` dann auf "error".
@@ -66,6 +72,9 @@ export async function GET() {
   }
 
   const schemaBehind = fehlend.length > 0;
+  const accessAuthentifiziert =
+    request.headers.get("cf-access-jwt-assertion") !== null;
+  const namenSichtbar = env !== "production" || accessAuthentifiziert;
   return Response.json(
     {
       status: schemaBehind ? "schema_behind" : "ok",
@@ -74,7 +83,7 @@ export async function GET() {
       env,
       db,
       schema: schemaBehind ? "behind" : "ok",
-      ...(schemaBehind ? { fehlendeMigrationen: fehlend } : {}),
+      ...(schemaBehind && namenSichtbar ? { fehlendeMigrationen: fehlend } : {}),
       time: new Date().toISOString(),
     },
     { status: schemaBehind ? 503 : 200 },

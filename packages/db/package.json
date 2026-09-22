@@ -13,6 +13,8 @@
   "scripts": {
     "generate": "drizzle-kit generate",
     "migrate": "drizzle-kit migrate",
+    "schema-gate": "tsx src/schema-gate.ts",
+    "schema-stand": "tsx src/schema-gate.ts stand",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
