@@ -74,6 +74,17 @@ Qualitäts-Ableitungsmatrix“.
 - Die Anzeige-ID ist ein eigenes, unveränderliches Feld neben dem UUID-Primärschlüssel
   und wird nie als Fremdschlüssel verwendet
 
+## 5. Materialarten-Ergänzung 0011 – Cluster-Zuordnung als Setzung
+
+Migration 0011 (22.09.2026) ergänzt vier Materialarten: `altholz_a1_a3`,
+`rebholz` (→ lignozellulosische Reststoffe), `gaerreste_fest`,
+`papierschlamm` (→ organische Rest-/Abfallstoffe). Die Cluster-Zuordnungen
+sind eine **Setzung**, keine abgeleitete Wahrheit — insbesondere
+Papierschlamm: chemisch lignozellulosisch, praktisch schlammartig;
+zugeordnet nach Handhabung und Preisbildung, nicht nach Stoffchemie.
+Falls später Faserschlamm und Deinking-Schlamm unterschieden werden, wird
+aus `papierschlamm` ein Codepaar.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

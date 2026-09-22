@@ -271,6 +271,20 @@ der Gesamtscore-Aggregation — dort als sichtbare, begründete Entscheidung.
   Ersetz-Modell der Vergabezeilen löscht bei parallelem Edit fremde
   Zeilen spurlos — qualitativ mehr als das Feld-Überschreiben des
   übrigen Formulars. Umsetzen, sobald Mehrbenutzerbetrieb real wird.
+- **Materialart-Taxonomie als Admin-Pflege** (Beschluss 22.09.2026): Ab
+  der dritten Stammdaten-Migration nach dem Muster von 0008/0011 gehört
+  die Materialart-Pflege in eine Admin-Oberfläche im Tool statt in die
+  Migrationskette. Nicht frei editierbar — die Taxonomie steuert die
+  Cluster-Zuordnung und später den Eignungsscore.
+
+## Handoff-Delta zu F5 (Filter vs. Erfassung, 22.09.2026)
+
+Facetten-Filter blenden Optionen mit Anzahl 0 aus. Die
+Materialart-Combobox im **Erfassungsformular** zeigt dagegen IMMER die
+vollständige Taxonomie, auch ungenutzte Arten — sonst kann man sie nie
+erfassen. Anlass: Migration 0011 fügt vier Materialarten hinzu, die in
+Production zunächst leer sind; als Filteroptionen wären sie Rauschen,
+als Erfassungsoptionen sind sie notwendig.
 
 ## Sonstiges
 
