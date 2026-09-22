@@ -299,6 +299,18 @@ BENUTZTES Stammdatum stillgelegt werden muss — vorher nicht: Für eine
 unreferenzierte Zeile wäre es überdimensioniert, die darf per Migration
 entfernt werden.
 
+**Kein Ersatzwert bei fehlendem Stammdatum (22.09.2026):** Fehlt ein in
+einer Spezifikation genanntes Stammdatum (Materialart, Output-Produkt) in
+der Referenztabelle, bricht die Datenerzeugung mit genau diesem Code ab —
+Weg: Stammdatum per Migration ergänzen oder Spezifikation korrigieren.
+Kein Ersatzprodukt, kein stiller Austausch, kein „nächstbestes". Ein
+Ersatzwert ist die gefährlichste Form des Fehlschlags, weil das Ergebnis
+plausibel aussieht; Datenerzeugung scheitert laut oder gar nicht. Anlass:
+sechs Pflanzenkohle-Positionen wurden am 22.09.2026 still zu Methanol,
+mit Mengen und Preisen aus der Biokohle-Spezifikation. Umgesetzt als
+`pruefeStammdaten` in `apps/web/scripts/seed-guard.ts`, geprüft vor dem
+ersten Schreibzugriff des Seed-v2-Writers.
+
 ## Vormerkung für F6 (22.09.2026, noch nicht umsetzen)
 
 Der auswertung-CSV-Export hat derzeit gar keine Preisspalten — ein

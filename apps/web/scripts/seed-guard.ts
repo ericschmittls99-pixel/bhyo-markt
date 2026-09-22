@@ -33,3 +33,37 @@ export function pruefeSeedZiel(
   }
   return { url };
 }
+
+/**
+ * Stammdaten-Guard: Jeder in der Spezifikation verwendete Materialart- und
+ * Produktcode muss in der jeweiligen Referenztabelle existieren, sonst
+ * Abbruch mit dem fehlenden Code. Bewusst KEIN Ersatzprodukt und kein
+ * "naechstbestes" — ein Ersatzwert saehe plausibel aus und ist damit die
+ * gefaehrlichste Form des Fehlschlags (Anlass: sechs Pflanzenkohle-
+ * Positionen wurden am 22.09.2026 still zu Methanol).
+ */
+export function pruefeStammdaten(pruefung: {
+  verwendeteMaterialarten: readonly string[];
+  verwendeteProdukte: readonly string[];
+  bekannteMaterialarten: readonly string[];
+  bekannteProdukte: readonly string[];
+}): { fehler: string } | null {
+  const fehlend = (verwendet: readonly string[], bekannt: readonly string[]) =>
+    [...new Set(verwendet)].filter((code) => !bekannt.includes(code)).sort();
+
+  const zeilen: string[] = [];
+  for (const [tabelle, codes] of [
+    ["materialart", fehlend(pruefung.verwendeteMaterialarten, pruefung.bekannteMaterialarten)],
+    ["output_produkt", fehlend(pruefung.verwendeteProdukte, pruefung.bekannteProdukte)],
+  ] as const) {
+    for (const code of codes) zeilen.push(`- ${tabelle}: "${code}"`);
+  }
+  if (!zeilen.length) return null;
+  return {
+    fehler:
+      "Stammdaten fehlen in der Referenztabelle:\n" +
+      zeilen.join("\n") +
+      "\nEntweder das Stammdatum per Migration ergaenzen (Muster 0008/0011) " +
+      "oder die Spezifikation korrigieren. Es gibt bewusst kein Ersatzprodukt.",
+  };
+}
