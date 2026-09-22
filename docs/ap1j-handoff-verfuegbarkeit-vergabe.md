@@ -297,3 +297,73 @@ zum zeitnahen Merge oder zum expliziten Rollback — sonst trägt die
 Preview-DB einen Zustand, der in der Migrationskette von main nicht
 existiert, und der nächste Migrations-PR baut auf etwas auf, das niemand
 mehr rekonstruieren kann.
+
+## E21 — Produktions-Schema-Guardrail (22.09.2026)
+
+**Regel: Eine Migration wird IMMER angewendet, BEVOR der Code deployt
+wird, der sie braucht — nie danach.** Additive, nullable Migrationen
+vertragen sich mit altem Code; umgekehrt gilt das nicht. E21 ist das
+Spiegelbild des Preview-Guardrails oben: dort muss das Schema dem Merge
+vorauslaufen, hier darf der Code dem Schema nie vorauslaufen.
+
+Absicherung — die Freigabe läuft über einen manuell ausgelösten
+Migrationsjob, der blockierende Vorab-Check verhindert das Vergessen
+(Required Reviewers stehen im GitHub-Free-Plan für private Repos nicht
+zur Verfügung):
+
+- **`schema-gate` im Deploy-Workflow (tragende Prüfung):** Bei jedem
+  main-Push liest der erste Job mit `DATABASE_URL_PRODUCTION` (read-only
+  Query auf `drizzle.__drizzle_migrations`) den angewendeten Stand und
+  vergleicht ihn mit dem Journal im Build. Liegt die DB zurück, schlägt
+  er fehl („Migration 00XX ausstehend — zuerst Workflow Migrate
+  Production ausführen") und der Code-Deploy läuft NICHT. Der alte
+  Worker läuft mit dem alten Schema weiter — das ist der funktionierende
+  Zustand, exakt umgekehrt zum Vorfall vom 22.09.
+- **Workflow `Migrate Production` (`migrate-production.yml`), nur
+  manuell:** Pflicht-Eingabe „bestaetigung" muss wörtlich `production`
+  lauten; erster Schritt ist die Host-Prüfung (DATABASE_URL muss auf
+  `ep-purple-glade-b2tra1g7` zeigen, siehe Tabelle unten); dann
+  `pnpm --filter @bhyo/db migrate`, Ausgabe des angewendeten Stands,
+  abschließend automatisches Auslösen des Deploy-Workflows für main.
+  Das manuelle Auslösen ist die ausdrückliche Freigabe aus der
+  Leitplanke „Produktion braucht Freigabe".
+- **`/api/health`** vergleicht die im Build enthaltenen Migrationen mit
+  den in der DB angewendeten und antwortet bei Rückstand mit HTTP 503
+  und `schema: behind`; die Namen der fehlenden Migrationen erscheinen
+  in Production nur für Access-authentifizierte Aufrufer. Der
+  Health-Check nach dem Rollout ist nur zusätzliche Bestätigung — die
+  tragende Prüfung ist das schema-gate; fehlt das Access-Service-Token,
+  wird er ohne Lücke übersprungen.
+
+**Ablauf im Alltag:**
+
+- Merge MIT Migration → Deploy bricht im schema-gate mit „Migration
+  ausstehend" ab → Actions → „Migrate Production" ausführen,
+  `production` eintippen → Migration läuft, der Deploy folgt
+  automatisch.
+- Merge OHNE Migration → schema-gate grün → Deploy wie bisher.
+- „Produktions-DB nicht erreichbar" ist eine EIGENE Fehlerklasse (Exit 2,
+  eigene Meldung nach 3 Versuchen mit Wartezeit gegen den Neon-Kaltstart)
+  und bedeutet NICHT „Migration ausstehend" — Migrate Production hilft
+  dann nicht, sondern Neustart des Laufs bzw. Neon-Status prüfen.
+- Notausgang (Break-Glass): Blockiert ein defektes Gate seine eigene
+  Reparatur, lässt sich der Deploy-Workflow manuell mit dem Eingabefeld
+  `gate_umgehen` = wörtlich `ja` starten — nur auf dem dispatch-Pfad,
+  nie bei einem Push, mit lauter Warnung im Log. Danach Schema-Stand von
+  Hand prüfen und den Gate-Defekt sofort beheben.
+
+**Neon-Endpoints (vor JEDER manuellen Migration den Host der
+DATABASE_URL gegen diese Tabelle prüfen):**
+
+| Umgebung | Hyperdrive | Neon-Host |
+| --- | --- | --- |
+| Production | `bhyo-markt-db` | `ep-purple-glade-b2tra1g7.c-6.eu-central-1.aws.neon.tech` |
+| Preview | `bhyo-markt-db-preview` | `ep-rough-term-b29rvd6c.c-6.eu-central-1.aws.neon.tech` |
+
+Post-Mortem: Am 22.09.2026 waren ströme./karte./auswertung. in
+Production mehrere Stunden ohne Funktion (Merge von PR #35 um 09:47 UTC
+bis zur Migration am Abend), weil 0009/0010 nie auf der Produktions-DB
+lagen und der erste Behebungsversuch den Snapshot- statt den
+Production-Branch migrierte. Künftig verhindert durch die Regel
+Schema-vor-Code samt Workflow-Erzwingung, den Schema-Check in
+/api/health und die Endpoint-Tabelle oben.

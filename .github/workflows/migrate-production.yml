@@ -1,0 +1,85 @@
+name: Migrate Production
+
+# E21 (22.09.2026): Der EINZIGE Weg, Migrationen auf die Produktions-DB zu
+# bringen. Manuelles Ausloesen + woertliche Bestaetigung = die ausdrueckliche
+# Freigabe aus der Leitplanke "Produktion braucht Freigabe" (Required
+# Reviewers stehen im Free-Plan fuer private Repos nicht zur Verfuegung).
+# Vergessen wird nicht hier verhindert, sondern im Deploy-Workflow: dessen
+# schema-gate blockiert jeden Code-Deploy, solange die DB hinter dem Journal
+# zurueckliegt, und verweist auf diesen Workflow.
+on:
+  workflow_dispatch:
+    inputs:
+      bestaetigung:
+        description: 'Zur Freigabe woertlich "production" eintippen'
+        required: true
+
+# Nie zwei Produktions-Migrationen gleichzeitig; laufende nicht abbrechen.
+concurrency:
+  group: migrate-production
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    # Environment "production" traegt das Secret DATABASE_URL_PRODUCTION und
+    # ist auf den Branch main beschraenkt.
+    environment: production
+    permissions:
+      contents: read
+      actions: write # loest nach der Migration den Deploy-Workflow aus
+    steps:
+      - name: Bestaetigung pruefen
+        if: inputs.bestaetigung != 'production'
+        run: |
+          echo '::error::Abbruch: Das Eingabefeld "bestaetigung" muss woertlich "production" lauten.'
+          exit 1
+
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      # Host-Pruefung VOR der Migration: Am 22.09.2026 lief eine manuelle
+      # Migration gegen einen Neon-Snapshot-Branch statt gegen Production,
+      # weil Neon nach dem Anlegen eines Branches dessen URL anzeigt —
+      # Production blieb zurueck, /register brach. Der Host muss deshalb der
+      # dokumentierte Production-Endpoint sein (Endpoint-Tabelle im Handoff
+      # docs/ap1j-handoff-verfuegbarkeit-vergabe.md, Abschnitt E21).
+      - name: Host pruefen (nur ep-purple-glade = Production)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: |
+          host=$(node -e 'console.log(new URL(process.env.DATABASE_URL).hostname)')
+          case "$host" in
+            ep-purple-glade-b2tra1g7*)
+              echo "Production-Endpoint bestaetigt: $host" ;;
+            *)
+              echo "::error::DATABASE_URL_PRODUCTION zeigt auf '$host' — erwartet wird ep-purple-glade-b2tra1g7.*. Abbruch, es wurde nichts migriert."
+              exit 1 ;;
+          esac
+
+      - name: Migrate Production-DB
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db migrate
+
+      - name: Angewendeten Stand ausgeben
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db schema-stand
+
+      # Der blockierte (oder noch nicht gelaufene) Deploy folgt automatisch:
+      # workflow_dispatch-Events aus dem GITHUB_TOKEN duerfen — anders als
+      # push — neue Workflow-Laeufe erzeugen.
+      - name: Deploy-Workflow fuer main ausloesen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"
