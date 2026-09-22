@@ -7,6 +7,11 @@ name: Seed Preview (v2)
 # kennt kein Override-Flag.
 on:
   workflow_dispatch:
+  # TEMPORAER (vor dem Merge entfernen): workflow_dispatch ist erst nach dem
+  # Merge auf main registrierbar — bis dahin triggert der Push auf DIESEN
+  # Branch den Lauf (Muster der DB-Gegenrechnung).
+  push:
+    branches: [seed-preview-v2]
 
 jobs:
   seed:
