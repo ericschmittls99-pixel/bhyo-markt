@@ -6,6 +6,8 @@
 // Die Fachregeln folgen dashVals() aus dem V2-Mockup.
 
 import { energieKwh, preisCtKwh, preisEuroKg } from "./energie";
+import { jahresAnteil, type FensterKategorie } from "./fenster";
+import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
 import { fmtDatum, fmtPreis, fmtZahl } from "./format";
 import { STATUS_LABEL } from "./status";
@@ -100,6 +102,8 @@ export interface JahresBalken {
   aktuell: boolean;
   /** Jahr liegt vor dem aktuellen — wird visuell als Vergangenheit abgegrenzt (E16). */
   vergangen: boolean;
+  /** E16-Deckel: nur an der letzten Saeule gesetzt, wenn Belege darueber hinauslaufen. */
+  ueberlaufBis: number | null;
 }
 
 export interface SpannenUnterzeile {
@@ -490,9 +494,15 @@ export function belegtypZeilen(recs: Strom[]): BelegtypZeile[] {
 /**
  * Dynamische Jahresachse (E16, Eric 21.09.): lueckenlos vom fruehesten bis
  * zum spaetesten Jahr der Belegzeitraeume; ohne jeden Zeitraum faellt sie
- * aufs aktuelle Jahr zurueck. Ab ~8 Balken scrollt das Modul (CSS).
+ * aufs aktuelle Jahr zurueck. E16-Deckel (Review 22.09.2026): Ende bei
+ * min(spaetestes Zeitraumende, aktuelles Jahr + 10) — eine einzelne
+ * 2099-Eingabe erzeugt sonst 74 Saeulen; der Ueberlauf wird an der letzten
+ * Saeule markiert. Ab ~8 Balken scrollt das Modul (CSS).
  */
-function jahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
+function jahresAchse(
+  recs: Strom[],
+  aktuellesJahr: number,
+): { achse: number[]; ueberlaufBis: number | null } {
   const jahre = recs.flatMap((s) =>
     [s.zeitraumVon, s.zeitraumBis]
       .filter((iso): iso is string => iso != null)
@@ -503,32 +513,36 @@ function jahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
   if (recs.some((s) => s.zeitraumVon == null || s.zeitraumBis == null))
     jahre.push(aktuellesJahr);
   const lo = jahre.length ? Math.min(...jahre) : aktuellesJahr;
-  const hi = jahre.length ? Math.max(...jahre) : aktuellesJahr;
-  return Array.from({ length: hi - lo + 1 }, (_, i) => lo + i);
+  const hiRoh = jahre.length ? Math.max(...jahre) : aktuellesJahr;
+  const hi = Math.min(hiRoh, aktuellesJahr + 10);
+  return {
+    achse: Array.from({ length: Math.max(0, hi - lo) + 1 }, (_, i) => lo + i),
+    ueberlaufBis: hiRoh > hi ? hiRoh : null,
+  };
+}
+
+/** Fuer die Jahr-Pillen der Seite: gedeckelte Achse aus dem Pool. */
+export function poolJahresAchse(recs: Strom[], aktuellesJahr: number): number[] {
+  return jahresAchse(recs, aktuellesJahr).achse;
 }
 
 /**
- * Jahres-Summe je Kalenderjahr des Zeitraums. Offene Zeitraeume (E17):
- * ohne Von-Datum zaehlt ein Beleg erst AB dem aktuellen Jahr — nie
- * rueckwirkend in Jahre, die nur durch fremde historische Belege auf der
- * Achse sind; ohne Bis-Datum laeuft er bis zum Achsenende durch.
+ * Jahres-Summe MONATSSCHARF (E19): Rate × Σ Saisonanteile der zaehlenden
+ * Monate je Kalenderjahr, optional eingeschraenkt auf Fensterkategorien
+ * (fensterbezogener Status-Filter). Erwartet UNSKALIERTE recs — die
+ * Original-Jahresrate, nicht die Fenster-Menge.
  */
 function jahresWerte(
   recs: Strom[],
   achse: number[],
-  aktuellesJahr: number,
+  vergabenMap: Map<string, VergabeDaten[]>,
+  kategorien: ReadonlySet<FensterKategorie> | null,
   wertVon: (s: Strom) => number,
 ): number[] {
-  const jahrVon = (iso: string | null, fallback: number) =>
-    iso ? Number(iso.slice(0, 4)) : fallback;
   return achse.map((jahr) =>
     sum(
-      recs.filter(
-        (s) =>
-          jahrVon(s.zeitraumVon, aktuellesJahr) <= jahr &&
-          jahrVon(s.zeitraumBis, achse[achse.length - 1]!) >= jahr,
-      ),
-      wertVon,
+      recs,
+      (s) => wertVon(s) * jahresAnteil(jahr, s, vergabenMap.get(s.id) ?? [], kategorien),
     ),
   );
 }
@@ -537,6 +551,7 @@ function zuJahresBalken(
   achse: number[],
   werte: number[],
   aktuellesJahr: number,
+  ueberlaufBis: number | null,
 ): JahresBalken[] {
   const max = Math.max(1, ...werte);
   return achse.map((jahr, i) => ({
@@ -545,14 +560,25 @@ function zuJahresBalken(
     pct: Math.max(2, Math.round((werte[i]! / max) * 100)),
     aktuell: jahr === aktuellesJahr,
     vergangen: jahr < aktuellesJahr,
+    ueberlaufBis: i === achse.length - 1 ? ueberlaufBis : null,
   }));
 }
 
-/** Feedstock: verfuegbare t atro je Jahr auf dynamischer Achse. */
-export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken[] {
+/** Feedstock: verfuegbare t atro je Jahr, monatsscharf auf gedeckelter Achse. */
+export function jahresBalken(
+  recs: Strom[],
+  aktuellesJahr: number,
+  vergabenMap: Map<string, VergabeDaten[]> = new Map(),
+  kategorien: ReadonlySet<FensterKategorie> | null = null,
+): JahresBalken[] {
   const feed = recs.filter((s) => s.art === "biomasse");
-  const achse = jahresAchse(feed, aktuellesJahr);
-  return zuJahresBalken(achse, jahresWerte(feed, achse, aktuellesJahr, atroVon), aktuellesJahr);
+  const { achse, ueberlaufBis } = jahresAchse(feed, aktuellesJahr);
+  return zuJahresBalken(
+    achse,
+    jahresWerte(feed, achse, vergabenMap, kategorien, atroVon),
+    aktuellesJahr,
+    ueberlaufBis,
+  );
 }
 
 /**
@@ -563,19 +589,23 @@ export function jahresBalken(recs: Strom[], aktuellesJahr: number): JahresBalken
 export function outputJahre(
   recs: Strom[],
   aktuellesJahr: number,
+  vergabenMap: Map<string, VergabeDaten[]> = new Map(),
+  kategorien: ReadonlySet<FensterKategorie> | null = null,
 ): { energie: JahresBalken[]; stofflich: JahresBalken[] } {
   const out = recs.filter((s) => s.art === "output");
-  const achse = jahresAchse(out, aktuellesJahr);
+  const { achse, ueberlaufBis } = jahresAchse(out, aktuellesJahr);
   return {
     energie: zuJahresBalken(
       achse,
-      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, aktuellesJahr, (s) => kwhVon(s) / 1000),
+      jahresWerte(out.filter((s) => s.kategorie === "target"), achse, vergabenMap, kategorien, (s) => kwhVon(s) / 1000),
       aktuellesJahr,
+      ueberlaufBis,
     ),
     stofflich: zuJahresBalken(
       achse,
-      jahresWerte(out.filter(istStofflich), achse, aktuellesJahr, (s) => s.mengeWert ?? 0),
+      jahresWerte(out.filter(istStofflich), achse, vergabenMap, kategorien, (s) => s.mengeWert ?? 0),
       aktuellesJahr,
+      ueberlaufBis,
     ),
   };
 }

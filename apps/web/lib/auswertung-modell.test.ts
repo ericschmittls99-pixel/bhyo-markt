@@ -443,8 +443,8 @@ describe("belegtypZeilen", () => {
 describe("jahresBalken", () => {
   // Dynamische Achse (E16, Eric 21.09.): die Jahre kommen aus den
   // Belegzeitraeumen, lueckenlos vom fruehesten bis zum spaetesten Jahr.
-  // Semantik bleibt die JAHRESRATE (t atro/a): ein Beleg zaehlt in jedem
-  // Kalenderjahr seines Zeitraums mit seiner vollen Rate.
+  // Seit E19 (AP1j PR 4) MONATSSCHARF: ein Beleg zaehlt je Jahr mit
+  // Rate × Σ Saisonanteile der zaehlenden Monate — Teiljahre nicht mehr voll.
   it("spannt die Achse dynamisch ueber die Belegzeitraeume", () => {
     // f1: 2027-2029, f2: 2026-2031 -> Achse 2026..2031
     const j = jahresBalken([f1, f2], 2026);
@@ -477,47 +477,23 @@ describe("jahresBalken", () => {
     expect(j[2]!.aktuell).toBe(true);
   });
 
-  it("faellt ohne jeden Zeitraum auf das aktuelle Jahr zurueck", () => {
+  it("Beleg ohne Zeitraum traegt nichts bei (E19: kein Raten), Achse faellt aufs aktuelle Jahr", () => {
     const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
     const j = jahresBalken([offen], 2026);
-    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2026, "5"]]);
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2026, "0"]]);
   });
 
-  it("zaehlt offene Zeitraeume ab dem aktuellen Jahr ueber die Achse durch", () => {
+  it("Beleg ohne Zeitraum aendert die Werte anderer Belege nicht", () => {
     const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
     const fix = strom({ id: "fx", mengeAtro: 10, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
     const j = jahresBalken([offen, fix], 2026);
-    expect(j.map((b) => b.wertText)).toEqual(["15", "15"]);
+    expect(j.map((b) => b.wertText)).toEqual(["10", "10"]);
   });
 
-  it("laesst offene Zeitraeume nicht rueckwirkend in historische Jahre zaehlen (E17)", () => {
-    // Der offene Beleg beginnt ab dem AKTUELLEN Jahr — die 2019/2020-Balken
-    // existieren nur wegen des fremden historischen Belegs.
-    const offen = strom({ id: "of", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
-    const hist = strom({
-      id: "hi",
-      mengeAtro: 100,
-      zeitraumVon: "2019-01-01",
-      zeitraumBis: "2020-12-31",
-    });
-    const j = jahresBalken([offen, hist], 2026);
-    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
-      [2019, "100"],
-      [2020, "100"],
-      [2021, "0"],
-      [2022, "0"],
-      [2023, "0"],
-      [2024, "0"],
-      [2025, "0"],
-      [2026, "5"],
-    ]);
-    expect(j[7]!.aktuell).toBe(true);
-  });
-
-  it("zaehlt einen Jahreswechsel-Beleg in beiden Grenzjahren, nicht darueber hinaus", () => {
+  it("zaehlt einen Jahreswechsel-Beleg monatsscharf: je 1/12 der Rate in den Grenzjahren", () => {
     const wechsel = strom({
       id: "jw",
-      mengeAtro: 2,
+      mengeAtro: 24,
       zeitraumVon: "2026-12-31",
       zeitraumBis: "2027-01-01",
     });
@@ -528,7 +504,7 @@ describe("jahresBalken", () => {
     ]);
   });
 
-  it("ordnet ein Teiljahr genau seinem Kalenderjahr zu, ohne Nachbarjahre", () => {
+  it("Teiljahr zaehlt monatsscharf (E19): Jul-Dez = 6/12 der Rate", () => {
     const teil = strom({
       id: "tj",
       mengeAtro: 600,
@@ -536,7 +512,38 @@ describe("jahresBalken", () => {
       zeitraumBis: "2027-12-31",
     });
     const j = jahresBalken([teil], 2026);
-    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2027, "600"]]);
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2027, "300"]]);
+  });
+
+  it("E16-Deckel: Beleg bis 2099 -> Achse endet bei aktuellem Jahr + 10, Ueberlauf-Marker", () => {
+    const s = strom({
+      id: "x99",
+      mengeAtro: 120,
+      zeitraumVon: "2026-01-01",
+      zeitraumBis: "2099-12-31",
+    });
+    const j = jahresBalken([s], 2026);
+    expect(j[j.length - 1]!.jahr).toBe(2036);
+    expect(j[j.length - 1]!.ueberlaufBis).toBe(2099);
+    expect(j[0]!.ueberlaufBis).toBeNull();
+  });
+
+  it("monatsscharf mit Kategorien: vergebene Monate zaehlen nicht zur freien Menge", () => {
+    const s = strom({
+      id: "vk",
+      mengeAtro: 120,
+      zeitraumVon: "2026-01-01",
+      zeitraumBis: "2028-12-31",
+    });
+    const map = new Map([
+      ["vk", [{ vergebenVon: null, vergebenBis: "2028-06-30", vergebenAn: null, anBhyo: false }]],
+    ]);
+    const j = jahresBalken([s], 2026, map, new Set(["verfuegbar"] as const));
+    expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
+      [2026, "0"],
+      [2027, "0"],
+      [2028, "60"],
+    ]);
   });
 
   it("haelt ein Jahr ohne Belege als 0-Balken in der durchgaengigen Achse", () => {
