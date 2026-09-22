@@ -85,9 +85,12 @@ gewinnt; jeder Beleg hat damit genau einen Tag:
 Hierarchie: Nach dem Vergabe-Ende fällt der Strom auf den Zustand zurück,
 der dann gilt (verfügbar, oder abgelaufen, oder reserviert …).
 
-Randfall: Checkbox gesetzt + aktive externe Vergabe → Haupttag ist
-„vergeben (extern).", die Reservierung erscheint zusätzlich als kleine
-Pille.
+Nebentag-Regel (präzisiert 22.09.2026): `reserviert_bhyo` erzeugt
+**immer** den Nebentag „reserviert (bhyo)." als kleine Pille, sobald es
+nicht selbst der Haupttag ist — nicht nur bei aktiver externer Vergabe.
+Regeln 1–3 bestimmen den Haupttag. Test: Strom mit Reservierung +
+Verfügbarkeit ab 2028, heute 2026 → Haupttag „noch nicht verfügbar.",
+Nebentag „reserviert (bhyo).".
 
 ### Label-Sätze je Stromart (Beschluss 22.09.2026, Umsetzung PR ③)
 
@@ -182,7 +185,14 @@ Monate bis 06/2028 zählen zur vergebenen Menge, ab 07/2028 zur freien.
 In **ströme.** und **karte.** (kein Jahresfenster) wirkt der
 Status-Filter auf heute — deckungsgleich mit der Pille am Beleg. Der Tag
 ist dort in Grid-Karten, Tabelle, Detail und Karten-Panel sichtbar und
-überall filterbar.
+überall filterbar. Zwei Festlegungen für PR ③ (22.09.2026):
+
+- Der Status-Filter startet **ohne Vorauswahl** (alle Status sichtbar);
+  der auswertung.-Default „alles außer abgelaufen" oben bleibt davon
+  unberührt.
+- **Aggregierte Kartenmarker werden nicht nach Status eingefärbt** — die
+  Mengen-Codierung (Größe) bleibt unverändert; der Status erscheint je
+  Strom im Popover.
 
 ## Verifikations-Kopplung
 
