@@ -24,6 +24,7 @@ import {
 } from "@/lib/formular-modell";
 import type { StromArt } from "@/lib/stroeme-modell";
 import {
+  naechsteReserviertSeit,
   validiereVergaben,
   vergabenZuWerten,
   type VergabeFormZeile,
@@ -94,6 +95,8 @@ export async function stromSpeichern(
     });
   }
   const reserviertBhyo = formData.get("reserviert_bhyo") === "on";
+  // Serverseitiger Stichtag fuer den Reservierungs-Stempel (Migration 0010).
+  const heute = new Date().toISOString().slice(0, 10);
 
   const feldFehler = {
     ...validiereFormular(art, eingaben),
@@ -175,6 +178,7 @@ export async function stromSpeichern(
               .insert(biomassestrom)
               .values({
                 ...(werte as typeof werte & { materialartCode: string }),
+                reserviertSeit: naechsteReserviertSeit(reserviertBhyo, null, heute),
                 belegId: belegErgebnis?.belegId ?? null,
                 qualitaet: belegErgebnis?.qualitaet ?? null,
                 status: "entwurf",
@@ -187,6 +191,7 @@ export async function stromSpeichern(
               .insert(outputBedarf)
               .values({
                 ...werte,
+                reserviertSeit: naechsteReserviertSeit(reserviertBhyo, null, heute),
                 belegId: belegErgebnis?.belegId ?? null,
                 qualitaet: belegErgebnis?.qualitaet ?? null,
                 status: "entwurf",
@@ -201,7 +206,10 @@ export async function stromSpeichern(
         // Bearbeiten: Beleg in place (Entscheidung Eric), Status unangetastet.
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
         const [bestand] = await tx
-          .select({ belegId: tabelle.belegId })
+          .select({
+            belegId: tabelle.belegId,
+            reserviertSeit: tabelle.reserviertSeit,
+          })
           .from(tabelle)
           .where(eq(tabelle.id, id))
           .limit(1);
@@ -215,6 +223,12 @@ export async function stromSpeichern(
           .update(tabelle)
           .set({
             ...werte,
+            // Stempel-Regel 0010: Editieren verjuengt nicht, Abwaehlen nullt.
+            reserviertSeit: naechsteReserviertSeit(
+              reserviertBhyo,
+              bestand.reserviertSeit,
+              heute,
+            ),
             belegId: belegErgebnis?.belegId ?? null,
             qualitaet: belegErgebnis?.qualitaet ?? null,
             updatedAt: new Date(),

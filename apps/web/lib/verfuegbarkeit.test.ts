@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
+  naechsteReserviertSeit,
   validiereVergaben,
   vergabeLabel,
   vergabenZuFormZeilen,
@@ -30,7 +31,7 @@ describe("leiteVerfuegbarkeitAb", () => {
       leiteVerfuegbarkeitAb("2031-01-01", { ...strom, reserviertBhyo: true }, [
         v({ vergebenVon: "2026-01-01" }),
       ]),
-    ).toEqual({ status: "abgelaufen", reserviertZusatz: false });
+    ).toEqual({ status: "abgelaufen", reserviertZusatz: true });
   });
 
   it("noch nicht verfuegbar vor Verfuegbarkeitsbeginn (Regel 2)", () => {
@@ -93,6 +94,34 @@ describe("leiteVerfuegbarkeitAb", () => {
         v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
       ]),
     ).toEqual({ status: "vergeben_extern", reserviertZusatz: true });
+  });
+
+  it("Reservierung erzeugt den Nebentag IMMER, wenn sie nicht selbst Haupttag ist", () => {
+    // Beschluss 22.09.2026: Regeln 1-3 bestimmen den Haupttag, die
+    // Reservierung erscheint dann zusaetzlich — nicht nur bei externer Vergabe.
+    const reserviert = {
+      zeitraumVon: "2028-01-01",
+      zeitraumBis: "2030-12-31",
+      reserviertBhyo: true,
+    };
+    expect(leiteVerfuegbarkeitAb("2026-09-22", reserviert, [])).toEqual({
+      status: "noch_nicht_verfuegbar",
+      reserviertZusatz: true,
+    });
+    expect(leiteVerfuegbarkeitAb("2031-01-01", reserviert, [])).toEqual({
+      status: "abgelaufen",
+      reserviertZusatz: true,
+    });
+    expect(
+      leiteVerfuegbarkeitAb("2028-06-15", reserviert, [
+        v({ vergebenVon: "2028-01-01", anBhyo: true }),
+      ]),
+    ).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true });
+    // Selbst Haupttag -> kein Nebentag.
+    expect(leiteVerfuegbarkeitAb("2028-06-15", reserviert, [])).toEqual({
+      status: "reserviert_bhyo",
+      reserviertZusatz: false,
+    });
   });
 
   it("nach Vergabe-Ende faellt der Strom auf die Reservierung zurueck", () => {
@@ -214,6 +243,20 @@ describe("vergabenZuFormZeilen", () => {
         },
       ]),
     ).toEqual([{ vonMonat: "2027-01", bisMonat: "", an: "X", anBhyo: true }]);
+  });
+});
+
+describe("naechsteReserviertSeit", () => {
+  it("Setzen stempelt heute", () => {
+    expect(naechsteReserviertSeit(true, null, "2026-09-22")).toBe("2026-09-22");
+  });
+  it("Editieren stempelt nicht neu — die Zusage wird nicht verjuengt", () => {
+    expect(naechsteReserviertSeit(true, "2026-03-01", "2026-09-22")).toBe(
+      "2026-03-01",
+    );
+  });
+  it("Abwaehlen nullt", () => {
+    expect(naechsteReserviertSeit(false, "2026-03-01", "2026-09-22")).toBeNull();
   });
 });
 

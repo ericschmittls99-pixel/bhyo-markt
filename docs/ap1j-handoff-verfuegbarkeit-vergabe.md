@@ -85,9 +85,12 @@ gewinnt; jeder Beleg hat damit genau einen Tag:
 Hierarchie: Nach dem Vergabe-Ende fällt der Strom auf den Zustand zurück,
 der dann gilt (verfügbar, oder abgelaufen, oder reserviert …).
 
-Randfall: Checkbox gesetzt + aktive externe Vergabe → Haupttag ist
-„vergeben (extern).", die Reservierung erscheint zusätzlich als kleine
-Pille.
+Nebentag-Regel (präzisiert 22.09.2026): `reserviert_bhyo` erzeugt
+**immer** den Nebentag „reserviert (bhyo)." als kleine Pille, sobald es
+nicht selbst der Haupttag ist — nicht nur bei aktiver externer Vergabe.
+Regeln 1–3 bestimmen den Haupttag. Test: Strom mit Reservierung +
+Verfügbarkeit ab 2028, heute 2026 → Haupttag „noch nicht verfügbar.",
+Nebentag „reserviert (bhyo).".
 
 ### Label-Sätze je Stromart (Beschluss 22.09.2026, Umsetzung PR ③)
 
@@ -162,7 +165,18 @@ Monate bis 06/2028 zählen zur vergebenen Menge, ab 07/2028 zur freien.
   Einzeljahr sind beide identisch.
 - **Status-Filter**: verfügbar / vergeben (extern) / vergeben (bhyo) /
   reserviert (bhyo) / noch nicht verfügbar / abgelaufen.
-  **Default: alles außer abgelaufen.**
+  **Ohne Vorauswahl** (Nachtrag 22.09.2026 — der frühere Default „alles
+  außer abgelaufen" ist gestrichen): Bezugsjahr (E18) und monatsscharfe
+  Rechnung (E19) entscheiden bereits, was zählt — ein Beleg außerhalb
+  des Bezugsjahres fällt mit 0 Monatsanteilen heraus. Zwei Mechanismen
+  für dieselbe Aufgabe, einer davon unsichtbar, wären einer zu viel.
+  Der Status-Filter bleibt manuelles Werkzeug, nicht Default.
+- Offene Beobachtung, **keine Entscheidung** (22.09.2026): Ein Beleg mit
+  Verfügbarkeit bis 06/2026 ist heute „abgelaufen", trägt aber für
+  Bezugsjahr 2026 seine Jan–Jun-Anteile bei. Rechnerisch korrekt, für
+  eine vorausschauende Bewertung möglicherweise zu viel. Falls das mit
+  echten Daten stört: „ab Monat"-Bezug innerhalb des Bezugsjahres, kein
+  Status-Vorfilter. Erst beobachten.
 - Der Status-Filter wirkt in auswertung. **fensterbezogen**, nicht auf
   heute: „verfügbar" + Fenster ab 07/2028 zeigt einen bis 06/2028
   vergebenen Strom mit seiner freien Menge; im Fenster 2026–2027
@@ -182,7 +196,40 @@ Monate bis 06/2028 zählen zur vergebenen Menge, ab 07/2028 zur freien.
 In **ströme.** und **karte.** (kein Jahresfenster) wirkt der
 Status-Filter auf heute — deckungsgleich mit der Pille am Beleg. Der Tag
 ist dort in Grid-Karten, Tabelle, Detail und Karten-Panel sichtbar und
-überall filterbar.
+überall filterbar. Zwei Festlegungen für PR ③ (22.09.2026):
+
+- Der Status-Filter startet **ohne Vorauswahl** (alle Status sichtbar) —
+  wie überall: seit dem Nachtrag oben gilt das auch in auswertung.
+- **Aggregierte Kartenmarker werden nicht nach Status eingefärbt** — die
+  Mengen-Codierung (Größe) bleibt unverändert; der Status erscheint je
+  Strom im Popover.
+- **Exklusiv filtern** (Karten-Review 22.09.2026): In der Sicht „alle"
+  blendet ein aktiver Cluster-Filter die Outputs vollständig aus, ein
+  Gruppe-Filter spiegelbildlich die Feedstocks. Bisher wirkte cluster nur
+  auf die eigene Art und alle Output-Marker (z. B. CO₂) blieben stehen —
+  fühlte sich wie ein wirkungsloser Filter an.
+- **Pool-Prinzip auch auf der Karte**: Facetten-Optionen aus dem
+  UNGEFILTERTEN Pool (wie ströme., nicht wie bisher aus dem gefilterten);
+  in der Sicht „alle" speisen BEIDE Arten die Optionslisten (bisher nur
+  Feedstock). Die Legende zählt aus dem Pool — aktive Auswahl wird
+  markiert, nicht auf 0 genullt — und der Kopf sagt ehrlich
+  „x von y Strömen · n ohne Karten-Pin".
+- **Regionsdarstellung**: Umrisse deutlicher; das Regions-Label wandert
+  hinter die Marker (z-Index) — es überlappte die Orbs.
+- **Grid-Karten ströme.**: Die Verfügbarkeits-Pille steht in der letzten
+  Zeile VOR dem „Verfügbar …"-Datum.
+- Das karte.-Detail (Sidebar) erhält mit PR ③ dieselben Props wie das
+  Register-Detail: Verfügbarkeits-Pille und Sektion vergabe. inkl.
+  „vergeben an" (in PR ② bewusst nur im Register verdrahtet).
+
+## Beleg-ID sichtbar und suchbar (eigenes kleines Paket, 22.09.2026)
+
+Jeder Beleg hat bereits eine UUID (`beleg.id`) — sie wird nutzbar
+gemacht, kein Schema-Change:
+
+- Detail (Popup/Sidebar): Beleg-ID unterhalb des Kopfes anzeigen,
+  kopierbar (Monospace-Caption).
+- Die ströme.-Suche matcht zusätzlich die Beleg-ID (Prefix reicht).
 
 ## Verifikations-Kopplung
 

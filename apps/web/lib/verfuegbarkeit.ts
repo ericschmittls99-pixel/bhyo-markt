@@ -59,24 +59,25 @@ export function leiteVerfuegbarkeitAb(
   strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean },
   vergaben: VergabeDaten[],
 ): VerfuegbarkeitsErgebnis {
-  const kein = { reserviertZusatz: false };
-  if (heute > strom.zeitraumBis) return { status: "abgelaufen", ...kein };
-  if (heute < strom.zeitraumVon)
-    return { status: "noch_nicht_verfuegbar", ...kein };
+  // Beschluss 22.09.2026: Die Reservierung erscheint IMMER als Nebentag,
+  // sobald sie nicht selbst der Haupttag ist — Regeln 1-3 bestimmen den
+  // Haupttag, die Zusatz-Pille macht die Zusage trotzdem sichtbar.
+  const mit = (status: VerfuegbarkeitsStatus): VerfuegbarkeitsErgebnis => ({
+    status,
+    reserviertZusatz: strom.reserviertBhyo && status !== "reserviert_bhyo",
+  });
+
+  if (heute > strom.zeitraumBis) return mit("abgelaufen");
+  if (heute < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
 
   const aktiv = vergaben.find(
     (v) =>
       heute >= (v.vergebenVon ?? strom.zeitraumVon) &&
       heute <= (v.vergebenBis ?? strom.zeitraumBis),
   );
-  if (aktiv) {
-    return {
-      status: aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern",
-      reserviertZusatz: strom.reserviertBhyo && !aktiv.anBhyo,
-    };
-  }
-  if (strom.reserviertBhyo) return { status: "reserviert_bhyo", ...kein };
-  return { status: "verfuegbar", ...kein };
+  if (aktiv) return mit(aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern");
+  if (strom.reserviertBhyo) return mit("reserviert_bhyo");
+  return mit("verfuegbar");
 }
 
 /** Anzeige eines Vergabezeitraums; offene Enden nach Handoff-Konvention. */
@@ -84,6 +85,20 @@ export function vergabeLabel(von: string | null, bis: string | null): string {
   if (von && bis) return `${fmtMonat(von)} – ${fmtMonat(bis)}`;
   if (bis) return `bis ${fmtMonat(bis)}`;
   return `ab ${fmtMonat(von)} (unbefristet)`;
+}
+
+/**
+ * Stempel-Regel fuer reserviert_seit (Migration 0010): Setzen stempelt den
+ * uebergebenen Stichtag, Editieren bei bestehendem Stempel verjuengt NICHT
+ * (sonst wuerde jedes Speichern die Zusage auffrischen), Abwaehlen nullt.
+ */
+export function naechsteReserviertSeit(
+  reserviert: boolean,
+  bisher: string | null,
+  heute: string,
+): string | null {
+  if (!reserviert) return null;
+  return bisher ?? heute;
 }
 
 // --- Formular-Ebene (Monats-Strings, "" = offenes Ende) ----------------------

@@ -58,6 +58,7 @@ const basis: Strom = {
   qualitaet: "B",
   status: "geprueft",
   reserviertBhyo: false,
+  reserviertSeit: null,
   erstelltAm: "2026-09-01",
   beleg: null,
   vollstaendigkeit: 70,

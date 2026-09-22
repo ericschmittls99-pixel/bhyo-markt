@@ -263,6 +263,7 @@ export interface FormularWerte {
   saisonalitaet: number[];
   status: string;
   reserviertBhyo: boolean;
+  reserviertSeit: string | null;
   vergaben: VergabeFormZeile[];
   beleg: FormularBeleg | null;
 }
@@ -296,6 +297,7 @@ export type FormularZeile = {
   saisonalitaet: unknown;
   status: string;
   reserviertBhyo: boolean;
+  reserviertSeit: string | null;
   belegId: string | null;
   belegTyp: string | null;
   belegLinkUrl: string | null;
@@ -363,6 +365,7 @@ export function formularZeileZuWerte(
     saisonalitaet: saisonOderLeer(r.saisonalitaet, `strom ${r.id}`),
     status: r.status,
     reserviertBhyo: r.reserviertBhyo,
+    reserviertSeit: r.reserviertSeit,
     vergaben,
     beleg: belegAusZeile(r),
   };
