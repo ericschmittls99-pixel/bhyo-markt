@@ -46,16 +46,22 @@ in `docs/ap1j-handoff-verfuegbarkeit-vergabe.md`, Code in
 `apps/web/lib/verfuegbarkeit.ts`). Die Pille nutzt die bestehenden
 `spill`-Töne, keine Ampel:
 
-| Status | Ton |
-| --- | --- |
-| verfügbar. | `active` (Lime) |
-| vergeben (bhyo). | `running` (Waldgrün) |
-| vergeben (extern). · abgelaufen. | `inactive` |
-| reserviert (bhyo). · noch nicht verfügbar. | `quiet` |
+Die Texte sind je Stromart verschieden (PR 3, Handoff-Tabelle „Label-Sätze
+je Stromart"), die Töne je Status identisch:
 
-Randfall: Reservierung bei aktiver externer Vergabe erscheint zusätzlich als
-neutrale kleine `pill` („reserviert (bhyo)."). Die zwei auswertung.-Switches
-(Einzeljahr ↔ Zeitraum, ø ↔ Summe) folgen mit AP1j PR 4.
+| Status | Feedstock | Output | Ton |
+| --- | --- | --- | --- |
+| verfuegbar | verfügbar. | offen. | `active` (Lime) |
+| vergeben_bhyo | vergeben (bhyo). | gedeckt (bhyo). | `running` (Waldgrün) |
+| vergeben_extern | vergeben (extern). | gedeckt (extern). | `inactive` |
+| abgelaufen | abgelaufen. | abgelaufen. | `inactive` |
+| reserviert_bhyo | reserviert (bhyo). | reserviert (bhyo). | `quiet` |
+| noch_nicht_verfuegbar | noch nicht verfügbar. | noch nicht verfügbar. | `quiet` |
+
+Nebentag: Die Reservierung erscheint immer zusätzlich als neutrale kleine
+`pill` („reserviert (bhyo)."), sobald sie nicht selbst der Haupttag ist.
+Die zwei auswertung.-Switches (Einzeljahr ↔ Zeitraum, ø ↔ Summe) folgen
+mit AP1j PR 4.
 
 Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
