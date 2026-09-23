@@ -206,6 +206,25 @@ export function FormularPanel({
         metadata: { amtlich, quellenangabe, gespraechsdatum, gespraechspartner },
       })
     : null;
+  // F7: Der Erfasser sieht den Preis der Entscheidung im Moment der
+  // Entscheidung — ohne Datei/Link nur die niedrigere Stufe (Matrix
+  // unveraendert). Hinweis nur, wenn eine Datei die Stufe wirklich hoebe
+  // (beim Gespraech z. B. nicht).
+  const ohneDateiUndLink = !!typ && !dateiName && !bestehendeDatei && !link.trim();
+  const stufeMitDatei = typ
+    ? deriveQualitaet({
+        typ,
+        externNachvollziehbar: extern,
+        erhebungsdatum: erhebungsdatum || null,
+        dateiKey: "x",
+        linkUrl: null,
+        gueltigBis: typ === "angebot" ? gueltigBis || null : null,
+        metadata: { amtlich, quellenangabe, gespraechsdatum, gespraechspartner },
+      })
+    : null;
+  const dateiHinweis =
+    ohneDateiUndLink && qualitaet && stufeMitDatei !== qualitaet ? qualitaet : null;
+
   const verifizierung = typ
     ? naechsteVerifizierung({
         typ,
@@ -1000,6 +1019,11 @@ export function FormularPanel({
                   ? ` Nächste Verifizierung: ${fmtDatum(verifizierung)}`
                   : ""}
               </span>
+              {dateiHinweis && (
+                <span className="c qual-hinweis">
+                  Ohne Datei oder Link erreicht dieser Beleg nur Stufe {dateiHinweis}.
+                </span>
+              )}
             </div>
           </section>
 

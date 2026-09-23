@@ -223,10 +223,12 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
   }
 
   if (e.belegTyp) {
+    // F7 (23.09.2026): Quellenangabe und Erhebungsdatum bleiben Pflicht;
+    // Datei/Link sind optional. Die Qualitaets-Matrix (qualitaet.ts) ist
+    // bewusst unveraendert — ein Beleg ohne Datei/Link ist speicherbar,
+    // erreicht aber nur die niedrigere Stufe.
     pflicht("beleg_quellenangabe", e.belegQuellenangabe);
     pflicht("beleg_erhebungsdatum", e.belegErhebungsdatum);
-    if (!e.belegHatDatei && !e.belegLink.trim())
-      f.beleg_datei = "Datei oder Link erforderlich";
   }
 
   return f;
