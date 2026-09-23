@@ -818,8 +818,10 @@ export function AuswertungAnsicht({
                       "menge",
                       "bedarf je gruppe.",
                       outMengen,
-                      "energetisch · MWh/a",
-                      "stofflich · t/a",
+                      // E26: je Liste eine eigene Anteilsbasis — MWh und t
+                      // teilen sich nie eine Skala.
+                      `energetisch · ${outMengen.basisEnergetisch}`,
+                      `stofflich · ${outMengen.basisStofflich}`,
                     )}
                   {outSaisonModul}
                   {outJahreModul}
