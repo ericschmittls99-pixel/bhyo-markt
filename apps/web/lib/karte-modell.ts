@@ -145,6 +145,8 @@ export function qualitaetsRing(q: string | null): {
     case "D":
       return { breite: 2, stil: "dotted", farbe: "#a3acb1" };
     default:
+      // E24: q == null heisst "unbelegt" (Strom ohne Beleg) — bewusst der
+      // duennste, fast transparente Ring; kein stiller Fallback auf D.
       return { breite: 1.5, stil: "solid", farbe: "rgba(31,46,56,0.18)" };
   }
 }

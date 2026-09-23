@@ -1,7 +1,21 @@
 import { describe, expect, it } from "vitest";
 
+import { deriveQualitaet } from "../lib/qualitaet";
 import { validiereVergaben, vergabenZuFormZeilen } from "../lib/verfuegbarkeit";
 import { BASIS_JAHR, baueSeedDaten, type SeedStrom } from "./seed-daten";
+
+/** Abgeleitete Stufe eines Seed-Stroms — derselbe Weg wie die DB-Funktion. */
+const stufe = (s: SeedStrom) =>
+  s.beleg
+    ? deriveQualitaet({
+        typ: s.beleg.typ as never,
+        externNachvollziehbar: s.beleg.extern,
+        erhebungsdatum: s.beleg.erhebungsdatum,
+        linkUrl: s.beleg.linkUrl,
+        gueltigBis: s.beleg.gueltigBis,
+        metadata: { quellenangabe: s.beleg.quellenangabe },
+      })
+    : null;
 
 /**
  * Spec-Invarianten des Seed-v2-Auftrags (Eric, 22.09.2026) — jede Zahl hier
@@ -137,10 +151,37 @@ describe("Feedstock §1", () => {
     expect(jahr(anker("A2").zeitraumBis)).toBe(B + 40);
   });
 
-  it("Qualitaet 15/20/18/7 und ~65 % geprueft", () => {
-    const q = (g: string) => feedstock.filter((s) => s.qualitaet === g).length;
-    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([15, 20, 18, 7]);
+  // E23: der Seed traegt KEINE Stufe mehr — die Verteilung wird aus den
+  // Belegfeldern ABGELEITET (deriveQualitaet, identisch zur DB-Funktion).
+  // Die Ziehliste 15/20/18/7 gilt weiter fuer die Zielstufen; die 9
+  // entwurf-Stroeme haben keinen Beleg und damit keine Stufe (Pille "–").
+  it("abgeleitete Qualitaet 15/19/17/7 bei 58 Belegen, 2 unbelegt-Anker", () => {
+    const mit = feedstock.filter((s) => s.beleg);
+    const q = (g: string) => mit.filter((s) => stufe(s) === g).length;
+    expect(mit).toHaveLength(58);
+    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([15, 19, 17, 7]);
     expect(feedstock.filter((s) => s.status === "geprueft")).toHaveLength(39);
+  });
+
+  // E24: genau 2+1 Stroeme bleiben BEWUSST ohne Beleg — Ankerfall "unbelegt".
+  it("unbelegt-Anker A15a/A15b/A15c sind die einzigen Stroeme ohne Beleg", () => {
+    const feedOhne = feedstock.filter((s) => !s.beleg);
+    const outOhne = outputs.filter((s) => !s.beleg);
+    expect(feedOhne.map((s) => s.anker).sort()).toEqual(["A15a", "A15b"]);
+    expect(outOhne.map((s) => s.anker)).toEqual(["A15c"]);
+    for (const s of [...feedOhne, ...outOhne]) expect(s.status).toBe("entwurf");
+  });
+
+  it("kein Stufenwert im Seed-Input (E23) — Felder statt Ergebnis", () => {
+    for (const s of [...feedstock, ...outputs])
+      expect("qualitaet" in s).toBe(false);
+  });
+
+  it("abgeleitete Output-Qualitaet 12/16/15/6 bei 49 Belegen, 1 unbelegt-Anker", () => {
+    const mit = outputs.filter((s) => s.beleg);
+    const q = (g: string) => mit.filter((s) => stufe(s) === g).length;
+    expect(mit).toHaveLength(49);
+    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([12, 16, 15, 6]);
   });
 
   it("Vergaben: 12 extern (5 laufend / 4 Teiljahr / 3 zukuenftig), 6 an bhyo, 7 reserviert", () => {

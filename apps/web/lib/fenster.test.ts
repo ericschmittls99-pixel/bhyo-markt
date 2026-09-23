@@ -68,6 +68,19 @@ describe("jahresAnteil (Handoff: Rate × Σ Saisonanteile)", () => {
     expect(jahresAnteil(2027, s, [], null)).toBeCloseTo(400 / 1200, 10);
   });
 
+  // Regression (Eric, 23.09.2026): die Normierung auf die TATSAECHLICHE
+  // Profilsumme ist gewollt — ein Sigma-1300-Profil teilt durch 1300.
+  it("Index-Profil (Σ 1300): Q1 zaehlt exakt 500/1300", () => {
+    const saison = [250, 150, 100, 100, 100, 100, 100, 100, 100, 100, 50, 50];
+    const s = {
+      ...basis,
+      zeitraumVon: "2027-01-01",
+      zeitraumBis: "2027-03-31",
+      saisonalitaet: saison,
+    } as Strom;
+    expect(jahresAnteil(2027, s, [], null)).toBeCloseTo(500 / 1300, 10);
+  });
+
   it("freie Monate mit Reservierung zaehlen als reserviert_bhyo, nicht als verfuegbar", () => {
     const s = { ...basis, reserviertBhyo: true } as Strom;
     expect(jahresAnteil(2027, s, [], new Set(["verfuegbar"]))).toBe(0);

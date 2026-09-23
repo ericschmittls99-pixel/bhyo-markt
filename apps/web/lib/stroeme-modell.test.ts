@@ -6,6 +6,7 @@ import {
   filterStroeme,
   GETEILTE_FILTER_PARAMS,
   LEERER_FILTER,
+  sortiereStroeme,
   type Strom,
 } from "./stroeme-modell";
 
@@ -53,6 +54,35 @@ const strom = (patch: Partial<Strom>): Strom => ({
   beleg: null,
   vollstaendigkeit: 0,
   ...patch,
+});
+
+// E24: null-Stufe ist der benannte Zustand "unbelegt".
+describe("qualitaet unbelegt (E24)", () => {
+  const mitBeleg = strom({ id: "q1", qualitaet: "D" });
+  const ohneBeleg = strom({ id: "q2", qualitaet: null });
+
+  it("Filterwert unbelegt matcht genau die Stroeme ohne Stufe", () => {
+    const erg = filterStroeme([mitBeleg, ohneBeleg], {
+      ...LEERER_FILTER,
+      qualitaet: ["unbelegt"],
+    });
+    expect(erg.map((s) => s.id)).toEqual(["q2"]);
+    const nurD = filterStroeme([mitBeleg, ohneBeleg], {
+      ...LEERER_FILTER,
+      qualitaet: ["D"],
+    });
+    expect(nurD.map((s) => s.id)).toEqual(["q1"]);
+  });
+
+  it("sortiert unbelegt hinter die niedrigste Stufe", () => {
+    const auf = sortiereStroeme([ohneBeleg, mitBeleg], "qualitaet", "auf");
+    expect(auf.map((s) => s.id)).toEqual(["q1", "q2"]);
+  });
+
+  it("Facetten-Optionen enthalten unbelegt als eigene Option", () => {
+    const opt = facettenOptionen("biomasse", [], [], {});
+    expect(opt.qualitaet!.map((o) => o.wert)).toEqual(["A", "B", "C", "D", "unbelegt"]);
+  });
 });
 
 describe("filterAusSearchParams", () => {
