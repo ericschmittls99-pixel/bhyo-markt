@@ -161,6 +161,14 @@ export const beleg = pgTable("beleg", {
   erstelltAm: timestamp("erstellt_am", { withTimezone: true })
     .notNull()
     .defaultNow(),
+  // E23: Die Stufe existiert nur als Ableitung — GENERATED aus den Spalten
+  // DIESER Zeile ueber die IMMUTABLE SQL-Funktion qualitaetsstufe(...)
+  // (Spiegel von apps/web/lib/qualitaet.ts, Paritaetstest im CI). Ein
+  // Schreibversuch scheitert in Postgres; im TS-Typ ist die Spalte durch
+  // generatedAlwaysAs aus allen Insert-/Update-Typen heraus.
+  qualitaet: qualitaetsStufe("qualitaet").generatedAlwaysAs(
+    sql`qualitaetsstufe(typ, extern_nachvollziehbar, datei_key, link_url, gueltig_bis, metadata, erstellt_am)`,
+  ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
