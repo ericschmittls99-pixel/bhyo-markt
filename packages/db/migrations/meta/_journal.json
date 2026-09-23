@@ -106,6 +106,13 @@
       "when": 1790169838195,
       "tag": "0014_e23_drop_strom_qualitaet",
       "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1790171886093,
+      "tag": "0015_f0b_verwaltungsgebiet",
+      "breakpoints": true
     }
   ]
 }
