@@ -8,13 +8,15 @@ import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { Orb } from "@/components/stroeme/Orb";
 import { KonfidenzPill, VerfuegbarkeitsPill } from "@/components/stroeme/Pillen";
 import { SeasonBarsMini } from "@/components/stroeme/SeasonBarsMini";
+import { fmtOutputPreis } from "@/lib/energie";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL } from "@/lib/farben";
 import {
-  fmtAnteil,
+  fmtFaktor,
   fmtDatum,
+  fmtKoordinaten,
   fmtPreis,
-  fmtZahl,
+  fmtMenge,
   fmtZahlungsstrom,
   fmtMonat,
   fmtZeitraum,
@@ -42,11 +44,6 @@ function Kv({ label, wert }: { label: string; wert: ReactNode }) {
       <span className="kv-w">{wert}</span>
     </>
   );
-}
-
-function fmtKoordinaten(lng: number, lat: number): string {
-  const f = (n: number) => n.toFixed(4).replace(".", ",");
-  return `${f(lat)}° N · ${f(lng)}° O`;
 }
 
 /**
@@ -153,25 +150,25 @@ export function Detail({
     ? [
         {
           label: "Rohmenge",
-          wert: s.mengeFm != null ? fmtZahl(s.mengeFm) : "–",
+          wert: s.mengeFm != null ? fmtMenge(s.mengeFm) : "–",
           einheit: "t FM/a",
           quelle: "erfasst",
         },
         {
           label: "Trockensubstanz",
-          wert: s.tsAnteil != null ? fmtAnteil(s.tsAnteil) : "–",
+          wert: s.tsAnteil != null ? fmtFaktor(s.tsAnteil) : "–",
           einheit: "%",
           quelle: "TS-Anteil",
         },
         {
           label: "Aschegehalt",
-          wert: s.aschegehalt != null ? fmtAnteil(s.aschegehalt) : "–",
+          wert: s.aschegehalt != null ? fmtFaktor(s.aschegehalt) : "–",
           einheit: "%",
           quelle: "Anteil an TS",
         },
         {
           label: "Ergebnis",
-          wert: s.mengeAtro != null ? fmtZahl(s.mengeAtro) : "–",
+          wert: s.mengeAtro != null ? fmtMenge(s.mengeAtro) : "–",
           einheit: "t atro/a",
           quelle: "Rohmenge × TS × (1 − Asche)",
           ergebnis: true,
@@ -396,7 +393,7 @@ export function Detail({
               ) : (
                 <div className="metric">
                   <span className="wert">
-                    {s.mengeWert != null ? fmtZahl(s.mengeWert) : "–"}
+                    {s.mengeWert != null ? fmtMenge(s.mengeWert) : "–"}
                     <em>{s.mengeEinheit ?? ""}</em>
                   </span>
                   <span className="lbl">bedarf pro jahr.</span>
@@ -435,11 +432,9 @@ export function Detail({
                 ) : (
                   <Kv
                     label="Preis"
-                    wert={
-                      s.preis != null
-                        ? `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim()
-                        : "–"
-                    }
+                    // E20: erfasste Einheit nicht roh anzeigen, sondern in die
+                    // Anzeigeeinheit umrechnen (€/MWh energetisch, €/t stofflich).
+                    wert={fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit)}
                   />
                 )}
                 <Kv

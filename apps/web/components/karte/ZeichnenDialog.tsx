@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { fmtZahl } from "@/lib/format";
+import { fmtMenge } from "@/lib/format";
 import { bboxKm } from "@/lib/karte-modell";
 
 /**
@@ -57,7 +57,7 @@ export function ZeichnenDialog({
       <h2>Fokusregion erstellen</h2>
       <p className="km-zd-meta">
         {anzahl} {anzahl === 1 ? "Strom" : "Ströme"} im Ausschnitt ·{" "}
-        {fmtZahl(Math.round(km.breite))} × {fmtZahl(Math.round(km.hoehe))} km
+        {fmtMenge(Math.round(km.breite))} × {fmtMenge(Math.round(km.hoehe))} km
       </p>
       <label className="pf">
         <span>Name</span>

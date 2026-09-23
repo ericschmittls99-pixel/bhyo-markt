@@ -299,6 +299,16 @@ BENUTZTES Stammdatum stillgelegt werden muss — vorher nicht: Für eine
 unreferenzierte Zeile wäre es überdimensioniert, die darf per Migration
 entfernt werden.
 
+## Vormerkung für F6 (22.09.2026, noch nicht umsetzen)
+
+Der auswertung-CSV-Export hat derzeit gar keine Preisspalten — ein
+Datenexport ohne die Zahlen, um die es auf dem Board geht, ist ein halber
+Export. In F6 aufnehmen: Preisspalten (min/mittel/max in der
+Anzeigeeinheit nach E20), Potenzial-Spalten, Bezugsjahr und aktive Filter
+als Metazeilen im Header. Der PDF-Abzug der Auswertung (ebenfalls F6)
+rendert über dieselben Formatierungsfunktionen aus `lib/format.ts` und
+erbt E20 damit automatisch.
+
 ## Handoff-Delta zu F5 (Filter vs. Erfassung, 22.09.2026)
 
 Facetten-Filter blenden Optionen mit Anzahl 0 aus. Die

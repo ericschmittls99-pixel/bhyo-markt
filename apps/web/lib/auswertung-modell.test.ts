@@ -141,10 +141,10 @@ describe("kpiKarten", () => {
     expect(k[1]).toMatchObject({ wert: "150", einheit: "t atro/a", label: "trockenmasse." });
     // Ein signierter ø ueber alle Belege: (10*100 + 16*50) / 150 = 12
     expect(k[2]).toMatchObject({ wert: "12", einheit: "€/t", label: "ø preis." });
-    expect(k[2]!.caption).toBe("atro-gewichtet · − = Annahmeentgelt");
+    expect(k[2]!.caption).toBe("atro-gewichtet");
     // Potenzial = -Σ(preis*menge): nur Einkaeufe -> negativ (Nettokosten)
     expect(k[3]).toMatchObject({ wert: "-1.800", einheit: "€/a", label: "feedstock-potenzial." });
-    expect(k[3]!.caption).toBe("Verwertungserlöse − Beschaffungskosten");
+    expect(k[3]!.caption).toBe("");
   });
 
   it("macht Annahmeentgelte zu positivem Potenzial (E18)", () => {
@@ -170,7 +170,7 @@ describe("kpiKarten", () => {
   it("weist Belege ohne Preis aus statt sie still zu ignorieren", () => {
     const ohnePreis = strom({ id: "n", cluster: "lipide_spezialfeedstocks", mengeAtro: 10 });
     const k = kpiKarten([f1, ohnePreis], "feedstock");
-    expect(k[2]!.caption).toBe("atro-gewichtet · − = Annahmeentgelt · 1 Beleg ohne Preis");
+    expect(k[2]!.caption).toBe("atro-gewichtet");
     expect(k[3]).toMatchObject({ wert: "-1.000", einheit: "€/a" });
   });
 
@@ -183,17 +183,17 @@ describe("kpiKarten", () => {
   it("skaliert grosse Potenziale vorzeichenerhaltend auf Mio. €/a", () => {
     const gross = strom({ id: "g", mengeAtro: 100000, preisMittel: 25 });
     expect(kpiKarten([gross], "feedstock")[3]).toMatchObject({
-      wert: "-2,50",
+      wert: "-2,5",
       einheit: "Mio. €/a",
     });
     const grossNegativ = strom({ id: "gn", mengeAtro: 100000, preisMittel: -25 });
     expect(kpiKarten([grossNegativ], "feedstock")[3]).toMatchObject({
-      wert: "2,50",
+      wert: "2,5",
       einheit: "Mio. €/a",
     });
   });
 
-  it("liefert bei sicht=outputs Pruefquote, Energiebedarf, ct/kWh-Preis und Potenzial", () => {
+  it("liefert bei sicht=outputs Pruefquote, Energiebedarf, €/MWh-Preis und Potenzial", () => {
     // o1: 500 MWh/a, 8 €/MWh -> 0,8 ct/kWh; h2: 120 t/a = 3.999,07 MWh, 5 €/kg
     // -> 15,0035 ct/kWh; waerme: 5.800 MWh/a, 80 €/MWh; co2: 800 t/a, 80 €/t
     const h2 = strom({
@@ -234,13 +234,13 @@ describe("kpiKarten", () => {
     expect(k[0]).toMatchObject({ einheit: "%", label: "belege geprüft." });
     // Targets nach Hu: 500 + 3.999,07 = 4.499 MWh/a
     expect(k[1]).toMatchObject({ wert: "4.499", einheit: "MWh/a", label: "energiebedarf." });
-    expect(k[1]!.caption).toContain("dazu 800 t CO2/a");
-    // kWh-gewichtet NUR ueber Target-Outputs (ohne Waerme):
-    // (0,8*500 + 15,0035*3.999,07) / 4.499,07 = 13,43
-    expect(k[2]).toMatchObject({ wert: "13,43", einheit: "ct/kWh", label: "ø preis." });
+    expect(k[1]!.caption).toBe("dazu 800 t CO₂/a");
+    // MWh-gewichtet NUR ueber Target-Outputs (ohne Waerme), E20 in €/MWh:
+    // (8*500 + 150,035*3.999,07) / 4.499,07 = 134,25 -> ganzzahlig 134
+    expect(k[2]).toMatchObject({ wert: "134", einheit: "€/MWh", label: "ø preis." });
     expect(k[2]!.caption).toContain("Target-Outputs");
-    // Potenzial: 500*8 + 600.000 + 5.800*80 + 800*80 = 1.132.000 -> 1,13 Mio
-    expect(k[3]).toMatchObject({ wert: "1,13", einheit: "Mio. €/a", label: "erlöspotenzial." });
+    // Potenzial: 500*8 + 600.000 + 5.800*80 + 800*80 = 1.132.000 -> 1,1 Mio (E20: eine Nachkommastelle)
+    expect(k[3]).toMatchObject({ wert: "1,1", einheit: "Mio. €/a", label: "erlöspotenzial." });
   });
 
   it("nutzt fuer Synthesegas in t/a den Referenz-Heizwert (E13)", () => {
@@ -810,14 +810,14 @@ describe("Rechenbasis ø-Preis: drei Faelle in Korridor UND KPI-Kachel", () => {
     expect(k[2]!.caption).toContain("ungewichtet");
   });
 
-  it("Fall A gemischt: gewichtet nur ueber gewichtbare, n-Angabe nennt beide Zahlen", () => {
+  it("Fall A gemischt: gewichtet nur ueber gewichtbare, ohne n-Anzeige (Review 22.09.)", () => {
     const gewichtet = strom({ id: "g", cluster, mengeAtro: 100, preisMittel: 10 });
     const ohneAtro = strom({ id: "o", cluster, mengeAtro: null, preisMittel: 99 });
     const z = preisKorridorZeilen([gewichtet, ohneAtro], [gewichtet, ohneAtro]);
-    expect(z[0]).toMatchObject({ mittelText: "10", zusatz: "(n=1 von 2)" });
+    expect(z[0]).toMatchObject({ mittelText: "10", zusatz: null });
     const k = kpiKarten([gewichtet, ohneAtro], "feedstock");
     expect(k[2]!.wert).toBe("10");
-    expect(k[2]!.caption).toContain("(n=1 von 2)");
+    expect(k[2]!.caption).toBe("atro-gewichtet");
   });
 
   it("Fall A ohne Ausschluesse: keine n-Angabe, kein Kennzeichen", () => {
@@ -952,8 +952,10 @@ describe("outputPotenzialZeilen", () => {
   it("rechnet Preis x Menge je Zeile in €/a auf gemeinsamer Skala", () => {
     const z = outputPotenzialZeilen(outputsAlle, outputsAlle);
     // o1: 500 MWh * 8 €/MWh = 4.000; Strom 500*120 = 60.000; Waerme 464.000;
-    // CO2 64.000; Syn/Asche ohne Preis
-    const je = Object.fromEntries(z.map((r) => [r.key, r]));
+    // CO2 64.000; Syn/Asche ohne Preis. Zweigeteilt energetisch/stofflich
+    // (Review 22.09.), gemeinsame Skala ueber beide Sektionen.
+    expect(z.stofflich.map((r) => r.key)).toEqual(["co2", "asche"]);
+    const je = Object.fromEntries([...z.energetisch, ...z.stofflich].map((r) => [r.key, r]));
     expect(je.waerme).toMatchObject({ wertText: "464.000", pct: 100 });
     expect(je.primaerprodukte!.wertText).toBe("60.000");
     expect(je.primaerprodukte!.meta).toContain("1 Beleg ohne Preis");
@@ -964,14 +966,14 @@ describe("outputPotenzialZeilen", () => {
 });
 
 describe("outputPreisZeilen", () => {
-  it("mittelt energetische Preise kWh-gewichtet in ct/kWh und stoffliche in €/kg", () => {
+  it("mittelt energetische Preise MWh-gewichtet in €/MWh und stoffliche in €/t (E20)", () => {
     const p = outputPreisZeilen(outputsAlle, outputsAlle);
     const je = Object.fromEntries(p.energetisch.map((r) => [r.key, r]));
-    // Primaerprodukte: nur Strom mit Preis -> 12 ct/kWh; Waerme 8; o1 0,8
-    expect(je.primaerprodukte!.wertText).toBe("12");
-    expect(je.waerme!.wertText).toBe("8");
-    expect(je.wasserstoff!.wertText).toBe("0,80");
-    expect(p.stofflich[0]).toMatchObject({ key: "co2", wertText: "0,08" });
+    // Primaerprodukte: nur Strom mit Preis -> 120 €/MWh; Waerme 80; o1 8
+    expect(je.primaerprodukte!.wertText).toBe("120");
+    expect(je.waerme!.wertText).toBe("80");
+    expect(je.wasserstoff!.wertText).toBe("8");
+    expect(p.stofflich[0]).toMatchObject({ key: "co2", wertText: "80" });
     expect(p.stofflich[1]).toMatchObject({ key: "asche", wertText: "–" });
   });
 });
@@ -1005,34 +1007,34 @@ describe("Rechenbasis ø-Preis Outputs: drei Faelle in Kachel und preise-Modul",
   });
 
   it("Fall B: keine Energiemenge ableitbar -> ungewichtet, sichtbar gekennzeichnet", () => {
-    const a = target({ id: "a", mengeWert: null, preis: 80 }); // 8 ct/kWh
-    const b = target({ id: "b", mengeWert: null, preis: 40 }); // 4 ct/kWh
+    const a = target({ id: "a", mengeWert: null, preis: 80 }); // 80 €/MWh
+    const b = target({ id: "b", mengeWert: null, preis: 40 }); // 40 €/MWh
     const k = kpiKarten([a, b], "outputs");
-    expect(k[2]!.wert).toBe("6");
+    expect(k[2]!.wert).toBe("60");
     expect(k[2]!.caption).toContain("ungewichtet");
     const h2 = outputPreisZeilen([a, b], [a, b]).energetisch.find((r) => r.key === "wasserstoff")!;
     expect(h2).toMatchObject({
-      wertText: "6",
+      wertText: "60",
       zusatz: "· ungewichtet",
       hinweis: "für diese Positionen ist keine Energiemenge ableitbar",
     });
   });
 
-  it("Fall A gemischt: gewichtet nur ueber Positionen mit Energiemenge, n-Angabe", () => {
-    const mitMenge = target({ id: "m", mengeWert: 500, preis: 80 }); // 8 ct, 500 MWh
+  it("Fall A gemischt: gewichtet nur ueber Positionen mit Energiemenge, ohne n-Anzeige", () => {
+    const mitMenge = target({ id: "m", mengeWert: 500, preis: 80 }); // 80 €/MWh, 500 MWh
     const ohneMenge = target({ id: "o", mengeWert: null, preis: 999 });
     const k = kpiKarten([mitMenge, ohneMenge], "outputs");
-    expect(k[2]!.wert).toBe("8");
-    expect(k[2]!.caption).toContain("(n=1 von 2)");
+    expect(k[2]!.wert).toBe("80");
+    expect(k[2]!.caption).toBe("MWh-gewichtet über Target-Outputs");
     const h2 = outputPreisZeilen([mitMenge, ohneMenge], [mitMenge, ohneMenge]).energetisch.find(
       (r) => r.key === "wasserstoff",
     )!;
-    expect(h2).toMatchObject({ wertText: "8", zusatz: "(n=1 von 2)" });
+    expect(h2).toMatchObject({ wertText: "80", zusatz: null });
   });
 
   it("Kachel und Modul zeigen fuer denselben Datensatz denselben ø", () => {
-    const a = target({ id: "a", mengeWert: 1000, preis: 100 }); // 10 ct
-    const b = target({ id: "b", mengeWert: 500, preis: 40 }); // 4 ct -> gewichtet 8
+    const a = target({ id: "a", mengeWert: 1000, preis: 100 }); // 100 €/MWh
+    const b = target({ id: "b", mengeWert: 500, preis: 40 }); // 40 €/MWh -> gewichtet 80
     const c = target({ id: "c", mengeWert: null, preis: 77 });
     const k = kpiKarten([a, b, c], "outputs");
     const h2 = outputPreisZeilen([a, b, c], [a, b, c]).energetisch.find(

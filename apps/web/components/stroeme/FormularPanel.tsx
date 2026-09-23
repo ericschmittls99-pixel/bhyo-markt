@@ -17,7 +17,7 @@ import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
-import { fmtAnteil, fmtDatum, fmtMonat, fmtZahl } from "@/lib/format";
+import { fmtFaktor, fmtDatum, fmtMonat, fmtMenge } from "@/lib/format";
 import {
   clusterVonMaterialart,
   gruppeVonProdukt,
@@ -161,12 +161,12 @@ export function FormularPanel({
       ? Number(roh) * (Number(ts) / 100) * (1 - Number(asche) / 100)
       : null;
   const chain = [
-    { label: "Rohmenge", wert: roh ? fmtZahl(Number(roh)) : "–", einheit: "t FM/a", quelle: "erfasst" },
-    { label: "Trockensubstanz", wert: ts ? fmtAnteil(Number(ts)) : "–", einheit: "%", quelle: "TS-Anteil" },
-    { label: "Aschegehalt", wert: asche ? fmtAnteil(Number(asche)) : "–", einheit: "%", quelle: "Anteil an TS" },
+    { label: "Rohmenge", wert: roh ? fmtMenge(Number(roh)) : "–", einheit: "t FM/a", quelle: "erfasst" },
+    { label: "Trockensubstanz", wert: ts ? fmtFaktor(Number(ts)) : "–", einheit: "%", quelle: "TS-Anteil" },
+    { label: "Aschegehalt", wert: asche ? fmtFaktor(Number(asche)) : "–", einheit: "%", quelle: "Anteil an TS" },
     {
       label: "Ergebnis",
-      wert: atro != null && Number.isFinite(atro) ? fmtZahl(atro) : "–",
+      wert: atro != null && Number.isFinite(atro) ? fmtMenge(atro) : "–",
       einheit: "t atro/a",
       quelle: "Rohmenge × TS × (1 − Asche)",
       ergebnis: true,

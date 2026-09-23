@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { energieKwh, preisCtKwh, preisEuroKg } from "./energie";
+import { energieKwh, fmtOutputPreis, preisEuroMwh, preisEuroT } from "./energie";
 
 describe("energieKwh", () => {
   it("nimmt MWh/a direkt (Strom, Waerme, direkte Energieangaben)", () => {
@@ -40,30 +40,54 @@ describe("energieKwh", () => {
   });
 });
 
-describe("preisCtKwh", () => {
-  it("rechnet €/MWh direkt um (auch Waerme ohne Heizwert)", () => {
-    expect(preisCtKwh("waerme", 80, "€/MWh")).toBe(8);
-    expect(preisCtKwh("strom", 120, "€/MWh")).toBe(12);
+// E20: Anzeigeeinheit energetischer Preise ist €/MWh (vorher ct/kWh).
+describe("preisEuroMwh", () => {
+  it("uebernimmt €/MWh direkt (auch Waerme ohne Heizwert)", () => {
+    expect(preisEuroMwh("waerme", 80, "€/MWh")).toBe(80);
+    expect(preisEuroMwh("strom", 120, "€/MWh")).toBe(120);
   });
 
   it("rechnet €/kg, €/t und €/Nm³ ueber den Heizwert um", () => {
-    expect(preisCtKwh("h2_niederdruck", 5, "€/kg")).toBeCloseTo(15.0, 1);
-    expect(preisCtKwh("saf", 2000, "€/t")).toBeCloseTo(16.69, 2);
-    expect(preisCtKwh("methan", 1, "€/Nm³")).toBeCloseTo(10.03, 2);
+    expect(preisEuroMwh("h2_niederdruck", 5, "€/kg")).toBeCloseTo(150.0, 0);
+    expect(preisEuroMwh("saf", 2000, "€/t")).toBeCloseTo(166.9, 1);
+    expect(preisEuroMwh("methan", 1, "€/Nm³")).toBeCloseTo(100.3, 1);
   });
 
   it("rechnet Synthesegas ueber den Referenz-Heizwert, Waerme nur ueber €/MWh", () => {
-    // 100 €/t / (13,3/3,6 kWh/kg * 1000) * 100 = 2,71 ct/kWh
-    expect(preisCtKwh("synthesegas", 100, "€/t")).toBeCloseTo(2.71, 2);
-    expect(preisCtKwh("waerme", 5, "€/kg")).toBeNull();
+    // 100 €/t / (13,3/3,6 kWh/kg * 1000) * 1000 = 27,1 €/MWh
+    expect(preisEuroMwh("synthesegas", 100, "€/t")).toBeCloseTo(27.1, 1);
+    expect(preisEuroMwh("waerme", 5, "€/kg")).toBeNull();
   });
 });
 
-describe("preisEuroKg", () => {
-  it("rechnet €/t auf €/kg um, €/kg direkt", () => {
-    expect(preisEuroKg(80, "€/t")).toBeCloseTo(0.08, 5);
-    expect(preisEuroKg(0.1, "€/kg")).toBe(0.1);
-    expect(preisEuroKg(80, "€/MWh")).toBeNull();
-    expect(preisEuroKg(null, "€/t")).toBeNull();
+// E20: Anzeigeeinheit stofflicher Preise ist €/t (vorher €/kg).
+describe("preisEuroT", () => {
+  it("uebernimmt €/t direkt und rechnet €/kg auf €/t um", () => {
+    expect(preisEuroT(80, "€/t")).toBe(80);
+    expect(preisEuroT(0.1, "€/kg")).toBeCloseTo(100, 5);
+    expect(preisEuroT(80, "€/MWh")).toBeNull();
+    expect(preisEuroT(null, "€/t")).toBeNull();
+  });
+});
+
+// E20: Beleg-Detail zeigt nicht mehr die erfasste Einheit roh, sondern
+// rechnet in die Anzeigeeinheit um (€/MWh energetisch, €/t stofflich).
+describe("fmtOutputPreis", () => {
+  it("rechnet stoffliche Preise auf €/t um", () => {
+    expect(fmtOutputPreis("co2", 0.25, "€/kg")).toBe("250 €/t");
+    expect(fmtOutputPreis("asche", 25, "€/t")).toBe("25 €/t");
+  });
+
+  it("rechnet energetische Preise auf €/MWh um", () => {
+    expect(fmtOutputPreis("h2_niederdruck", 185, "€/MWh")).toBe("185 €/MWh");
+    expect(fmtOutputPreis("h2_niederdruck", 5, "€/kg")).toBe("150 €/MWh");
+  });
+
+  it("zeigt nicht umrechenbare Preise roh in erfasster Genauigkeit", () => {
+    expect(fmtOutputPreis("waerme", 0.25, "€/kg")).toBe("0,25 €/kg");
+  });
+
+  it("zeigt ohne Preis einen Strich", () => {
+    expect(fmtOutputPreis("co2", null, "€/kg")).toBe("–");
   });
 });

@@ -8,18 +8,19 @@ import {
   VerfuegbarkeitsPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
-import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import { fmtOutputPreis } from "@/lib/energie";
+import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
 
 const RING_UMFANG = 65.97; // 2 * PI * r bei r = 10,5
 
 function preisText(s: Strom): string {
   if (s.art === "biomasse") {
-    if (s.preisMin == null && s.preisMax == null) return "–";
-    return `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"} €/t`;
+    // Review 22.09.: auf der Karte nur der Mittelwert, kein Korridor.
+    return s.preisMittel != null ? `${fmtPreis(s.preisMittel)} €/t` : "–";
   }
-  if (s.preis == null) return "–";
-  return `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim();
+  // E20: erfasste Einheit nicht roh anzeigen, sondern umrechnen (€/MWh, €/t).
+  return fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit);
 }
 
 /** Foto-Grid von stroeme. (V2, Default-Ansicht). Klick oeffnet das Detail-Modal. */
@@ -79,16 +80,16 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
                 <span className="pill-wert">
                   {s.art === "biomasse"
                     ? s.mengeFm != null
-                      ? `${fmtZahl(s.mengeFm)} t FM/a`
+                      ? `${fmtMenge(s.mengeFm)} t FM/a`
                       : "–"
                     : s.mengeWert != null
-                      ? `${fmtZahl(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
+                      ? `${fmtMenge(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
                       : "–"}
                 </span>
                 <span className="st-card-neben">
                   {s.art === "biomasse"
                     ? s.mengeAtro != null
-                      ? `${fmtZahl(s.mengeAtro)} t atro/a`
+                      ? `${fmtMenge(s.mengeAtro)} t atro/a`
                       : ""
                     : (s.kategorie && KATEGORIE_LABEL[s.kategorie]) || ""}
                 </span>

@@ -9,7 +9,8 @@ import {
   VerfuegbarkeitsPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
-import { fmtPreis, fmtZahl, fmtZeitraum } from "@/lib/format";
+import { fmtOutputPreis } from "@/lib/energie";
+import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { CLUSTER_LABEL } from "@/lib/farben";
 import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
 
@@ -83,10 +84,10 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       render: (s) =>
         feed
           ? s.mengeFm != null
-            ? fmtZahl(s.mengeFm)
+            ? fmtMenge(s.mengeFm)
             : "–"
           : s.mengeWert != null
-            ? `${fmtZahl(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
+            ? `${fmtMenge(s.mengeWert)} ${s.mengeEinheit ?? ""}`.trim()
             : "–",
     },
   ];
@@ -98,7 +99,7 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       label: "t atro/a",
       align: "right",
       render: (s) => (
-        <strong>{s.mengeAtro != null ? fmtZahl(s.mengeAtro) : "–"}</strong>
+        <strong>{s.mengeAtro != null ? fmtMenge(s.mengeAtro) : "–"}</strong>
       ),
     });
   basis.push(
@@ -111,9 +112,8 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
           ? s.preisMin != null || s.preisMax != null
             ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"}`
             : "–"
-          : s.preis != null
-            ? `${fmtPreis(s.preis)} ${s.preisEinheit ?? ""}`.trim()
-            : "–",
+          : // E20: umgerechnet in die Anzeigeeinheit statt erfasster Einheit roh.
+            fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit),
     },
     {
       sortKey: "von",

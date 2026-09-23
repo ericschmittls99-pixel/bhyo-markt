@@ -82,7 +82,7 @@ export function AuswertungAnsicht({
   potenzial: SpannenZeile[];
   preisKorridore: SpannenZeile[];
   outMengen: OutputListen | null;
-  outPotenzial: OutputZeile[];
+  outPotenzial: OutputListen | null;
   outPreise: OutputListen | null;
   outJahre: { energie: JahresBalken[]; stofflich: JahresBalken[] } | null;
   verif: VerifZeile[];
@@ -615,9 +615,6 @@ export function AuswertungAnsicht({
           </span>
           <span className="aw-caption">
             {j.jahr}
-            {j.ueberlaufBis != null && (
-              <span className="aw-jahr-ueberlauf">+ bis {j.ueberlaufBis}</span>
-            )}
           </span>
         </div>
       ))}
@@ -808,22 +805,21 @@ export function AuswertungAnsicht({
                     )}
                   {outSaisonModul}
                   {outJahreModul}
-                  <section className="aw-modul aw-modul--b2">
-                    <header className="aw-kopf">
-                      <h3 className="aw-kicker">erlöspotenzial je gruppe.</h3>
-                      <span className="aw-caption">Preis × Menge, €/a</span>
-                    </header>
-                    <div className="aw-zeilen aw-zeilen--scroll">
-                      {outputZeilenListe(outPotenzial, "pot")}
-                    </div>
-                  </section>
+                  {outPotenzial &&
+                    outputListenModul(
+                      "pot",
+                      "erlöspotenzial je gruppe.",
+                      outPotenzial,
+                      "energetisch · Preis × Menge, €/a",
+                      "stofflich · Preis × Menge, €/a",
+                    )}
                   {outPreise &&
                     outputListenModul(
                       "preis",
                       "preise je gruppe.",
                       outPreise,
-                      "energetisch · ct/kWh",
-                      "stofflich · €/kg",
+                      "energetisch · €/MWh",
+                      "stofflich · €/t",
                     )}
                   {qualitaetModul}
                   {statusModul}
