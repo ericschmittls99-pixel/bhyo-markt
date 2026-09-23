@@ -90,9 +90,13 @@ jobs:
           ')
           for paar in "v_vg250_lan:vg250_import_lan" "v_vg250_krs:vg250_import_krs"; do
             layer="${paar%%:*}"; ziel="${paar##*:}"
+            # -dialect SQLITE: der OGR-Standarddialekt verliert bei den
+            # GPKG-Views die Geometriespalte; im SQLite-Dialekt bleibt
+            # "geom" eine echte Spalte. Den Zielspaltennamen ermittelt das
+            # Import-Skript ohnehin dynamisch aus geometry_columns.
             ogr2ogr -f PostgreSQL "$pg" "$gpkg" \
               -nln "$ziel" -overwrite -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI \
-              -lco GEOMETRY_NAME=geom \
+              -lco GEOMETRY_NAME=geom -dialect SQLITE \
               -sql "SELECT geom, \"Regionalschlüssel_ARS\" AS ars, \"GeografischerName_GEN\" AS gen, \"Bezeichnung\" AS bez FROM $layer WHERE GF = 4"
           done
 
