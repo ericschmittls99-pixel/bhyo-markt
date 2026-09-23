@@ -9,6 +9,7 @@ import {
   jsonb,
   numeric,
   pgEnum,
+  index,
   pgTable,
   text,
   timestamp,
@@ -155,6 +156,14 @@ export const outputProdukt = pgTable("output_produkt", {
 /** Beleg (Nachweis) fuer einen Wert. Wird von Region, Biomassestrom, Output-Bedarf referenziert. */
 export const beleg = pgTable("beleg", {
   id: uuid("id").primaryKey().defaultRandom(),
+  // E28/E29: interne Belegnummer B-000123 aus der Sequenz beleg_nr_seq.
+  // VERGEBEN, nicht abgeleitet — aber mit genau einem Ursprung: die
+  // Sequenz. Kein Anwendungscode und kein Formular setzt sie; ein Trigger
+  // in Migration 0018 verhindert nachtraegliche Aenderungen.
+  belegNr: text("beleg_nr")
+    .notNull()
+    .unique()
+    .default(sql`'B-' || lpad(nextval('beleg_nr_seq')::text, 6, '0')`),
   typ: belegTyp("typ").notNull(),
   dateiKey: text("datei_key"),
   linkUrl: text("link_url"),
@@ -231,7 +240,11 @@ export const region = pgTable("region", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+},
+  (t) => [
+    index("region_bereitschaft_beleg_id_idx").on(t.bereitschaftBelegId),
+  ],
+);
 
 /** Akteur (Biomasse-Anbieter oder Output-Abnehmer). */
 export const akteur = pgTable("akteur", {
@@ -326,7 +339,13 @@ export const biomassestrom = pgTable("biomassestrom", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+},
+  (t) => [
+    index("biomassestrom_akteur_id_idx").on(t.akteurId),
+    index("biomassestrom_beleg_id_idx").on(t.belegId),
+    index("biomassestrom_materialart_code_idx").on(t.materialartCode),
+  ],
+);
 
 /**
  * Output-Bedarf eines Akteurs mit eigenem Standort. Wie biomassestrom ohne
@@ -391,7 +410,13 @@ export const outputBedarf = pgTable("output_bedarf", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+},
+  (t) => [
+    index("output_bedarf_akteur_id_idx").on(t.akteurId),
+    index("output_bedarf_beleg_id_idx").on(t.belegId),
+    index("output_bedarf_produkt_code_idx").on(t.produktCode),
+  ],
+);
 
 /**
  * Vergabezeitraum (AP1j): Abschnitt innerhalb des Verfuegbarkeitszeitraums,
@@ -424,6 +449,8 @@ export const vergabeZeitraum = pgTable(
       .defaultNow(),
   },
   (t) => [
+    index("vergabe_zeitraum_biomassestrom_id_idx").on(t.biomassestromId),
+    index("vergabe_zeitraum_output_bedarf_id_idx").on(t.outputBedarfId),
     check(
       "vergabe_ein_elternteil_check",
       sql`(${t.biomassestromId} IS NULL) <> (${t.outputBedarfId} IS NULL)`,
@@ -455,7 +482,8 @@ export const akteurInteresse = pgTable(
       .notNull()
       .defaultNow(),
   },
-  (t) => [unique().on(t.akteurId, t.regionId)],
+  (t) => [
+    index("akteur_interesse_region_id_idx").on(t.regionId),unique().on(t.akteurId, t.regionId)],
 );
 
 /**
@@ -486,7 +514,11 @@ export const analyseLauf = pgTable("analyse_lauf", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+},
+  (t) => [
+    index("analyse_lauf_region_id_idx").on(t.regionId),
+  ],
+);
 
 /**
  * Entfernung (Platzhalter). Polymorpher Bezug auf Biomassestrom oder
@@ -509,6 +541,7 @@ export const entfernung = pgTable(
       .defaultNow(),
   },
   (t) => [
+    index("entfernung_lauf_id_idx").on(t.laufId),
     check(
       "entfernung_ziel_typ_check",
       sql`${t.zielTyp} in ('biomassestrom', 'output_bedarf')`,

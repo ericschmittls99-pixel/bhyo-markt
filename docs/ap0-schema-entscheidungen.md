@@ -63,6 +63,14 @@ Qualitäts-Ableitungsmatrix“.
 
 ## 4. Lauf-ID – `BW-JJJJ-NNN`
 
+> **E29 — Nummernkreise (23.09.2026):** Eine Nummer, die das Haus verlässt,
+> wird **nach Jahr gezählt**, mit eigener Zählertabelle und Sperre, weil ein
+> externer Leser eine lückenlose Jahreszählung erwartet (Lauf-ID
+> `BW-JJJJ-NNN`, steht im PDF für die Kommune). Eine rein **interne
+> Referenz** bekommt eine **Datenbank-Sequenz ohne Jahresbezug**, Lücken
+> sind dort hinnehmbar (`beleg_nr` = `B-000123`). **Kein `count(*) + 1`, in
+> keinem der beiden Fälle.**
+
 - Präfix `BW`, Jahr vierstellig, laufende Nummer dreistellig nullgefüllt; ab 1000
   vierstellig, kein Reset innerhalb des Jahres
 - Nummernkreis **global über alle Regionen**, nicht je Region
@@ -134,6 +142,26 @@ Preview-DB, nicht gegen einen Mock. Ströme ohne Beleg haben ehrlich keine
 Stufe (Anzeige „–"). Damit ist stille Qualitätsinflation (gespeicherte
 Stufe passt nicht mehr zu den Belegfeldern — 68 Bestandsfälle) strukturell
 unmöglich.
+
+## 9. Belegnummer `B-000123` (E28/E29, 23.09.2026)
+
+> **E29 — Nummernkreise (23.09.2026):** Eine Nummer, die das Haus verlässt,
+> wird **nach Jahr gezählt**, mit eigener Zählertabelle und Sperre, weil ein
+> externer Leser eine lückenlose Jahreszählung erwartet (Lauf-ID
+> `BW-JJJJ-NNN`, steht im PDF für die Kommune). Eine rein **interne
+> Referenz** bekommt eine **Datenbank-Sequenz ohne Jahresbezug**, Lücken
+> sind dort hinnehmbar (`beleg_nr` = `B-000123`). **Kein `count(*) + 1`, in
+> keinem der beiden Fälle.**
+
+Umsetzung: Spalte `beleg.beleg_nr` mit Default aus der Sequenz
+`beleg_nr_seq` (`'B-' || lpad(nextval(...)::text, 6, '0')`). Die Nummer wird
+**vergeben, nicht abgeleitet** — kein Fall für E23, aber sie hat trotzdem
+genau einen Ursprung: die Sequenz. Kein Anwendungscode erzeugt sie, kein
+Formular setzt sie. Unveränderlich: `NOT NULL`, `UNIQUE`, in der Datenbank
+zusätzlich per Trigger gegen Änderung gesichert (hier ein **Schutz**, keine
+Ableitung — die E23-Absage an Trigger betraf abgeleitete Werte). Der
+Nachtrag für Bestandsbelege läuft deterministisch nach `erstellt_am`, bei
+Gleichstand nach `id`, damit ein erneuter Lauf dieselben Nummern ergibt.
 
 ## Noch offen – nicht raten
 
