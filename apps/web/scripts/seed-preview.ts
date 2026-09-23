@@ -18,6 +18,7 @@
  */
 import { createSql } from "@bhyo/db/client";
 
+import { deriveQualitaet } from "../lib/qualitaet";
 import {
   leiteVerfuegbarkeitAb,
   validiereVergaben,
@@ -38,6 +39,20 @@ const BELEG_MARKER = "SEED-v2 (synthetisch)";
 async function main() {
   const { akteure, feedstock, outputs } = baueSeedDaten();
   const alle = [...feedstock, ...outputs];
+
+  // E23-Guard: Ein Stufenwert im Seed-Input ist ein Fehler und bricht LAUT ab
+  // — die Stufe entsteht ausschliesslich in der DB (GENERATED auf beleg).
+  // Der Typ verbietet das Feld bereits; das hier faengt eine kuenftige
+  // Wiedereinfuehrung zur Laufzeit.
+  for (const s of alle)
+    if ("qualitaet" in (s as unknown as Record<string, unknown>)) {
+      console.error(
+        `Abbruch: Seed-Input traegt einen Stufenwert ("${s.bezeichnung}"). ` +
+          "Der Seed setzt nur Felder; die Stufe leitet die DB ab (E23). " +
+          "Generator korrigieren, keinen Stufenwert durchreichen.",
+      );
+      process.exit(1);
+    }
 
   // --- Stammdaten-Guard: VOR dem ersten Schreibzugriff, kein Ersatzprodukt ---
   const [materialarten, produkte] = await Promise.all([
@@ -79,8 +94,8 @@ async function main() {
       let belegId: string | null = null;
       if (s.beleg) {
         const [row] = await tx`INSERT INTO beleg
-          (typ, extern_nachvollziehbar, metadata, erstellt_am)
-          VALUES (${s.beleg.typ}, ${s.beleg.extern},
+          (typ, extern_nachvollziehbar, link_url, gueltig_bis, metadata, erstellt_am)
+          VALUES (${s.beleg.typ}, ${s.beleg.extern}, ${s.beleg.linkUrl}, ${s.beleg.gueltigBis},
             ${tx.json({ seed: BELEG_MARKER, quellenangabe: s.beleg.quellenangabe })},
             ${s.beleg.erhebungsdatum + "T09:00:00Z"})
           RETURNING id`;
@@ -93,14 +108,14 @@ async function main() {
            materialart_code, menge_roh_fm, ts_anteil_pct, aschegehalt_pct,
            zeitraum_von, zeitraum_bis, saisonalitaet,
            preis_min, preis_mittel, preis_max,
-           preis_herkunft, beleg_id, qualitaet, status,
+           preis_herkunft, beleg_id, status,
            reserviert_bhyo, reserviert_seit)
           VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort}, ${s.landkreis},
             ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326),
             ${s.materialartCode!}, ${s.mengeRohFm!}, ${s.tsAnteilPct!}, ${s.aschegehaltPct!},
             ${s.zeitraumVon}, ${s.zeitraumBis}, ${tx.json(s.saisonalitaet)},
             ${s.preisMin ?? null}, ${s.preisMittel ?? null}, ${s.preisMax ?? null},
-            ${s.preisMittel == null ? null : "schaetzung"}, ${belegId}, ${s.qualitaet}, ${s.status},
+            ${s.preisMittel == null ? null : "schaetzung"}, ${belegId}, ${s.status},
             ${s.reserviertBhyo}, ${s.reserviertSeit})`;
         for (const v of s.vergaben)
           await tx`INSERT INTO vergabe_zeitraum
@@ -111,12 +126,12 @@ async function main() {
           (id, akteur_id, bezeichnung, ort, landkreis, standort_geom,
            produkt_code, menge_wert, menge_einheit, preis, preis_einheit,
            preis_herkunft, zeitraum_von, zeitraum_bis, saisonalitaet,
-           beleg_id, qualitaet, status, reserviert_bhyo, reserviert_seit)
+           beleg_id, status, reserviert_bhyo, reserviert_seit)
           VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort}, ${s.landkreis},
             ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326),
             ${s.produktCode!}, ${s.mengeWert!}, ${s.mengeEinheit!}, ${s.preis ?? null}, ${s.preisEinheit ?? null},
             ${s.preis == null ? null : "schaetzung"}, ${s.zeitraumVon}, ${s.zeitraumBis},
-            ${tx.json(s.saisonalitaet)}, ${belegId}, ${s.qualitaet}, ${s.status},
+            ${tx.json(s.saisonalitaet)}, ${belegId}, ${s.status},
             ${s.reserviertBhyo}, ${s.reserviertSeit})`;
         for (const v of s.vergaben)
           await tx`INSERT INTO vergabe_zeitraum
@@ -139,6 +154,42 @@ async function main() {
     WHERE bezeichnung LIKE ${"%" + MARKER} AND preis_mittel IS NOT NULL
       AND NOT (preis_min::numeric <= preis_mittel::numeric AND preis_mittel::numeric <= preis_max::numeric)`;
   if (preisKaputt!.n !== 0) fehler.push(`${preisKaputt!.n} Belege mit min>mittel oder mittel>max`);
+
+  // --- E23: Stufen-Anker — die DB-abgeleitete Stufe (GENERATED auf beleg)
+  // muss fuer JEDEN Seed-Strom exakt der TS-Ableitung aus den gesetzten
+  // Feldern entsprechen; die stillgelegte Strom-Spalte bleibt leer.
+  const dbStufen = await sql`
+    SELECT s.id, b.qualitaet::text AS stufe
+      FROM biomassestrom s JOIN beleg b ON b.id = s.beleg_id
+      WHERE s.bezeichnung LIKE ${"%" + MARKER}
+    UNION ALL
+    SELECT s.id, b.qualitaet::text
+      FROM output_bedarf s JOIN beleg b ON b.id = s.beleg_id
+      WHERE s.bezeichnung LIKE ${"%" + MARKER}`;
+  const stufeJeStrom = new Map(dbStufen.map((r) => [r.id as string, r.stufe as string]));
+  for (const s of alle) {
+    if (!s.beleg) {
+      if (stufeJeStrom.has(s.id)) fehler.push(`${s.bezeichnung}: Stufe ohne Seed-Beleg`);
+      continue;
+    }
+    const erwartet = deriveQualitaet({
+      typ: s.beleg.typ as never,
+      externNachvollziehbar: s.beleg.extern,
+      erhebungsdatum: s.beleg.erhebungsdatum,
+      linkUrl: s.beleg.linkUrl,
+      gueltigBis: s.beleg.gueltigBis,
+      metadata: { quellenangabe: s.beleg.quellenangabe },
+    });
+    const db = stufeJeStrom.get(s.id);
+    if (db !== erwartet)
+      fehler.push(`${s.bezeichnung}: DB-Stufe ${db ?? "fehlt"} statt ${erwartet}`);
+  }
+  const [altspalte] = await sql`SELECT count(*)::int AS n FROM (
+      SELECT qualitaet FROM biomassestrom WHERE bezeichnung LIKE ${"%" + MARKER}
+      UNION ALL SELECT qualitaet FROM output_bedarf WHERE bezeichnung LIKE ${"%" + MARKER}
+    ) x WHERE x.qualitaet IS NOT NULL`;
+  if (altspalte!.n !== 0)
+    fehler.push(`${altspalte!.n} Seed-Zeilen mit Wert in der stillgelegten Strom-Spalte qualitaet`);
 
   // Vergaben + Saison + Status ueber die generierten (deterministisch = DB-Inhalt)
   for (const s of alle) {
@@ -179,6 +230,9 @@ async function main() {
   console.log(`Nebentag reserviert (bhyo): ${nebentag}`);
   console.log(`Zeitraum-Spannweite: ${Math.min(...jahre)} .. ${Math.max(...jahre)}`);
   console.log(`Preise: positiv ${positiv} | negativ ${negativ} | ohne ${ohne}`);
+  const verteilung: Record<string, number> = {};
+  for (const st of stufeJeStrom.values()) verteilung[st] = (verteilung[st] ?? 0) + 1;
+  console.log(`Abgeleitete Stufen (aus der DB):`, JSON.stringify(verteilung), `| ohne Beleg: ${alle.filter((s) => !s.beleg).length}`);
   if (fehler.length) {
     console.error("VERLETZUNGEN:\n- " + fehler.join("\n- "));
     process.exit(1);

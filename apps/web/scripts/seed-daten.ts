@@ -15,6 +15,50 @@
  * - CO2 ist per Referenztabelle add_on (stofflich, E13), nicht "target".
  */
 
+import { deriveQualitaet } from "../lib/qualitaet";
+
+/**
+ * E23: Belegfelder, die die gewuenschte Zielstufe tatsaechlich ERZEUGEN —
+ * die Stufe selbst wird nirgends gespeichert, sie entsteht als
+ * GENERATED-Spalte in der DB. Ohne echte R2-Dateien laufen alle Stufen
+ * ueber linkUrl (seed.invalid = klar synthetisch):
+ *   A: betriebsdaten vollstaendig (extern + Quelle + Link)
+ *   B: vertrag nur mit Link (ohne Dateiablage faellt er von A auf B)
+ *   C: angebot vollstaendig (Link + gueltig_bis)
+ *   D: gespraech ohne Gespraechsfelder, nicht extern nachvollziehbar
+ * Die Selbstpruefung gegen deriveQualitaet bricht LAUT ab, wenn die Felder
+ * die Zielstufe verfehlen — kein stiller Ersatzwert (Handoff-Regel).
+ */
+function belegFuerZiel(
+  ziel: "A" | "B" | "C" | "D",
+  quellenangabe: string,
+  erhebungsdatum: string,
+  linkNr: number,
+): SeedBeleg {
+  const linkUrl = `https://seed.invalid/beleg/${linkNr}`;
+  const b: SeedBeleg =
+    ziel === "A"
+      ? { typ: "betriebsdaten", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: null }
+      : ziel === "B"
+        ? { typ: "vertrag", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: null }
+        : ziel === "C"
+          ? { typ: "angebot", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: `${BASIS_JAHR + 1}-12-31` }
+          : { typ: "gespraech", extern: false, erhebungsdatum, quellenangabe, linkUrl: null, gueltigBis: null };
+  const abgeleitet = deriveQualitaet({
+    typ: b.typ as never,
+    externNachvollziehbar: b.extern,
+    erhebungsdatum: b.erhebungsdatum,
+    linkUrl: b.linkUrl,
+    gueltigBis: b.gueltigBis,
+    metadata: { quellenangabe: b.quellenangabe },
+  });
+  if (abgeleitet !== ziel)
+    throw new Error(
+      `Seed-Belegfelder verfehlen die Zielstufe: gewollt ${ziel}, abgeleitet ${abgeleitet} (typ ${b.typ}).`,
+    );
+  return b;
+}
+
 export const SEED = 20260922;
 export const BASIS_JAHR = 2026;
 /** Nur fuer die Status-AUSGABE der Selbstpruefung — nie fuer die Daten. */
@@ -56,18 +100,24 @@ export interface SeedStrom {
   zeitraumBis: string;
   /** 12 Werte, Summe 100 ± 0,1 — seit dem Index-Umbau (23.09.2026) ist die Skala frei; Summe-100-Profile sind als Index weiter gueltig (nur Verhaeltnisse zaehlen). */
   saisonalitaet: number[];
-  qualitaet: "A" | "B" | "C" | "D";
+  // E23: KEIN Stufenwert im Seed-Input — die Stufe entsteht ausschliesslich
+  // in der DB (GENERATED-Spalte auf beleg). Der Seed setzt nur Belegfelder;
+  // seed-preview.ts bricht laut ab, wenn hier je wieder eine Stufe auftaucht.
   status: "entwurf" | "in_pruefung" | "geprueft";
   reserviertBhyo: boolean;
   reserviertSeit: string | null;
   vergaben: SeedVergabe[];
-  beleg: null | {
-    typ: string;
-    extern: boolean;
-    erhebungsdatum: string;
-    quellenangabe: string;
-  };
+  beleg: null | SeedBeleg;
   anker?: string;
+}
+
+export interface SeedBeleg {
+  typ: string;
+  extern: boolean;
+  erhebungsdatum: string;
+  quellenangabe: string;
+  linkUrl: string | null;
+  gueltigBis: string | null;
 }
 
 export interface SeedAkteur {
@@ -351,6 +401,9 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     return akteure.length - 1;
   };
 
+  // E23: fortlaufende Nummer fuer die synthetischen Beleg-Links (Determinismus).
+  let linkNr = 1;
+
   // Qualitaets-/Status-/Bucket-Ziehlisten (deterministisch gemischt)
   const qualListe = mische([
     ...Array<"A">(15).fill("A"),
@@ -499,7 +552,6 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       zeitraumVon: zeitraum[0],
       zeitraumBis: zeitraum[1],
       saisonalitaet: profil,
-      qualitaet,
       status,
       reserviertBhyo: reserviert,
       reserviertSeit,
@@ -507,12 +559,12 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       beleg:
         status === "entwurf"
           ? null
-          : {
-              typ: qualitaet === "A" ? "vertrag" : qualitaet === "B" ? "betriebsdaten" : qualitaet === "C" ? "angebot" : "gespraech",
-              extern: qualitaet === "A" || qualitaet === "B",
-              erhebungsdatum: `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
-              quellenangabe: `Synthetischer Seed-Beleg (${art.label})`,
-            },
+          : belegFuerZiel(
+              qualitaet,
+              `Synthetischer Seed-Beleg (${art.label})`,
+              `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
+              linkNr++,
+            ),
       anker: so.anker,
     };
   });
@@ -609,7 +661,6 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       zeitraumVon: zeitraum[0],
       zeitraumBis: zeitraum[1],
       saisonalitaet: saison(p.saison(abnehmer)),
-      qualitaet,
       status,
       reserviertBhyo: reserviert,
       reserviertSeit,
@@ -617,12 +668,12 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       beleg:
         status === "entwurf"
           ? null
-          : {
-              typ: qualitaet === "A" ? "vertrag" : qualitaet === "B" ? "absichtserklaerung" : qualitaet === "C" ? "angebot" : "gespraech",
-              extern: qualitaet === "A",
-              erhebungsdatum: `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
-              quellenangabe: `Synthetischer Seed-Beleg (${p.label})`,
-            },
+          : belegFuerZiel(
+              qualitaet,
+              `Synthetischer Seed-Beleg (${p.label})`,
+              `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
+              linkNr++,
+            ),
       anker: so.anker,
     };
   });
