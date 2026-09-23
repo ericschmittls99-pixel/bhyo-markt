@@ -203,7 +203,7 @@ export default async function AuswertungPage({
       potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
       outMengen={sicht === "outputs" ? outputMengen(pool, recs) : null}
-      outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : []}
+      outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : null}
       outPreise={sicht === "outputs" ? outputPreisZeilen(pool, recs) : null}
       outJahre={
         sicht === "outputs"

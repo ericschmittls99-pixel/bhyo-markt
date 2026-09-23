@@ -220,7 +220,7 @@ function skaliereEinheit(
  * beiden nicht wieder auseinanderlaufen koennen.
  */
 type GewichtungsBasis<T> =
-  | { fall: "gewichtet"; oe: (f: (t: T) => number) => number; n: number; nGesamt: number }
+  | { fall: "gewichtet"; oe: (f: (t: T) => number) => number }
   | { fall: "ungewichtet"; oe: (f: (t: T) => number) => number }
   | { fall: "keine_menge"; n: number };
 
@@ -235,8 +235,6 @@ function gewichtungsBasis<T>(
     return {
       fall: "gewichtet",
       oe: (f) => gewichtbar.reduce((n, t) => n + f(t) * gewichtVon(t)!, 0) / tw,
-      n: gewichtbar.length,
-      nGesamt: items.length,
     };
   }
   if (items.every((t) => gewichtVon(t) == null))
@@ -253,8 +251,6 @@ function preisBasis(mitPreis: Strom[]): GewichtungsBasis<Strom> {
 const HINWEIS_OHNE_ATRO = "für diese Positionen ist keine atro-Menge ableitbar";
 const HINWEIS_OHNE_ENERGIE = "für diese Positionen ist keine Energiemenge ableitbar";
 const hinweisKeineMenge = (n: number) => `${nBelege(n)}, keine Menge im Bezugsjahr`;
-const nAngabe = (b: { n: number; nGesamt: number }) =>
-  b.n < b.nGesamt ? `(n=${b.n} von ${b.nGesamt})` : null;
 
 export function kpiKarten(
   recs: Strom[],
@@ -288,9 +284,10 @@ export function kpiKarten(
       wert: fmtMenge(kwh / 1000),
       einheit: einheitJahr("MWh/a"),
       label: "energiebedarf.",
+      // Review 22.09.: "Target-Outputs nach Hu" entfaellt; die
+      // Heizwert-Warnung bleibt — fehlende Umrechnung scheitert laut.
       caption: [
-        "Target-Outputs nach Hu",
-        co2Tonnen > 0 ? `dazu ${fmtMenge(co2Tonnen)} t CO2/a` : "",
+        co2Tonnen > 0 ? `dazu ${fmtMenge(co2Tonnen)} t CO₂/a` : "",
         ohneHeizwert > 0 ? `${nBelege(ohneHeizwert)} ohne Heizwert` : "",
       ]
         .filter(Boolean)
@@ -344,15 +341,14 @@ export function kpiKarten(
       if (basis.fall === "keine_menge") {
         preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: hinweisKeineMenge(basis.n) };
       } else {
-        const art =
-          basis.fall === "ungewichtet"
-            ? "ungewichtet · keine Energiemenge ableitbar"
-            : ["MWh-gewichtet über Target-Outputs", nAngabe(basis)].filter(Boolean).join(" ");
         preisKpi = {
           wert: fmtPreis(basis.oe((x) => x.eurMwh)),
           einheit: "€/MWh",
           label: "ø preis.",
-          caption: `${art}${ohnePreisNote}`,
+          caption:
+            basis.fall === "ungewichtet"
+              ? "ungewichtet · keine Energiemenge ableitbar"
+              : "MWh-gewichtet über Target-Outputs",
         };
       }
     }
@@ -373,7 +369,6 @@ export function kpiKarten(
   // Potenzial — Belegzahl und Erfassungsgrad wandern in die auswahlZeile.
   const mitPreis = feed.filter((s) => s.preisMittel != null);
   const ohnePreis = feed.length - mitPreis.length;
-  const ohneNote = ohnePreis ? ` · ${nBelege(ohnePreis)} ohne Preis` : "";
   let preisKpi: KpiKarte;
   let potenzialKpi: KpiKarte;
   if (mitPreis.length === 0) {
@@ -387,21 +382,23 @@ export function kpiKarten(
     if (basis.fall === "keine_menge") {
       preisKpi = { wert: "–", einheit: "", label: "ø preis.", caption: hinweisKeineMenge(basis.n) };
     } else {
-      const art =
-        basis.fall === "ungewichtet"
-          ? "ungewichtet · keine atro-Menge ableitbar"
-          : ["atro-gewichtet", nAngabe(basis)].filter(Boolean).join(" ");
+      // Review 22.09.: Caption schlank — n-Angabe, Vorzeichen-Legende und
+      // ohne-Preis-Zaehler entfallen hier.
       preisKpi = {
         wert: fmtPreis(basis.oe((s) => s.preisMittel!)),
         einheit: "€/t",
         label: "ø preis.",
-        caption: `${art} · − = Annahmeentgelt${ohneNote}`,
+        caption:
+          basis.fall === "ungewichtet"
+            ? "ungewichtet · keine atro-Menge ableitbar"
+            : "atro-gewichtet",
       };
     }
     potenzialKpi = {
       ...skaliereEinheit(fmtGeldGross(potenzialSumme(mitPreis).mittel), einheitJahr),
       label: "feedstock-potenzial.",
-      caption: `Verwertungserlöse − Beschaffungskosten${ohneNote}`,
+      // Review 22.09.: nur der ohne-Preis-Zaehler bleibt.
+      caption: ohnePreis ? `${nBelege(ohnePreis)} ohne Preis` : "",
     };
   }
 
@@ -801,7 +798,7 @@ export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[
         min: basis.oe((s) => s.preisMin ?? s.preisMittel!),
         mittel: basis.oe((s) => s.preisMittel!),
         max: basis.oe((s) => s.preisMax ?? s.preisMittel!),
-        zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : nAngabe(basis),
+        zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : null,
         hinweis: basis.fall === "ungewichtet" ? HINWEIS_OHNE_ATRO : null,
       };
     },
@@ -938,10 +935,13 @@ export function outputMengen(pool: Strom[], recs: Strom[]): OutputListen {
   };
 }
 
-/** regionenpotenzial je gruppe. (E13): Preis x Menge in €/a, eine gemeinsame Skala. */
-export function outputPotenzialZeilen(pool: Strom[], recs: Strom[]): OutputZeile[] {
+/**
+ * erlöspotenzial je gruppe. (E13): Preis x Menge in €/a — zweigeteilt
+ * energetisch/stofflich (Review 22.09.), eine gemeinsame Skala ueber beide
+ * Sektionen.
+ */
+export function outputPotenzialZeilen(pool: Strom[], recs: Strom[]): OutputListen {
   const defs = outputRowDefs(pool);
-  const ds = [...defs.energetisch, ...defs.stofflich];
   const outPool = pool.filter((s) => s.art === "output");
   const outRecs = recs.filter((s) => s.art === "output");
 
@@ -954,9 +954,13 @@ export function outputPotenzialZeilen(pool: Strom[], recs: Strom[]): OutputZeile
     };
   };
 
-  const zeilen = ds.map((d) => ({ d, ...wertUndMeta(outRecs.filter(d.passt)) }));
-  const max = Math.max(1, ...zeilen.map((z) => z.v ?? 0));
-  return zeilen.map(({ d, v, meta }) => ({
+  const zeilenVon = (ds: OutputRowDef[]) =>
+    ds.map((d) => ({ d, ...wertUndMeta(outRecs.filter(d.passt)) }));
+  const zeilenE = zeilenVon(defs.energetisch);
+  const zeilenS = zeilenVon(defs.stofflich);
+  const max = Math.max(1, ...[...zeilenE, ...zeilenS].map((z) => z.v ?? 0));
+  const render = (zeilen: ReturnType<typeof zeilenVon>): OutputZeile[] =>
+    zeilen.map(({ d, v, meta }) => ({
     facette: d.facette,
     key: d.key,
     label: d.label,
@@ -979,6 +983,7 @@ export function outputPotenzialZeilen(pool: Strom[], recs: Strom[]): OutputZeile
             }))
         : [],
   }));
+  return { energetisch: render(zeilenE), stofflich: render(zeilenS) };
 }
 
 /**
@@ -1011,7 +1016,7 @@ export function outputPreisZeilen(pool: Strom[], recs: Strom[]): OutputListen {
       return wert(null, null, hinweisKeineMenge(basis.n), true);
     return wert(
       basis.oe((x) => x.eurMwh),
-      basis.fall === "ungewichtet" ? "· ungewichtet" : nAngabe(basis),
+      basis.fall === "ungewichtet" ? "· ungewichtet" : null,
       basis.fall === "ungewichtet" ? HINWEIS_OHNE_ENERGIE : null,
     );
   };

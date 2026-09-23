@@ -106,9 +106,10 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
 
 - **KPI-Kacheln**: genau eine große Kennzahl mit Einheit, Label lowercase
   mit Punkt, Caption darunter (E18). Erläuterungen — etwa die
-  Vorzeichen-Konvention („− = Annahmeentgelt") — stehen **in der Caption**,
-  nie hinter einem ⓘ-Popover und nie als Stat-Mehrfachwerte in einer
-  Kachel.
+  Rechenbasis („atro-gewichtet", „· ungewichtet") — stehen **in der
+  Caption**, nie hinter einem ⓘ-Popover und nie als Stat-Mehrfachwerte in
+  einer Kachel. Captions bleiben schlank (Review 22.09.: n-Angaben,
+  Vorzeichen-Legende und „Target-Outputs nach Hu" gestrichen).
 - **Zeilen-Module filtern per Klick** (Pool-Prinzip): Zeilen und
   Unterzeilen kommen aus dem ungefilterten Pool, Werte aus der Auswahl —
   beim Filtern bleiben Zeilen sichtbar und **dimmen auf `0.45`**, die
@@ -126,17 +127,18 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   aller Positionen — kein 0-Anker, volle Bandbreite (E18).
 - **Zweigeteilte Listen** (energetisch/stofflich, E13) trennen Sektionen
   durch eine Caption-Zeile („energetisch · MWh/a"), nicht durch Rahmen.
-- **ø-Preis-Kennzeichnung** (drei Fälle der Rechenbasis, 22.09.2026):
-  Fließen nicht alle Positionen in den gewichteten ø ein, steht die
-  Zählung als Suffix hinter dem Wert — „ø −64 (n=7 von 9)". Ein
-  ungewichteter ø (keine atro-Menge ableitbar) trägt sichtbar
-  „· ungewichtet" hinter dem Wert, der Grund steht im Popover
-  (`title`). Zeilen **ohne ausweisbaren Wert** (Belege vorhanden, aber
-  keine Menge im Bezugsjahr) zeigen keinen Preis und keine Spanne: Zeile
-  gedimmt auf `0.45` (Klasse `stumm`, gleiche Optik wie das
-  Vergangenheits-Dimming der Jahresachse, getrennt vom Filter-Dimming),
-  Hinweis „n Belege, keine Menge im Bezugsjahr" als Caption und Popover.
-  In der KPI-Kachel stehen dieselben Kennzeichnungen in der Caption.
+- **ø-Preis-Kennzeichnung** (drei Fälle der Rechenbasis, 22.09.2026;
+  n-Angabe im Review vom 22.09. wieder gestrichen): Ein gewichteter ø
+  steht ohne Zusatz. Ein ungewichteter ø (keine atro-Menge ableitbar)
+  trägt sichtbar „· ungewichtet" hinter dem Wert, der Grund steht im
+  Popover (`title`). Zeilen **ohne ausweisbaren Wert** (Belege
+  vorhanden, aber keine Menge im Bezugsjahr) zeigen keinen Preis und
+  keine Spanne: Zeile gedimmt auf `0.45` (Klasse `stumm`, gleiche Optik
+  wie das Vergangenheits-Dimming der Jahresachse, getrennt vom
+  Filter-Dimming), Hinweis „n Belege, keine Menge im Bezugsjahr" als
+  Caption und Popover. In der KPI-Kachel stehen dieselben
+  Kennzeichnungen in der Caption; KPI-Captions bleiben ansonsten
+  schlank („atro-gewichtet" bzw. „MWh-gewichtet über Target-Outputs").
   Gilt identisch auf der Outputs-Seite (Gewicht = Energiemenge in kWh,
   Kennzeichen „keine Energiemenge ableitbar") — eine gemeinsame
   Rechenbasis-Funktion, keine zweite Implementierung.

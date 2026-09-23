@@ -16,8 +16,8 @@ const RING_UMFANG = 65.97; // 2 * PI * r bei r = 10,5
 
 function preisText(s: Strom): string {
   if (s.art === "biomasse") {
-    if (s.preisMin == null && s.preisMax == null) return "–";
-    return `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"} €/t`;
+    // Review 22.09.: auf der Karte nur der Mittelwert, kein Korridor.
+    return s.preisMittel != null ? `${fmtPreis(s.preisMittel)} €/t` : "–";
   }
   // E20: erfasste Einheit nicht roh anzeigen, sondern umrechnen (€/MWh, €/t).
   return fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit);
