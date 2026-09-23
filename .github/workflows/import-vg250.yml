@@ -93,7 +93,7 @@ jobs:
             ogr2ogr -f PostgreSQL "$pg" "$gpkg" \
               -nln "$ziel" -overwrite -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI \
               -lco GEOMETRY_NAME=geom \
-              -sql "SELECT \"Regionalschlüssel_ARS\" AS ars, \"GeografischerName_GEN\" AS gen, \"Bezeichnung\" AS bez FROM $layer WHERE GF = 4"
+              -sql "SELECT geom, \"Regionalschlüssel_ARS\" AS ars, \"GeografischerName_GEN\" AS gen, \"Bezeichnung\" AS bez FROM $layer WHERE GF = 4"
           done
 
       - name: Bestand ersetzen (Transaktion, Sollwerte, Zielnachweis)
