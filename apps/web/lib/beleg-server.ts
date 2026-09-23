@@ -2,12 +2,7 @@ import { aenderung, beleg } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AppDb, getBelegeBucket, getEnvironment } from "@/lib/db";
-import {
-  type BelegBewertung,
-  type BelegTyp,
-  berechneGueltigBis,
-  deriveQualitaet,
-} from "@/lib/qualitaet";
+import { type BelegTyp, berechneGueltigBis } from "@/lib/qualitaet";
 
 /**
  * Geteilte Server-Helfer fuer die Erfassungs-Actions (PR 5): FormData-Zugriff,
@@ -102,28 +97,16 @@ async function ladeDateiHoch(formData: FormData): Promise<string | null> {
   return dateiKey;
 }
 
-function bewerte(d: BelegDaten, dateiKey: string | null) {
-  const gueltigBis = berechneGueltigBis(d.typ, d.erhebungsdatum, d.angebotGueltigBis);
-  const bewertung: BelegBewertung = {
-    typ: d.typ,
-    externNachvollziehbar: d.externNachvollziehbar,
-    erhebungsdatum: d.erhebungsdatum,
-    dateiKey,
-    linkUrl: d.linkUrl,
-    gueltigBis,
-    metadata: {
-      amtlich: d.metadata.amtlich as boolean | undefined,
-      quellenangabe: d.quellenangabe,
-      gespraechsdatum: d.metadata.gespraechsdatum as string | undefined,
-      gespraechspartner: d.metadata.gespraechspartner as string | undefined,
-    },
-  };
-  return { gueltigBis, qualitaet: deriveQualitaet(bewertung) };
+function gueltigBisAus(d: BelegDaten): string | null {
+  // E23: die Stufe berechnet die DB selbst (GENERATED-Spalte auf beleg);
+  // hier bleibt nur noch die Gueltigkeitsableitung.
+  return berechneGueltigBis(d.typ, d.erhebungsdatum, d.angebotGueltigBis);
 }
 
+// E23: keine Stufe mehr im Ergebnis — die DB leitet sie als
+// GENERATED-Spalte auf beleg selbst ab; die App schreibt sie nirgends.
 export interface BelegErgebnis {
   belegId: string;
-  qualitaet: "A" | "B" | "C" | "D";
 }
 
 /** Legt die Beleg-Zeile neu an (Anlegen bzw. Strom ohne bisherigen Beleg). */
@@ -134,7 +117,7 @@ export async function erstelleBeleg(
   const d = belegDatenAus(formData);
   if (!d) return null;
   const dateiKey = await ladeDateiHoch(formData);
-  const { gueltigBis, qualitaet } = bewerte(d, dateiKey);
+  const gueltigBis = gueltigBisAus(d);
 
   const [row] = await db
     .insert(beleg)
@@ -149,7 +132,7 @@ export async function erstelleBeleg(
     })
     .returning({ id: beleg.id });
 
-  return { belegId: row!.id, qualitaet };
+  return { belegId: row!.id };
 }
 
 /**
@@ -175,7 +158,7 @@ export async function aktualisiereBeleg(
 
   const neuerKey = await ladeDateiHoch(formData);
   const dateiKey = neuerKey ?? alt.dateiKey;
-  const { gueltigBis, qualitaet } = bewerte(d, dateiKey);
+  const gueltigBis = gueltigBisAus(d);
 
   await db
     .update(beleg)
@@ -190,7 +173,7 @@ export async function aktualisiereBeleg(
     })
     .where(eq(beleg.id, belegId));
 
-  return { belegId, qualitaet };
+  return { belegId };
 }
 
 export async function logAenderung(

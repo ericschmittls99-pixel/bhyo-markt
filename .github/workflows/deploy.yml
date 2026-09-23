@@ -106,6 +106,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm exec drizzle-kit migrate
 
+      # E23: Paritaet der Qualitaets-Ableitung — DB-Funktion qualitaetsstufe()
+      # gegen deriveQualitaet ueber alle Ankerfaelle, gegen die echte
+      # Preview-DB (kein Mock). Abweichung bricht den Deploy ab.
+      - name: Qualitaets-Paritaet (DB vs. TS)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter web exec tsx scripts/qualitaet-paritaet.ts
+
       - name: Build (OpenNext)
         working-directory: apps/web
         env:

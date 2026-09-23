@@ -48,6 +48,26 @@ describe("jahresAnteil (Handoff: Rate × Σ Saisonanteile)", () => {
     expect(jahresAnteil(2028, basis, vergaben, extern)).toBeCloseTo(6 / 12, 10);
   });
 
+  // E23-Seitencheck E19: seit der Index-Konvention (23.09.2026) summieren
+  // Profile nicht mehr auf 100 — die Anteile muessen trotzdem exakt
+  // wert/Summe bleiben (saisonAnteilBruch teilt durch die echte Summe).
+  it("Index-Profil (Σ 1200): ganzjaehrig zaehlt exakt 1", () => {
+    const saison = [150, 150, 100, 100, 100, 100, 100, 100, 100, 100, 50, 50];
+    const s = { ...basis, saisonalitaet: saison } as Strom;
+    expect(jahresAnteil(2027, s, [], null)).toBeCloseTo(1, 10);
+  });
+
+  it("Index-Profil (Σ 1200): Q1-Verfuegbarkeit zaehlt exakt 400/1200", () => {
+    const saison = [150, 150, 100, 100, 100, 100, 100, 100, 100, 100, 50, 50];
+    const s = {
+      ...basis,
+      zeitraumVon: "2027-01-01",
+      zeitraumBis: "2027-03-31",
+      saisonalitaet: saison,
+    } as Strom;
+    expect(jahresAnteil(2027, s, [], null)).toBeCloseTo(400 / 1200, 10);
+  });
+
   it("freie Monate mit Reservierung zaehlen als reserviert_bhyo, nicht als verfuegbar", () => {
     const s = { ...basis, reserviertBhyo: true } as Strom;
     expect(jahresAnteil(2027, s, [], new Set(["verfuegbar"]))).toBe(0);

@@ -196,7 +196,6 @@ export async function stromSpeichern(
                 ...(werte as typeof werte & { materialartCode: string }),
                 reserviertSeit: naechsteReserviertSeit(reserviertBhyo, null, heute),
                 belegId: belegErgebnis?.belegId ?? null,
-                qualitaet: belegErgebnis?.qualitaet ?? null,
                 status: "entwurf",
               } as never)
               .returning({ id: biomassestrom.id });
@@ -209,7 +208,6 @@ export async function stromSpeichern(
                 ...werte,
                 reserviertSeit: naechsteReserviertSeit(reserviertBhyo, null, heute),
                 belegId: belegErgebnis?.belegId ?? null,
-                qualitaet: belegErgebnis?.qualitaet ?? null,
                 status: "entwurf",
               } as never)
               .returning({ id: outputBedarf.id });
@@ -246,7 +244,6 @@ export async function stromSpeichern(
               heute,
             ),
             belegId: belegErgebnis?.belegId ?? null,
-            qualitaet: belegErgebnis?.qualitaet ?? null,
             updatedAt: new Date(),
           } as never)
           .where(eq(tabelle.id, id));

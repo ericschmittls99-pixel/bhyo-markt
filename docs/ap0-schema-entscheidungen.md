@@ -116,6 +116,25 @@ ergänzt dafür additiv `strasse`, `hausnummer`, `plz`, `bundesland`
 `standort_geom` bleiben. `bundesland` kommt in F0a vorläufig aus dem
 Geocoder und wird ab F0b räumlich abgeleitet.
 
+## 8. Qualitätsstufe wird abgeleitet, nie gespeichert (E23, 23.09.2026)
+
+Die Stufe A–D existiert nur noch als Ableitung aus der Beleg-Zeile:
+Migration 0013 legt die `IMMUTABLE`-SQL-Funktion `qualitaetsstufe(...)` an
+(Spiegel von `apps/web/lib/qualitaet.ts::deriveQualitaet`) und
+`beleg.qualitaet` als `GENERATED ALWAYS AS … STORED`. Fallregel: hängt eine
+Ableitung nur an Spalten **derselben** Zeile, ist sie eine Generated-Spalte
+(Fall a, hier `beleg`); hängt sie an einer Fremdzeile, wird sie über den
+Join gelesen und nicht dupliziert (Fall b, hier die Stromtabellen — deren
+`qualitaet`-Spalten sind stillgelegt und fallen mit Migration 0014).
+Kein Trigger. Die App schreibt nirgends eine Stufe; der Seed setzt nur
+Belegfelder, ein Stufenwert im Seed-Input bricht laut ab. Ein Paritätstest
+im Deploy-CI hält DB-Funktion und TS-Spiegel über gemeinsame Ankerfälle
+(`lib/qualitaet-ankerfaelle.ts`) deckungsgleich — gegen die echte
+Preview-DB, nicht gegen einen Mock. Ströme ohne Beleg haben ehrlich keine
+Stufe (Anzeige „–"). Damit ist stille Qualitätsinflation (gespeicherte
+Stufe passt nicht mehr zu den Belegfeldern — 68 Bestandsfälle) strukturell
+unmöglich.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

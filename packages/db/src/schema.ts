@@ -270,7 +270,10 @@ export const biomassestrom = pgTable("biomassestrom", {
   preisMax: numeric("preis_max"),
   preisHerkunft: preisHerkunft("preis_herkunft"),
   belegId: uuid("beleg_id").references(() => beleg.id),
-  qualitaet: qualitaetsStufe("qualitaet"),
+  // E23: qualitaet liegt physisch noch in der Tabelle, ist hier aber bewusst
+  // nicht mehr deklariert — die Stufe haengt an der Beleg-Zeile (Fremdzeile)
+  // und wird ueber den beleg-Join gelesen. Der physische DROP folgt als
+  // eigene Migration 0014 nach der Verifikation.
   status: datensatzStatus("status").notNull(),
   // Weiche Markierung ohne Zeitraum (AP1j): verfuegbar, aber fuer bhyo
   // reserviert (Projekt steht noch nicht). Unabhaengig von vergabe_zeitraum.
@@ -337,7 +340,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   // dieselben Anteile. NICHT "gut gemeint" normieren.
   saisonalitaet: jsonb("saisonalitaet").notNull(),
   belegId: uuid("beleg_id").references(() => beleg.id),
-  qualitaet: qualitaetsStufe("qualitaet"),
+  // E23: qualitaet physisch noch da, bewusst nicht deklariert — Ableitung
+  // ueber den beleg-Join, DROP als Migration 0014 (siehe biomassestrom).
   status: datensatzStatus("status").notNull(),
   // Weiche Markierung ohne Zeitraum (AP1j), analog biomassestrom.
   reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
