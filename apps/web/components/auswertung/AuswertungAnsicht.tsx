@@ -23,6 +23,8 @@ import type {
   SpannenZeile,
   StatusZeile,
   VerifZeile,
+  Zusammensetzung,
+  Zeitreihe,
 } from "@/lib/auswertung-modell";
 import type { Strom } from "@/lib/stroeme-modell";
 
@@ -73,18 +75,18 @@ export function AuswertungAnsicht({
   kpis: KpiKarte[];
   auswahlText: string | null;
   anzahl: number;
-  cluster: ClusterZeile[];
+  cluster: Zusammensetzung<ClusterZeile> | null;
   qualitaet: QualitaetsDaten;
-  status: StatusZeile[];
+  status: Zusammensetzung<StatusZeile>;
   saison: SaisonDaten;
-  belegtypen: BelegtypZeile[];
-  jahre: JahresBalken[];
+  belegtypen: Zusammensetzung<BelegtypZeile>;
+  jahre: Zeitreihe | null;
   potenzial: SpannenZeile[];
   preisKorridore: SpannenZeile[];
   outMengen: OutputListen | null;
   outPotenzial: OutputListen | null;
   outPreise: OutputListen | null;
-  outJahre: { energie: JahresBalken[]; stofflich: JahresBalken[] } | null;
+  outJahre: { energie: Zeitreihe; stofflich: Zeitreihe } | null;
   verif: VerifZeile[];
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
@@ -306,16 +308,17 @@ export function AuswertungAnsicht({
         <h3 className="aw-kicker">
           {feedMode ? "feedstock je cluster." : "belege je output-gruppe."}
         </h3>
-        <span className="aw-caption">
-          {feedMode ? "t atro/a" : "Anzahl · Bedarf je Einheit"}
-        </span>
+        {/* E26: Bezugsgroesse sichtbar — ein voller Balken ist 100 %. */}
+        <span className="aw-caption">{cluster?.basisText}</span>
       </header>
       <div className="aw-zeilen aw-zeilen--scroll">
-        {cluster.map((z) => {
+        {(cluster?.zeilen ?? []).map((z) => {
           const auf = !!offen[`feed:${z.key}`];
           return (
             <div className="aw-akk" key={z.key}>
-              <div className={zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}>
+              <div
+                className={`${zeilenKlasse("aw-clusterzeile", clusterFacette, z.key)}${z.null0 ? " stumm" : ""}`}
+              >
                 <button
                   type="button"
                   className="aw-akk-haupt aw-akk-haupt--spalte"
@@ -342,11 +345,11 @@ export function AuswertungAnsicht({
                   <button
                     type="button"
                     key={u.key || u.label}
-                    className={
+                    className={`${
                       u.key
                         ? zeilenKlasse("aw-unterzeile", "materialart", u.key)
                         : "aw-unterzeile"
-                    }
+                    }${u.null0 ? " stumm" : ""}`}
                     disabled={!u.key}
                     aria-pressed={u.key ? istAktiv("materialart", u.key) : undefined}
                     onClick={u.key ? () => toggle("materialart", u.key) : undefined}
@@ -479,6 +482,8 @@ export function AuswertungAnsicht({
             <span> %</span>
           </strong>
           <span className="aw-caption">A + B</span>
+          {/* E26: die Quote nennt ihre Basis. */}
+          <span className="aw-caption">{qualitaet.basisText}</span>
         </div>
       </div>
       <div className="aw-zeilen">
@@ -486,7 +491,7 @@ export function AuswertungAnsicht({
           <button
             type="button"
             key={q.stufe}
-            className={zeilenKlasse("aw-qualzeile", "qualitaet", q.stufe)}
+            className={`${zeilenKlasse("aw-qualzeile", "qualitaet", q.stufe)}${q.null0 ? " stumm" : ""}`}
             aria-pressed={istAktiv("qualitaet", q.stufe)}
             onClick={() => toggle("qualitaet", q.stufe)}
           >
@@ -504,13 +509,17 @@ export function AuswertungAnsicht({
 
   const statusModul = (
     <section className="aw-modul aw-modul--h2">
-      <h3 className="aw-kicker">status.</h3>
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">status.</h3>
+        {/* E26: jede %-Angabe nennt ihre Basis. */}
+        <span className="aw-caption">von {status.basisText}</span>
+      </header>
       <div className="aw-zeilen aw-zeilen--status">
-        {status.map((st) => (
+        {status.zeilen.map((st) => (
           <button
             type="button"
             key={st.key}
-            className={zeilenKlasse("aw-statuszeile", "status", st.key)}
+            className={`${zeilenKlasse("aw-statuszeile", "status", st.key)}${st.anzahl === 0 ? " stumm" : ""}`}
             aria-pressed={istAktiv("status", st.key)}
             onClick={() => toggle("status", st.key)}
           >
@@ -574,13 +583,16 @@ export function AuswertungAnsicht({
 
   const belegtypenModul = (
     <section className="aw-modul aw-modul--w2">
-      <h3 className="aw-kicker">belegtypen.</h3>
+      <header className="aw-kopf">
+        <h3 className="aw-kicker">belegtypen.</h3>
+        <span className="aw-caption">{belegtypen.basisText}</span>
+      </header>
       <div className="aw-belegtypen">
-        {belegtypen.map((bt) => (
+        {belegtypen.zeilen.map((bt) => (
           <button
             type="button"
             key={bt.key}
-            className={zeilenKlasse("aw-belegzeile", "belegtyp", bt.key)}
+            className={`${zeilenKlasse("aw-belegzeile", "belegtyp", bt.key)}${bt.null0 ? " stumm" : ""}`}
             aria-pressed={istAktiv("belegtyp", bt.key)}
             onClick={() => toggle("belegtyp", bt.key)}
           >
@@ -591,16 +603,19 @@ export function AuswertungAnsicht({
                 style={{ width: `${bt.pct}%` }}
               />
             </span>
-            <span className="aw-zeilenwert">{bt.anzahl}</span>
+            <span className="aw-zeilenwert">
+              {bt.pct}
+              <span className="aw-caption"> % · {bt.anzahl}</span>
+            </span>
           </button>
         ))}
       </div>
     </section>
   );
 
-  const jahresBalkenListe = (balken: JahresBalken[]) => (
+  const jahresBalkenListe = (reihe: Zeitreihe) => (
     <div className="aw-jahre">
-      {balken.map((j) => (
+      {reihe.balken.map((j) => (
         <div
           className={`aw-jahr${j.vergangen ? " vergangen" : ""}`}
           key={j.jahr}
@@ -625,9 +640,10 @@ export function AuswertungAnsicht({
     <section className="aw-modul aw-modul--w2">
       <header className="aw-kopf">
         <h3 className="aw-kicker">verfügbarer feedstock je jahr.</h3>
-        <span className="aw-caption">t atro/a</span>
+        {/* E26: absolute Zeitreihe — die Skala steht sichtbar in der Kachel. */}
+        <span className="aw-caption">{jahre?.skalaText}</span>
       </header>
-      {jahresBalkenListe(jahre)}
+      {jahre && jahresBalkenListe(jahre)}
     </section>
   );
 
@@ -638,7 +654,9 @@ export function AuswertungAnsicht({
         {miniSwitch(jahreStofflich, setJahreStofflich)}
       </header>
       <p className="aw-caption">
-        {jahreStofflich ? "CO₂ & Asche, t/a" : "target-outputs, MWh/a"}
+        {jahreStofflich ? "CO₂ & Asche" : "target-outputs"} ·{" "}
+        {/* E26: eine Skala je Einheit — Beschriftung zieht mit dem Umschalter. */}
+        {(jahreStofflich ? outJahre.stofflich : outJahre.energie).skalaText}
       </p>
       {jahresBalkenListe(jahreStofflich ? outJahre.stofflich : outJahre.energie)}
     </section>
@@ -800,8 +818,10 @@ export function AuswertungAnsicht({
                       "menge",
                       "bedarf je gruppe.",
                       outMengen,
-                      "energetisch · MWh/a",
-                      "stofflich · t/a",
+                      // E26: je Liste eine eigene Anteilsbasis — MWh und t
+                      // teilen sich nie eine Skala.
+                      `energetisch · ${outMengen.basisEnergetisch}`,
+                      `stofflich · ${outMengen.basisStofflich}`,
                     )}
                   {outSaisonModul}
                   {outJahreModul}

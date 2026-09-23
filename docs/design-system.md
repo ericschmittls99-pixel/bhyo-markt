@@ -137,6 +137,22 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   **voller Modulbreite**. Haupt- und Akkordeon-Unterzeilen teilen dieselbe
   Spur: alle Balken starten und enden am selben Punkt, keine Label- oder
   Zahlenspalten neben dem Balken.
+- **Kachel-Skalen (E26, 23.09.2026)**: Es gibt **keine gemeinsame Skala
+  über Kacheln hinweg** — jede Kachel nennt selbst, was ein voller Balken
+  bedeutet. *Zusammensetzungs-Kacheln* (feedstock je cluster., belegtypen.,
+  bedarf je gruppe.) zeigen **Anteile an der Kachelsumme**: ein voller
+  Balken ist 100 %, jede Zeile steht als „41 % · 48.012", die Bezugsgröße
+  als Caption im Kachelkopf („Anteil an 117.300 t atro/a"). Anteile werden
+  zentral per `anteileProzent` (Largest Remainder, Summe exakt 100)
+  gerechnet; ein Wert 0 bekommt nie einen Rest-Prozentpunkt.
+  *Zeitreihen* (verfügbarer feedstock je jahr., bedarfe je jahr.) bleiben
+  **absolut**: Achse ab 0, Obergrenze sichtbar im Kopf („0 – 115.839
+  t atro/a"); eine Skala je Einheit — wechselt ein Umschalter die Einheit,
+  wechseln Skala und Beschriftung mit. **Nie zwei Einheiten auf einer
+  Skala.** Jede %-Angabe nennt ihre Basis („von 72 Strömen der Auswahl",
+  „von 69 bewerteten").
+- **Nullzeilen** (Wert 0 in der Auswahl) bleiben sichtbar und dimmen auf
+  `0.45` (`stumm`) — ausgeblendet wird nie.
 - **Balken** tragen die Flachfarbe des Clusters bzw. der Output-Gruppe.
   **Spannenbänder** (Min–ø–Max) sind 8-px-Pillen mit Farbfüllung (`0.6`)
   und ø-Punkt in `--status-active`. Die Skala ist **für alle Zeilen des
@@ -167,6 +183,9 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   Zeilenklick togglet die Facette, Caret klappt auf. Beides nie auf
   demselben Element. Die Kopfzeile reserviert dafür rechts 26 px
   Innenabstand, sodass Werte mit und ohne Caret bündig enden.
+- **Raster (F1)**: Die Rasterzeile des Modulgitters ist eine Unter-, keine
+  Obergrenze (`grid-auto-rows: minmax(168px, auto)`) — ein aufgeklapptes
+  Akkordeon lässt die Zeile wachsen, statt den Inhalt zu beschneiden.
 - Unterzeilen: Kopfzeile 24 px eingerückt, Caption-Typo, der Balken läuft
   aber in **voller Modulbreite auf derselben Spur und Skala wie die
   Elternzeilen**; klickbar auf ihre eigene Facette (materialart/produkt),

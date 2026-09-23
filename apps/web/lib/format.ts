@@ -80,6 +80,32 @@ export function rundeAnteile100(werte: number[]): number[] {
 }
 
 /**
+ * E26: Rohwerte (t, MWh, Anzahl ...) als ganzzahlige ANTEILE an ihrer Summe,
+ * Summe exakt 100 — Normierung plus Largest Remainder in einem Schritt.
+ * `rundeAnteile100` erwartet bereits normierte Prozentwerte und ist dafuer
+ * die falsche Funktion. Zwei Zusicherungen, auf die sich die Kacheln
+ * verlassen: Summe 0 ergibt lauter 0 (kein 100-%-Phantom), und ein Wert 0
+ * bekommt NIE einen Rest-Prozentpunkt.
+ */
+export function anteileProzent(werte: number[]): number[] {
+  const summe = werte.reduce((a, b) => a + b, 0);
+  if (summe <= 0) return werte.map(() => 0);
+  const roh = werte.map((v) => (v / summe) * 100);
+  const boden = roh.map(Math.floor);
+  let rest = 100 - boden.reduce((a, b) => a + b, 0);
+  const reihenfolge = roh
+    .map((v, i) => ({ i, nachkomma: v - Math.floor(v) }))
+    .filter(({ i }) => werte[i]! > 0)
+    .sort((a, b) => b.nachkomma - a.nachkomma || a.i - b.i);
+  for (const { i } of reihenfolge) {
+    if (rest <= 0) break;
+    boden[i]! += 1;
+    rest -= 1;
+  }
+  return boden;
+}
+
+/**
  * Feedstock-Zahlungsstrom (E14): preis_* ist aus Sicht bhyo signiert —
  * positiv = bhyo zahlt (Einkaufspreis), negativ = bhyo erhaelt
  * (Annahme-/Entsorgungsentgelt). Ein roher negativer Wert wird nie als

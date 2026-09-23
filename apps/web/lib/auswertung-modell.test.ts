@@ -278,26 +278,27 @@ describe("auswahlZeile", () => {
 });
 
 describe("clusterZeilen", () => {
-  it("summiert t atro je Cluster, pct relativ zum Maximum, flache Clusterfarbe + Orb-Asset", () => {
-    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock");
+  it("summiert t atro je Cluster, pct = ANTEIL an der Kachelsumme (E26), Farbe + Orb", () => {
+    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock").zeilen;
     expect(z.map((r) => r.key)).toEqual([
       "organische_rest_abfallstoffe",
       "lignozellulosische_reststoffe",
     ]);
     expect(z[0]).toMatchObject({
-      wertText: "100",
-      pct: 100,
+      wertText: "67 % · 100",
+      pct: 67,
       farbe: "#5C8615",
       orb: "/orbs/cluster/organische_rest_abfallstoffe.webp",
     });
-    expect(z[0]!.meta).toBe("1 Beleg · 67 %");
-    expect(z[1]!.pct).toBe(50);
+    expect(z[0]!.meta).toBe("1 Beleg");
+    expect(z[1]!.pct).toBe(33);
   });
 
   it("haelt Zeilen aus dem Pool sichtbar, auch wenn der Filter sie leert", () => {
-    const z = clusterZeilen([f1, f2], [f1], "feedstock");
+    const z = clusterZeilen([f1, f2], [f1], "feedstock").zeilen;
     expect(z).toHaveLength(2);
-    expect(z[1]!.wertText).toBe("0");
+    expect(z[1]!.wertText).toBe("0 % · 0");
+    expect(z[1]!.null0).toBe(true);
   });
 
   it("gruppiert die Materialarten eines Clusters als Unterzeilen, groesste zuerst", () => {
@@ -315,12 +316,13 @@ describe("clusterZeilen", () => {
       materialartLabel: "Biotonne",
       mengeAtro: 300,
     });
-    const z = clusterZeilen([g1, g2], [g1, g2], "feedstock");
+    const z = clusterZeilen([g1, g2], [g1, g2], "feedstock").zeilen;
     expect(z[0]!.unter.map((u) => u.label)).toEqual(["Biotonne", "Gülle"]);
-    // Skala wie die Cluster-Balken: Maximum 400 t atro
+    // Gleiche Spur und Skala wie die Elternzeilen: Anteil an der
+    // Kachelsumme (400 t atro) — 300/400 = 75 %.
     expect(z[0]!.unter[0]).toMatchObject({
       key: "biotonne",
-      wertText: "300",
+      wertText: "75 % · 300",
       pct: 75,
       meta: "1 Beleg",
     });
@@ -341,23 +343,28 @@ describe("clusterZeilen", () => {
       materialartLabel: "Biotonne",
       mengeAtro: 300,
     });
-    const z = clusterZeilen([g1, g2], [g1], "feedstock");
+    const z = clusterZeilen([g1, g2], [g1], "feedstock").zeilen;
     expect(z[0]!.unter.map((u) => u.label)).toEqual(["Gülle", "Biotonne"]);
-    expect(z[0]!.unter[1]).toMatchObject({ wertText: "0", pct: 0, meta: "0 Belege" });
+    expect(z[0]!.unter[1]).toMatchObject({
+      wertText: "0 % · 0",
+      pct: 0,
+      meta: "0 Belege",
+      null0: true,
+    });
   });
 
   it("fasst Belege ohne Materialart-Code als nicht filterbare Unterzeile", () => {
     // f1 traegt nur ein Label (kein Code), f2 gar keine Materialart
-    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock");
+    const z = clusterZeilen([f1, f2], [f1, f2], "feedstock").zeilen;
     expect(z[0]!.unter[0]).toMatchObject({ key: "", label: "Gülle" });
     expect(z[1]!.unter[0]).toMatchObject({ key: "", label: "ohne Materialart" });
   });
 
   it("zaehlt bei sicht=outputs Belege je Gruppe ohne Unterzeilen; add_ons nutzt den waerme-Orb", () => {
     const addOn = strom({ id: "o2", art: "output", gruppe: "add_ons", mengeWert: 10, mengeEinheit: "t/a" });
-    const z = clusterZeilen([o1, addOn], [o1, addOn], "outputs");
+    const z = clusterZeilen([o1, addOn], [o1, addOn], "outputs").zeilen;
     expect(z.map((r) => r.key)).toEqual(["wasserstoff", "add_ons"]);
-    expect(z[0]).toMatchObject({ wertText: "1 Beleg", meta: "500 MWh/a" });
+    expect(z[0]).toMatchObject({ wertText: "50 % · 1 Beleg", meta: "500 MWh/a" });
     expect(z[0]!.unter).toEqual([]);
     expect(z[1]!.orb).toBe("/orbs/output/waerme.webp");
   });
@@ -388,9 +395,10 @@ describe("qualitaetsDaten", () => {
 
 describe("statusZeilen", () => {
   it("liefert die feste Reihenfolge mit Anzahl und Prozent", () => {
-    const s = statusZeilen(alle);
+    const s = statusZeilen(alle).zeilen;
     expect(s.map((z) => z.key)).toEqual(["entwurf", "in_pruefung", "geprueft", "verworfen"]);
     expect(s[2]).toMatchObject({ anzahl: 1, pct: 33 });
+    expect(statusZeilen(alle).basisText).toBe("3 Ströme der Auswahl");
     expect(s[3]!.anzahl).toBe(0);
   });
 });
@@ -448,11 +456,15 @@ describe("saisonDaten", () => {
 });
 
 describe("belegtypZeilen", () => {
-  it("zaehlt je Belegtyp mit pct relativ zum Maximum", () => {
-    const z = belegtypZeilen(alle);
+  it("zaehlt je Belegtyp mit pct = ANTEIL an der Kachelsumme (E26)", () => {
+    const liste = belegtypZeilen(alle);
+    const z = liste.zeilen;
     const vertrag = z.find((b) => b.key === "vertrag")!;
-    expect(vertrag).toMatchObject({ anzahl: 1, pct: 100, label: "Vertrag" });
-    expect(z.find((b) => b.key === "betriebsdaten")!.anzahl).toBe(0);
+    expect(vertrag).toMatchObject({ anzahl: 1, label: "Vertrag" });
+    expect(liste.basisText).toContain("Anteil an");
+    const leer = z.find((b) => b.key === "betriebsdaten")!;
+    expect(leer.anzahl).toBe(0);
+    expect(leer.null0).toBe(true);
   });
 });
 
@@ -463,7 +475,7 @@ describe("jahresBalken", () => {
   // Rate × Σ Saisonanteile der zaehlenden Monate — Teiljahre nicht mehr voll.
   it("spannt die Achse dynamisch ueber die Belegzeitraeume", () => {
     // f1: 2027-2029, f2: 2026-2031 -> Achse 2026..2031
-    const j = jahresBalken([f1, f2], 2026);
+    const j = jahresBalken([f1, f2], 2026).balken;
     expect(j.map((b) => b.jahr)).toEqual([2026, 2027, 2028, 2029, 2030, 2031]);
     expect(j[0]).toMatchObject({ wertText: "50", aktuell: true });
     expect(j[1]!.wertText).toBe("150");
@@ -484,7 +496,7 @@ describe("jahresBalken", () => {
       zeitraumVon: "2026-01-01",
       zeitraumBis: "2026-12-31",
     });
-    const j = jahresBalken([alt, neu], 2026);
+    const j = jahresBalken([alt, neu], 2026).balken;
     expect(j.map((b) => [b.jahr, b.wertText, b.vergangen])).toEqual([
       [2024, "1.200", true],
       [2025, "1.200", true],
@@ -495,14 +507,14 @@ describe("jahresBalken", () => {
 
   it("Beleg ohne Zeitraum traegt nichts bei (E19: kein Raten), Achse faellt aufs aktuelle Jahr", () => {
     const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
-    const j = jahresBalken([offen], 2026);
+    const j = jahresBalken([offen], 2026).balken;
     expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2026, "0"]]);
   });
 
   it("Beleg ohne Zeitraum aendert die Werte anderer Belege nicht", () => {
     const offen = strom({ id: "f9", mengeAtro: 5, zeitraumVon: null, zeitraumBis: null });
     const fix = strom({ id: "fx", mengeAtro: 10, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
-    const j = jahresBalken([offen, fix], 2026);
+    const j = jahresBalken([offen, fix], 2026).balken;
     expect(j.map((b) => b.wertText)).toEqual(["10", "10"]);
   });
 
@@ -513,7 +525,7 @@ describe("jahresBalken", () => {
       zeitraumVon: "2026-12-31",
       zeitraumBis: "2027-01-01",
     });
-    const j = jahresBalken([wechsel], 2026);
+    const j = jahresBalken([wechsel], 2026).balken;
     expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
       [2026, "2"],
       [2027, "2"],
@@ -527,7 +539,7 @@ describe("jahresBalken", () => {
       zeitraumVon: "2027-07-01",
       zeitraumBis: "2027-12-31",
     });
-    const j = jahresBalken([teil], 2026);
+    const j = jahresBalken([teil], 2026).balken;
     expect(j.map((b) => [b.jahr, b.wertText])).toEqual([[2027, "300"]]);
   });
 
@@ -538,7 +550,7 @@ describe("jahresBalken", () => {
       zeitraumVon: "2026-01-01",
       zeitraumBis: "2099-12-31",
     });
-    const j = jahresBalken([s], 2026);
+    const j = jahresBalken([s], 2026).balken;
     expect(j[j.length - 1]!.jahr).toBe(2036);
     expect(j[j.length - 1]!.ueberlaufBis).toBe(2099);
     expect(j[0]!.ueberlaufBis).toBeNull();
@@ -554,7 +566,7 @@ describe("jahresBalken", () => {
     const map = new Map([
       ["vk", [{ vergebenVon: null, vergebenBis: "2028-06-30", vergebenAn: null, anBhyo: false }]],
     ]);
-    const j = jahresBalken([s], 2026, map, new Set(["verfuegbar"] as const));
+    const j = jahresBalken([s], 2026, map, new Set(["verfuegbar"] as const)).balken;
     expect(j.map((b) => [b.jahr, b.wertText])).toEqual([
       [2026, "0"],
       [2027, "0"],
@@ -565,7 +577,7 @@ describe("jahresBalken", () => {
   it("haelt ein Jahr ohne Belege als 0-Balken in der durchgaengigen Achse", () => {
     const a = strom({ id: "l1", mengeAtro: 100, zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31" });
     const b = strom({ id: "l2", mengeAtro: 50, zeitraumVon: "2028-01-01", zeitraumBis: "2028-12-31" });
-    const j = jahresBalken([a, b], 2026);
+    const j = jahresBalken([a, b], 2026).balken;
     expect(j.map((x) => [x.jahr, x.wertText])).toEqual([
       [2026, "100"],
       [2027, "0"],
@@ -576,7 +588,7 @@ describe("jahresBalken", () => {
   it("summiert ueberlappende Belege je Jahr als Summe der Raten", () => {
     const a = strom({ id: "u1", mengeAtro: 1200, zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31" });
     const b = strom({ id: "u2", mengeAtro: 900, zeitraumVon: "2027-01-01", zeitraumBis: "2029-12-31" });
-    const j = jahresBalken([a, b], 2026);
+    const j = jahresBalken([a, b], 2026).balken;
     expect(j.map((x) => [x.jahr, x.wertText])).toEqual([
       [2026, "1.200"],
       [2027, "2.100"],
@@ -922,28 +934,34 @@ describe("outputMengen", () => {
       "wasserstoff",
       "waerme",
     ]);
+    // E26: Anteil an der Summe der jeweiligen Liste — energetisch
+    // 537+500+5.800 = 6.837 MWh, stofflich 800+240 = 1.040 t. Nie eine
+    // gemeinsame Skala ueber beide Einheiten.
+    expect(m.basisEnergetisch).toBe("Anteil an 6.837 MWh/a");
+    expect(m.basisStofflich).toBe("Anteil an 1.040 t/a");
     expect(m.energetisch[0]).toMatchObject({
       facette: "gruppe",
-      wertText: "537",
+      wertText: "8 % · 537",
       meta: "2 Belege",
     });
     expect(m.energetisch[2]).toMatchObject({
       facette: "produkt",
-      wertText: "5.800",
-      pct: 100,
+      wertText: "85 % · 5.800",
+      pct: 85,
     });
     expect(m.energetisch[0]!.unter.map((u) => u.label)).toEqual(["Strom", "Synthesegas"]);
-    expect(m.energetisch[0]!.unter[1]!.wertText).toBe("37");
-    // Stofflich: CO2 800, Asche 240
+    expect(m.energetisch[0]!.unter[1]!.wertText).toBe("1 % · 37");
+    // Stofflich: CO2 800, Asche 240 -> 77 % / 23 %
     expect(m.stofflich.map((z) => z.key)).toEqual(["co2", "asche"]);
-    expect(m.stofflich[0]).toMatchObject({ facette: "produkt", wertText: "800", pct: 100 });
-    expect(m.stofflich[1]!.pct).toBe(30);
+    expect(m.stofflich[0]).toMatchObject({ facette: "produkt", wertText: "77 % · 800", pct: 77 });
+    expect(m.stofflich[1]!.pct).toBe(23);
   });
 
   it("haelt Zeilen aus dem Pool sichtbar, wenn der Filter sie leert", () => {
     const m = outputMengen(outputsAlle, [oCo2]);
-    expect(m.energetisch[0]!.wertText).toBe("0");
-    expect(m.stofflich[1]!.wertText).toBe("0");
+    expect(m.energetisch[0]!.wertText).toBe("0 % · 0");
+    expect(m.energetisch[0]!.null0).toBe(true);
+    expect(m.stofflich[1]!.wertText).toBe("0 % · 0");
   });
 });
 
@@ -951,12 +969,12 @@ describe("outputJahre", () => {
   it("summiert Target-MWh (ohne Waerme) und stoffliche t auf gemeinsamer dynamischer Achse", () => {
     // oStrom 2026-2027, oCo2 2026, oWaerme offen -> Achse 2026..2027
     const j = outputJahre([oStrom, oWaerme, oCo2], 2026);
-    expect(j.energie.map((b) => [b.jahr, b.wertText])).toEqual([
+    expect(j.energie.balken.map((b) => [b.jahr, b.wertText])).toEqual([
       [2026, "500"],
       [2027, "500"],
     ]);
-    expect(j.energie[0]!.aktuell).toBe(true);
-    expect(j.stofflich.map((b) => [b.jahr, b.wertText])).toEqual([
+    expect(j.energie.balken[0]!.aktuell).toBe(true);
+    expect(j.stofflich.balken.map((b) => [b.jahr, b.wertText])).toEqual([
       [2026, "800"],
       [2027, "0"],
     ]);
@@ -1072,5 +1090,51 @@ describe("verifZeilen", () => {
 
   it("ueberspringt Stroeme ohne berechenbare Frist", () => {
     expect(verifZeilen([strom({ id: "ohne" })], "2026-11-01")).toEqual([]);
+  });
+});
+
+// E26 (Eric, 23.09.2026): die drei Zusicherungen der Kachel-Skalen.
+describe("E26 — Skalen und Bezugsgroessen", () => {
+  it("Zusammensetzung: die Anteile einer Kachel ergeben 100 % (gerundet ±1)", () => {
+    const summe = (ns: number[]) => ns.reduce((a, b) => a + b, 0);
+    const cluster = clusterZeilen([f1, f2, o1], [f1, f2, o1], "feedstock");
+    expect(Math.abs(summe(cluster.zeilen.map((z) => z.pct)) - 100)).toBeLessThanOrEqual(1);
+    const belegtypen = belegtypZeilen(alle);
+    expect(Math.abs(summe(belegtypen.zeilen.map((z) => z.pct)) - 100)).toBeLessThanOrEqual(1);
+    const mengen = outputMengen(outputsAlle, outputsAlle);
+    expect(Math.abs(summe(mengen.energetisch.map((z) => z.pct)) - 100)).toBeLessThanOrEqual(1);
+    expect(Math.abs(summe(mengen.stofflich.map((z) => z.pct)) - 100)).toBeLessThanOrEqual(1);
+  });
+
+  it("Zusammensetzung: leere Auswahl erzeugt kein 100-%-Phantom", () => {
+    const leer = clusterZeilen([f1, f2], [], "feedstock");
+    expect(leer.zeilen.every((z) => z.pct === 0 && z.null0)).toBe(true);
+  });
+
+  it("Zeitreihe: die Skala beginnt bei 0 und nennt ihre Obergrenze", () => {
+    const j = jahresBalken([f1, f2], 2026);
+    expect(j.skalaText).toMatch(/^0 – /);
+    expect(Math.min(...j.balken.map((b) => b.pct))).toBeGreaterThanOrEqual(0);
+    expect(Math.max(...j.balken.map((b) => b.pct))).toBe(100);
+    // Ein Jahr ohne Menge zeigt keinen Stummel (Luecke 2027).
+    const frueh = strom({ id: "j1", mengeAtro: 100, zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31" });
+    const spaet = strom({ id: "j2", mengeAtro: 100, zeitraumVon: "2028-01-01", zeitraumBis: "2028-12-31" });
+    const luecke = jahresBalken([frueh, spaet], 2026).balken;
+    expect(luecke.map((b) => b.jahr)).toEqual([2026, 2027, 2028]);
+    expect(luecke[1]).toMatchObject({ wertText: "0", pct: 0 });
+  });
+
+  it("Keine Kachel mischt Einheiten auf einer Skala", () => {
+    // outputMengen: getrennte Basen je Einheit (MWh vs. t).
+    const m = outputMengen(outputsAlle, outputsAlle);
+    expect(m.basisEnergetisch).toContain("MWh/a");
+    expect(m.basisStofflich).toContain("t/a");
+    expect(m.basisEnergetisch).not.toBe(m.basisStofflich);
+    // outputJahre: gemeinsame JAHRESachse, aber eigene Werteskala je Reihe.
+    const j = outputJahre([oStrom, oWaerme, oCo2], 2026);
+    expect(j.energie.balken.map((b) => b.jahr)).toEqual(j.stofflich.balken.map((b) => b.jahr));
+    expect(j.energie.skalaText).toContain("MWh/a");
+    expect(j.stofflich.skalaText).toContain("t/a");
+    expect(j.energie.max).not.toBe(j.stofflich.max);
   });
 });

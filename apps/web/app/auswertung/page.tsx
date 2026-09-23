@@ -190,7 +190,7 @@ export default async function AuswertungPage({
       kpis={kpiKarten(recs, sicht, agg === "summe")}
       auswahlText={auswahlZeile(recs)}
       anzahl={recs.length}
-      cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht) : []}
+      cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht) : null}
       qualitaet={qualitaetsDaten(recs)}
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}
@@ -198,7 +198,7 @@ export default async function AuswertungPage({
       jahre={
         sicht === "feedstock"
           ? jahresBalken(recsHeute, aktuellesJahr, vergabenMap, fensterKats)
-          : []
+          : null
       }
       potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
