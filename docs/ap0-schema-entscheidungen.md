@@ -70,6 +70,11 @@ Qualitäts-Ableitungsmatrix“.
 > Referenz** bekommt eine **Datenbank-Sequenz ohne Jahresbezug**, Lücken
 > sind dort hinnehmbar (`beleg_nr` = `B-000123`). **Kein `count(*) + 1`, in
 > keinem der beiden Fälle.**
+>
+> **Die Sequenz ist umgebungslokal.** Production beginnt bei 1, die Preview
+> steht bei 126 — dieselbe Sache trägt also je Umgebung eine andere Nummer.
+> Eine B-Nummer ist nur **innerhalb ihrer Umgebung** eindeutig und
+> aussagekräftig und wird **nie zwischen Umgebungen abgeglichen**.
 
 - Präfix `BW`, Jahr vierstellig, laufende Nummer dreistellig nullgefüllt; ab 1000
   vierstellig, kein Reset innerhalb des Jahres
@@ -152,6 +157,11 @@ unmöglich.
 > Referenz** bekommt eine **Datenbank-Sequenz ohne Jahresbezug**, Lücken
 > sind dort hinnehmbar (`beleg_nr` = `B-000123`). **Kein `count(*) + 1`, in
 > keinem der beiden Fälle.**
+>
+> **Die Sequenz ist umgebungslokal.** Production beginnt bei 1, die Preview
+> steht bei 126 — dieselbe Sache trägt also je Umgebung eine andere Nummer.
+> Eine B-Nummer ist nur **innerhalb ihrer Umgebung** eindeutig und
+> aussagekräftig und wird **nie zwischen Umgebungen abgeglichen**.
 
 Umsetzung: Spalte `beleg.beleg_nr` mit Default aus der Sequenz
 `beleg_nr_seq` (`'B-' || lpad(nextval(...)::text, 6, '0')`). Die Nummer wird
