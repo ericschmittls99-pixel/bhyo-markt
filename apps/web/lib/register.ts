@@ -63,7 +63,7 @@ export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
     conds.push(eq(biomassestrom.materialartCode, filter.materialart));
   if (filter.cluster) conds.push(clusterFilter(filter.cluster));
   if (filter.qualitaet)
-    conds.push(eq(biomassestrom.qualitaet, filter.qualitaet as never));
+    conds.push(eq(beleg.qualitaet, filter.qualitaet as never));
   if (filter.status)
     conds.push(eq(biomassestrom.status, filter.status as never));
   if (filter.landkreis)
@@ -235,7 +235,7 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
         zeitraumVon: biomassestrom.zeitraumVon,
         zeitraumBis: biomassestrom.zeitraumBis,
         mengeAtro: biomassestrom.mengeAtro,
-        qualitaet: biomassestrom.qualitaet,
+        qualitaet: beleg.qualitaet,
         status: biomassestrom.status,
         belegId: biomassestrom.belegId,
         belegQuelle: sql<string | null>`${beleg.metadata} ->> 'quellenangabe'`,
@@ -274,7 +274,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
     if (filter.regionId)
       conds.push(imGebiet(outputBedarf.standortGeom, filter.regionId));
     if (filter.qualitaet)
-      conds.push(eq(outputBedarf.qualitaet, filter.qualitaet as never));
+      conds.push(eq(beleg.qualitaet, filter.qualitaet as never));
     if (filter.status)
       conds.push(eq(outputBedarf.status, filter.status as never));
     if (filter.landkreis)
@@ -309,7 +309,7 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
         zeitraumBis: outputBedarf.zeitraumBis,
         mengeWert: outputBedarf.mengeWert,
         mengeEinheit: outputBedarf.mengeEinheit,
-        qualitaet: outputBedarf.qualitaet,
+        qualitaet: beleg.qualitaet,
         status: outputBedarf.status,
         belegId: outputBedarf.belegId,
         belegQuelle: sql<string | null>`${beleg.metadata} ->> 'quellenangabe'`,
@@ -488,7 +488,7 @@ export function getDetail(
           preisMittel: biomassestrom.preisMittel,
           preisMax: biomassestrom.preisMax,
           preisHerkunft: biomassestrom.preisHerkunft,
-          qualitaet: biomassestrom.qualitaet,
+          qualitaet: beleg.qualitaet,
           status: biomassestrom.status,
           ...belegSelect,
         })
@@ -541,7 +541,7 @@ export function getDetail(
         mengeWert: outputBedarf.mengeWert,
         mengeEinheit: outputBedarf.mengeEinheit,
         saisonalitaet: outputBedarf.saisonalitaet,
-        qualitaet: outputBedarf.qualitaet,
+        qualitaet: beleg.qualitaet,
         status: outputBedarf.status,
         ...belegSelect,
       })
