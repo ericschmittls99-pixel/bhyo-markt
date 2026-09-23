@@ -20,7 +20,6 @@
     "vg250-import": "tsx src/vg250-import.ts",
     "verwaltung-check": "tsx src/verwaltung-check.ts",
     "archiv-altfelder": "tsx src/archiv-altfelder.ts",
-    "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
   },
