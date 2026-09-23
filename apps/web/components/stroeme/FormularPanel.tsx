@@ -11,6 +11,7 @@ import {
 } from "react";
 
 import { AkteurCombobox } from "@/components/AkteurCombobox";
+import { AdresseBlock } from "@/components/stroeme/AdresseBlock";
 import { ReserviertStempel } from "@/components/stroeme/Pillen";
 import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
@@ -60,7 +61,6 @@ export function FormularPanel({
   werte,
   materialarten,
   produkte,
-  landkreise,
   zurueckHref,
   modal,
 }: {
@@ -68,7 +68,6 @@ export function FormularPanel({
   werte: FormularWerte | null;
   materialarten: MaterialartMitCluster[];
   produkte: OutputProduktOption[];
-  landkreise: string[];
   zurueckHref?: string;
   /** true im Grid-Kontext: zentrales Modal wie das Detail, sonst Slide-in-Panel. */
   modal?: boolean;
@@ -89,7 +88,8 @@ export function FormularPanel({
     werte?.produktCode ? gruppeVonProdukt(produkte, werte.produktCode) : "",
   );
   const [produktCode, setProduktCode] = useState(werte?.produktCode ?? "");
-  const [landkreis, setLandkreis] = useState(werte?.landkreis ?? "");
+  // F0a: Akteurwahl steuert den "Adresse uebernehmen"-Knopf im Ort-Block.
+  const [akteurId, setAkteurId] = useState<string | null>(werte?.akteurId || null);
 
   // Mengen fuer die Live-Umrechnungskette (nur Biomasse).
   const [roh, setRoh] = useState(werte?.mengeRohFm ?? "");
@@ -270,6 +270,7 @@ export function FormularPanel({
             <AkteurCombobox
               name="akteur_id"
               fehler={f.akteur_id}
+              onGewaehlt={(a) => setAkteurId(a?.id ?? null)}
               initial={
                 werte?.akteurId
                   ? {
@@ -295,23 +296,14 @@ export function FormularPanel({
                 />
               </span>
             </label>
-            <div className="fp-zeile">
-              <label className="pf">
-                <span>Ort</span>
-                <span className="pf-feld">
-                  <input type="text" name="ort" defaultValue={werte?.ort ?? ""} />
-                </span>
-              </label>
-              <SuchCombobox
-                label="Landkreis"
-                name="landkreis"
-                wert={landkreis}
-                onWert={setLandkreis}
-                optionen={landkreise.map((l) => ({ wert: l, label: l }))}
-                placeholder="Landkreis wählen"
-                freitext
-              />
-            </div>
+            {/* F0a: Adressblock mit Suche, Uebernahme und Pin. Der Landkreis
+                steht bewusst nicht mehr im Formular (bleibt Attribut am
+                Datensatz; ab F0b raeumlich abgeleitet). */}
+            <AdresseBlock
+              initial={werte}
+              akteurId={akteurId}
+              fehler={f.standort}
+            />
             <label className="pf">
               <span>
                 Kontaktperson <em className="fp-optional">optional</em>
@@ -327,8 +319,8 @@ export function FormularPanel({
             <div className="hinweis-box">
               <i className="ph ph-map-pin" aria-hidden />
               <span>
-                Karten-Pin setzen folgt – ohne Pin erscheint der Strom nicht auf
-                der Karte.
+                Ohne Pin erscheint der Strom nicht auf der Karte — Pin oben im
+                Kartenausschnitt setzen.
               </span>
             </div>
           </section>
