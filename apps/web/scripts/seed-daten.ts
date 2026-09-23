@@ -359,11 +359,28 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
 } {
   if (basisJahr !== B)
     throw new Error("BASIS_JAHR ist als Konstante fixiert (Determinismus).");
-  const zufall = mulberry32(SEED);
-  const zwischen = (a: number, b: number) => a + zufall() * (b - a);
-  const ganz = (a: number, b: number) => Math.floor(zwischen(a, b + 1));
+  // Benannte, unabhaengig gesetzte PRNG-Teilstroeme (Auftrag 23.09.2026):
+  // zusaetzliche Zuege in einem Bereich verschieben andere Bereiche nicht
+  // mehr (die E24-Lektion: 13 neue Beleg-Datumszuege kippten die
+  // Geografie-Paare). Jeder Bereich zieht aus einem eigenen mulberry32,
+  // dessen Seed sich deterministisch aus SEED und dem Namen ableitet.
+  const rng = (name: string) => {
+    let h = 0;
+    for (const c of name) h = (h * 31 + c.charCodeAt(0)) | 0;
+    const z = mulberry32((SEED ^ h) >>> 0);
+    const zwischen = (a: number, b: number) => a + z() * (b - a);
+    const ganz = (a: number, b: number) => Math.floor(zwischen(a, b + 1));
+    return { z, zwischen, ganz };
+  };
+  const rGeo = rng("geo");       // Koordinaten-Jitter
+  const rMarkt = rng("markt");   // Mengen, TS/Asche, Preise, Saison-Jitter
+  const rBeleg = rng("beleg");   // Beleg-Erhebungsdaten
+  const rListen = rng("listen"); // Ziehlisten (mische)
+  const rIds = rng("id");        // UUIDs
+  const zwischen = rMarkt.zwischen;
+  const ganz = rMarkt.ganz;
   const uuid = () => {
-    const b16 = Array.from({ length: 16 }, () => ganz(0, 255));
+    const b16 = Array.from({ length: 16 }, () => rIds.ganz(0, 255));
     b16[6] = (b16[6]! & 0x0f) | 0x40;
     b16[8] = (b16[8]! & 0x3f) | 0x80;
     const h = b16.map((x) => x.toString(16).padStart(2, "0")).join("");
@@ -372,7 +389,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
   const mische = <T,>(arr: T[]): T[] => {
     const a = [...arr];
     for (let i = a.length - 1; i > 0; i--) {
-      const j = ganz(0, i);
+      const j = rListen.ganz(0, i);
       [a[i], a[j]] = [a[j]!, a[i]!];
     }
     return a;
@@ -388,8 +405,8 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
   };
   const lognormalMenge = () => {
     // lognormal-artig: exp(N(ln 4000, 0.75)) via Box-Muller, geklemmt 500..18000
-    const u1 = Math.max(zufall(), 1e-9);
-    const u2 = zufall();
+    const u1 = Math.max(rMarkt.z(), 1e-9);
+    const u2 = rMarkt.z();
     const n = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
     const v = Math.exp(Math.log(4000) + 0.75 * n);
     return Math.round(Math.min(18000, Math.max(500, v)) / 10) * 10;
@@ -444,7 +461,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
   let qsIdx = 0;
   let bucketIdx = 0;
   let ausreisser = 0;
-  const koordJitter = () => zwischen(-0.02, 0.02);
+  const koordJitter = () => rGeo.zwischen(-0.02, 0.02);
 
   const feedstock: SeedStrom[] = slots.map(({ art, key }, slotNr) => {
     const so = SONDER[key] ?? {};
@@ -539,14 +556,9 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
         ? ["A15a", "A15b"][unbelegtFeed++]
         : undefined;
     const anker = so.anker ?? unbelegtAnker;
-    // PRNG-Zugverbrauch bleibt EXAKT wie vor E24 (zwei Zuege je
-    // Nicht-entwurf-Strom): sonst verschieben sich alle nachgelagerten
-    // Zufallswerte und die Geografie-Invariante (Quasi-Duplikat-Paare)
-    // kippt. Neue entwurf-Belege datieren deterministisch aus linkNr.
-    const belegDatum =
-      status !== "entwurf"
-        ? `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`
-        : `${B}-0${(linkNr % 8) + 1}-1${linkNr % 6}`;
+    // Eigener Teilstrom: Beleg-Datumszuege koennen andere Bereiche nicht
+    // mehr verschieben — der Vor-E24-Zugverbrauchs-Hack entfaellt.
+    const belegDatum = `${B}-0${rBeleg.ganz(1, 8)}-1${rBeleg.ganz(0, 5)}`;
     const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
     const akteurIndex = machAkteur(`${art.anbieter} ${ort}`, art.sektor);
 
@@ -662,11 +674,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
         ? ["A15c"][unbelegtOut++]
         : undefined;
     const anker = so.anker ?? unbelegtAnker;
-    // Zugverbrauch wie vor E24 — siehe Kommentar im Feedstock-Block.
-    const belegDatum =
-      status !== "entwurf"
-        ? `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`
-        : `${B}-0${(linkNr % 8) + 1}-1${linkNr % 6}`;
+    const belegDatum = `${B}-0${rBeleg.ganz(1, 8)}-1${rBeleg.ganz(0, 5)}`;
     const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
     const akteurIndex = machAkteur(`${abnehmer} ${ort}`, "abnehmer");
 
