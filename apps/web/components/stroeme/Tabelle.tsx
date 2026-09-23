@@ -12,7 +12,7 @@ import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtOutputPreis } from "@/lib/energie";
 import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
 import { CLUSTER_LABEL } from "@/lib/farben";
-import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
+import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, type Strom } from "@/lib/stroeme-modell";
 
 interface Spalte {
   /** Ohne sortKey ist die Spalte nicht sortierbar (z. B. abgeleiteter Status). */
@@ -40,7 +40,7 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       render: (s) =>
         zweizeilig(
           s.akteurName ?? s.bezeichnung ?? "–",
-          [s.ort, s.landkreis].filter(Boolean).join(", ") || "–",
+          [s.ort, kreisAnzeige(s)].filter(Boolean).join(", "),
         ),
     },
     feed

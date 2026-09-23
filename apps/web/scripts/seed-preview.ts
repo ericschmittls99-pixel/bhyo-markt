@@ -109,14 +109,14 @@ async function main() {
       const akteurId = akteure[s.akteurIndex]!.id;
       if (s.art === "biomasse") {
         await tx`INSERT INTO biomassestrom
-          (id, akteur_id, bezeichnung, ort, landkreis, standort_geom,
+          (id, akteur_id, bezeichnung, ort, standort_geom,
            materialart_code, menge_roh_fm, ts_anteil_pct, aschegehalt_pct,
            zeitraum_von, zeitraum_bis, saisonalitaet,
            preis_min, preis_mittel, preis_max,
            preis_herkunft, beleg_id, status,
            reserviert_bhyo, reserviert_seit)
-          VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort}, ${s.landkreis},
-            ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326),
+          VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort},
+            ${s.lng == null ? null : tx`ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326)`},
             ${s.materialartCode!}, ${s.mengeRohFm!}, ${s.tsAnteilPct!}, ${s.aschegehaltPct!},
             ${s.zeitraumVon}, ${s.zeitraumBis}, ${tx.json(s.saisonalitaet)},
             ${s.preisMin ?? null}, ${s.preisMittel ?? null}, ${s.preisMax ?? null},
@@ -128,12 +128,12 @@ async function main() {
             VALUES (${s.id}, ${v.vergebenVon}, ${v.vergebenBis}, ${v.vergebenAn}, ${v.anBhyo})`;
       } else {
         await tx`INSERT INTO output_bedarf
-          (id, akteur_id, bezeichnung, ort, landkreis, standort_geom,
+          (id, akteur_id, bezeichnung, ort, standort_geom,
            produkt_code, menge_wert, menge_einheit, preis, preis_einheit,
            preis_herkunft, zeitraum_von, zeitraum_bis, saisonalitaet,
            beleg_id, status, reserviert_bhyo, reserviert_seit)
-          VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort}, ${s.landkreis},
-            ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326),
+          VALUES (${s.id}, ${akteurId}, ${s.bezeichnung}, ${s.ort},
+            ${s.lng == null ? null : tx`ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326)`},
             ${s.produktCode!}, ${s.mengeWert!}, ${s.mengeEinheit!}, ${s.preis ?? null}, ${s.preisEinheit ?? null},
             ${s.preis == null ? null : "schaetzung"}, ${s.zeitraumVon}, ${s.zeitraumBis},
             ${tx.json(s.saisonalitaet)}, ${belegId}, ${s.status},

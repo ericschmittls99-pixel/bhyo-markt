@@ -32,7 +32,6 @@ export interface RegisterFilter {
   materialart?: string | undefined;
   qualitaet?: string | undefined;
   status?: string | undefined;
-  landkreis?: string | undefined;
   /** Datenjahr (zeitraum_von/bis ueberlappt dieses Jahr). */
   jahr?: string | undefined;
   /** Nur Output: Filter nach Output-Gruppe. */
@@ -66,8 +65,6 @@ export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
     conds.push(eq(beleg.qualitaet, filter.qualitaet as never));
   if (filter.status)
     conds.push(eq(biomassestrom.status, filter.status as never));
-  if (filter.landkreis)
-    conds.push(ilike(biomassestrom.landkreis, `%${filter.landkreis.trim()}%`));
   if (filter.jahr)
     conds.push(
       jahrFilter(biomassestrom.zeitraumVon, biomassestrom.zeitraumBis, filter.jahr),
@@ -78,7 +75,6 @@ export function biomasseFilterConds(filter: RegisterFilter): SQL[] {
       or(
         ilike(akteur.name, s),
         ilike(biomassestrom.bezeichnung, s),
-        ilike(biomassestrom.landkreis, s),
         ilike(biomassestrom.ort, s),
       )!,
     );
@@ -105,7 +101,6 @@ export interface RegisterZeile {
   akteurName: string | null;
   bezeichnung: string | null;
   ort: string | null;
-  landkreis: string | null;
   /** Materialart-Label (Biomasse) bzw. Vektor (Output). */
   kategorie: string | null;
   zeitraumVon: string | null;
@@ -230,7 +225,6 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
         akteurName: akteur.name,
         bezeichnung: biomassestrom.bezeichnung,
         ort: biomassestrom.ort,
-        landkreis: biomassestrom.landkreis,
         kategorie: materialart.label,
         zeitraumVon: biomassestrom.zeitraumVon,
         zeitraumBis: biomassestrom.zeitraumBis,
@@ -255,7 +249,6 @@ export function listBiomasse(filter: RegisterFilter): Promise<RegisterZeile[]> {
       akteurName: r.akteurName,
       bezeichnung: r.bezeichnung,
       ort: r.ort,
-      landkreis: r.landkreis,
       kategorie: r.kategorie,
       zeitraumVon: r.zeitraumVon,
       zeitraumBis: r.zeitraumBis,
@@ -277,8 +270,6 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       conds.push(eq(beleg.qualitaet, filter.qualitaet as never));
     if (filter.status)
       conds.push(eq(outputBedarf.status, filter.status as never));
-    if (filter.landkreis)
-      conds.push(ilike(outputBedarf.landkreis, `%${filter.landkreis.trim()}%`));
     if (filter.outputGruppe)
       conds.push(eq(outputProdukt.gruppe, filter.outputGruppe as never));
     if (filter.jahr)
@@ -291,7 +282,6 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
         or(
           ilike(akteur.name, s),
           ilike(outputBedarf.bezeichnung, s),
-          ilike(outputBedarf.landkreis, s),
           ilike(outputBedarf.ort, s),
         )!,
       );
@@ -303,7 +293,6 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
         akteurName: akteur.name,
         bezeichnung: outputBedarf.bezeichnung,
         ort: outputBedarf.ort,
-        landkreis: outputBedarf.landkreis,
         produktLabel: outputProdukt.label,
         zeitraumVon: outputBedarf.zeitraumVon,
         zeitraumBis: outputBedarf.zeitraumBis,
@@ -329,7 +318,6 @@ export function listOutput(filter: RegisterFilter): Promise<RegisterZeile[]> {
       akteurName: r.akteurName,
       bezeichnung: r.bezeichnung,
       ort: r.ort,
-      landkreis: r.landkreis,
       kategorie: r.produktLabel,
       zeitraumVon: r.zeitraumVon,
       zeitraumBis: r.zeitraumBis,
@@ -366,7 +354,6 @@ export interface DetailDaten {
   akteurName: string | null;
   sektor: string | null;
   ort: string | null;
-  landkreis: string | null;
   kontaktperson: string | null;
   kategorie: string | null;
   zeitraumVon: string | null;
@@ -474,7 +461,6 @@ export function getDetail(
           akteurName: akteur.name,
           sektor: akteur.sektor,
           ort: biomassestrom.ort,
-          landkreis: biomassestrom.landkreis,
           kontaktperson: biomassestrom.kontaktperson,
           kategorie: materialart.label,
           zeitraumVon: biomassestrom.zeitraumVon,
@@ -506,7 +492,6 @@ export function getDetail(
         akteurName: r.akteurName,
         sektor: r.sektor,
         ort: r.ort,
-        landkreis: r.landkreis,
         kontaktperson: r.kontaktperson,
         kategorie: r.kategorie,
         zeitraumVon: r.zeitraumVon,
@@ -533,7 +518,6 @@ export function getDetail(
         akteurName: akteur.name,
         sektor: akteur.sektor,
         ort: outputBedarf.ort,
-        landkreis: outputBedarf.landkreis,
         kontaktperson: outputBedarf.kontaktperson,
         produktLabel: outputProdukt.label,
         zeitraumVon: outputBedarf.zeitraumVon,
@@ -559,7 +543,6 @@ export function getDetail(
       akteurName: r.akteurName,
       sektor: r.sektor,
       ort: r.ort,
-      landkreis: r.landkreis,
       kontaktperson: r.kontaktperson,
       kategorie: r.produktLabel,
       zeitraumVon: r.zeitraumVon,

@@ -23,7 +23,7 @@ import {
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
-import { BELEG_LABEL, KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
+import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type Strom } from "@/lib/stroeme-modell";
 import {
   vergabeLabel,
   type VerfuegbarkeitsErgebnis,
@@ -305,7 +305,9 @@ export function Detail({
                 <Kv label="Bezeichnung" wert={s.bezeichnung ?? "–"} />
                 <Kv label="Kontaktperson" wert={s.kontaktperson ?? "–"} />
                 <Kv label="Ort" wert={s.ort ?? "–"} />
-                <Kv label="Landkreis" wert={s.landkreis ?? "–"} />
+                {/* F0b: abgeleitet aus der Koordinate (VG250) — nicht editierbar. */}
+                <Kv label="Landkreis" wert={`${kreisAnzeige(s)} · aus Koordinate`} />
+                <Kv label="Bundesland" wert={`${landAnzeige(s)} · aus Koordinate`} />
                 <Kv label="Regionen" wert={s.regionNamen.join(", ") || "–"} />
               </div>
               <div className="standort">

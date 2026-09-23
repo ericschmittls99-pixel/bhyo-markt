@@ -6,6 +6,7 @@ import {
   outputZeileZuStrom,
   type BiomasseZeile,
   type OutputZeile,
+  verwaltungOderNull,
 } from "./stroeme-zeilen";
 
 // Der Postgres-Treiber im Worker liefert Aggregat- und Geometrie-Ausdruecke
@@ -19,7 +20,7 @@ const biomasseBasis: BiomasseZeile = {
   bezeichnung: "Rindergülle",
   kontaktperson: null,
   ort: "Rülzheim",
-  landkreis: "Germersheim",
+  verwaltung: null,
   regionIds: [],
   regionNamen: [],
   lng: null,
@@ -60,7 +61,7 @@ const outputBasis: OutputZeile = {
   bezeichnung: null,
   kontaktperson: null,
   ort: null,
-  landkreis: null,
+  verwaltung: null,
   regionIds: [],
   regionNamen: [],
   lng: null,
@@ -151,5 +152,19 @@ describe("Sortierung nach Region", () => {
     const sortiert = sortiereStroeme([a, b], "region", "auf");
     // "Bayerischer Wald" < "Bergstraße" — nur beim Vergleich des vollen Namens.
     expect(sortiert.map((s) => s.id)).toEqual(["b", "a"]);
+  });
+});
+
+// F0b: json_build_object kommt als Objekt ODER JSON-Text an.
+describe("verwaltungOderNull", () => {
+  const v = { kreisArs: "07318", kreisName: "Speyer", kreisBez: "Kreisfreie Stadt", landArs: "07", landName: "Rheinland-Pfalz" };
+  it("akzeptiert Objekt und JSON-Text gleichermassen", () => {
+    expect(verwaltungOderNull(v)).toEqual(v);
+    expect(verwaltungOderNull(JSON.stringify(v))).toEqual(v);
+  });
+  it("null/fehlende Zeile -> null (ausserhalb oder ohne Koordinate)", () => {
+    expect(verwaltungOderNull(null)).toBeNull();
+    expect(verwaltungOderNull(undefined)).toBeNull();
+    expect(verwaltungOderNull("null")).toBeNull();
   });
 });

@@ -5,8 +5,11 @@ import {
   filterAusSearchParams,
   filterStroeme,
   GETEILTE_FILTER_PARAMS,
+  kreisAnzeige,
+  landAnzeige,
   LEERER_FILTER,
   sortiereStroeme,
+  verwaltungsZustand,
   type Strom,
 } from "./stroeme-modell";
 
@@ -18,7 +21,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   bezeichnung: null,
   kontaktperson: null,
   ort: null,
-  landkreis: null,
+  verwaltung: null,
   regionIds: [],
   regionNamen: [],
   lng: null,
@@ -57,6 +60,68 @@ const strom = (patch: Partial<Strom>): Strom => ({
 });
 
 // E24: null-Stufe ist der benannte Zustand "unbelegt".
+// F0b: Verwaltungszuordnung — "ausserhalb" und "ohne Koordinate" sind
+// benannte, GETRENNTE Zustaende (nie aufs naechste Gebiet einrasten).
+describe("verwaltung (F0b)", () => {
+  const speyer = { kreisArs: "07318", kreisName: "Speyer", kreisBez: "Kreisfreie Stadt", landArs: "07", landName: "Rheinland-Pfalz" };
+  // Die Landkreis-Facette gehoert (wie bisher) zur Output-Sicht.
+  const zugeordnet = strom({ id: "v1", art: "output", verwaltung: speyer, lng: 8.43, lat: 49.32 });
+  const ausserhalb = strom({ id: "v2", art: "output", verwaltung: null, lng: 2.35, lat: 48.85 });
+  const ohneKoord = strom({ id: "v3", art: "output", verwaltung: null, lng: null, lat: null });
+
+  it("verwaltungsZustand unterscheidet die drei Faelle", () => {
+    expect(verwaltungsZustand(zugeordnet)).toBe("zugeordnet");
+    expect(verwaltungsZustand(ausserhalb)).toBe("ausserhalb");
+    expect(verwaltungsZustand(ohneKoord)).toBe("ohne_koordinate");
+  });
+
+  it("kreisAnzeige: amtliche Bezeichnung + Name; Sonderfaelle benannt", () => {
+    expect(kreisAnzeige(zugeordnet)).toBe("Kreisfreie Stadt Speyer");
+    // NBD-Heuristik: Name traegt die Bezeichnung schon in sich.
+    expect(
+      kreisAnzeige({
+        verwaltung: { ...speyer, kreisName: "Rhein-Neckar-Kreis", kreisBez: "Landkreis" },
+        lng: 8.7, lat: 49.4,
+      }),
+    ).toBe("Rhein-Neckar-Kreis");
+    expect(
+      kreisAnzeige({
+        verwaltung: { ...speyer, kreisName: "Germersheim", kreisBez: "Landkreis" },
+        lng: 8.36, lat: 49.22,
+      }),
+    ).toBe("Landkreis Germersheim");
+    expect(kreisAnzeige(ausserhalb)).toBe("außerhalb");
+    expect(kreisAnzeige(ohneKoord)).toBe("ohne Koordinate");
+    expect(landAnzeige(zugeordnet)).toBe("Rheinland-Pfalz");
+    expect(landAnzeige(ausserhalb)).toBe("außerhalb");
+    expect(landAnzeige(ohneKoord)).toBe("ohne Koordinate");
+  });
+
+  it("Filter laeuft ueber den ARS; Sonderfaelle sind eigene Werte", () => {
+    const pool = [zugeordnet, ausserhalb, ohneKoord];
+    const f = (werte: string[]) =>
+      filterStroeme(pool, { ...LEERER_FILTER, landkreis: werte }).map((s) => s.id);
+    expect(f(["07318"])).toEqual(["v1"]);
+    expect(f(["ausserhalb"])).toEqual(["v2"]);
+    expect(f(["ohne_koordinate"])).toEqual(["v3"]);
+  });
+
+  it("sortiert Sonderfaelle hinter die Kreisnamen", () => {
+    const auf = sortiereStroeme([ohneKoord, ausserhalb, zugeordnet], "landkreis", "auf");
+    expect(auf[0]!.id).toBe("v1");
+    expect(new Set(auf.slice(1).map((s) => s.id))).toEqual(new Set(["v2", "v3"]));
+  });
+
+  it("Facetten: ARS als Wert, Kreisname als Label, plus beide Sonderoptionen", () => {
+    const opt = facettenOptionen("output", [zugeordnet], [], {});
+    expect(opt.landkreis).toEqual([
+      { wert: "07318", label: "Speyer" },
+      { wert: "ausserhalb", label: "außerhalb" },
+      { wert: "ohne_koordinate", label: "ohne Koordinate" },
+    ]);
+  });
+});
+
 describe("qualitaet unbelegt (E24)", () => {
   const mitBeleg = strom({ id: "q1", qualitaet: "D" });
   const ohneBeleg = strom({ id: "q2", qualitaet: null });

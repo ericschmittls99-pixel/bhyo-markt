@@ -270,16 +270,17 @@ export const biomassestrom = pgTable("biomassestrom", {
   // kann mehrere Sites haben. Alle nullable, kein Geocoding in AP1b.
   bezeichnung: text("bezeichnung"),
   ort: text("ort"),
-  landkreis: text("landkreis"),
+  // F0b: landkreis und bundesland liegen physisch noch in der Tabelle,
+  // sind hier aber bewusst nicht mehr deklariert — beide werden raeumlich
+  // aus standort_geom abgeleitet (View strom_verwaltung, E23/E25). Der
+  // physische DROP folgt als Migration 0016 (PR D) nach Erics Review der
+  // Abweichungsliste.
   // F0a (Entscheidung Eric 23.09.2026): Adresse liegt AM STROM, der Akteur
   // bekommt bewusst KEINE Adressfelder — zwei Ablagen fuer dieselbe
-  // Information braeuchten eine Konfliktregel. Alle nullable, keine
-  // Pflichtfelder. bundesland vorlaeufig aus dem Geocoder; ab F0b werden
-  // Landkreis und Bundesland raeumlich aus standort_geom abgeleitet.
+  // Information braeuchten eine Konfliktregel. Alle nullable.
   strasse: text("strasse"),
   hausnummer: text("hausnummer"),
   plz: text("plz"),
-  bundesland: text("bundesland"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
   kontaktperson: text("kontaktperson"),
   materialartCode: text("materialart_code")
@@ -340,16 +341,17 @@ export const outputBedarf = pgTable("output_bedarf", {
   // haben. Alle nullable, kein Geocoding in AP1b.
   bezeichnung: text("bezeichnung"),
   ort: text("ort"),
-  landkreis: text("landkreis"),
+  // F0b: landkreis und bundesland liegen physisch noch in der Tabelle,
+  // sind hier aber bewusst nicht mehr deklariert — beide werden raeumlich
+  // aus standort_geom abgeleitet (View strom_verwaltung, E23/E25). Der
+  // physische DROP folgt als Migration 0016 (PR D) nach Erics Review der
+  // Abweichungsliste.
   // F0a (Entscheidung Eric 23.09.2026): Adresse liegt AM STROM, der Akteur
   // bekommt bewusst KEINE Adressfelder — zwei Ablagen fuer dieselbe
-  // Information braeuchten eine Konfliktregel. Alle nullable, keine
-  // Pflichtfelder. bundesland vorlaeufig aus dem Geocoder; ab F0b werden
-  // Landkreis und Bundesland raeumlich aus standort_geom abgeleitet.
+  // Information braeuchten eine Konfliktregel. Alle nullable.
   strasse: text("strasse"),
   hausnummer: text("hausnummer"),
   plz: text("plz"),
-  bundesland: text("bundesland"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
   kontaktperson: text("kontaktperson"),
   // Output-Produkt (AP1f-a, ersetzt vektor). FK auf output_produkt.code.

@@ -129,7 +129,9 @@ describe("Feedstock §1", () => {
   it("Saisonalitaet: Summe 100 ± 0,1; charakteristische Profile", () => {
     for (const s of alle) expect(Math.abs(saisonSumme(s) - 100)).toBeLessThan(0.1);
     const profil = (code: string) =>
-      feedstock.find((s) => s.materialartCode === code && !s.anker)!.saisonalitaet;
+      // A16-Anker fixieren nur Koordinate/Ort, nicht die Saison — sie liefern
+      // weiterhin unverfaelschte Profile.
+      feedstock.find((s) => s.materialartCode === code && (!s.anker || s.anker.startsWith("A16")))!.saisonalitaet;
     const anteil = (p: number[], von: number, bis: number) =>
       p.slice(von, bis + 1).reduce((a, b) => a + b, 0);
     expect(anteil(profil("stroh"), 6, 8)).toBeGreaterThan(60); // Jul-Sep
@@ -155,11 +157,11 @@ describe("Feedstock §1", () => {
   // Belegfeldern ABGELEITET (deriveQualitaet, identisch zur DB-Funktion).
   // Die Ziehliste 15/20/18/7 gilt weiter fuer die Zielstufen; die 9
   // entwurf-Stroeme haben keinen Beleg und damit keine Stufe (Pille "–").
-  it("abgeleitete Qualitaet 14/19/18/7 bei 58 Belegen, 2 unbelegt-Anker", () => {
+  it("abgeleitete Qualitaet 13/20/18/7 bei 58 Belegen, 2 unbelegt-Anker", () => {
     const mit = feedstock.filter((s) => s.beleg);
     const q = (g: string) => mit.filter((s) => stufe(s) === g).length;
     expect(mit).toHaveLength(58);
-    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([14, 19, 18, 7]);
+    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([13, 20, 18, 7]);
     expect(feedstock.filter((s) => s.status === "geprueft")).toHaveLength(39);
   });
 
@@ -226,19 +228,35 @@ describe("Feedstock §1", () => {
 
   it("Geografie: Region-Box, mind. 3 Quasi-Duplikat-Paare", () => {
     for (const s of alle) {
-      expect(s.lng).toBeGreaterThan(7.9);
-      expect(s.lng).toBeLessThan(9.5);
-      expect(s.lat).toBeGreaterThan(49.0);
-      expect(s.lat).toBeLessThan(49.8);
+      // F0b: die raeumlichen A16-Anker liegen GEWOLLT ausserhalb der Box
+      // (Hamburg, Ausland, Bodensee) oder ohne Koordinate — eigener Test.
+      if (s.anker?.startsWith("A16")) continue;
+      expect(s.lng!).toBeGreaterThan(7.9);
+      expect(s.lng!).toBeLessThan(9.5);
+      expect(s.lat!).toBeGreaterThan(49.0);
+      expect(s.lat!).toBeLessThan(49.8);
     }
     let paare = 0;
     for (let i = 0; i < feedstock.length; i++)
       for (let j = i + 1; j < feedstock.length; j++) {
         const a = feedstock[i]!;
         const b = feedstock[j]!;
+        if (a.lng == null || b.lng == null || a.lat == null || b.lat == null) continue;
         if (Math.abs(a.lng - b.lng) < 0.005 && Math.abs(a.lat - b.lat) < 0.005) paare++;
       }
     expect(paare).toBeGreaterThanOrEqual(3);
+  });
+
+  // F0b: die sieben raeumlichen Ankerfaelle der VG250-Zuordnung.
+  it("A16: sieben raeumliche Anker — Grenzen, Stadtkreis, Stadtstaat, Ausland, Bodensee, ohne Koordinate", () => {
+    expect(anker("A16a").lng).toBeCloseTo(8.414, 3);
+    expect(anker("A16b").lng).toBeCloseTo(8.455, 3);
+    expect(anker("A16c").lng).toBeCloseTo(8.466, 3);
+    expect(anker("A16d").lat).toBeCloseTo(53.5511, 3);
+    expect(anker("A16e").lng).toBeCloseTo(7.75, 3);
+    expect(anker("A16f").lat).toBeCloseTo(47.63, 3);
+    expect(anker("A16g").lng).toBeNull();
+    expect(anker("A16g").lat).toBeNull();
   });
 });
 
@@ -386,7 +404,7 @@ describe("Ankerfaelle §3", () => {
   it("A14: zwei Feedstock-Belege an praktisch identischer Koordinate", () => {
     const a = anker("A14a");
     const b = anker("A14b");
-    expect(Math.abs(a.lng - b.lng)).toBeLessThan(0.001);
-    expect(Math.abs(a.lat - b.lat)).toBeLessThan(0.001);
+    expect(Math.abs(a.lng! - b.lng!)).toBeLessThan(0.001);
+    expect(Math.abs(a.lat! - b.lat!)).toBeLessThan(0.001);
   });
 });
