@@ -37,7 +37,12 @@ async function main() {
   const geomSpalte = async (tabelle: string) => {
     const [r] = await sql`select f_geometry_column as spalte from geometry_columns
       where f_table_name = ${tabelle} limit 1`;
-    if (!r) throw new Error(`Staging-Tabelle ${tabelle} hat keine Geometriespalte (ogr2ogr-Schritt pruefen).`);
+    if (!r) {
+      const spalten = await sql`select table_schema, column_name, udt_name
+        from information_schema.columns where table_name = ${tabelle}`;
+      console.error(`DEBUG ${tabelle}: ` + JSON.stringify(spalten));
+      throw new Error(`Staging-Tabelle ${tabelle} hat keine Geometriespalte (ogr2ogr-Schritt pruefen).`);
+    }
     return r.spalte as string;
   };
   const geomLan = await geomSpalte("vg250_import_lan");
