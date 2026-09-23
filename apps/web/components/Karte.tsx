@@ -27,7 +27,7 @@ const OSM_STYLE = {
       ],
       tileSize: 256,
       maxzoom: 19,
-      attribution: "© OpenStreetMap-Mitwirkende",
+      attribution: "© OpenStreetMap-Mitwirkende · © GeoBasis-DE / BKG (2026), dl-de/by-2-0",
     },
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],

@@ -313,6 +313,11 @@ ersten Schreibzugriff des Seed-v2-Writers.
 
 ## Vormerkung für F6 (22.09.2026, noch nicht umsetzen)
 
+**Nachtrag F0b (23.09.2026):** Exporte, die Landkreis/Bundesland aus VG250
+enthalten (CSV heute, PDF-Abzug künftig), tragen den Quellenvermerk
+„© GeoBasis-DE / BKG (2026), dl-de/by-2-0" — dieselbe Pflicht wie der
+sichtbare Vermerk in karte.
+
 Der auswertung-CSV-Export hat derzeit gar keine Preisspalten — ein
 Datenexport ohne die Zahlen, um die es auf dem Board geht, ist ein halber
 Export. In F6 aufnehmen: Preisspalten (min/mittel/max in der
