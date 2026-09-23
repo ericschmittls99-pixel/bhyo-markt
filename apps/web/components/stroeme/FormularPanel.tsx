@@ -1007,25 +1007,31 @@ export function FormularPanel({
             </div>
           </section>
 
-          <section className="ov-sec">
-            <h3>begründung.</h3>
-            <label className="pf">
-              <span>
-                Begründung<em className="pf-pflicht" aria-hidden> *</em>
-              </span>
-              <span className="pf-feld">
-                <textarea
-                  name="begruendung"
-                  placeholder="Warum dieser Wert, warum diese Quelle?"
-                  aria-invalid={f.begruendung ? true : undefined}
-                />
-              </span>
-              {f.begruendung && <span className="pf-fehler">{f.begruendung}</span>}
-              <span className="fp-hinweis">
-                Wird in der Änderungshistorie protokolliert.
-              </span>
-            </label>
-          </section>
+          {/* Review 23.09.2026: Begruendung nur beim BEARBEITEN — sie ist die
+              Je-Aenderungs-Begruendung der Historie ("warum korrigiert").
+              Beim Anlegen entfaellt sie (Historie erhaelt "Ersterfassung");
+              auf die Qualitaets-Ableitung hat sie keinerlei Einfluss. */}
+          {!neu && (
+            <section className="ov-sec">
+              <h3>begründung.</h3>
+              <label className="pf">
+                <span>
+                  Begründung<em className="pf-pflicht" aria-hidden> *</em>
+                </span>
+                <span className="pf-feld">
+                  <textarea
+                    name="begruendung"
+                    placeholder="Warum dieser Wert, warum diese Quelle?"
+                    aria-invalid={f.begruendung ? true : undefined}
+                  />
+                </span>
+                {f.begruendung && <span className="pf-fehler">{f.begruendung}</span>}
+                <span className="fp-hinweis">
+                  Wird in der Änderungshistorie protokolliert.
+                </span>
+              </label>
+            </section>
+          )}
 
           <div className="ov-fuss">
             {state.fehler && <span className="pf-fehler">{state.fehler}</span>}

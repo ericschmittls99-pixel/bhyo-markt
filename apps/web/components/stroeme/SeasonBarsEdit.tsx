@@ -16,15 +16,58 @@ const MONAT_LANG = [
   "Juli", "August", "September", "Oktober", "November", "Dezember",
 ];
 const BAR_HOEHE = 96;
-/** Ziehen kappt bei 200 — Werte darueber nur per Zahlenfeld. */
+/** Harte Obergrenze fuer Ziehen UND Zahlenfeld (Review 23.09.2026). */
 const ZIEH_MAX = 200;
 
 /**
+ * Zahlenfeld mit lokalem Text-Zustand: Leeren zeigt ein leeres Feld
+ * (keine stehenbleibende 0, hinter die getippt wird); uebernommen wird
+ * beim Tippen, auf Blur wird die Anzeige mit dem gekappten Wert
+ * synchronisiert. Externe Aenderungen (Ziehen) laufen ueber value-Sync.
+ */
+function ZahlenFeld({
+  wert,
+  label,
+  onWert,
+}: {
+  wert: number;
+  label: string;
+  onWert: (v: number) => void;
+}) {
+  const [text, setText] = useState(String(wert));
+  const [fokus, setFokus] = useState(false);
+  const anzeige = fokus ? text : String(wert);
+  return (
+    <input
+      type="number"
+      min={0}
+      max={ZIEH_MAX}
+      step={5}
+      value={anzeige}
+      aria-label={label}
+      onFocus={(e) => {
+        setText(String(wert));
+        setFokus(true);
+        e.currentTarget.select();
+      }}
+      onChange={(e) => {
+        setText(e.target.value);
+        if (e.target.value !== "") onWert(Number(e.target.value));
+      }}
+      onBlur={() => {
+        setFokus(false);
+        if (text === "") onWert(0);
+      }}
+    />
+  );
+}
+
+/**
  * Saison-INDEX-Editor (Umbau 23.09.2026): 100 = Durchschnittsmonat, feste
- * Achse 0-200 mit Referenzlinie bei 100. Ziehen (auch quer ueber Spalten)
- * kappt bei 200; je Monat erlaubt ein Zahlenfeld hoehere Indizes
- * (Stroh-Ernte ~240) — dann springt die Achse EINMALIG auf den naechsten
- * 50er-Schritt, sie waechst nie kontinuierlich mit. Unter dem Editor eine
+ * Achse 0-200 mit Referenzlinie bei 100. Ziehen UND Zahlenfeld kappen bei
+ * 200 (Review 23.09.); extremere Profile entstehen ueber die Verhaeltnisse
+ * (uebrige Monate senken). Die Achse springt nur noch fuer Altdaten mit
+ * Werten ueber 200 (saisonAchse, defensiv). Unter dem Editor eine
  * schreibgeschuetzte Zeile mit den abgeleiteten Jahresanteilen (Largest
  * Remainder, Summe exakt 100): oben formen, unten ablesen. Tastatur:
  * Pfeiltasten ±5, PageUp/Down ±25, Home 0, End 100.
@@ -148,19 +191,14 @@ export function SeasonBarsEdit({
           <span className="m" key={i}>{m}</span>
         ))}
       </div>
-      {/* Zahlenfelder: einziger Weg zu Indizes ueber 200. */}
+      {/* Zahlenfelder: praezise Eingabe, gleiche 200er-Kappe wie das Ziehen. */}
       <div className="sbe-zahlen">
         {werte.map((v, i) => (
-          <input
+          <ZahlenFeld
             key={i}
-            type="number"
-            min={0}
-            step={5}
-            value={Math.round(v)}
-            aria-label={`Index ${MONAT_LANG[i]} (Zahlenfeld)`}
-            onChange={(e) =>
-              onWerte(saisonWertDirekt(werte, i, Number(e.target.value) || 0))
-            }
+            wert={Math.round(v)}
+            label={`Index ${MONAT_LANG[i]} (Zahlenfeld)`}
+            onWert={(n) => onWerte(saisonWertDirekt(werte, i, n))}
           />
         ))}
       </div>

@@ -103,7 +103,7 @@ export async function stromSpeichern(
   const heute = new Date().toISOString().slice(0, 10);
 
   const feldFehler = {
-    ...validiereFormular(art, eingaben),
+    ...validiereFormular(art, eingaben, { neu: id == null }),
     ...validiereVergaben(eingaben.vonMonat, eingaben.bisMonat, vergaben),
   };
   // Erst validieren, dann hochladen — ein Validierungsfehler darf keine
@@ -201,7 +201,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: biomassestrom.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
           } else {
             const [row] = await tx
               .insert(outputBedarf)
@@ -214,7 +214,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: outputBedarf.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
           }
           return;
         }

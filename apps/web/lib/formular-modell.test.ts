@@ -200,10 +200,13 @@ describe("validiereFormular biomasse", () => {
       }),
     ).toEqual({});
   });
-  it("Pflichtfelder fehlen → benannte Fehler", () => {
+  it("Pflichtfelder fehlen → benannte Fehler (Begruendung nur beim Bearbeiten)", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, akteurId: "", begruendung: " " });
     expect(f.akteur_id).toBe("Pflichtfeld");
     expect(f.begruendung).toBe("Pflichtfeld");
+    // Anlegen (Review 23.09.): keine Begruendungs-Pflicht mehr.
+    const neu = validiereFormular("biomasse", { ...eingabenOk, begruendung: "" }, { neu: true });
+    expect(neu.begruendung).toBeUndefined();
   });
   it("Zahlenfeld mit Text → Fehler", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, mengeRohFm: "viel" });
@@ -285,10 +288,11 @@ describe("Saison-Helfer (Index, 100 = Durchschnittsmonat)", () => {
     expect(saisonWertSetzen(w, 1, 133.4)[1]).toBe(133);
     expect(w[3]).toBe(100); // Eingabe unveraendert
   });
-  it("saisonWertDirekt (Zahlenfeld): erlaubt Werte ueber 200", () => {
+  it("saisonWertDirekt (Zahlenfeld): kappt wie das Ziehen bei 200 (Review 23.09.)", () => {
     const neu = saisonWertDirekt(Array(12).fill(100), 7, 240.4);
-    expect(neu[7]).toBe(240);
+    expect(neu[7]).toBe(200);
     expect(saisonWertDirekt(Array(12).fill(100), 0, -5)[0]).toBe(0);
+    expect(saisonWertDirekt(Array(12).fill(100), 2, 133.6)[2]).toBe(134);
   });
   it("Ein Monat auf 200 gezogen: die uebrigen elf aendern ihren Index NICHT", () => {
     const neu = saisonWertSetzen(Array(12).fill(100), 0, 200);

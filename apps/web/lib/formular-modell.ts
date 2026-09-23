@@ -63,10 +63,15 @@ export function saisonWertSetzen(werte: number[], i: number, v: number): number[
   return werte.map((x, j) => (j === i ? geclampt : x));
 }
 
-/** Zahlenfeld je Monat: erlaubt Indizes ueber 200 (Stroh-Ernte ~240). */
+/**
+ * Zahlenfeld je Monat: kappt wie das Ziehen bei 200 (Review 23.09.2026 —
+ * urspruenglich fuer Indizes >200 gedacht, wieder gestrichen). Extremere
+ * Profile bleiben darstellbar, weil nur Verhaeltnisse zaehlen: statt
+ * 240/100 zieht man die uebrigen Monate herunter (200/83 ist dasselbe
+ * Profil).
+ */
 export function saisonWertDirekt(werte: number[], i: number, v: number): number[] {
-  const geclampt = Math.max(0, Math.round(v));
-  return werte.map((x, j) => (j === i ? geclampt : x));
+  return saisonWertSetzen(werte, i, v);
 }
 
 // --- Gekoppelte Auswahllisten ------------------------------------------------
@@ -164,7 +169,12 @@ function zahlOk(v: string): boolean {
  * Feld-Fehler fuer die Inline-Anzeige (leeres Objekt = gueltig). Die Keys sind
  * die FormData-Feldnamen; Client und Server nutzen dieselbe Funktion.
  */
-export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehler {
+export function validiereFormular(
+  art: StromArt,
+  e: FormularEingaben,
+  /** neu = Anlegen: keine Begruendungs-Pflicht (Review 23.09.2026). */
+  kontext: { neu: boolean } = { neu: false },
+): FeldFehler {
   const f: FeldFehler = {};
   const pflicht = (key: string, wert: string) => {
     if (!wert.trim()) f[key] = PFLICHT;
@@ -176,7 +186,11 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
   pflicht("akteur_id", e.akteurId);
   pflicht("zeitraum_von", e.vonMonat);
   pflicht("zeitraum_bis", e.bisMonat);
-  pflicht("begruendung", e.begruendung);
+  // Begruendung ist die Je-Aenderungs-Begruendung der Historie: beim
+  // Bearbeiten Pflicht ("warum korrigiert"), beim Anlegen entfallen
+  // (Review 23.09.2026). Auf die Qualitaets-Ableitung hat sie keinerlei
+  // Einfluss.
+  if (!kontext.neu) pflicht("begruendung", e.begruendung);
 
   if (art === "biomasse") {
     pflicht("materialart_code", e.materialartCode);
