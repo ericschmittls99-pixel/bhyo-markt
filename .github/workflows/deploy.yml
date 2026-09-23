@@ -115,6 +115,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web exec tsx scripts/qualitaet-paritaet.ts
 
+      # F0b: dauerhafte DB-Checks der raeumlichen Verwaltungszuordnung —
+      # Grenzpunkt (ST_Covers + DISTINCT ON), Rheingrenze RP/BW,
+      # Eindeutigkeit der View. Gegen die echte Preview-DB.
+      - name: Verwaltungs-Check (strom_verwaltung)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db verwaltung-check
+
       - name: Build (OpenNext)
         working-directory: apps/web
         env:

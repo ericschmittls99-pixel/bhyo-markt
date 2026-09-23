@@ -56,6 +56,8 @@ export const bereitschaftStufe = pgEnum("bereitschaft_stufe", [
 
 /** Abgeleitete Qualitaetsstufe eines Belegs (A hoch, D niedrig). Nie gewaehlt. */
 export const qualitaetsStufe = pgEnum("qualitaets_stufe", ["A", "B", "C", "D"]);
+// F0b: VG250-Ebenen — Laender (2-stelliger ARS) und Kreise (5-stellig).
+export const verwaltungsEbene = pgEnum("verwaltungs_ebene", ["land", "kreis"]);
 
 /** Herkunft des Preis-Korridors am Biomassestrom. */
 export const preisHerkunft = pgEnum("preis_herkunft", [
@@ -117,6 +119,15 @@ const geometryPolygonEingefroren = customType<{ data: unknown }>({
   },
 });
 
+// F0b: echter Typ fuer NEUE Spalten (kein Einfrieren noetig). Achtung
+// drizzle-kit 0.31: SRID landet nicht in der Migration — von Hand auf
+// geometry(MultiPolygon,4326) korrigieren, Snapshot unangetastet lassen.
+const geometryMultiPolygon = customType<{ data: unknown }>({
+  dataType() {
+    return "geometry(MultiPolygon,4326)";
+  },
+});
+
 // --- Kernentitaeten (Reihenfolge nach FK-Abhaengigkeiten) --------------------
 
 /**
@@ -172,6 +183,31 @@ export const beleg = pgTable("beleg", {
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/**
+ * F0b/E25: Verwaltungsgebiete aus VG250 (BKG), Ebenen Land und Kreis.
+ * Referenziert wird ausschliesslich ueber den ARS, nie ueber den Namen —
+ * der Name ist Anzeige. BEWUSST getrennt von `region` (Fokusregion mit
+ * Bereitschaftsstufe = Projektregion); eine Region kann spaeter aus
+ * Kreisen zusammengesetzt werden. Befuellt nur vom Import-Workflow
+ * import-vg250 (PR B), nie aus der App. Landkreis/Bundesland eines Stroms
+ * werden NIE gespeichert, sondern per Point-in-Polygon abgeleitet (E23) —
+ * siehe View strom_verwaltung in Migration 0015.
+ */
+export const verwaltungsgebiet = pgTable("verwaltungsgebiet", {
+  // Amtlicher Regionalschluessel: 2-stellig (Land) oder 5-stellig (Kreis).
+  ars: text("ars").primaryKey(),
+  ebene: verwaltungsEbene("ebene").notNull(),
+  name: text("name").notNull(),
+  // Bezeichnung der Gebietseinheit ("Landkreis", "Kreisfreie Stadt", ...).
+  bez: text("bez").notNull(),
+  // Volle Aufloesung fuer den raeumlichen Join (GF=4, EPSG:4326).
+  geom: geometryMultiPolygon("geom").notNull(),
+  // Vereinfachte Geometrie fuer karte. (ST_SimplifyPreserveTopology, PR B).
+  geomAnzeige: geometryMultiPolygon("geom_anzeige").notNull(),
+  // Gebietsstand der VG250-Lieferung.
+  stichtag: date("stichtag").notNull(),
 });
 
 /** Region ("Fokusregion") mit Flaechen-Geometrie und Bereitschaftsstufe. */
