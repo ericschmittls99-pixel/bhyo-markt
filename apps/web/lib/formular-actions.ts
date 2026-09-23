@@ -63,6 +63,7 @@ function eingabenAus(formData: FormData): FormularEingaben {
     // Beim Bearbeiten zaehlt eine bereits hinterlegte Datei weiter als Datei.
     lat: s(text(formData, "lat")),
     lng: s(text(formData, "lng")),
+    saison: saisonAusFormData(formData),
     belegHatDatei:
       (datei instanceof File && datei.size > 0) ||
       formData.get("beleg_datei_vorhanden") === "1",

@@ -11,6 +11,7 @@ import {
   monatZuBis,
   monatZuVon,
   produkteInGruppe,
+  saisonWertDirekt,
   saisonWertSetzen,
   validiereFormular,
   type FormularEingaben,
@@ -156,6 +157,7 @@ const eingabenOk: FormularEingaben = {
   belegLink: "",
   lat: "",
   lng: "",
+  saison: Array(12).fill(100),
 };
 
 describe("validiereFormular biomasse", () => {
@@ -270,22 +272,28 @@ describe("Kopplung Cluster→Materialart / Gruppe→Produkt", () => {
   });
 });
 
-describe("Saison-Helfer", () => {
-  it("gleichverteilung: 12 gleiche Werte, Summe nahe 100", () => {
-    const g = gleichverteilung();
-    expect(g).toHaveLength(12);
-    expect(new Set(g).size).toBe(1);
-    expect(g.reduce((a, b) => a + b, 0)).toBeGreaterThan(99);
-    expect(g.reduce((a, b) => a + b, 0)).toBeLessThanOrEqual(100.8);
+describe("Saison-Helfer (Index, 100 = Durchschnittsmonat)", () => {
+  it("gleichverteilung: alle zwoelf Monate Index 100", () => {
+    expect(gleichverteilung()).toEqual(Array(12).fill(100));
   });
-  it("saisonWertSetzen clampt 0–100, rundet und lässt Nachbarn stehen", () => {
-    const w = Array(12).fill(5);
-    const neu = saisonWertSetzen(w, 3, 104.6);
-    expect(neu[3]).toBe(100);
-    expect(neu[2]).toBe(5);
+  it("saisonWertSetzen (Ziehen): clampt 0–200, rundet, Nachbarn bleiben", () => {
+    const w = Array(12).fill(100);
+    const neu = saisonWertSetzen(w, 3, 231.6);
+    expect(neu[3]).toBe(200);
+    expect(neu[2]).toBe(100);
     expect(saisonWertSetzen(w, 0, -2)[0]).toBe(0);
-    expect(saisonWertSetzen(w, 1, 33.4)[1]).toBe(33);
-    expect(w[3]).toBe(5); // Eingabe unveraendert
+    expect(saisonWertSetzen(w, 1, 133.4)[1]).toBe(133);
+    expect(w[3]).toBe(100); // Eingabe unveraendert
+  });
+  it("saisonWertDirekt (Zahlenfeld): erlaubt Werte ueber 200", () => {
+    const neu = saisonWertDirekt(Array(12).fill(100), 7, 240.4);
+    expect(neu[7]).toBe(240);
+    expect(saisonWertDirekt(Array(12).fill(100), 0, -5)[0]).toBe(0);
+  });
+  it("Ein Monat auf 200 gezogen: die uebrigen elf aendern ihren Index NICHT", () => {
+    const neu = saisonWertSetzen(Array(12).fill(100), 0, 200);
+    expect(neu[0]).toBe(200);
+    expect(neu.slice(1)).toEqual(Array(11).fill(100));
   });
 });
 

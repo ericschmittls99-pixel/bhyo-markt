@@ -29,6 +29,7 @@ import {
   type FormularWerte,
 } from "@/lib/formular-modell";
 import { stromSpeichern, type SpeichernErgebnis } from "@/lib/formular-actions";
+import { saisonZuIndex } from "@/lib/saison";
 import {
   leiteVerfuegbarkeitAb,
   verfuegbarkeitPill,
@@ -107,8 +108,10 @@ export function FormularPanel({
   );
 
   // Saisonalitaet (E10) + Beleg-Zustand fuer die Qualitaets-Ableitung.
-  const [saison, setSaison] = useState<number[]>(
-    () => werte?.saisonalitaet ?? Array(12).fill(0),
+  // Editor-Ansicht in Index-Normierung (Mittel = 100); die Verhaeltnisse
+  // des Bestands bleiben exakt erhalten (lib/saison).
+  const [saison, setSaison] = useState<number[]>(() =>
+    werte?.saisonalitaet ? saisonZuIndex(werte.saisonalitaet) : Array(12).fill(0),
   );
   const b = werte?.beleg ?? null;
   const [typ, setTyp] = useState<BelegTyp | "">((b?.typ as BelegTyp) ?? "");
@@ -682,6 +685,7 @@ export function FormularPanel({
           <section className="ov-sec">
             <h3>saisonalität.</h3>
             <SeasonBarsEdit werte={saison} onWerte={setSaison} />
+            {f.saison && <span className="pf-fehler">{f.saison}</span>}
             {saison.map((v, i) => (
               <input key={i} type="hidden" name={`saison_${i}`} value={v} />
             ))}

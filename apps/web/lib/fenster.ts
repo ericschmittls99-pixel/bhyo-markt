@@ -1,3 +1,4 @@
+import { saisonAnteilBruch } from "./saison";
 import type { Strom } from "./stroeme-modell";
 import type { VergabeDaten } from "./verfuegbarkeit";
 
@@ -27,17 +28,10 @@ type FensterStrom = Pick<
   "zeitraumVon" | "zeitraumBis" | "reserviertBhyo" | "saisonalitaet"
 >;
 
-/**
- * Saisonanteil eines Monats (0-basiert): Profil in % der Jahresmenge, auf die
- * Profilsumme normiert (die Gleichverteilung speichert 99,6 statt 100);
- * fehlendes oder leeres Profil rechnet mit 1/12 (Handoff: n Monate ÷ 12).
- */
-function saisonAnteil(saison: number[] | null, monat: number): number {
-  if (!saison || saison.length !== 12) return 1 / 12;
-  const summe = saison.reduce((a, b) => a + b, 0);
-  if (summe <= 0) return 1 / 12;
-  return (saison[monat] ?? 0) / summe;
-}
+// Saisonanteil: zentrale Ableitung in lib/saison (Index-Konvention
+// 23.09.2026 — Skala bedeutungslos, wert/Summe). War hier schon immer
+// summen-normiert, deshalb liefern Bestandsprofile identische Anteile.
+const saisonAnteil = saisonAnteilBruch;
 
 const monatsKey = (jahr: number, monat: number) =>
   `${jahr}-${String(monat + 1).padStart(2, "0")}`;

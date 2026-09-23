@@ -1,4 +1,5 @@
-import { fmtAnteil, rundeAnteile100 } from "@/lib/format";
+import { fmtAnteil } from "@/lib/format";
+import { saisonAnteileProzent } from "@/lib/saison";
 
 const MONATE = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 
@@ -13,8 +14,9 @@ export function SeasonBarsMini({
   const max = Math.max(1, ...werte);
   const peak = werte.indexOf(Math.max(...werte));
   // E20: Anteils-DARSTELLUNG ganzzahlig via Largest Remainder (Summe exakt
-  // 100); die gespeicherten Werte bleiben unveraendert.
-  const anteile = rundeAnteile100(werte);
+  // 100); die gespeicherten Werte (Index, Skala bedeutungslos) bleiben
+  // unveraendert.
+  const anteile = saisonAnteileProzent(werte);
   return (
     <div className="sbars" style={{ height: hoehe + 18 }}>
       {werte.map((v, i) => (

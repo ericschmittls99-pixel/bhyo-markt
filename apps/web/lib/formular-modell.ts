@@ -48,14 +48,24 @@ export function saisonOderLeer(v: unknown, kontext: string): number[] {
   return Array(12).fill(0);
 }
 
-/** Gleichverteilung: 12 × 8,3 % (Summe 99,6 — bewusst nicht kuenstlich auf 100 gezogen). */
+/** Gleichverteilung (Index-Konvention 23.09.2026): alle Monate auf 100. */
 export function gleichverteilung(): number[] {
-  return Array(12).fill(Math.round((100 / 12) * 10) / 10);
+  return Array(12).fill(100);
 }
 
-/** Setzt einen Monatswert (0–100, ganzzahlig) und laesst die Nachbarn stehen. */
+/**
+ * Ziehen im Editor: setzt einen Index (0–200, ganzzahlig), Nachbarn bleiben.
+ * Werte ueber 200 gibt es nur ueber das Zahlenfeld (saisonWertDirekt) —
+ * die Achse laeuft beim Ziehen nie davon.
+ */
 export function saisonWertSetzen(werte: number[], i: number, v: number): number[] {
-  const geclampt = Math.min(100, Math.max(0, Math.round(v)));
+  const geclampt = Math.min(200, Math.max(0, Math.round(v)));
+  return werte.map((x, j) => (j === i ? geclampt : x));
+}
+
+/** Zahlenfeld je Monat: erlaubt Indizes ueber 200 (Stroh-Ernte ~240). */
+export function saisonWertDirekt(werte: number[], i: number, v: number): number[] {
+  const geclampt = Math.max(0, Math.round(v));
   return werte.map((x, j) => (j === i ? geclampt : x));
 }
 
@@ -139,6 +149,8 @@ export interface FormularEingaben {
   /** F0a: Pin-Koordinate als Rohstrings der Hidden-Inputs ("" = kein Pin). */
   lat: string;
   lng: string;
+  /** Saison-Index der 12 Monate (Skala bedeutungslos, nur Verhaeltnisse). */
+  saison: number[];
 }
 
 const PFLICHT = "Pflichtfeld";

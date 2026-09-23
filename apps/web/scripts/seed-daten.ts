@@ -54,7 +54,7 @@ export interface SeedStrom {
   preisEinheit?: string | null;
   zeitraumVon: string;
   zeitraumBis: string;
-  /** 12 Prozentwerte, Summe 100 ± 0,1 (DB-Konvention wie das Formular). */
+  /** 12 Werte, Summe 100 ± 0,1 — seit dem Index-Umbau (23.09.2026) ist die Skala frei; Summe-100-Profile sind als Index weiter gueltig (nur Verhaeltnisse zaehlen). */
   saisonalitaet: number[];
   qualitaet: "A" | "B" | "C" | "D";
   status: "entwurf" | "in_pruefung" | "geprueft";
