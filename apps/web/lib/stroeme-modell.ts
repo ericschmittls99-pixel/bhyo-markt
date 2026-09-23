@@ -27,9 +27,20 @@ export function verwaltungsZustand(s: Pick<Strom, "verwaltung" | "lng" | "lat">)
   return s.lng != null && s.lat != null ? "ausserhalb" : "ohne_koordinate";
 }
 
-/** Anzeige des Kreises: amtliche Bezeichnung + Name, sonst der benannte Sonderfall. */
+/**
+ * Anzeige des Kreises nach der VG250-Namensbildungsregel (NBD): traegt der
+ * Name die Bezeichnung schon in sich ("Rhein-Neckar-Kreis", "Salzlandkreis"),
+ * steht sie nicht davor — sonst "Landkreis Prignitz", "Kreisfreie Stadt
+ * Speyer". Heuristik statt NBD-Attribut (im Import bewusst nicht mitgefuehrt;
+ * faellt die Heuristik je auf, NBD in PR D nachziehen). Sonderfaelle benannt.
+ */
 export function kreisAnzeige(s: Pick<Strom, "verwaltung" | "lng" | "lat">): string {
-  if (s.verwaltung) return `${s.verwaltung.kreisBez} ${s.verwaltung.kreisName}`;
+  if (s.verwaltung) {
+    const { kreisBez, kreisName } = s.verwaltung;
+    return kreisName.toLowerCase().includes("kreis")
+      ? kreisName
+      : `${kreisBez} ${kreisName}`.trim();
+  }
   return verwaltungsZustand(s) === "ausserhalb" ? "außerhalb" : "ohne Koordinate";
 }
 

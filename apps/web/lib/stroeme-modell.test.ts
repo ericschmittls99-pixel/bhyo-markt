@@ -77,6 +77,19 @@ describe("verwaltung (F0b)", () => {
 
   it("kreisAnzeige: amtliche Bezeichnung + Name; Sonderfaelle benannt", () => {
     expect(kreisAnzeige(zugeordnet)).toBe("Kreisfreie Stadt Speyer");
+    // NBD-Heuristik: Name traegt die Bezeichnung schon in sich.
+    expect(
+      kreisAnzeige({
+        verwaltung: { ...speyer, kreisName: "Rhein-Neckar-Kreis", kreisBez: "Landkreis" },
+        lng: 8.7, lat: 49.4,
+      }),
+    ).toBe("Rhein-Neckar-Kreis");
+    expect(
+      kreisAnzeige({
+        verwaltung: { ...speyer, kreisName: "Germersheim", kreisBez: "Landkreis" },
+        lng: 8.36, lat: 49.22,
+      }),
+    ).toBe("Landkreis Germersheim");
     expect(kreisAnzeige(ausserhalb)).toBe("außerhalb");
     expect(kreisAnzeige(ohneKoord)).toBe("ohne Koordinate");
     expect(landAnzeige(zugeordnet)).toBe("Rheinland-Pfalz");
