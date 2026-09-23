@@ -99,6 +99,23 @@ Ergänzung (22.09.2026): **Asche ist für bhyo ein Erlös, keine
 Entsorgungsposition.** Preise durchgehend positiv, 10–40 €/t (Einheit
 nach E20).
 
+## 7. Adresse am Strom, nicht am Akteur
+
+Entschieden am 23.09.2026 (Eric, F0a): Die Adresse (Straße, Hausnummer,
+PLZ, Ort, Bundesland, Landkreis, Koordinate) liegt **am Strom** —
+`biomassestrom` und `output_bedarf`. Der Akteur bekommt **keine**
+Adressfelder. Begründung: Der bestehende Schema-Kommentar („Standort
+gehört an den einzelnen Strom, ein Akteur kann mehrere Sites haben") ist
+besser begründet als eine Akteur-Adresse mit Vorbefüllung; zwei Ablagen
+für dieselbe Information würden eine Konfliktregel brauchen und wären
+eine Parallelwelt. Gegen die Tipparbeit gibt es im Formular stattdessen
+„Adresse von bestehendem Standort übernehmen" — reines Kopieren
+vorhandener Daten desselben Akteurs, kein neues Feld. Migration 0012
+ergänzt dafür additiv `strasse`, `hausnummer`, `plz`, `bundesland`
+(alle nullable) an beiden Stromtabellen; `ort`, `landkreis`,
+`standort_geom` bleiben. `bundesland` kommt in F0a vorläufig aus dem
+Geocoder und wird ab F0b räumlich abgeleitet.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

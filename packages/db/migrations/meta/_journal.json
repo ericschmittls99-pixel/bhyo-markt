@@ -85,6 +85,13 @@
       "when": 1790073600000,
       "tag": "0011_materialarten_seed_v2",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790149587661,
+      "tag": "0012_adressfelder_f0a",
+      "breakpoints": true
     }
   ]
 }

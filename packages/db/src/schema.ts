@@ -2,6 +2,7 @@ import { sql } from "drizzle-orm";
 import {
   boolean,
   check,
+  customType,
   date,
   geometry,
   integer,
@@ -96,6 +97,26 @@ export const outputGruppe = pgEnum("output_gruppe", [
 /** Ob ein Output-Produkt Zielprodukt oder Add-On (Koppelprodukt) ist. */
 export const outputArt = pgEnum("output_art", ["target", "add_on"]);
 
+/**
+ * EINGEFRORENER Spaltentyp fuer region.gebiet — NICHT "korrigieren".
+ *
+ * Die echte Spalte ist seit Migration 0005 (von Hand) geometry(Polygon,4326);
+ * Schema und alle Snapshots sagen aber "geometry(point)", weil drizzle-kit 0.31
+ * weder Polygon noch SRID typisiert. Das ist diff-neutral und damit sicher:
+ * `drizzle-kit generate` vergleicht Schema gegen Snapshot, nie gegen die
+ * Datenbank — solange hier "geometry(point)" steht, entsteht KEIN ALTER.
+ * Wer diesen String auf Polygon "richtigstellt", erzeugt beim naechsten
+ * generate ein ALTER auf die produktive Regionsgeometrie. Deshalb ein
+ * Custom-Type mit sprechendem Namen statt der eingebauten geometry():
+ * der Rohtyp bleibt eingefroren, der Zugriff laeuft ohnehin nur ueber
+ * raw SQL (ST_*).
+ */
+const geometryPolygonEingefroren = customType<{ data: unknown }>({
+  dataType() {
+    return "geometry(point)";
+  },
+});
+
 // --- Kernentitaeten (Reihenfolge nach FK-Abhaengigkeiten) --------------------
 
 /**
@@ -153,7 +174,7 @@ export const region = pgTable("region", {
   // Zugehoerigkeit = ST_Contains(gebiet, standort_geom). Mittelpunkt bei Bedarf
   // per ST_Centroid(gebiet), keine eigene Spalte. Nie ueber Drizzle typisiert
   // gelesen/geschrieben – Zugriff ausschliesslich per raw sql (ST_*).
-  gebiet: geometry("gebiet", { type: "point", srid: 4326 }).notNull(),
+  gebiet: geometryPolygonEingefroren("gebiet").notNull(),
   bereitschaftStufe: bereitschaftStufe("bereitschaft_stufe")
     .notNull()
     .default("kein_kontakt"),
@@ -191,8 +212,10 @@ export const akteur = pgTable("akteur", {
 
 /**
  * Biomassestrom eines Akteurs mit eigenem Standort. KEINE manuell zugewiesene
- * Region – welche Region(en) den Strom erfassen, wird raeumlich aus standort_geom
- * und region.einzugsradius_km abgeleitet (ST_DWithin), nicht ueber einen FK.
+ * Region – welche Region(en) den Strom erfassen, wird raeumlich abgeleitet:
+ * seit AP1e per ST_Contains(region.gebiet, standort_geom) gegen das
+ * Regions-Polygon (frueher ST_DWithin mit einzugsradius_km), nicht ueber
+ * einen FK.
  */
 export const biomassestrom = pgTable("biomassestrom", {
   id: uuid("id").primaryKey().defaultRandom(),
@@ -204,6 +227,15 @@ export const biomassestrom = pgTable("biomassestrom", {
   bezeichnung: text("bezeichnung"),
   ort: text("ort"),
   landkreis: text("landkreis"),
+  // F0a (Entscheidung Eric 23.09.2026): Adresse liegt AM STROM, der Akteur
+  // bekommt bewusst KEINE Adressfelder — zwei Ablagen fuer dieselbe
+  // Information braeuchten eine Konfliktregel. Alle nullable, keine
+  // Pflichtfelder. bundesland vorlaeufig aus dem Geocoder; ab F0b werden
+  // Landkreis und Bundesland raeumlich aus standort_geom abgeleitet.
+  strasse: text("strasse"),
+  hausnummer: text("hausnummer"),
+  plz: text("plz"),
+  bundesland: text("bundesland"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
   kontaktperson: text("kontaktperson"),
   materialartCode: text("materialart_code")
@@ -257,6 +289,15 @@ export const outputBedarf = pgTable("output_bedarf", {
   bezeichnung: text("bezeichnung"),
   ort: text("ort"),
   landkreis: text("landkreis"),
+  // F0a (Entscheidung Eric 23.09.2026): Adresse liegt AM STROM, der Akteur
+  // bekommt bewusst KEINE Adressfelder — zwei Ablagen fuer dieselbe
+  // Information braeuchten eine Konfliktregel. Alle nullable, keine
+  // Pflichtfelder. bundesland vorlaeufig aus dem Geocoder; ab F0b werden
+  // Landkreis und Bundesland raeumlich aus standort_geom abgeleitet.
+  strasse: text("strasse"),
+  hausnummer: text("hausnummer"),
+  plz: text("plz"),
+  bundesland: text("bundesland"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
   kontaktperson: text("kontaktperson"),
   // Output-Produkt (AP1f-a, ersetzt vektor). FK auf output_produkt.code.
