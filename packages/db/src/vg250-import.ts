@@ -31,6 +31,19 @@ async function main() {
   const ziel = new URL(url!);
   console.log(`VG250ZIEL host=${ziel.hostname} db=${ziel.pathname.slice(1)}`);
 
+  // ogr2ogr benennt die Geometriespalte je nach Pfad unterschiedlich
+  // (GEOMETRY_NAME greift bei -sql-Layern nicht zuverlaessig) — den echten
+  // Namen aus geometry_columns ermitteln statt ihn zu raten.
+  const geomSpalte = async (tabelle: string) => {
+    const [r] = await sql`select f_geometry_column as spalte from geometry_columns
+      where f_table_name = ${tabelle} limit 1`;
+    if (!r) throw new Error(`Staging-Tabelle ${tabelle} hat keine Geometriespalte (ogr2ogr-Schritt pruefen).`);
+    return r.spalte as string;
+  };
+  const geomLan = await geomSpalte("vg250_import_lan");
+  const geomKrs = await geomSpalte("vg250_import_krs");
+  console.log(`VG250SPALTEN lan=${geomLan} krs=${geomKrs}`);
+
   // Vor-Checks auf dem Staging (ausserhalb der Ersetzung, rein lesend).
   const [vor] = await sql`
     select (select count(distinct ars)::int from vg250_import_lan) as laender,
@@ -54,9 +67,9 @@ async function main() {
   // Ersetzung: ganz oder gar nicht (eine Transaktion, Nach-Checks inklusive).
   await sql.begin(async (tx) => {
     await tx`DELETE FROM verwaltungsgebiet`;
-    for (const [staging, ebene] of [
-      ["vg250_import_lan", "land"],
-      ["vg250_import_krs", "kreis"],
+    for (const [staging, ebene, geomCol] of [
+      ["vg250_import_lan", "land", geomLan],
+      ["vg250_import_krs", "kreis", geomKrs],
     ] as const) {
       // Doku: je Verwaltungseinheit genau EIN GF=4-Attributsatz — die
       // Gruppierung ist defensiv, falls eine Lieferung doch mehrere
@@ -66,8 +79,8 @@ async function main() {
                ${ebene}::verwaltungs_ebene,
                max(gen),
                max(bez),
-               ST_Multi(ST_Union(geom)),
-               ST_Multi(ST_SimplifyPreserveTopology(ST_Union(geom), ${SIMPLIFY_TOLERANZ})),
+               ST_Multi(ST_Union(${tx(geomCol)})),
+               ST_Multi(ST_SimplifyPreserveTopology(ST_Union(${tx(geomCol)}), ${SIMPLIFY_TOLERANZ})),
                ${VG250_STICHTAG}::date
         FROM ${tx(staging)}
         GROUP BY ars`;
