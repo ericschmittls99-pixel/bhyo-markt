@@ -38,7 +38,37 @@ jobs:
   # funktionierende Zustand (exakt umgekehrt zum Vorfall vom 22.09.).
   # Dieses Gate ist die TRAGENDE Pruefung; der Health-Check nach dem Rollout
   # ist nur zusaetzliche Bestaetigung.
+  # Typen und Tests laufen VOR allem anderen; Gate und Deploy haengen per
+  # `needs` daran. Branch Protection (erforderliche Checks) ist im Free-Plan
+  # fuer private Repos nicht verfuegbar — diese Abhaengigkeit ist deshalb der
+  # einzige technische Guard: Sind Typen oder Tests rot, erreicht der Stand
+  # WEDER Preview NOCH Production. Bewusst eng: nur Typen und Tests, kein
+  # Lint, keine Formatierung, keine Coverage.
+  typen-und-tests:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      # Getrennte Schritte, damit im Log sofort sichtbar ist, was bricht.
+      - name: Typen — apps/web
+        run: pnpm --filter web exec tsc --noEmit
+      - name: Typen — packages/db
+        run: pnpm --filter @bhyo/db exec tsc --noEmit
+      - name: Tests — apps/web
+        run: pnpm --filter web test -- --run
+      - name: Tests — packages/db
+        run: pnpm --filter @bhyo/db test
+
   schema-gate:
+    needs: [typen-und-tests]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # Environment nur wegen des Secrets DATABASE_URL_PRODUCTION; das Gate
@@ -72,10 +102,13 @@ jobs:
           echo "=============================================================="
 
   deploy:
-    needs: [schema-gate]
-    # PRs laufen immer; main-Pushes nur, wenn das schema-gate gruen ist.
+    needs: [typen-und-tests, schema-gate]
+    # Typen/Tests sind IMMER Vorbedingung (auch bei PRs — sonst deployt ein
+    # roter Stand auf die Preview). Zusaetzlich bei main-Pushes: nur wenn das
+    # schema-gate gruen ist.
     if: >-
       always() && !cancelled() &&
+      needs.typen-und-tests.result == 'success' &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
     runs-on: ubuntu-latest
