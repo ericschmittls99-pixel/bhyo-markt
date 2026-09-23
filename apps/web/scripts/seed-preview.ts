@@ -87,8 +87,13 @@ async function main() {
   // --- Einfuegen ---------------------------------------------------------------
   await sql.begin(async (tx) => {
     for (const a of akteure) {
+      // Idempotent auch dann, wenn ein Seed-Akteur wegen Nicht-Seed-Referenzen
+      // (z. B. manuell erfasste Stroeme auf der Preview) nicht geloescht
+      // wurde: dieselbe deterministische ID ist DERSELBE Akteur — er wird auf
+      // den Generator-Stand aktualisiert statt am Primaerschluessel zu platzen.
       await tx`INSERT INTO akteur (id, name, sektor, rollen, status)
-        VALUES (${a.id}, ${a.name}, ${a.sektor}, '{}', 'geprueft')`;
+        VALUES (${a.id}, ${a.name}, ${a.sektor}, '{}', 'geprueft')
+        ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, sektor = EXCLUDED.sektor`;
     }
     for (const s of alle) {
       let belegId: string | null = null;
