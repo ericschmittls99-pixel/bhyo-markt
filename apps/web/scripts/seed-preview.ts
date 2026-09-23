@@ -24,7 +24,7 @@ import {
   vergabenZuFormZeilen,
 } from "../lib/verfuegbarkeit";
 import { baueSeedDaten, MARKER, STICHTAG } from "./seed-daten";
-import { pruefeSeedZiel } from "./seed-guard";
+import { pruefeSeedZiel, pruefeStammdaten } from "./seed-guard";
 
 const ziel = pruefeSeedZiel(process.env);
 if ("fehler" in ziel) {
@@ -38,6 +38,22 @@ const BELEG_MARKER = "SEED-v2 (synthetisch)";
 async function main() {
   const { akteure, feedstock, outputs } = baueSeedDaten();
   const alle = [...feedstock, ...outputs];
+
+  // --- Stammdaten-Guard: VOR dem ersten Schreibzugriff, kein Ersatzprodukt ---
+  const [materialarten, produkte] = await Promise.all([
+    sql`SELECT code FROM materialart`,
+    sql`SELECT code FROM output_produkt`,
+  ]);
+  const stammdaten = pruefeStammdaten({
+    verwendeteMaterialarten: feedstock.map((s) => s.materialartCode!),
+    verwendeteProdukte: outputs.map((s) => s.produktCode!),
+    bekannteMaterialarten: materialarten.map((r) => r.code as string),
+    bekannteProdukte: produkte.map((r) => r.code as string),
+  });
+  if (stammdaten) {
+    console.error(`Abbruch: ${stammdaten.fehler}`);
+    process.exit(1);
+  }
 
   // --- Loeschen (nur Marker-Zeilen, FK-Reihenfolge) --------------------------
   await sql.begin(async (tx) => {
