@@ -36,14 +36,19 @@ export const OUTPUT_LABEL: Record<string, string> = {
 };
 
 /**
- * Qualitaets-Ring A->D: Navy -> Hellgrau. A nutzt bewusst navy-700 statt der
- * Pillen-Stufe navy-900 — als duenner Ring wirkte 900 fast schwarz (Review).
+ * E27 (23.09.2026): Die Ringfarben sind THEME-ABHAENGIGE Tokens, keine
+ * festen Hex-Werte mehr — die alte Navy-Rampe verschwand im Dark Mode
+ * (A dunkelstes Navy auf Navy-Grund). Die Werte je Theme stehen in
+ * globals.css; hier stehen nur noch die Verweise. Reihenfolge und
+ * Strichart liefert `ringStil` in karte-modell.
  */
-export const QUALITAET_RING: Record<string, string> = {
-  A: "#3c4a52",
-  B: "#55636b",
-  C: "#97a4ab",
-  D: "#d5d8d6",
+export const RING_FARBE: Record<string, string> = {
+  A: "var(--ring-a)",
+  B: "var(--ring-b)",
+  C: "var(--ring-c)",
+  D: "var(--ring-d)",
+  unbelegt: "var(--ring-unbelegt)",
+  ausserhalb: "var(--ring-ausserhalb)",
 };
 
 const UNBEKANNT = "#b9c0bd";
@@ -57,9 +62,9 @@ export function farbeFuer(art: "biomasse" | "output", farbeKey: string): string 
   return CLUSTER_FARBE[farbeKey] ?? UNBEKANNT;
 }
 
-/** Ringfarbe (Rand) anhand Qualitaet; ohne Bewertung dezenter Rand. */
-export function ringFuer(qualitaet: string | null): string {
-  return (qualitaet && QUALITAET_RING[qualitaet]) || "#b9c0bd";
+/** Ringfarbe (Rand) je Zustand — E24/E27, Tokens statt Hex. */
+export function ringFarbeFuer(zustand: string): string {
+  return RING_FARBE[zustand] ?? RING_FARBE.unbelegt!;
 }
 
 /**

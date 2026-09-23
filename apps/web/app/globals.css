@@ -3772,6 +3772,40 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .aw-statuszeile .aw-balken { width: 100%; }
 
+/* E27 (23.09.2026): Ring-Rampe der Kartenmarker — THEME-ABHAENGIG.
+   Light: dunkle Rampe auf hellen Kacheln (D gegenueber frueher ANGEHOBEN,
+   navy-300 war zu schwach). Dark: helle Grau/Weiss-Rampe, weil die dunkle
+   Rampe auf Navy-Grund verschwand (A war praktisch unsichtbar).
+   In beiden Themes dieselbe Rangfolge A > B > C > D; Breite und Strichart
+   tragen sie zusaetzlich (siehe ringStil in lib/karte-modell.ts).
+   "unbelegt" bleibt zurueckhaltend, "ausserhalb" faellt bewusst auf. */
+:root {
+  --ring-a: var(--bhyo-navy-900);
+  --ring-b: var(--bhyo-navy-700);
+  --ring-c: var(--bhyo-navy-500);
+  --ring-d: var(--bhyo-navy-400);
+  --ring-unbelegt: var(--bhyo-navy-200);
+  --ring-ausserhalb: var(--bhyo-navy-900);
+}
+[data-theme="dark"] {
+  --ring-a: #eaf0f2;
+  --ring-b: #a9b6bd;
+  --ring-c: #7f8f97;
+  --ring-d: #6c7a81;
+  --ring-unbelegt: #4a5a63;
+  --ring-ausserhalb: #eaf0f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ring-a: #eaf0f2;
+    --ring-b: #a9b6bd;
+    --ring-c: #7f8f97;
+    --ring-d: #6c7a81;
+    --ring-unbelegt: #4a5a63;
+    --ring-ausserhalb: #eaf0f2;
+  }
+}
+
 /* Qualitaet: Donut in Navy-Rampe (dark: hell -> dunkel, wie Referenz) */
 :root {
   --aw-qual-A: var(--bhyo-navy-900);

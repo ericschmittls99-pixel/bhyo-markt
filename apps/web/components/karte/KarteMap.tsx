@@ -25,7 +25,7 @@ import {
   markerGroesse,
   maxMengeJe,
   partGroesse,
-  qualitaetsRing,
+  ringStil,
   type KartePunkt,
 } from "@/lib/karte-modell";
 
@@ -322,7 +322,7 @@ export function KarteMap({
       if (typ === "single") {
         const p = mitglieder[0]!;
         punktId = p.id;
-        const ring = qualitaetsRing(p.qualitaet);
+        const ring = ringStil(p.ringZustand);
         halo.style.border = `${ring.breite}px ${ring.stil} ${ring.farbe}`;
         if (p.id === aktiv) orbEl.classList.add("is-active");
         // Status im Tooltip statt Marker-Faerbung (Beschluss 22.09.2026).
@@ -470,7 +470,11 @@ export function KarteMap({
         id: "km-regionen-line",
         type: "line",
         source: src,
-        paint: { "line-color": LIME, "line-width": 2, "line-opacity": 0.9 },
+        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken) und eine
+        // praegnantere Linie — die Umrisse sollen die Flaeche fuehren, ohne
+        // mit den Markern zu konkurrieren.
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": LIME, "line-width": 3, "line-opacity": 1 },
       });
     }
 

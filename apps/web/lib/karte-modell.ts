@@ -1,4 +1,4 @@
-import { orbSrc } from "./farben";
+import { orbSrc, ringFarbeFuer } from "./farben";
 import type { Strom } from "./stroeme-modell";
 import { verfuegbarkeitPill } from "./verfuegbarkeit";
 
@@ -8,6 +8,9 @@ import { verfuegbarkeitPill } from "./verfuegbarkeit";
  * hier passiert nur noch die Ableitung fuer die Darstellung. Lehre aus PR 3:
  * keine stummen Fallbacks — unerwartete Formate werden protokolliert.
  */
+
+/** Zustaende, die der Marker-Ring unterscheidet (E24/E27). */
+export type RingZustand = "A" | "B" | "C" | "D" | "unbelegt" | "ausserhalb";
 
 export interface KartePunkt {
   id: string;
@@ -22,6 +25,14 @@ export interface KartePunkt {
   menge: number;
   einheit: string;
   qualitaet: string | null;
+  /**
+   * E24/E27 auf der Karte: der Ring zeigt nicht nur die Stufe, sondern den
+   * ZUSTAND — "unbelegt" (kein Beleg) und "ausserhalb" (Koordinate in
+   * keinem Verwaltungsgebiet) sind eigene, unterscheidbare Faelle. "ohne
+   * Koordinate" kommt hier nie vor: solche Stroeme haben keinen Pin
+   * (stromZuPunkt liefert null) — sie stehen nur in der Legende.
+   */
+  ringZustand: RingZustand;
   titel: string;
   untertitel: string;
   ort: string | null;
@@ -43,6 +54,12 @@ export function stromZuPunkt(s: Strom): KartePunkt | null {
     menge: (feed ? s.mengeAtro : s.mengeWert) ?? 0,
     einheit: feed ? "t atro/a" : (s.mengeEinheit ?? ""),
     qualitaet: s.qualitaet,
+    // "ausserhalb" schlaegt die Stufe: der Pin liegt in keinem Gebiet, das
+    // deutet auf eine falsche Koordinate hin und soll auffallen.
+    ringZustand:
+      s.verwaltung == null
+        ? "ausserhalb"
+        : ((s.qualitaet as RingZustand | null) ?? "unbelegt"),
     titel: s.akteurName ?? s.bezeichnung ?? "–",
     untertitel: (feed ? s.materialartLabel : s.produktLabel) ?? "",
     ort: s.ort,
@@ -130,24 +147,38 @@ export function maxMengeJe(punkte: KartePunkt[]): Map<string, number> {
  * grossen Glas-Halo (Orb-Bild 6 px eingerueckt), dadurch wirken 2–2,5 px
  * dort richtig. Rampe navy-900/700/500/300, keine Ampel.
  */
-export function qualitaetsRing(q: string | null): {
+/**
+ * E27 (Eric, 23.09.2026): Ring je Zustand — THEME-ABHAENGIG ueber Tokens
+ * statt fester Hex-Rampe. Light behaelt die dunkle Rampe (D angehoben, war
+ * zu schwach), Dark bekommt die helle Grau/Weiss-Rampe des Design-Systems.
+ * In BEIDEN Themes dieselbe Rangfolge: A am kraeftigsten, D am
+ * zurueckhaltendsten. Die Reihenfolge traegt dreifach — Helligkeit,
+ * Strichstaerke UND Strichart —, damit sie bei Farbsehschwaeche und auf
+ * unruhigem Kartenhintergrund lesbar bleibt.
+ *
+ * E24: "unbelegt" ist zurueckhaltend gestrichelt (kein Beleg = keine
+ * Aussage), "ausserhalb" faellt bewusst auf (doppelte Kontur, voller
+ * Kontrast) — es deutet auf eine falsche Koordinate hin. Bewusst KEINE
+ * Ampelfarbe: die Unterscheidung laeuft ueber Strichart und Breite.
+ */
+export function ringStil(zustand: RingZustand): {
   breite: number;
-  stil: "solid" | "dashed" | "dotted";
+  stil: "solid" | "dashed" | "dotted" | "double";
   farbe: string;
 } {
-  switch (q) {
+  switch (zustand) {
     case "A":
-      return { breite: 2.5, stil: "solid", farbe: "#1f2e38" };
+      return { breite: 3, stil: "solid", farbe: ringFarbeFuer("A") };
     case "B":
-      return { breite: 2, stil: "solid", farbe: "#3c4a52" };
+      return { breite: 2.5, stil: "solid", farbe: ringFarbeFuer("B") };
     case "C":
-      return { breite: 2, stil: "dashed", farbe: "#6c7a81" };
+      return { breite: 2, stil: "dashed", farbe: ringFarbeFuer("C") };
     case "D":
-      return { breite: 2, stil: "dotted", farbe: "#a3acb1" };
-    default:
-      // E24: q == null heisst "unbelegt" (Strom ohne Beleg) — bewusst der
-      // duennste, fast transparente Ring; kein stiller Fallback auf D.
-      return { breite: 1.5, stil: "solid", farbe: "rgba(31,46,56,0.18)" };
+      return { breite: 1.5, stil: "dotted", farbe: ringFarbeFuer("D") };
+    case "unbelegt":
+      return { breite: 1.5, stil: "dashed", farbe: ringFarbeFuer("unbelegt") };
+    case "ausserhalb":
+      return { breite: 4, stil: "double", farbe: ringFarbeFuer("ausserhalb") };
   }
 }
 
