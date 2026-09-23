@@ -113,3 +113,29 @@ export function berechneGueltigBis(
   }
   return null;
 }
+
+/**
+ * F7: Stufen-Obergrenze eines Belegtyps OHNE Datei/Link (uebrige
+ * Pflichtfelder hypothetisch vollstaendig) — null, wenn eine Datei die
+ * Stufe gar nicht hoebe (gespraech). Speist den Live-Hinweis im Formular:
+ * "Ohne Datei oder Link erreicht dieser Beleg nur Stufe X".
+ */
+export function stufeObergrenzeOhneDatei(typ: BelegTyp): Qualitaet | null {
+  const beste = (mitDatei: boolean) =>
+    deriveQualitaet({
+      typ,
+      externNachvollziehbar: true,
+      erhebungsdatum: "2026-01-01",
+      dateiKey: mitDatei ? "x" : null,
+      linkUrl: null,
+      gueltigBis: "2026-12-31",
+      metadata: {
+        amtlich: true,
+        quellenangabe: "x",
+        gespraechsdatum: "x",
+        gespraechspartner: "x",
+      },
+    });
+  const ohne = beste(false);
+  return beste(true) === ohne ? null : ohne;
+}

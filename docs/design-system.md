@@ -170,6 +170,14 @@ Rückwärtssuche als „aus Pin übernommen" nachgezogen. Der Landkreis
 erscheint nicht im Formular (bleibt Attribut in Filter, Tabelle, CSV).
 Attribution „Suche: © OpenStreetMap-Mitwirkende" als Caption.
 
+## Beleg-Erfassung (F7, 23.09.2026)
+
+Pflicht am Beleg sind Quellenangabe und Erhebungsdatum; Datei und Link
+sind optional. Die Qualitäts-Box zeigt im Moment der Entscheidung den
+Preis: „Ohne Datei oder Link erreicht dieser Beleg nur Stufe X" (nur
+wenn eine Datei die Stufe tatsächlich höbe — beim Gespräch nicht). Der
+Erfassungsgrad zählt „Datei oder Link vorhanden" als Prüfpunkt.
+
 ## Mini-Switch (Modul-Umschalter)
 
 Pillen-SegmentedControl im Modulkopf (z. B. „energie ↔ CO₂ & Asche"):

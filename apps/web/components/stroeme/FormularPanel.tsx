@@ -36,7 +36,7 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
-import { deriveQualitaet, type BelegTyp } from "@/lib/qualitaet";
+import { deriveQualitaet, stufeObergrenzeOhneDatei, type BelegTyp } from "@/lib/qualitaet";
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
@@ -206,6 +206,15 @@ export function FormularPanel({
         metadata: { amtlich, quellenangabe, gespraechsdatum, gespraechspartner },
       })
     : null;
+  // F7: Der Erfasser sieht den Preis der Entscheidung im Moment der
+  // Entscheidung — ohne Datei/Link nur die niedrigere Stufe (Matrix
+  // unveraendert). Gezeigt wird die OBERGRENZE des Typs ohne Datei
+  // (sonst hypothetisch vollstaendig), und nur bei Typen, bei denen
+  // eine Datei die Stufe ueberhaupt hoebe (beim Gespraech nicht).
+  const ohneDateiUndLink = !!typ && !dateiName && !bestehendeDatei && !link.trim();
+  const dateiHinweis =
+    ohneDateiUndLink && typ ? stufeObergrenzeOhneDatei(typ) : null;
+
   const verifizierung = typ
     ? naechsteVerifizierung({
         typ,
@@ -1000,6 +1009,11 @@ export function FormularPanel({
                   ? ` Nächste Verifizierung: ${fmtDatum(verifizierung)}`
                   : ""}
               </span>
+              {dateiHinweis && (
+                <span className="c qual-hinweis">
+                  Ohne Datei oder Link erreicht dieser Beleg nur Stufe {dateiHinweis}.
+                </span>
+              )}
             </div>
           </section>
 

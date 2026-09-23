@@ -31,6 +31,8 @@ export interface VollstaendigkeitEingabe {
     quellenangabe: string | null;
     erhebungsdatum: string | null;
     externNachvollziehbar: boolean;
+    /** F7: Datei oder Link vorhanden — fehlende Datei ist fehlende Vollstaendigkeit. */
+    dateiOderLink: boolean;
     /** Nur gespraech: Kernnotiz aus beleg.metadata. */
     kernnotiz: string | null;
   } | null;
@@ -70,6 +72,7 @@ export function vollstaendigkeit(e: VollstaendigkeitEingabe): number {
     b ? (b.typ === "gespraech" ? b.kernnotiz : true) : false,
     b?.erhebungsdatum,
     b?.externNachvollziehbar,
+    b?.dateiOderLink,
     e.status !== "entwurf",
   ];
   const voll = checks.filter(gefuellt).length;
