@@ -21,7 +21,6 @@ import {
 // docs/ap0-schema-entscheidungen.md ein.
 describe("Enum datensatz_status", () => {
   it("hat den festgelegten Namen und die vier Zustaende in Reihenfolge", () => {
-    expect(1).toBe(2); // WEGWERF: Guard-Nachweis, wird zurueckgenommen
     expect(datensatzStatus.enumName).toBe("datensatz_status");
     expect(datensatzStatus.enumValues).toEqual([
       "entwurf",
