@@ -36,7 +36,7 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
-import { deriveQualitaet, type BelegTyp } from "@/lib/qualitaet";
+import { deriveQualitaet, stufeObergrenzeOhneDatei, type BelegTyp } from "@/lib/qualitaet";
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
@@ -212,25 +212,8 @@ export function FormularPanel({
   // (sonst hypothetisch vollstaendig), und nur bei Typen, bei denen
   // eine Datei die Stufe ueberhaupt hoebe (beim Gespraech nicht).
   const ohneDateiUndLink = !!typ && !dateiName && !bestehendeDatei && !link.trim();
-  const typStufe = (mitDatei: boolean) =>
-    typ
-      ? deriveQualitaet({
-          typ,
-          externNachvollziehbar: true,
-          erhebungsdatum: "2026-01-01",
-          dateiKey: mitDatei ? "x" : null,
-          linkUrl: null,
-          gueltigBis: "2026-12-31",
-          metadata: {
-            amtlich: true,
-            quellenangabe: "x",
-            gespraechsdatum: "x",
-            gespraechspartner: "x",
-          },
-        })
-      : null;
   const dateiHinweis =
-    ohneDateiUndLink && typStufe(true) !== typStufe(false) ? typStufe(false) : null;
+    ohneDateiUndLink && typ ? stufeObergrenzeOhneDatei(typ) : null;
 
   const verifizierung = typ
     ? naechsteVerifizierung({
