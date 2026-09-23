@@ -403,6 +403,11 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
 
   // E23: fortlaufende Nummer fuer die synthetischen Beleg-Links (Determinismus).
   let linkNr = 1;
+  // E24: 2 Feedstock- + 1 Output-Strom bleiben BEWUSST ohne Beleg — die
+  // Ankerfaelle "unbelegt" (A15a/A15b/A15c). Alle uebrigen entwurf-Stroeme
+  // bekommen einen Beleg; ihre Zielstufe kommt weiter aus der Ziehliste.
+  let unbelegtFeed = 0;
+  let unbelegtOut = 0;
 
   // Qualitaets-/Status-/Bucket-Ziehlisten (deterministisch gemischt)
   const qualListe = mische([
@@ -529,7 +534,20 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     const status = statusListe[qsIdx]!;
     qsIdx++;
 
-    const ankerTag = so.anker ? ` [ANKER-${so.anker.replace("A", "")}]` : "";
+    const unbelegtAnker =
+      status === "entwurf" && !so.anker && unbelegtFeed < 2
+        ? ["A15a", "A15b"][unbelegtFeed++]
+        : undefined;
+    const anker = so.anker ?? unbelegtAnker;
+    // PRNG-Zugverbrauch bleibt EXAKT wie vor E24 (zwei Zuege je
+    // Nicht-entwurf-Strom): sonst verschieben sich alle nachgelagerten
+    // Zufallswerte und die Geografie-Invariante (Quasi-Duplikat-Paare)
+    // kippt. Neue entwurf-Belege datieren deterministisch aus linkNr.
+    const belegDatum =
+      status !== "entwurf"
+        ? `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`
+        : `${B}-0${(linkNr % 8) + 1}-1${linkNr % 6}`;
+    const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
     const akteurIndex = machAkteur(`${art.anbieter} ${ort}`, art.sektor);
 
     return {
@@ -556,16 +574,15 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       reserviertBhyo: reserviert,
       reserviertSeit,
       vergaben,
-      beleg:
-        status === "entwurf"
-          ? null
-          : belegFuerZiel(
-              qualitaet,
-              `Synthetischer Seed-Beleg (${art.label})`,
-              `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
-              linkNr++,
-            ),
-      anker: so.anker,
+      beleg: unbelegtAnker
+        ? null
+        : belegFuerZiel(
+            qualitaet,
+            `Synthetischer Seed-Beleg (${art.label})`,
+            belegDatum,
+            linkNr++,
+          ),
+      anker,
     };
   });
   if (ausreisser !== 2) throw new Error("Ausreisser-Slots verfehlt");
@@ -640,7 +657,17 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     const qualitaet = outQual[outIdx]!;
     const status = outStatus[outIdx]!;
     outIdx++;
-    const ankerTag = so.anker ? ` [ANKER-${so.anker.replace("A", "")}]` : "";
+    const unbelegtAnker =
+      status === "entwurf" && !so.anker && unbelegtOut < 1
+        ? ["A15c"][unbelegtOut++]
+        : undefined;
+    const anker = so.anker ?? unbelegtAnker;
+    // Zugverbrauch wie vor E24 — siehe Kommentar im Feedstock-Block.
+    const belegDatum =
+      status !== "entwurf"
+        ? `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`
+        : `${B}-0${(linkNr % 8) + 1}-1${linkNr % 6}`;
+    const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
     const akteurIndex = machAkteur(`${abnehmer} ${ort}`, "abnehmer");
 
     return {
@@ -665,16 +692,15 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       reserviertBhyo: reserviert,
       reserviertSeit,
       vergaben,
-      beleg:
-        status === "entwurf"
-          ? null
-          : belegFuerZiel(
-              qualitaet,
-              `Synthetischer Seed-Beleg (${p.label})`,
-              `${B}-0${ganz(1, 8)}-1${ganz(0, 5)}`,
-              linkNr++,
-            ),
-      anker: so.anker,
+      beleg: unbelegtAnker
+        ? null
+        : belegFuerZiel(
+            qualitaet,
+            `Synthetischer Seed-Beleg (${p.label})`,
+            belegDatum,
+            linkNr++,
+          ),
+      anker,
     };
   });
 
