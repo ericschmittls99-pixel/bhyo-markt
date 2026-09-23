@@ -12,6 +12,7 @@ import {
   maxMengeJe,
   partGroesse,
   punkteInBbox,
+  popoverZeilen,
   ringStil,
   stromZuPunkt,
   sucheKarte,
@@ -363,5 +364,19 @@ describe("faecherLayout (Bogen mit Luecke zu Nachbarn; max ~15; '…' bei mehr)"
     const l = faecherLayout(22, 26, 54);
     expect(l.sichtbar).toBe(14);
     expect(l.mehr).toBe(true);
+  });
+});
+
+// F2: Inhalt des Glas-Popovers (Marker-Hover).
+describe("popoverZeilen", () => {
+  it("Titel zuerst, darunter Materialart, Ort und Status", () => {
+    expect(
+      popoverZeilen({ titel: "Hof Müller", untertitel: "Rindergülle", ort: "Speyer", statusText: "verfügbar." }),
+    ).toEqual({ titel: "Hof Müller", zeilen: ["Rindergülle", "Speyer", "verfügbar."] });
+  });
+  it("laesst leere Angaben weg, statt Trennzeichen zu haeufen", () => {
+    expect(
+      popoverZeilen({ titel: "Nur Titel", untertitel: "", ort: null, statusText: "" }),
+    ).toEqual({ titel: "Nur Titel", zeilen: [] });
   });
 });

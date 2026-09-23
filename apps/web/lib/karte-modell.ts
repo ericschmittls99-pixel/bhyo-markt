@@ -9,6 +9,23 @@ import { verfuegbarkeitPill } from "./verfuegbarkeit";
  * keine stummen Fallbacks — unerwartete Formate werden protokolliert.
  */
 
+/**
+ * F2: Inhalt des Glas-Popovers am Marker-Hover — Titel zuerst, darunter die
+ * belegten Zusatzzeilen. Rein, damit der Inhalt testbar bleibt und nicht im
+ * DOM-Code verstreut entsteht.
+ */
+export function popoverZeilen(p: {
+  titel: string;
+  untertitel: string;
+  ort: string | null;
+  statusText: string;
+}): { titel: string; zeilen: string[] } {
+  return {
+    titel: p.titel,
+    zeilen: [p.untertitel, p.ort ?? "", p.statusText].filter((z) => z.trim() !== ""),
+  };
+}
+
 /** Zustaende, die der Marker-Ring unterscheidet (E24/E27). */
 export type RingZustand = "A" | "B" | "C" | "D" | "unbelegt" | "ausserhalb";
 

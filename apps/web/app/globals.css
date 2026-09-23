@@ -3091,12 +3091,16 @@ table.st-tabelle tbody tr:focus-visible {
   width: 100%;
   height: 100%;
 }
+/* F2 (Eric, 23.09.2026): Kontrast gesenkt und Helligkeit leicht angehoben,
+   damit die feinen OSM-Details (Hoehenangaben, Hoehenpunkte, Ortsstrassen)
+   zuruecktreten, ohne dass die Karte unscharf wirkt. Gewaehlt aus je drei
+   Varianten: hell V2, dunkel V1. grayscale/invert/hue-rotate unveraendert. */
 .km-flaeche canvas {
-  filter: grayscale(1) contrast(0.92) brightness(1.04);
+  filter: grayscale(1) contrast(0.8) brightness(1.1);
 }
 [data-theme="dark"] .km-flaeche canvas {
-  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.85)
-    brightness(0.9);
+  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.8)
+    brightness(0.94);
 }
 
 /* Marker: 1:1 Mockup — Orb-Bild (km-fill) 6 px im Glas-Halo, Zaehler-Pille,
@@ -3201,6 +3205,50 @@ table.st-tabelle tbody tr:focus-visible {
     opacity: 1;
     transform: none;
   }
+}
+
+/* F2: Glas-Popover am Marker-Hover — ersetzt den nativen Browser-Tooltip
+   (unstyled, verzoegert, im Dark Mode systemfarben). Titel zuerst, darunter
+   Materialart/Produkt und der abgeleitete Status. Erscheint ueber dem Orb,
+   faengt keine Mausereignisse ab (sonst flackert der Hover). */
+.km-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-card);
+  background: var(--glass-fill-strong);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+.km-marker:hover > .km-pop,
+.km-marker:focus-visible > .km-pop {
+  display: flex;
+  animation: km-pop-auf var(--duration-fast) var(--ease-standard);
+}
+@keyframes km-pop-auf {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(4px); }
+}
+.km-pop-titel {
+  font: 600 13px/1.35 var(--font-sans);
+  color: var(--text-primary);
+}
+.km-pop-zeile {
+  font: var(--type-caption);
+  color: var(--text-secondary);
 }
 
 /* Glas-Label der Regionsumrisse */
