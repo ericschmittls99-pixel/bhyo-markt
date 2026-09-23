@@ -372,6 +372,18 @@ describe("qualitaetsDaten", () => {
     expect(q.zeilen.find((z) => z.stufe === "A")).toMatchObject({ anzahl: 2, pct: 67 });
     expect(q.zeilen.find((z) => z.stufe === "C")).toMatchObject({ anzahl: 0, pct: 0 });
   });
+
+  // E24: unbelegte Stroeme fallen nicht mehr stumm raus.
+  it("zeigt unbelegte als eigene Zeile (pct auf alle), Donut bleibt A-D", () => {
+    const q = qualitaetsDaten([f1, f2, o1, strom({ id: "u", qualitaet: null })]);
+    expect(q.segmente.map((s) => s.stufe)).toEqual(["A", "B", "C", "D"]);
+    expect(q.zeilen.find((z) => z.stufe === "unbelegt")).toMatchObject({ anzahl: 1, pct: 25 });
+  });
+
+  it("ohne unbelegte Stroeme gibt es keine unbelegt-Zeile", () => {
+    const q = qualitaetsDaten([f1, f2, o1]);
+    expect(q.zeilen.some((z) => z.stufe === "unbelegt")).toBe(false);
+  });
 });
 
 describe("statusZeilen", () => {

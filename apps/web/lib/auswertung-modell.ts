@@ -489,9 +489,15 @@ const QUALITAET_BESCHREIBUNG: Record<string, string> = {
   D: "nur intern, nicht belegt",
 };
 
-/** Verteilung A-D nur ueber bewertete Stroeme (unbewertete fallen raus — Mockup-Luecke, im PR-Text). */
+/**
+ * Verteilung A-D ueber bewertete Stroeme; Donut und A+B-Quote bleiben auf
+ * die bewerteten bezogen. E24: unbelegte Stroeme (qualitaet null) fallen
+ * nicht mehr stumm raus — sie erscheinen als eigene Zeile "unbelegt"
+ * (klickbarer Filterwert, pct bezogen auf ALLE Stroeme der Sicht).
+ */
 export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
   const bewertet = recs.filter((s) => s.qualitaet != null);
+  const unbelegt = recs.length - bewertet.length;
   const anzahl = (stufe: string) => bewertet.filter((s) => s.qualitaet === stufe).length;
   const stufen = ["A", "B", "C", "D"];
   return {
@@ -500,12 +506,22 @@ export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
       anteil: bewertet.length ? anzahl(stufe) / bewertet.length : 0,
     })),
     abProzent: pct(anzahl("A") + anzahl("B"), bewertet.length),
-    zeilen: stufen.map((stufe) => ({
-      stufe,
-      label: QUALITAET_BESCHREIBUNG[stufe]!,
-      anzahl: anzahl(stufe),
-      pct: pct(anzahl(stufe), bewertet.length),
-    })),
+    zeilen: [
+      ...stufen.map((stufe) => ({
+        stufe,
+        label: QUALITAET_BESCHREIBUNG[stufe]!,
+        anzahl: anzahl(stufe),
+        pct: pct(anzahl(stufe), bewertet.length),
+      })),
+      ...(unbelegt > 0
+        ? [{
+            stufe: "unbelegt",
+            label: "ohne Beleg — keine Stufe",
+            anzahl: unbelegt,
+            pct: pct(unbelegt, recs.length),
+          }]
+        : []),
+    ],
   };
 }
 

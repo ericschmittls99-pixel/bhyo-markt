@@ -214,7 +214,9 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
     case "materialart":
       return s.materialartCode ? [s.materialartCode] : [];
     case "qualitaet":
-      return s.qualitaet ? [s.qualitaet] : [];
+      // E24: null ist der benannte Zustand "unbelegt" — als Filterwert
+      // adressierbar, sonst verschwaenden beleglose Stroeme aus jedem Filter.
+      return [s.qualitaet ?? "unbelegt"];
     case "status":
       return [s.status];
     case "verfuegbarkeit":
@@ -301,6 +303,7 @@ function sortWert(s: Strom, key: string): string | number {
     case "produkt":
       return s.produktLabel ?? "";
     case "qualitaet":
+      // E24: unbelegt sortiert HINTER der niedrigsten Stufe ("E" > "D").
       return s.qualitaet ?? "E";
     case "status":
       return STATUS_REIHENFOLGE.indexOf(s.status);
@@ -369,7 +372,11 @@ export function facettenOptionen(
 
   const gemeinsam = {
     region: regionen.map((r) => ({ wert: r.id, label: r.name })),
-    qualitaet: ["A", "B", "C", "D"].map((q) => ({ wert: q, label: q })),
+    qualitaet: [
+      ...["A", "B", "C", "D"].map((q) => ({ wert: q, label: q })),
+      // E24: eigener Filterwert fuer Stroeme ohne Beleg.
+      { wert: "unbelegt", label: "unbelegt" },
+    ],
     status: [
       { wert: "entwurf", label: "Entwurf" },
       { wert: "in_pruefung", label: "In Prüfung" },

@@ -39,6 +39,13 @@ Output nach Gruppe (Raute):
 Qualität A–D als Ring und Pille, Graustufen, keine Ampelfarben:
 A `#1F2E38` · B `#4A5C66` · C `#97A4AB` · D `#D5D8D6`.
 
+Seit E23/E24 ist die Stufe eine reine Ableitung aus dem Beleg — ein Strom
+ohne Beleg hat **keine** Stufe. Anzeige als Pille „unbelegt" (`konf--leer`,
+nicht „–": der Zustand ist benannt und als eigener Filterwert wählbar),
+Sortierung hinter D, Karten-Ring am dünnsten und fast transparent, in der
+auswertung. eine eigene Zeile „ohne Beleg — keine Stufe" unterhalb von D
+(Donut und A+B-Quote bleiben auf bewertete Ströme bezogen).
+
 ### Verfügbarkeits-Pillen (AP1j)
 
 Der Verfügbarkeitsstatus wird **nie gespeichert, immer abgeleitet** (Hierarchie

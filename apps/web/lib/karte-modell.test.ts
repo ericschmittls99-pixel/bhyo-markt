@@ -115,6 +115,15 @@ describe("stromZuPunkt", () => {
   });
 });
 
+// E24: unbelegt (null) hat einen eigenen, expliziten Ring — kein Fallback auf D.
+describe("qualitaetsRing unbelegt", () => {
+  it("null bekommt den duennsten, fast transparenten Ring, nicht den D-Ring", () => {
+    const leer = qualitaetsRing(null);
+    expect(leer).toEqual({ breite: 1.5, stil: "solid", farbe: "rgba(31,46,56,0.18)" });
+    expect(leer).not.toEqual(qualitaetsRing("D"));
+  });
+});
+
 describe("markerGroesse (Mockup: 30 + 32·√v, v geclampt 0–1)", () => {
   it("skaliert 30–62", () => {
     expect(markerGroesse(0, 100)).toBe(30);

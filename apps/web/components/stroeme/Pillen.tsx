@@ -5,9 +5,14 @@ import {
   type VerfuegbarkeitsErgebnis,
 } from "@/lib/verfuegbarkeit";
 
-/** Qualitaets-Pille V2: nur der Buchstabe, Navy-Rampe A-D (keine Ampel). */
+/**
+ * Qualitaets-Pille V2: nur der Buchstabe, Navy-Rampe A-D (keine Ampel).
+ * E24: ohne Beleg gibt es keine Stufe — Anzeige "unbelegt" (nicht "–",
+ * damit der Zustand benannt ist und im Filter wiederauffindbar bleibt).
+ */
 export function KonfidenzPill({ stufe }: { stufe: string | null }) {
-  if (!stufe) return <span className="konf konf--leer">–</span>;
+  if (!stufe || stufe === "unbelegt")
+    return <span className="konf konf--leer">unbelegt</span>;
   return <span className={`konf konf--${stufe}`}>{stufe}</span>;
 }
 
