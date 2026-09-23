@@ -208,22 +208,29 @@ export function FormularPanel({
     : null;
   // F7: Der Erfasser sieht den Preis der Entscheidung im Moment der
   // Entscheidung — ohne Datei/Link nur die niedrigere Stufe (Matrix
-  // unveraendert). Hinweis nur, wenn eine Datei die Stufe wirklich hoebe
-  // (beim Gespraech z. B. nicht).
+  // unveraendert). Gezeigt wird die OBERGRENZE des Typs ohne Datei
+  // (sonst hypothetisch vollstaendig), und nur bei Typen, bei denen
+  // eine Datei die Stufe ueberhaupt hoebe (beim Gespraech nicht).
   const ohneDateiUndLink = !!typ && !dateiName && !bestehendeDatei && !link.trim();
-  const stufeMitDatei = typ
-    ? deriveQualitaet({
-        typ,
-        externNachvollziehbar: extern,
-        erhebungsdatum: erhebungsdatum || null,
-        dateiKey: "x",
-        linkUrl: null,
-        gueltigBis: typ === "angebot" ? gueltigBis || null : null,
-        metadata: { amtlich, quellenangabe, gespraechsdatum, gespraechspartner },
-      })
-    : null;
+  const typStufe = (mitDatei: boolean) =>
+    typ
+      ? deriveQualitaet({
+          typ,
+          externNachvollziehbar: true,
+          erhebungsdatum: "2026-01-01",
+          dateiKey: mitDatei ? "x" : null,
+          linkUrl: null,
+          gueltigBis: "2026-12-31",
+          metadata: {
+            amtlich: true,
+            quellenangabe: "x",
+            gespraechsdatum: "x",
+            gespraechspartner: "x",
+          },
+        })
+      : null;
   const dateiHinweis =
-    ohneDateiUndLink && qualitaet && stufeMitDatei !== qualitaet ? qualitaet : null;
+    ohneDateiUndLink && typStufe(true) !== typStufe(false) ? typStufe(false) : null;
 
   const verifizierung = typ
     ? naechsteVerifizierung({
