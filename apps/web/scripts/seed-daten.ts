@@ -247,7 +247,7 @@ const SONDER: Record<string, Sonder> = {
   // ausserhalb der Region-Box sind hier GEWOLLT (eigener Test, Box-Test
   // nimmt A16 aus). Koordinaten gegen die Preview-DB verifiziert.
   "waldrestholz#2": { anker: "A16a", koordFest: [8.414, 49.337], ortFest: "Speyer (Kreisgrenze)" },
-  "waldrestholz#3": { anker: "A16b", koordFest: [8.45, 49.317], ortFest: "Rheinufer BW" },
+  "waldrestholz#3": { anker: "A16b", koordFest: [8.455, 49.317], ortFest: "Rheinufer BW" },
   "bioabfall#3": { anker: "A16d", koordFest: [9.9937, 53.5511], ortFest: "Hamburg" },
   "papierschlamm#1": { anker: "A16g", koordFest: null, ortFest: "unbekannt (ohne Koordinate)" },
   "saegemehl#1": { bhyo: true, bucket: 2 },

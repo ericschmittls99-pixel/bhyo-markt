@@ -250,7 +250,7 @@ describe("Feedstock §1", () => {
   // F0b: die sieben raeumlichen Ankerfaelle der VG250-Zuordnung.
   it("A16: sieben raeumliche Anker — Grenzen, Stadtkreis, Stadtstaat, Ausland, Bodensee, ohne Koordinate", () => {
     expect(anker("A16a").lng).toBeCloseTo(8.414, 3);
-    expect(anker("A16b").lng).toBeCloseTo(8.45, 3);
+    expect(anker("A16b").lng).toBeCloseTo(8.455, 3);
     expect(anker("A16c").lng).toBeCloseTo(8.466, 3);
     expect(anker("A16d").lat).toBeCloseTo(53.5511, 3);
     expect(anker("A16e").lng).toBeCloseTo(7.75, 3);
