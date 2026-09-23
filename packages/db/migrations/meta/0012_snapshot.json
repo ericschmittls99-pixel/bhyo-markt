@@ -1,6 +1,6 @@
 {
-  "id": "18e204bd-c2c4-43b3-94c4-0b46fb992335",
-  "prevId": "1bb505fa-3f8c-4720-bd86-b1061b76cc87",
+  "id": "b2f59500-b536-4021-96ec-de8d36cb8167",
+  "prevId": "18e204bd-c2c4-43b3-94c4-0b46fb992335",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -435,6 +435,30 @@
           "primaryKey": false,
           "notNull": false
         },
+        "strasse": {
+          "name": "strasse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hausnummer": {
+          "name": "hausnummer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bundesland": {
+          "name": "bundesland",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "standort_geom": {
           "name": "standort_geom",
           "type": "geometry(point)",
@@ -785,6 +809,30 @@
         },
         "landkreis": {
           "name": "landkreis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strasse": {
+          "name": "strasse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hausnummer": {
+          "name": "hausnummer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bundesland": {
+          "name": "bundesland",
           "type": "text",
           "primaryKey": false,
           "notNull": false
