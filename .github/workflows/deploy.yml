@@ -99,6 +99,26 @@ jobs:
       # werden muessen. Production migriert dieser Workflow NIE — nur der
       # manuell ausgeloeste Workflow migrate-production.yml (E21). Der direkte
       # Neon-Connection-String kommt aus dem Repo-Secret, nie aus dem Repo.
+      # F0b PR D: Archiv-Waechter — sichert die befuellten E7-Altfelder als
+      # Workflow-Artefakt, BEVOR 0017 sie droppt (auf der Preview sind das
+      # die "Test:"-Zeilen; gewollt und als Artefakt nachvollziehbar).
+      # Defensiv: nach dem DROP entfaellt er mit Hinweis.
+      - name: Altfelder archivieren (Waechter 0017)
+        if: github.event_name == 'pull_request'
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          pnpm run archiv-altfelder
+          test -f altfelder-archiv.json || { echo '::error::Archivdatei fehlt — kein DROP.'; exit 1; }
+
+      - name: Altfelder-Archiv hochladen
+        if: github.event_name == 'pull_request'
+        uses: actions/upload-artifact@v4
+        with:
+          name: altfelder-archiv-preview
+          path: packages/db/altfelder-archiv.json
+
       - name: Migrate Preview-DB
         if: github.event_name == 'pull_request'
         working-directory: packages/db

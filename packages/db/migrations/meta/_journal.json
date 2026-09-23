@@ -120,6 +120,13 @@
       "when": 1790171887093,
       "tag": "0016_strom_verwaltung_covers",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790180200605,
+      "tag": "0017_f0b_drop_altfelder",
+      "breakpoints": true
     }
   ]
 }

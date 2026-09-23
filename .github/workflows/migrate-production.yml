@@ -76,6 +76,23 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: pnpm --filter @bhyo/db pre-drop-check
 
+      # F0b PR D (0017): Archiv-Waechter — sichert befuellte E7-Altfelder als
+      # Workflow-Artefakt vor dem DROP; Zeilenzahl der Datei muss der
+      # Zaehlung entsprechen, sonst Abbruch ohne DROP (laeuft auch bei 0).
+      - name: Altfelder archivieren (Waechter 0017)
+        working-directory: packages/db
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: |
+          pnpm run archiv-altfelder
+          test -f altfelder-archiv.json || { echo '::error::Archivdatei fehlt — kein DROP.'; exit 1; }
+
+      - name: Altfelder-Archiv hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: altfelder-archiv-production
+          path: packages/db/altfelder-archiv.json
+
       - name: Migrate Production-DB
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
