@@ -1,4 +1,5 @@
-import { photonZuAdresse, type Adresse } from "@/lib/geocode";
+import { dedupeAdressen, photonZuAdresse, type Adresse } from "@/lib/geocode";
+import { erstelleRateLimit } from "@/lib/rate-limit";
 import { currentUserEmail } from "@/lib/db";
 
 /**
@@ -6,6 +7,10 @@ import { currentUserEmail } from "@/lib/db";
  * der Browser spricht nie direkt mit dem Dienst, der Worker-Egress bleibt
  * auf genau einen Host begrenzt. Dienst-Begruendung in lib/geocode.ts
  * (Photon; Nominatim verbietet Autocomplete, BKG braucht einen Vertrag).
+ *
+ * KEIN offener Proxy: es werden ausschliesslich die validierten Parameter
+ * q bzw. lat/lon in eine fest gebaute URL uebernommen (nichts wird frei
+ * durchgereicht), und je Nutzer gilt eine Ratenbegrenzung.
  *
  * ?q=          Suche (Autocomplete), Debounce liegt im Client
  * ?lat=&lon=   Rueckwaertssuche fuer den verschobenen Pin
@@ -17,21 +22,34 @@ import { currentUserEmail } from "@/lib/db";
 const PHOTON = "https://photon.komoot.io";
 // Grober Deutschland-Rahmen; zusaetzlich filtert der Mapper auf countrycode DE.
 const BBOX_DE = "5.5,47.1,15.6,55.1";
+// 10 Aufrufe je 10 s je Nutzer: Tippen mit 350-ms-Debounce bleibt weit
+// darunter; ein Script laeuft in die Wand.
+const erlaubt = erstelleRateLimit(10, 10_000);
 
 export async function GET(req: Request) {
-  if (!(await currentUserEmail())) {
+  const email = await currentUserEmail();
+  if (!email) {
     return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
   }
+  if (!erlaubt(email, Date.now())) {
+    return Response.json(
+      { error: "Zu viele Anfragen — kurz warten und weitertippen." },
+      { status: 429 },
+    );
+  }
+
   const p = new URL(req.url).searchParams;
-  const q = p.get("q")?.trim() ?? "";
-  const lat = p.get("lat");
-  const lon = p.get("lon");
+  const q = (p.get("q") ?? "").trim().slice(0, 120);
+  const lat = Number(p.get("lat"));
+  const lon = Number(p.get("lon"));
+  const latLonOk =
+    Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 
   let url: string;
   if (q.length >= 3) {
     url = `${PHOTON}/api?q=${encodeURIComponent(q)}&limit=5&lang=de&bbox=${BBOX_DE}`;
-  } else if (lat && lon) {
-    url = `${PHOTON}/reverse?lat=${encodeURIComponent(lat)}&lon=${encodeURIComponent(lon)}&lang=de`;
+  } else if (latLonOk) {
+    url = `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=de`;
   } else {
     return Response.json({ adressen: [] });
   }
@@ -43,9 +61,11 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Photon ${res.status}`);
     const data = (await res.json()) as { features?: unknown[] };
-    const adressen = (data.features ?? [])
-      .map(photonZuAdresse)
-      .filter((a): a is Adresse => a != null);
+    const adressen = dedupeAdressen(
+      (data.features ?? [])
+        .map(photonZuAdresse)
+        .filter((a): a is Adresse => a != null),
+    );
     return Response.json({ adressen });
   } catch {
     return Response.json(

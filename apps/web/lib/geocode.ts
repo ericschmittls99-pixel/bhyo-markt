@@ -60,3 +60,19 @@ export function adresseLabel(a: Adresse): string {
   const ort = [a.plz, a.ort].filter(Boolean).join(" ");
   return [strasse, ort].filter(Boolean).join(", ");
 }
+
+/**
+ * Photon liefert dieselbe Adresse oft mehrfach (Node, Way-Centroid, POI).
+ * Dedupe-Schluessel: Label + auf 3 Nachkommastellen (~100 m) gerundete
+ * Koordinate — grob genug fuer Objekt-Duplikate, fein genug, um gleiche
+ * Strassennamen in verschiedenen Orten zu behalten.
+ */
+export function dedupeAdressen(adressen: Adresse[]): Adresse[] {
+  const gesehen = new Set<string>();
+  return adressen.filter((a) => {
+    const k = `${adresseLabel(a)}|${a.lat.toFixed(3)}|${a.lng.toFixed(3)}`;
+    if (gesehen.has(k)) return false;
+    gesehen.add(k);
+    return true;
+  });
+}
