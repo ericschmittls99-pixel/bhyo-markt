@@ -136,6 +136,9 @@ export interface FormularEingaben {
   belegErhebungsdatum: string;
   belegHatDatei: boolean;
   belegLink: string;
+  /** F0a: Pin-Koordinate als Rohstrings der Hidden-Inputs ("" = kein Pin). */
+  lat: string;
+  lng: string;
 }
 
 const PFLICHT = "Pflichtfeld";
@@ -207,6 +210,18 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
     f.zeitraum_bis = "Bis-Monat liegt vor dem Ab-Monat";
   }
 
+  // F0a: Pin ist optional, aber nie halb — und nur mit plausiblen Werten.
+  const latLeer = e.lat.trim() === "";
+  const lngLeer = e.lng.trim() === "";
+  if (latLeer !== lngLeer) {
+    f.standort = "Pin unvollständig — Koordinate braucht Breite und Länge";
+  } else if (!latLeer) {
+    const lat = Number(e.lat.replace(",", "."));
+    const lng = Number(e.lng.replace(",", "."));
+    if (!Number.isFinite(lat) || !Number.isFinite(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180)
+      f.standort = "Koordinate außerhalb des gültigen Bereichs";
+  }
+
   if (e.belegTyp) {
     pflicht("beleg_quellenangabe", e.belegQuellenangabe);
     pflicht("beleg_erhebungsdatum", e.belegErhebungsdatum);
@@ -215,6 +230,14 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
   }
 
   return f;
+}
+
+/** F0a: geparste Pin-Koordinate (null = kein Pin). Nach validiereFormular aufrufen. */
+export function koordinateAus(
+  e: Pick<FormularEingaben, "lat" | "lng">,
+): { lat: number; lng: number } | null {
+  if (e.lat.trim() === "" || e.lng.trim() === "") return null;
+  return { lat: Number(e.lat.replace(",", ".")), lng: Number(e.lng.replace(",", ".")) };
 }
 
 // --- Formularwerte (Edit-Prefill) -------------------------------------------
@@ -243,6 +266,12 @@ export interface FormularWerte {
   bezeichnung: string;
   ort: string;
   landkreis: string;
+  strasse: string;
+  hausnummer: string;
+  plz: string;
+  bundesland: string;
+  lat: string;
+  lng: string;
   kontaktperson: string;
   cluster: string;
   materialartCode: string;
@@ -277,6 +306,12 @@ export type FormularZeile = {
   bezeichnung: string | null;
   ort: string | null;
   landkreis: string | null;
+  strasse: string | null;
+  hausnummer: string | null;
+  plz: string | null;
+  bundesland: string | null;
+  lat: number | null;
+  lng: number | null;
   kontaktperson: string | null;
   materialartCode: string | null;
   cluster: string | null;
@@ -345,6 +380,12 @@ export function formularZeileZuWerte(
     bezeichnung: s(r.bezeichnung),
     ort: s(r.ort),
     landkreis: s(r.landkreis),
+    strasse: s(r.strasse),
+    hausnummer: s(r.hausnummer),
+    plz: s(r.plz),
+    bundesland: s(r.bundesland),
+    lat: r.lat == null ? "" : String(r.lat),
+    lng: r.lng == null ? "" : String(r.lng),
     kontaktperson: s(r.kontaktperson),
     cluster: s(r.cluster),
     materialartCode: s(r.materialartCode),

@@ -70,6 +70,9 @@ export function SeasonBarsEdit({
         className="sbars sbe-flaeche"
         style={{ height: BAR_HOEHE }}
         onPointerDown={(e) => {
+          // F0a Punkt 5: verhindert die Textauswahl beim Ziehen; die
+          // Tastaturbedienung (onKeyDown an den Slots) bleibt unberuehrt.
+          e.preventDefault();
           e.currentTarget.setPointerCapture(e.pointerId);
           ziehen(e);
         }}

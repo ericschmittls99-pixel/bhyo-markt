@@ -32,7 +32,7 @@ import {
 // Keyless OSM-Raster-Style (Kopie aus components/Karte.tsx — die bleibt fuer
 // bewertung. bis PR 8 unveraendert stehen). Keine Lizenzkosten, kein API-Key;
 // internes Werkzeug im Rahmen der OSM-Tile-Nutzungspolicy.
-const OSM_STYLE = {
+export const OSM_STYLE = {
   version: 8 as const,
   sources: {
     osm: {

@@ -155,6 +155,21 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   Elternzeilen**; klickbar auf ihre eigene Facette (materialart/produkt),
   ohne Code nicht klickbar. Zustand rein clientseitig, nicht in der URL.
 
+## Formularblock „Ort" (F0a, 23.09.2026)
+
+Reihenfolge von oben: Adresssuche (debounced Vorschlagsliste, Auswahl
+füllt die Felder und setzt den Pin) → „Adresse von bestehendem Standort
+übernehmen" (nur sichtbar, wenn der gewählte Akteur Ströme mit Adresse
+hat) → Straße · Hausnummer → PLZ · Ort → Bundesland (schreibgeschützt,
+Kennzeichen „vorläufig, aus der Adresssuche") → Kartenausschnitt mit
+Pin. Die Suche ist Bequemlichkeit, kein Tor: Fällt der Dienst aus, sagt
+die Meldung ausdrücklich, dass Adresse und Pin vollständig von Hand
+gesetzt werden können. Klick setzt den Pin, Ziehen verschiebt ihn — dann
+ist die Koordinate führend und die Adressfelder werden per
+Rückwärtssuche als „aus Pin übernommen" nachgezogen. Der Landkreis
+erscheint nicht im Formular (bleibt Attribut in Filter, Tabelle, CSV).
+Attribution „Suche: © OpenStreetMap-Mitwirkende" als Caption.
+
 ## Mini-Switch (Modul-Umschalter)
 
 Pillen-SegmentedControl im Modulkopf (z. B. „energie ↔ CO₂ & Asche"):

@@ -20,7 +20,6 @@ import {
   ladeErsteAenderung,
   ladeFormularWerte,
   ladeHistorie,
-  ladeLandkreisOptionen,
   ladeAlleVergaben,
   ladeRegionOptionen,
   ladeStroeme,
@@ -116,12 +115,10 @@ export async function RegisterInhalt({
   }
   let materialarten: MaterialartMitCluster[] = [];
   let produkte: OutputProduktOption[] = [];
-  let landkreise: string[] = [];
   if (formOffen && canEdit) {
-    [materialarten, produkte, landkreise] = await Promise.all([
+    [materialarten, produkte] = await Promise.all([
       art === "biomasse" ? listMaterialartenMitCluster() : Promise.resolve([]),
       art === "output" ? listOutputProdukte() : Promise.resolve([]),
-      ladeLandkreisOptionen(),
     ]);
   }
 
@@ -233,7 +230,6 @@ export async function RegisterInhalt({
           werte={formularWerte}
           materialarten={materialarten}
           produkte={produkte}
-          landkreise={landkreise}
           zurueckHref={zurueckHref}
           modal={ansicht === "grid"}
         />
