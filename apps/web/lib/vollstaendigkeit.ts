@@ -9,7 +9,8 @@ export interface VollstaendigkeitEingabe {
   bezeichnung: string | null;
   kontaktperson: string | null;
   ort: string | null;
-  landkreis: string | null;
+  /** F0b: statt des entfallenen manuellen Landkreises zaehlt die Koordinate. */
+  koordinate: boolean;
   zeitraumVon: string | null;
   zeitraumBis: string | null;
   /** Rohmenge (Biomasse) bzw. Bedarfsmenge (Output). */
@@ -59,7 +60,9 @@ export function vollstaendigkeit(e: VollstaendigkeitEingabe): number {
     e.bezeichnung,
     e.kontaktperson,
     e.ort,
-    e.landkreis,
+    // F0b: Landkreis/Bundesland sind abgeleitet und keine Erfassungsfelder
+    // mehr — der Pruefpunkt ist jetzt die Koordinate (aus ihr folgt beides).
+    e.koordinate,
     e.zeitraumVon,
     e.zeitraumBis,
     e.menge,

@@ -69,7 +69,9 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           bezeichnung: biomassestrom.bezeichnung,
           kontaktperson: biomassestrom.kontaktperson,
           ort: biomassestrom.ort,
-          landkreis: biomassestrom.landkreis,
+          // F0b: raeumliche Ableitung ueber die View (E23: nie gespeichert);
+          // json-Konvertierung zentral in stroeme-zeilen (verwaltungOderNull).
+          verwaltung: sql<unknown>`(select json_build_object('kreisArs', v.kreis_ars, 'kreisName', v.kreis_name, 'kreisBez', v.kreis_bez, 'landArs', v.land_ars, 'landName', v.land_name) from strom_verwaltung v where v.strom_id = ${biomassestrom.id} and v.kreis_ars is not null)`,
           regionIds: sql<unknown>`coalesce((select json_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
           regionNamen: sql<unknown>`coalesce((select json_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
           lng: sql<unknown>`case when ${geom} is null then null else ST_X(${geom}) end`,
@@ -115,7 +117,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         bezeichnung: outputBedarf.bezeichnung,
         kontaktperson: outputBedarf.kontaktperson,
         ort: outputBedarf.ort,
-        landkreis: outputBedarf.landkreis,
+        verwaltung: sql<unknown>`(select json_build_object('kreisArs', v.kreis_ars, 'kreisName', v.kreis_name, 'kreisBez', v.kreis_bez, 'landArs', v.land_ars, 'landName', v.land_name) from strom_verwaltung v where v.strom_id = ${outputBedarf.id} and v.kreis_ars is not null)`,
         regionIds: sql<unknown>`coalesce((select json_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
         regionNamen: sql<unknown>`coalesce((select json_agg(r.name order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
         lng: sql<unknown>`case when ${geom} is null then null else ST_X(${geom}) end`,
@@ -278,11 +280,9 @@ export function ladeFormularWerte(
           akteurSektor: akteur.sektor,
           bezeichnung: biomassestrom.bezeichnung,
           ort: biomassestrom.ort,
-          landkreis: biomassestrom.landkreis,
           strasse: biomassestrom.strasse,
           hausnummer: biomassestrom.hausnummer,
           plz: biomassestrom.plz,
-          bundesland: biomassestrom.bundesland,
           lat: sql<unknown>`case when ${biomassestrom.standortGeom} is null then null else ST_Y(${biomassestrom.standortGeom}) end`,
           lng: sql<unknown>`case when ${biomassestrom.standortGeom} is null then null else ST_X(${biomassestrom.standortGeom}) end`,
           kontaktperson: biomassestrom.kontaktperson,
@@ -343,11 +343,9 @@ export function ladeFormularWerte(
         akteurSektor: akteur.sektor,
         bezeichnung: outputBedarf.bezeichnung,
         ort: outputBedarf.ort,
-        landkreis: outputBedarf.landkreis,
         strasse: outputBedarf.strasse,
         hausnummer: outputBedarf.hausnummer,
         plz: outputBedarf.plz,
-        bundesland: outputBedarf.bundesland,
         lat: sql<unknown>`case when ${outputBedarf.standortGeom} is null then null else ST_Y(${outputBedarf.standortGeom}) end`,
         lng: sql<unknown>`case when ${outputBedarf.standortGeom} is null then null else ST_X(${outputBedarf.standortGeom}) end`,
         kontaktperson: outputBedarf.kontaktperson,
@@ -405,20 +403,3 @@ export function ladeRegionOptionen(): Promise<{ id: string; name: string }[]> {
   );
 }
 
-/**
- * DISTINCT Landkreise beider Tabellen fuer die Landkreis-Combobox (E7:
- * Bestandsdaten + Freitext, keine Lookup-Tabelle). Nur echte Spalten;
- * Deduplizieren und Sortieren in TypeScript.
- */
-export function ladeLandkreisOptionen(): Promise<string[]> {
-  return withDb(async (db) => {
-    const [a, b] = await Promise.all([
-      db.selectDistinct({ lk: biomassestrom.landkreis }).from(biomassestrom),
-      db.selectDistinct({ lk: outputBedarf.landkreis }).from(outputBedarf),
-    ]);
-    const alle = [...a, ...b]
-      .map((r) => r.lk)
-      .filter((x): x is string => typeof x === "string" && x.trim() !== "");
-    return [...new Set(alle)].sort((x, y) => x.localeCompare(y, "de"));
-  });
-}

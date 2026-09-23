@@ -42,7 +42,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   bezeichnung: null,
   kontaktperson: null,
   ort: null,
-  landkreis: null,
+  verwaltung: null,
   regionIds: [],
   regionNamen: [],
   lng: null,

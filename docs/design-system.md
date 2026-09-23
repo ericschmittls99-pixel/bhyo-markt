@@ -39,6 +39,16 @@ Output nach Gruppe (Raute):
 Qualität A–D als Ring und Pille, Graustufen, keine Ampelfarben:
 A `#1F2E38` · B `#4A5C66` · C `#97A4AB` · D `#D5D8D6`.
 
+Seit F0b sind auch **Landkreis und Bundesland reine Ableitungen** — aus der
+Koordinate per räumlichem Join auf VG250 (Referenz über den ARS, nie über
+den Namen). Anzeige im Detail als „Bezeichnung Name · aus Koordinate"
+(z. B. „Kreisfreie Stadt Speyer · aus Koordinate"), nicht editierbar; im
+Formular gibt es keine Felder mehr dafür. Zwei benannte, getrennte
+Sonderfälle mit eigenen Filteroptionen: „außerhalb" (Koordinate in keinem
+Gebiet — nie aufs nächstgelegene einrasten) und „ohne Koordinate".
+Quellenvermerk „© GeoBasis-DE / BKG (2026), dl-de/by-2-0" in beiden
+Karten-Attributionen.
+
 Seit E23/E24 ist die Stufe eine reine Ableitung aus dem Beleg — ein Strom
 ohne Beleg hat **keine** Stufe. Anzeige als Pille „unbelegt" (`konf--leer`,
 nicht „–": der Zustand ist benannt und als eigener Filterwert wählbar),

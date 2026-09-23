@@ -17,7 +17,6 @@ interface AdresseWerte {
   hausnummer: string;
   plz: string;
   ort: string;
-  bundesland: string;
   lat: string;
   lng: string;
 }
@@ -50,7 +49,6 @@ export function AdresseBlock({
     hausnummer: initial?.hausnummer ?? "",
     plz: initial?.plz ?? "",
     ort: initial?.ort ?? "",
-    bundesland: initial?.bundesland ?? "",
     lat: initial?.lat ?? "",
     lng: initial?.lng ?? "",
   });
@@ -108,7 +106,6 @@ export function AdresseBlock({
         hausnummer: a.hausnummer ?? "",
         plz: a.plz ?? "",
         ort: a.ort ?? "",
-        bundesland: a.bundesland ?? "",
       }));
       setHinweis("Adresse aus Pin übernommen.");
     } catch (e) {
@@ -124,7 +121,6 @@ export function AdresseBlock({
       hausnummer: a.hausnummer ?? "",
       plz: a.plz ?? "",
       ort: a.ort ?? "",
-      bundesland: a.bundesland ?? "",
       lat: a.lat == null ? alt.lat : String(a.lat),
       lng: a.lng == null ? alt.lng : String(a.lng),
     }));
@@ -315,14 +311,6 @@ export function AdresseBlock({
           </span>
         </label>
       </div>
-      <label className="pf">
-        <span>
-          Bundesland <em className="fp-optional">vorläufig, aus der Adresssuche</em>
-        </span>
-        <span className="pf-feld">
-          <input type="text" name="bundesland" value={w.bundesland} readOnly aria-readonly />
-        </span>
-      </label>
 
       <div className="adr-karte" ref={kartenDiv} aria-label="Kartenausschnitt mit Pin" />
       <span className="adr-caption">

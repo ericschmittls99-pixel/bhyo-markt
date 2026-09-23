@@ -22,7 +22,6 @@ export async function GET(req: Request) {
       strasse: t.strasse,
       hausnummer: t.hausnummer,
       plz: t.plz,
-      bundesland: t.bundesland,
       lat: sql<unknown>`case when ${t.standortGeom} is null then null else ST_Y(${t.standortGeom}) end`,
       lng: sql<unknown>`case when ${t.standortGeom} is null then null else ST_X(${t.standortGeom}) end`,
     });
@@ -43,7 +42,6 @@ export async function GET(req: Request) {
       strasse: r.strasse,
       hausnummer: r.hausnummer,
       plz: r.plz,
-      bundesland: r.bundesland,
       lat: num(r.lat),
       lng: num(r.lng),
     }));

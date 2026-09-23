@@ -362,12 +362,12 @@ async function main() {
     const belegId = await insertBeleg(s.beleg);
     await sql`
       insert into biomassestrom
-        (akteur_id, materialart_code, bezeichnung, ort, landkreis, standort_geom,
+        (akteur_id, materialart_code, bezeichnung, ort, standort_geom,
          kontaktperson, menge_roh_fm, ts_anteil_pct, aschegehalt_pct,
          zeitraum_von, zeitraum_bis, saisonalitaet, preis_min, preis_mittel,
          preis_max, preis_herkunft, beleg_id, qualitaet, status)
       values
-        (${A(s.akteur)}, ${s.mat}, ${s.bez}, ${s.ort}, ${s.lk},
+        (${A(s.akteur)}, ${s.mat}, ${s.bez}, ${s.ort},
          ST_SetSRID(ST_MakePoint(${s.lng}, ${s.lat}), 4326), ${"Ansprechpartner Test"},
          ${s.roh}, ${s.ts}, ${s.asche}, '2025-01-01', '2025-12-31',
          ${sql.json(s.saison)}, ${s.preis[0]}, ${s.preis[1]}, ${s.preis[2]},
@@ -473,11 +473,11 @@ async function main() {
     const belegId = b.beleg ? await insertBeleg(b.beleg) : null;
     await sql`
       insert into output_bedarf
-        (akteur_id, bezeichnung, ort, landkreis, standort_geom, kontaktperson,
+        (akteur_id, bezeichnung, ort, standort_geom, kontaktperson,
          produkt_code, menge_wert, menge_einheit, zeitraum_von, zeitraum_bis,
          saisonalitaet, beleg_id, qualitaet, status)
       values
-        (${A(b.akteur)}, ${b.bez}, ${b.ort}, ${b.lk},
+        (${A(b.akteur)}, ${b.bez}, ${b.ort},
          ST_SetSRID(ST_MakePoint(${b.lng}, ${b.lat}), 4326), ${"Ansprechpartner Test"},
          ${b.produkt}, ${b.wert}, ${b.einheit}, '2025-01-01', '2025-12-31',
          ${sql.json(gleich())}, ${belegId}, ${b.qual}, 'geprueft')`;

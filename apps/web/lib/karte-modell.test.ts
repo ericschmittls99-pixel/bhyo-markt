@@ -27,7 +27,7 @@ const basis: Strom = {
   bezeichnung: "Rindergülle",
   kontaktperson: null,
   ort: "Rülzheim",
-  landkreis: "Germersheim",
+  verwaltung: null,
   regionIds: ["r1"],
   regionNamen: ["Südpfalz"],
   lng: 8.4,

@@ -81,9 +81,9 @@ export interface SeedStrom {
   art: "biomasse" | "output";
   bezeichnung: string;
   ort: string;
-  landkreis: string;
-  lng: number;
-  lat: number;
+  /** F0b: null = Strom ohne Koordinate (Ankerfall A16g). */
+  lng: number | null;
+  lat: number | null;
   materialartCode?: string;
   mengeRohFm?: number;
   tsAnteilPct?: number;
@@ -232,6 +232,10 @@ interface Sonder {
   bhyo?: boolean;
   reserviert?: boolean;
   preisFix?: [number, number, number];
+  /** F0b (A16): feste Koordinate fuer raeumliche Ankerfaelle; null = ohne Koordinate. */
+  koordFest?: [number, number] | null;
+  /** F0b: Ortsname passend zur festen Koordinate. */
+  ortFest?: string;
 }
 
 const SONDER: Record<string, Sonder> = {
@@ -239,6 +243,13 @@ const SONDER: Record<string, Sonder> = {
   "waldrestholz#1": { anker: "A14b", bucket: 1 },
   "waldrestholz#4": { ohnePreis: true },
   "waldrestholz#5": { anker: "A2", zeitraum: [`${B}-01-01`, `${B + 40}-12-31`] },
+  // F0b (A16): raeumliche Ankerfaelle fuer die VG250-Zuordnung. Punkte
+  // ausserhalb der Region-Box sind hier GEWOLLT (eigener Test, Box-Test
+  // nimmt A16 aus). Koordinaten gegen die Preview-DB verifiziert.
+  "waldrestholz#2": { anker: "A16a", koordFest: [8.414, 49.337], ortFest: "Speyer (Kreisgrenze)" },
+  "waldrestholz#3": { anker: "A16b", koordFest: [8.45, 49.317], ortFest: "Rheinufer BW" },
+  "bioabfall#3": { anker: "A16d", koordFest: [9.9937, 53.5511], ortFest: "Hamburg" },
+  "papierschlamm#1": { anker: "A16g", koordFest: null, ortFest: "unbekannt (ohne Koordinate)" },
   "saegemehl#1": { bhyo: true, bucket: 2 },
   "saegemehl#3": { ohnePreis: true },
   "altholz_a1_a3#0": { anker: "A10", bucket: 2, preisFix: [-40, -5, 30] },
@@ -249,8 +260,8 @@ const SONDER: Record<string, Sonder> = {
   "gruenschnitt#1": { anker: "A7", bucket: 2, extern: "laufend", reserviert: true },
   "gruenschnitt#2": { anker: "A9a", bucket: 2, preisFix: [12, 20, 31] },
   "gruenschnitt#3": { anker: "A9b", bucket: 2 },
-  "gruenschnitt#4": { ohnePreis: true },
-  "gruenschnitt#5": { reserviert: true, bucket: 2 },
+  "gruenschnitt#4": { ohnePreis: true, anker: "A16e", koordFest: [7.75, 48.58], ortFest: "Straßburg (Ausland)" },
+  "gruenschnitt#5": { reserviert: true, bucket: 2, anker: "A16f", koordFest: [9.35, 47.63], ortFest: "Bodensee" },
   "landschaftspflegeschnitt#0": { anker: "A8", bucket: 2, reserviert: true },
   "landschaftspflegeschnitt#1": { extern: "zukunft", bucket: 3 },
   "stroh#0": { anker: "A3", bucket: 2, extern: "teil" },
@@ -267,7 +278,7 @@ const SONDER: Record<string, Sonder> = {
   "klaerschlamm#2": { reserviert: true, bucket: 2 },
   "klaerschlamm#3": { ohnePreis: true },
   "bioabfall#0": { extern: "laufend", bucket: 2 },
-  "bioabfall#1": { bhyo: true, bucket: 2 },
+  "bioabfall#1": { bhyo: true, bucket: 2, anker: "A16c", koordFest: [8.466, 49.4875], ortFest: "Mannheim" },
   "bioabfall#4": { ohnePreis: true },
   "bioabfall#5": { anker: "A1", zeitraum: [`${B - 1}-01-01`, `${B}-06-30`] },
   "papierschlamm#0": { extern: "zukunft", bucket: 2 },
@@ -466,11 +477,28 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
   const feedstock: SeedStrom[] = slots.map(({ art, key }, slotNr) => {
     const so = SONDER[key] ?? {};
     const ortIdx = slotNr % ORTE.length;
-    const [ort, landkreis, lng0, lat0] = ORTE[ortIdx]!;
+    const [ortBasis, , lng0, lat0] = ORTE[ortIdx]!;
+    const ort = so.ortFest ?? ortBasis;
     // A14: zwei Belege quasi identisch — fester Punkt, minimaler Versatz.
     const a14 = so.anker === "A14a" || so.anker === "A14b";
-    const lng = a14 ? 8.99 + (so.anker === "A14b" ? 0.0004 : 0) : lng0 + koordJitter();
-    const lat = a14 ? 49.47 + (so.anker === "A14b" ? 0.0003 : 0) : lat0 + koordJitter();
+    // Jitter IMMER ziehen (zugstabil): feste A16-Koordinaten duerfen die
+    // nachfolgenden geo-Zuege nicht verschieben, sonst kippen die
+    // Quasi-Duplikat-Paare.
+    const jLng = koordJitter();
+    const jLat = koordJitter();
+    const koordFest = "koordFest" in so ? so.koordFest : undefined;
+    const lng =
+      koordFest !== undefined
+        ? (koordFest ? koordFest[0] : null)
+        : a14
+          ? 8.99 + (so.anker === "A14b" ? 0.0004 : 0)
+          : lng0 + jLng;
+    const lat =
+      koordFest !== undefined
+        ? (koordFest ? koordFest[1] : null)
+        : a14
+          ? 49.47 + (so.anker === "A14b" ? 0.0003 : 0)
+          : lat0 + jLat;
 
     const zeitraum =
       so.zeitraum ?? BUCKET_ZEITRAUM[so.bucket ?? bucketZieh[bucketIdx++]!];
@@ -569,9 +597,8 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       art: "biomasse" as const,
       bezeichnung: `${art.label} ${ort}${ankerTag}${MARKER}`,
       ort,
-      landkreis,
-      lng: Math.round(lng * 10000) / 10000,
-      lat: Math.round(lat * 10000) / 10000,
+      lng: lng == null ? null : Math.round(lng * 10000) / 10000,
+      lat: lat == null ? null : Math.round(lat * 10000) / 10000,
       materialartCode: art.code,
       mengeRohFm: menge,
       tsAnteilPct: ts,
@@ -632,7 +659,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
 
   const outputs: SeedStrom[] = outSlots.map(({ p, key }, slotNr) => {
     const so = OUT_SONDER[key] ?? {};
-    const [ort, landkreis, lng0, lat0] = ORTE[(slotNr * 3 + 7) % ORTE.length]!;
+    const [ort, , lng0, lat0] = ORTE[(slotNr * 3 + 7) % ORTE.length]!;
     const zeitraum = so.zeitraum ?? BUCKET_ZEITRAUM[so.bucket ?? outBucketZieh[outBucketIdx++]!];
     const abnehmer = p.abnehmer[slotNr % p.abnehmer.length]!;
     const einheit = p.einheiten[slotNr % p.einheiten.length]!;
@@ -685,7 +712,6 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
       art: "output" as const,
       bezeichnung: `${p.label} für ${abnehmer}${ankerTag}${MARKER}`,
       ort,
-      landkreis,
       lng: Math.round((lng0 + koordJitter()) * 10000) / 10000,
       lat: Math.round((lat0 + koordJitter()) * 10000) / 10000,
       produktCode: p.code,

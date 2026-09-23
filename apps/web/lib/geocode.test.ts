@@ -24,7 +24,6 @@ describe("photonZuAdresse", () => {
       hausnummer: "12",
       plz: "67346",
       ort: "Speyer",
-      bundesland: "Rheinland-Pfalz",
       lng: 8.43,
       lat: 49.32,
     });
@@ -53,13 +52,12 @@ describe("adresseLabel", () => {
         hausnummer: "12",
         plz: "67346",
         ort: "Speyer",
-        bundesland: "Rheinland-Pfalz",
-        lng: 8.43,
+          lng: 8.43,
         lat: 49.32,
       }),
     ).toBe("Hauptstraße 12, 67346 Speyer");
     expect(
-      adresseLabel({ strasse: null, hausnummer: null, plz: null, ort: "Speyer", bundesland: null, lng: 8.43, lat: 49.32 }),
+      adresseLabel({ strasse: null, hausnummer: null, plz: null, ort: "Speyer", lng: 8.43, lat: 49.32 }),
     ).toBe("Speyer");
   });
 });
@@ -70,7 +68,6 @@ describe("dedupeAdressen", () => {
     hausnummer,
     plz: "67346",
     ort: "Speyer",
-    bundesland: "Rheinland-Pfalz",
     lat,
     lng,
   });

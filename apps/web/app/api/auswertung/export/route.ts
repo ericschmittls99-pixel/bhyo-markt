@@ -4,6 +4,7 @@ import {
   filterAusSearchParams,
   filterStroeme,
   type Strom,
+  kreisAnzeige,
 } from "@/lib/stroeme-modell";
 import {
   reichereVerfuegbarkeitAn,
@@ -84,7 +85,7 @@ export async function GET(req: Request) {
         s.bezeichnung,
         s.akteurName,
         s.ort,
-        s.landkreis,
+        kreisAnzeige(s),
         feed ? s.cluster : s.gruppeLabel,
         feed ? s.materialartLabel : s.produktLabel,
         s.zeitraumVon,

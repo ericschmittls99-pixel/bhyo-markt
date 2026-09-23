@@ -10,6 +10,35 @@ import {
 
 export type StromArt = "biomasse" | "output";
 
+/** Raeumlich abgeleitete Verwaltungszuordnung eines Stroms (E25: ARS ist der Schluessel, Namen sind Anzeige). */
+export interface StromVerwaltung {
+  kreisArs: string;
+  kreisName: string;
+  kreisBez: string;
+  landArs: string | null;
+  landName: string | null;
+}
+
+export type VerwaltungsZustand = "zugeordnet" | "ausserhalb" | "ohne_koordinate";
+
+/** Beide Sonderfaelle sind BENANNT und getrennt (Auftrag F0b, analog E24). */
+export function verwaltungsZustand(s: Pick<Strom, "verwaltung" | "lng" | "lat">): VerwaltungsZustand {
+  if (s.verwaltung) return "zugeordnet";
+  return s.lng != null && s.lat != null ? "ausserhalb" : "ohne_koordinate";
+}
+
+/** Anzeige des Kreises: amtliche Bezeichnung + Name, sonst der benannte Sonderfall. */
+export function kreisAnzeige(s: Pick<Strom, "verwaltung" | "lng" | "lat">): string {
+  if (s.verwaltung) return `${s.verwaltung.kreisBez} ${s.verwaltung.kreisName}`;
+  return verwaltungsZustand(s) === "ausserhalb" ? "außerhalb" : "ohne Koordinate";
+}
+
+/** Anzeige des Bundeslands, gleiche Sonderfall-Benennung. */
+export function landAnzeige(s: Pick<Strom, "verwaltung" | "lng" | "lat">): string {
+  if (s.verwaltung?.landName) return s.verwaltung.landName;
+  return verwaltungsZustand(s) === "ausserhalb" ? "außerhalb" : "ohne Koordinate";
+}
+
 export interface StromBeleg {
   /** Beleg-UUID — sichtbar im Detail, suchbar in der Freitextsuche (Beschluss 22.09.2026). */
   id: string;
@@ -33,7 +62,13 @@ export interface Strom {
   bezeichnung: string | null;
   kontaktperson: string | null;
   ort: string | null;
-  landkreis: string | null;
+  /**
+   * F0b/E23: Landkreis und Bundesland werden NIE gespeichert — sie kommen
+   * per Point-in-Polygon aus strom_verwaltung (VG250). null heisst: die
+   * Koordinate liegt in keinem Gebiet ("ausserhalb") ODER es gibt keine
+   * Koordinate ("ohne Koordinate") — verwaltungsZustand unterscheidet das.
+   */
+  verwaltung: StromVerwaltung | null;
   /** Fokusregionen, deren Gebiet den Standort enthaelt (ST_Contains). */
   regionIds: string[];
   regionNamen: string[];
@@ -138,7 +173,7 @@ export const FACETTEN: Record<StromArt, { key: keyof StroemeFilter; label: strin
   ],
   output: [
     { key: "region", label: "Region" },
-    { key: "landkreis", label: "Landkreis/Ort" },
+    { key: "landkreis", label: "Landkreis" },
     { key: "kategorie", label: "Output-Kategorie" },
     { key: "produkt", label: "Output" },
     { key: "qualitaet", label: "Qualität" },
@@ -166,7 +201,7 @@ export const SORTIERUNGEN: Record<StromArt, [string, string][]> = {
   output: [
     ["titel", "Titel"],
     ["region", "Region"],
-    ["landkreis", "Landkreis/Ort"],
+    ["landkreis", "Landkreis"],
     ["kategorie", "Output-Kategorie"],
     ["produkt", "Output"],
     ["qualitaet", "Qualität"],
@@ -224,7 +259,8 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
     case "belegtyp":
       return s.beleg ? [s.beleg.typ] : [];
     case "landkreis":
-      return s.landkreis ? [s.landkreis] : [];
+      // E25: Filterwert ist der ARS; die Sonderfaelle sind eigene Werte.
+      return [s.verwaltung?.kreisArs ?? verwaltungsZustand(s)];
     case "produkt":
       return s.produktCode ? [s.produktCode] : [];
     case "kategorie":
@@ -270,7 +306,8 @@ export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
         s.akteurName,
         s.bezeichnung,
         s.ort,
-        s.landkreis,
+        s.verwaltung?.kreisName,
+        s.verwaltung?.landName,
         s.materialartLabel,
         s.produktLabel,
         // Beleg-ID mitsuchen (Praefix reicht als Substring, niemand tippt 36 Zeichen).
@@ -297,7 +334,8 @@ function sortWert(s: Strom, key: string): string | number {
     case "materialart":
       return s.materialartLabel ?? "";
     case "landkreis":
-      return s.landkreis ?? "";
+      // Sonderfaelle hinter die Namen (ausserhalb/ohne Koordinate am Ende).
+      return s.verwaltung ? s.verwaltung.kreisName : `\uffff${verwaltungsZustand(s)}`;
     case "kategorie":
       return s.kategorie ?? "";
     case "produkt":
@@ -409,7 +447,14 @@ export function facettenOptionen(
   }
   return {
     ...gemeinsam,
-    landkreis: ausPool((s) => (s.landkreis ? [s.landkreis, s.landkreis] : null)),
+    landkreis: [
+      ...ausPool((s) =>
+        s.verwaltung ? [s.verwaltung.kreisArs, s.verwaltung.kreisName] : null,
+      ),
+      // F0b: beide Sonderfaelle als eigene, getrennte Filteroptionen.
+      { wert: "ausserhalb", label: "außerhalb" },
+      { wert: "ohne_koordinate", label: "ohne Koordinate" },
+    ],
     kategorie: fest(KATEGORIE_LABEL),
     produkt: ausPool((s) =>
       s.produktCode ? [s.produktCode, s.produktLabel ?? s.produktCode] : null,

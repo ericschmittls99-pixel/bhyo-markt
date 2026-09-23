@@ -10,7 +10,7 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtOutputPreis } from "@/lib/energie";
 import { fmtPreis, fmtMenge, fmtZeitraum } from "@/lib/format";
-import { KATEGORIE_LABEL, type Strom } from "@/lib/stroeme-modell";
+import { KATEGORIE_LABEL, kreisAnzeige, type Strom } from "@/lib/stroeme-modell";
 
 const RING_UMFANG = 65.97; // 2 * PI * r bei r = 10,5
 
@@ -74,7 +74,7 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
             <span className="st-card-body">
               <span className="st-card-titel">
                 <h3>{titel}</h3>
-                <p>{[s.ort, s.landkreis].filter(Boolean).join(", ") || "–"}</p>
+                <p>{[s.ort, kreisAnzeige(s)].filter(Boolean).join(", ")}</p>
               </span>
               <span className="st-card-zeile">
                 <span className="pill-wert">

@@ -114,11 +114,9 @@ export async function stromSpeichern(
   const entitaetTyp = art === "biomasse" ? "biomassestrom" : "output_bedarf";
 
   try {
-    // F0a: Pin-Koordinate — der Schreibpfad fuer standort_geom fehlte bisher
-    // komplett (weder Insert noch Update), das war die Ursache des
-    // "kein Pin setzbar"-Fehlers. landkreis steht nicht mehr im Formular und
-    // wird hier bewusst NICHT geschrieben, damit Updates den Bestandswert
-    // nicht nullen; ab F0b wird er raeumlich abgeleitet.
+    // F0a: Pin-Koordinate fuer standort_geom. F0b: Landkreis und Bundesland
+    // werden raeumlich abgeleitet (strom_verwaltung) — die App schreibt die
+    // stillgelegten manuellen Spalten nirgends mehr; DROP folgt mit 0016.
     const koordinate = koordinateAus(eingaben);
     const gemeinsam = {
       akteurId: eingaben.akteurId,
@@ -127,7 +125,6 @@ export async function stromSpeichern(
       strasse: text(formData, "strasse"),
       hausnummer: text(formData, "hausnummer"),
       plz: text(formData, "plz"),
-      bundesland: text(formData, "bundesland"),
       standortGeom: koordinate
         ? sql`ST_SetSRID(ST_MakePoint(${koordinate.lng}, ${koordinate.lat}), 4326)`
         : null,

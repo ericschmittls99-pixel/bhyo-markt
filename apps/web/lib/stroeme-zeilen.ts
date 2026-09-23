@@ -2,6 +2,7 @@ import {
   GRUPPE_LABEL,
   type Strom,
   type StromBeleg,
+  type StromVerwaltung,
 } from "./stroeme-modell";
 import { vollstaendigkeit } from "./vollstaendigkeit";
 
@@ -29,6 +30,25 @@ export function stringListe(v: unknown): string[] {
 }
 
 /** Numerischer SQL-Ausdruck → number | null; akzeptiert Number oder Text. */
+/**
+ * F0b: json_build_object kommt je nach Treiberpfad als Objekt ODER als
+ * JSON-Text an — hier die EINE Konvertierungsstelle. null = kein Kreis
+ * (ausserhalb oder ohne Koordinate; verwaltungsZustand unterscheidet das).
+ */
+export function verwaltungOderNull(v: unknown): StromVerwaltung | null {
+  const roh = typeof v === "string" ? (JSON.parse(v) as unknown) : v;
+  if (roh == null || typeof roh !== "object") return null;
+  const o = roh as Record<string, unknown>;
+  if (typeof o.kreisArs !== "string") return null;
+  return {
+    kreisArs: o.kreisArs,
+    kreisName: (o.kreisName as string | null) ?? "",
+    kreisBez: (o.kreisBez as string | null) ?? "",
+    landArs: (o.landArs as string | null) ?? null,
+    landName: (o.landName as string | null) ?? null,
+  };
+}
+
 export function zahlOderNull(v: unknown): number | null {
   if (v == null) return null;
   const n = Number(v);
@@ -91,7 +111,7 @@ type GemeinsameZeile = BelegZeile & {
   bezeichnung: string | null;
   kontaktperson: string | null;
   ort: string | null;
-  landkreis: string | null;
+  verwaltung: unknown;
   regionIds: unknown;
   regionNamen: unknown;
   lng: unknown;
@@ -141,7 +161,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
     ort: r.ort,
-    landkreis: r.landkreis,
+    verwaltung: verwaltungOderNull(r.verwaltung),
     regionIds: stringListe(r.regionIds),
     regionNamen: stringListe(r.regionNamen),
     lng: zahlOderNull(r.lng),
@@ -183,7 +203,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
       bezeichnung: basis.bezeichnung,
       kontaktperson: basis.kontaktperson,
       ort: basis.ort,
-      landkreis: basis.landkreis,
+      koordinate: basis.lng != null && basis.lat != null,
       zeitraumVon: basis.zeitraumVon,
       zeitraumBis: basis.zeitraumBis,
       menge: basis.mengeFm,
@@ -216,7 +236,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
     ort: r.ort,
-    landkreis: r.landkreis,
+    verwaltung: verwaltungOderNull(r.verwaltung),
     regionIds: stringListe(r.regionIds),
     regionNamen: stringListe(r.regionNamen),
     lng: zahlOderNull(r.lng),
@@ -258,7 +278,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
       bezeichnung: basis.bezeichnung,
       kontaktperson: basis.kontaktperson,
       ort: basis.ort,
-      landkreis: basis.landkreis,
+      koordinate: basis.lng != null && basis.lat != null,
       zeitraumVon: basis.zeitraumVon,
       zeitraumBis: basis.zeitraumBis,
       menge: basis.mengeWert,

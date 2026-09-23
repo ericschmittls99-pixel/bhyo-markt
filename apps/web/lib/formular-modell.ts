@@ -293,11 +293,9 @@ export interface FormularWerte {
   akteurSektor: string | null;
   bezeichnung: string;
   ort: string;
-  landkreis: string;
   strasse: string;
   hausnummer: string;
   plz: string;
-  bundesland: string;
   lat: string;
   lng: string;
   kontaktperson: string;
@@ -333,11 +331,9 @@ export type FormularZeile = {
   akteurSektor: string | null;
   bezeichnung: string | null;
   ort: string | null;
-  landkreis: string | null;
   strasse: string | null;
   hausnummer: string | null;
   plz: string | null;
-  bundesland: string | null;
   lat: number | null;
   lng: number | null;
   kontaktperson: string | null;
@@ -407,11 +403,9 @@ export function formularZeileZuWerte(
     akteurSektor: r.akteurSektor,
     bezeichnung: s(r.bezeichnung),
     ort: s(r.ort),
-    landkreis: s(r.landkreis),
     strasse: s(r.strasse),
     hausnummer: s(r.hausnummer),
     plz: s(r.plz),
-    bundesland: s(r.bundesland),
     lat: r.lat == null ? "" : String(r.lat),
     lng: r.lng == null ? "" : String(r.lng),
     kontaktperson: s(r.kontaktperson),

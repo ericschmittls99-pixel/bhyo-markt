@@ -10,7 +10,7 @@ const vollerFeed: VollstaendigkeitEingabe = {
   bezeichnung: "Rindergülle Milchviehbetrieb",
   kontaktperson: "Thomas Müller",
   ort: "Rülzheim",
-  landkreis: "Germersheim",
+  koordinate: true,
   zeitraumVon: "2026-01-01",
   zeitraumBis: "2028-12-31",
   menge: 1850,
@@ -60,7 +60,7 @@ describe("vollstaendigkeit", () => {
       bezeichnung: "Fernwärmenetz Speyer-Nord",
       kontaktperson: null,
       ort: "Speyer",
-      landkreis: null,
+      koordinate: false,
       zeitraumVon: "2027-01-01",
       zeitraumBis: "2036-12-31",
       menge: 18000,
@@ -83,5 +83,15 @@ describe("vollstaendigkeit", () => {
       beleg: { ...vollerFeed.beleg!, dateiOderLink: false },
     };
     expect(vollstaendigkeit(ohne)).toBe(94);
+  });
+});
+
+// F0b: der Landkreis-Pruefpunkt ist durch die Koordinate ersetzt — aus ihr
+// folgen Landkreis und Bundesland raeumlich.
+describe("vollstaendigkeit — Koordinate statt Landkreis (F0b)", () => {
+  it("fehlende Koordinate senkt den Erfassungsgrad", () => {
+    const mit = vollstaendigkeit({ ...vollerFeed, koordinate: true });
+    const ohne = vollstaendigkeit({ ...vollerFeed, koordinate: false });
+    expect(mit).toBeGreaterThan(ohne);
   });
 });

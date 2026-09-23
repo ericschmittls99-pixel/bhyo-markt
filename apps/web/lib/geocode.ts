@@ -19,7 +19,6 @@ export interface Adresse {
   hausnummer: string | null;
   plz: string | null;
   ort: string | null;
-  bundesland: string | null;
   lng: number;
   lat: number;
 }
@@ -48,7 +47,6 @@ export function photonZuAdresse(feature: unknown): Adresse | null {
     hausnummer: s(p.housenumber),
     plz: s(p.postcode),
     ort,
-    bundesland: s(p.state),
     lng,
     lat,
   };
