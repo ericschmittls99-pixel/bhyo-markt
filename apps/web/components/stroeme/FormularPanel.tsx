@@ -319,8 +319,8 @@ export function FormularPanel({
             <div className="hinweis-box">
               <i className="ph ph-map-pin" aria-hidden />
               <span>
-                Karten-Pin setzen folgt – ohne Pin erscheint der Strom nicht auf
-                der Karte.
+                Ohne Pin erscheint der Strom nicht auf der Karte — Pin oben im
+                Kartenausschnitt setzen.
               </span>
             </div>
           </section>
