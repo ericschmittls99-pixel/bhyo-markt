@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  stufeObergrenzeOhneDatei,
   type BelegBewertung,
   berechneGueltigBis,
   deriveQualitaet,
@@ -117,5 +118,20 @@ describe("berechneGueltigBis", () => {
   });
   it("vertrag -> kein automatisches gueltig_bis", () => {
     expect(berechneGueltigBis("vertrag", "2026-01-15")).toBeNull();
+  });
+});
+
+// F7: Live-Hinweis im Formular — Obergrenze je Typ ohne Datei/Link.
+describe("stufeObergrenzeOhneDatei", () => {
+  it("nennt je Typ die Stufe, die ohne Datei/Link maximal erreichbar ist", () => {
+    expect(stufeObergrenzeOhneDatei("vertrag")).toBe("B");
+    expect(stufeObergrenzeOhneDatei("betriebsdaten")).toBe("B");
+    expect(stufeObergrenzeOhneDatei("absichtserklaerung")).toBe("C");
+    expect(stufeObergrenzeOhneDatei("angebot")).toBe("D");
+    expect(stufeObergrenzeOhneDatei("dokument_link")).toBe("D");
+  });
+
+  it("liefert null, wenn eine Datei die Stufe nicht hoebe (Gespraech)", () => {
+    expect(stufeObergrenzeOhneDatei("gespraech")).toBeNull();
   });
 });

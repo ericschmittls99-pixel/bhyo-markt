@@ -25,6 +25,7 @@ const vollerFeed: VollstaendigkeitEingabe = {
     quellenangabe: "Liefervertrag Nr. 2026-014",
     erhebungsdatum: "2026-03-10",
     externNachvollziehbar: true,
+    dateiOderLink: true,
     kernnotiz: null,
   },
   status: "geprueft",
@@ -72,7 +73,15 @@ describe("vollstaendigkeit", () => {
       beleg: null,
       status: "entwurf",
     };
-    // gefuellt: bezeichnung, ort, von, bis, menge, einheit = 6 von 16
-    expect(vollstaendigkeit(output)).toBe(38);
+    // gefuellt: bezeichnung, ort, von, bis, menge, einheit = 6 von 17 (F7)
+    expect(vollstaendigkeit(output)).toBe(35);
+  });
+
+  it("fehlende Datei/Link senkt den Erfassungsgrad (F7)", () => {
+    const ohne = {
+      ...vollerFeed,
+      beleg: { ...vollerFeed.beleg!, dateiOderLink: false },
+    };
+    expect(vollstaendigkeit(ohne)).toBe(94);
   });
 });

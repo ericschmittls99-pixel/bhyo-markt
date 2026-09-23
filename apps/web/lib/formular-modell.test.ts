@@ -212,11 +212,13 @@ describe("validiereFormular biomasse", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, mengeRohFm: "viel" });
     expect(f.menge_roh_fm).toBe("Muss eine Zahl sein");
   });
-  it("Beleg gewählt → Quellenangabe/Erhebungsdatum Pflicht, Datei ODER Link", () => {
+  it("Beleg gewählt → Quellenangabe/Erhebungsdatum Pflicht; Datei/Link optional (F7)", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, belegTyp: "dokument_link" });
     expect(f.beleg_quellenangabe).toBe("Pflichtfeld");
     expect(f.beleg_erhebungsdatum).toBe("Pflichtfeld");
-    expect(f.beleg_datei).toBe("Datei oder Link erforderlich");
+    // F7: ohne Datei/Link speicherbar — die Stufe faellt niedriger aus
+    // (qualitaet.ts unveraendert), das Formular blockiert nicht mehr.
+    expect(f.beleg_datei).toBeUndefined();
   });
   it("Beleg mit Link statt Datei → kein Datei-Fehler", () => {
     const f = validiereFormular("biomasse", {
