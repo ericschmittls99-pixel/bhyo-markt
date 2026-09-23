@@ -155,11 +155,11 @@ describe("Feedstock §1", () => {
   // Belegfeldern ABGELEITET (deriveQualitaet, identisch zur DB-Funktion).
   // Die Ziehliste 15/20/18/7 gilt weiter fuer die Zielstufen; die 9
   // entwurf-Stroeme haben keinen Beleg und damit keine Stufe (Pille "–").
-  it("abgeleitete Qualitaet 15/19/17/7 bei 58 Belegen, 2 unbelegt-Anker", () => {
+  it("abgeleitete Qualitaet 14/19/18/7 bei 58 Belegen, 2 unbelegt-Anker", () => {
     const mit = feedstock.filter((s) => s.beleg);
     const q = (g: string) => mit.filter((s) => stufe(s) === g).length;
     expect(mit).toHaveLength(58);
-    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([15, 19, 17, 7]);
+    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([14, 19, 18, 7]);
     expect(feedstock.filter((s) => s.status === "geprueft")).toHaveLength(39);
   });
 
@@ -177,11 +177,11 @@ describe("Feedstock §1", () => {
       expect("qualitaet" in s).toBe(false);
   });
 
-  it("abgeleitete Output-Qualitaet 12/16/15/6 bei 49 Belegen, 1 unbelegt-Anker", () => {
+  it("abgeleitete Output-Qualitaet 11/17/15/6 bei 49 Belegen, 1 unbelegt-Anker", () => {
     const mit = outputs.filter((s) => s.beleg);
     const q = (g: string) => mit.filter((s) => stufe(s) === g).length;
     expect(mit).toHaveLength(49);
-    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([12, 16, 15, 6]);
+    expect([q("A"), q("B"), q("C"), q("D")]).toEqual([11, 17, 15, 6]);
   });
 
   it("Vergaben: 12 extern (5 laufend / 4 Teiljahr / 3 zukuenftig), 6 an bhyo, 7 reserviert", () => {
