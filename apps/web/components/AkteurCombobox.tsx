@@ -18,10 +18,13 @@ export function AkteurCombobox({
   name,
   initial,
   fehler,
+  onGewaehlt,
 }: {
   name: string;
   initial?: AkteurOption | null;
   fehler?: string;
+  /** F0a: meldet die Akteurwahl nach oben (Adress-Uebernahme-Knopf). */
+  onGewaehlt?: (a: AkteurOption | null) => void;
 }) {
   const [query, setQuery] = useState(initial?.name ?? "");
   const [treffer, setTreffer] = useState<AkteurOption[]>([]);
@@ -61,6 +64,7 @@ export function AkteurCombobox({
     setGewaehlt(a);
     setQuery(a.name);
     setOffen(false);
+    onGewaehlt?.(a);
   }
 
   function loesen() {
@@ -68,6 +72,7 @@ export function AkteurCombobox({
     setQuery("");
     setSektor("");
     setOffen(true);
+    onGewaehlt?.(null);
   }
 
   async function neuAnlegen() {

@@ -1,7 +1,7 @@
 "use server";
 
 import { biomassestrom, outputBedarf, vergabeZeitraum } from "@bhyo/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -18,6 +18,7 @@ import {
   herkunftOderNull,
   monatZuBis,
   monatZuVon,
+  koordinateAus,
   validiereFormular,
   type FeldFehler,
   type FormularEingaben,
@@ -60,6 +61,8 @@ function eingabenAus(formData: FormData): FormularEingaben {
     belegQuellenangabe: s(text(formData, "beleg_quellenangabe")),
     belegErhebungsdatum: s(text(formData, "beleg_erhebungsdatum")),
     // Beim Bearbeiten zaehlt eine bereits hinterlegte Datei weiter als Datei.
+    lat: s(text(formData, "lat")),
+    lng: s(text(formData, "lng")),
     belegHatDatei:
       (datei instanceof File && datei.size > 0) ||
       formData.get("beleg_datei_vorhanden") === "1",
@@ -110,11 +113,23 @@ export async function stromSpeichern(
   const entitaetTyp = art === "biomasse" ? "biomassestrom" : "output_bedarf";
 
   try {
+    // F0a: Pin-Koordinate — der Schreibpfad fuer standort_geom fehlte bisher
+    // komplett (weder Insert noch Update), das war die Ursache des
+    // "kein Pin setzbar"-Fehlers. landkreis steht nicht mehr im Formular und
+    // wird hier bewusst NICHT geschrieben, damit Updates den Bestandswert
+    // nicht nullen; ab F0b wird er raeumlich abgeleitet.
+    const koordinate = koordinateAus(eingaben);
     const gemeinsam = {
       akteurId: eingaben.akteurId,
       bezeichnung: text(formData, "bezeichnung"),
       ort: text(formData, "ort"),
-      landkreis: text(formData, "landkreis"),
+      strasse: text(formData, "strasse"),
+      hausnummer: text(formData, "hausnummer"),
+      plz: text(formData, "plz"),
+      bundesland: text(formData, "bundesland"),
+      standortGeom: koordinate
+        ? sql`ST_SetSRID(ST_MakePoint(${koordinate.lng}, ${koordinate.lat}), 4326)`
+        : null,
       kontaktperson: text(formData, "kontaktperson"),
       zeitraumVon: monatZuVon(eingaben.vonMonat),
       zeitraumBis: monatZuBis(eingaben.bisMonat),

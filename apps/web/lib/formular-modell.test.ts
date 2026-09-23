@@ -24,6 +24,12 @@ const zeile: FormularZeile = {
   akteurSektor: "landwirtschaft",
   bezeichnung: "Rindergülle",
   ort: "Rülzheim",
+  strasse: "Hauptstraße",
+  hausnummer: "12",
+  plz: "76761",
+  bundesland: "Rheinland-Pfalz",
+  lat: 49.15,
+  lng: 8.29,
   landkreis: "Germersheim",
   kontaktperson: null,
   materialartCode: "rinderguelle",
@@ -148,6 +154,8 @@ const eingabenOk: FormularEingaben = {
   belegErhebungsdatum: "",
   belegHatDatei: false,
   belegLink: "",
+  lat: "",
+  lng: "",
 };
 
 describe("validiereFormular biomasse", () => {
@@ -296,5 +304,28 @@ describe("herkunftOderNull", () => {
     expect(herkunftOderNull("geraten")).toBeNull();
     expect(spy).toHaveBeenCalled();
     spy.mockRestore();
+  });
+});
+
+// F0a: Pin/Koordinate — beide Werte oder keiner; die Adresse selbst hat
+// keine Pflichtfelder.
+describe("validiereFormular: Standort-Koordinate", () => {
+  const mit = (lat: string, lng: string) =>
+    validiereFormular("biomasse", { ...eingabenOk, lat, lng });
+
+  it("ohne Pin gueltig, mit vollstaendigem Pin gueltig", () => {
+    expect(mit("", "").standort).toBeUndefined();
+    expect(mit("49.32", "8.43").standort).toBeUndefined();
+  });
+
+  it("halber Pin ist ein Fehler", () => {
+    expect(mit("49.32", "").standort).toBeTruthy();
+    expect(mit("", "8.43").standort).toBeTruthy();
+  });
+
+  it("Koordinaten ausserhalb des Wertebereichs sind ein Fehler", () => {
+    expect(mit("95", "8.43").standort).toBeTruthy();
+    expect(mit("49.32", "200").standort).toBeTruthy();
+    expect(mit("abc", "8.43").standort).toBeTruthy();
   });
 });
