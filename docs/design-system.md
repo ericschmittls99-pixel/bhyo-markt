@@ -39,6 +39,36 @@ Output nach Gruppe (Raute):
 Qualität A–D als Ring und Pille, Graustufen, keine Ampelfarben:
 A `#1F2E38` · B `#4A5C66` · C `#97A4AB` · D `#D5D8D6`.
 
+**Kartenmarker-Ringe (E27, 23.09.2026)** laufen dagegen über
+**theme-abhängige Tokens** `--ring-a…d`, `--ring-unbelegt`,
+`--ring-ausserhalb` (globals.css), nicht über feste Hex-Werte: Light behält
+die dunkle Rampe (D angehoben von navy-300 auf navy-400 — als dünner Ring
+war es zu schwach), Dark bekommt die helle Grau/Weiß-Rampe, weil die dunkle
+Rampe auf Navy-Grund verschwand (A war praktisch unsichtbar). **In beiden
+Themes dieselbe Rangfolge A > B > C > D**, dreifach getragen — Helligkeit,
+Strichstärke (3 / 2,5 / 2 / 1,5 px) und Strichart (solid, solid, dashed,
+dotted) —, damit sie bei Farbsehschwäche und auf unruhigem
+Kartenhintergrund lesbar bleibt. Dazu die beiden E24-Zustände:
+**„unbelegt"** 1,5 px dashed, zurückgenommen (kein Beleg = keine Aussage);
+**„außerhalb"** 4 px **double** in voller Ringfarbe — es fällt bewusst auf,
+weil es auf einen falsch gesetzten Pin hindeutet. Auch hier keine
+Ampelfarbe: die Unterscheidung trägt Strichart und Breite. **„ohne
+Koordinate"** hat keinen Pin und steht nur in der Legende. Die Legendenzeile
+bricht um (`flex-wrap`) — mit sechs Zuständen passt sie nicht mehr in eine
+Zeile.
+
+**Marker-Hover (F2)**: Statt des nativen Browser-Tooltips erscheint ein
+**Glas-Popover** über dem Orb (`.km-pop`): Titel (Akteur) fett, darunter
+Materialart/Produkt, Ort und abgeleiteter Status als Captions; es fängt
+keine Mausereignisse ab. Aggregat-Marker zeigen „N Ströme ·
+hineinzoomen für Einzelheiten"; die kleinen Fächer-Orbs behalten den
+nativen Tooltip, weil ein Popover den Fächer verdecken würde.
+
+**Basemap-Filter (F2)**: hell `grayscale(1) contrast(0.8) brightness(1.1)`,
+dunkel `grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.8)
+brightness(0.94)` — feine OSM-Details treten zurück, ohne dass die Karte
+unscharf wirkt.
+
 Seit F0b sind auch **Landkreis und Bundesland reine Ableitungen** — aus der
 Koordinate per räumlichem Join auf VG250 (Referenz über den ARS, nie über
 den Namen). Anzeige im Detail als „Bezeichnung Name · aus Koordinate"

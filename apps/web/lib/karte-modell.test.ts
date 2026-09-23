@@ -12,7 +12,8 @@ import {
   maxMengeJe,
   partGroesse,
   punkteInBbox,
-  qualitaetsRing,
+  popoverZeilen,
+  ringStil,
   stromZuPunkt,
   sucheKarte,
   type KartePunkt,
@@ -116,11 +117,57 @@ describe("stromZuPunkt", () => {
 });
 
 // E24: unbelegt (null) hat einen eigenen, expliziten Ring — kein Fallback auf D.
-describe("qualitaetsRing unbelegt", () => {
-  it("null bekommt den duennsten, fast transparenten Ring, nicht den D-Ring", () => {
-    const leer = qualitaetsRing(null);
-    expect(leer).toEqual({ breite: 1.5, stil: "solid", farbe: "rgba(31,46,56,0.18)" });
-    expect(leer).not.toEqual(qualitaetsRing("D"));
+// E24/E27: je Zustand ein Testfall — Optik UND Rangfolge.
+describe("ringStil je Zustand (E24/E27)", () => {
+  it("A–D: theme-abhaengige Tokens statt fester Hex-Werte", () => {
+    expect(ringStil("A")).toEqual({ breite: 3, stil: "solid", farbe: "var(--ring-a)" });
+    expect(ringStil("B")).toEqual({ breite: 2.5, stil: "solid", farbe: "var(--ring-b)" });
+    expect(ringStil("C")).toEqual({ breite: 2, stil: "dashed", farbe: "var(--ring-c)" });
+    expect(ringStil("D")).toEqual({ breite: 1.5, stil: "dotted", farbe: "var(--ring-d)" });
+  });
+
+  it("Rangfolge traegt dreifach: Breite faellt A→D, Strichart wechselt", () => {
+    const breiten = (["A", "B", "C", "D"] as const).map((z) => ringStil(z).breite);
+    expect(breiten).toEqual([...breiten].sort((a, b) => b - a));
+    expect(new Set(breiten).size).toBe(4);
+    const arten = (["A", "B", "C", "D"] as const).map((z) => ringStil(z).stil);
+    expect(arten).toEqual(["solid", "solid", "dashed", "dotted"]);
+  });
+
+  it("unbelegt: zurueckhaltend gestrichelt, unterscheidbar von D (dotted)", () => {
+    const u = ringStil("unbelegt");
+    expect(u).toEqual({ breite: 1.5, stil: "dashed", farbe: "var(--ring-unbelegt)" });
+    expect(u.stil).not.toBe(ringStil("D").stil);
+  });
+
+  it("ausserhalb: faellt auf — breiteste, doppelte Kontur in voller Ringfarbe", () => {
+    const a = ringStil("ausserhalb");
+    expect(a).toEqual({ breite: 4, stil: "double", farbe: "var(--ring-ausserhalb)" });
+    expect(a.breite).toBeGreaterThan(ringStil("A").breite);
+    expect(a.stil).not.toBe(ringStil("unbelegt").stil);
+  });
+
+  it("jeder Zustand hat eine eigene Optik (kein Zustand faellt mit einem anderen zusammen)", () => {
+    const alle = ["A", "B", "C", "D", "unbelegt", "ausserhalb"] as const;
+    const signaturen = alle.map((z) => JSON.stringify(ringStil(z)));
+    expect(new Set(signaturen).size).toBe(alle.length);
+  });
+});
+
+// E24 auf der Karte: der Zustand entsteht aus Stufe + raeumlicher Lage.
+describe("ringZustand am Kartenpunkt", () => {
+  const speyer = { kreisArs: "07318", kreisName: "Speyer", kreisBez: "Kreisfreie Stadt", landArs: "07", landName: "Rheinland-Pfalz" };
+  it("Stufe mit Gebiet -> die Stufe", () => {
+    expect(stromZuPunkt({ ...basis, qualitaet: "B", verwaltung: speyer })!.ringZustand).toBe("B");
+  });
+  it("kein Beleg, aber im Gebiet -> unbelegt", () => {
+    expect(stromZuPunkt({ ...basis, qualitaet: null, verwaltung: speyer })!.ringZustand).toBe("unbelegt");
+  });
+  it("Koordinate in keinem Gebiet -> ausserhalb, auch mit Stufe A", () => {
+    expect(stromZuPunkt({ ...basis, qualitaet: "A", verwaltung: null })!.ringZustand).toBe("ausserhalb");
+  });
+  it("ohne Koordinate -> gar kein Pin (nur Legende)", () => {
+    expect(stromZuPunkt({ ...basis, lng: null, lat: null })).toBeNull();
   });
 });
 
@@ -283,18 +330,6 @@ describe("geojsonOderNull", () => {
   });
 });
 
-describe("qualitaetsRing (exakt Mockup-RING, sitzt auf dem Glas-Halo)", () => {
-  it("A 2,5 solid 900 / B 2 solid 700 / C 2 dashed 500 / D 2 dotted 300", () => {
-    expect(qualitaetsRing("A")).toEqual({ breite: 2.5, stil: "solid", farbe: "#1f2e38" });
-    expect(qualitaetsRing("B")).toEqual({ breite: 2, stil: "solid", farbe: "#3c4a52" });
-    expect(qualitaetsRing("C")).toEqual({ breite: 2, stil: "dashed", farbe: "#6c7a81" });
-    expect(qualitaetsRing("D")).toEqual({ breite: 2, stil: "dotted", farbe: "#a3acb1" });
-  });
-  it("ohne Bewertung dezenter Glasrand", () => {
-    expect(qualitaetsRing(null).breite).toBe(1.5);
-  });
-});
-
 describe("orb-Asset am Kartenpunkt", () => {
   it("Biomasse → Cluster-Orb, Output → Gruppen-Orb", () => {
     expect(stromZuPunkt(basis)!.orb).toBe("/orbs/cluster/guelle_mist.webp");
@@ -329,5 +364,19 @@ describe("faecherLayout (Bogen mit Luecke zu Nachbarn; max ~15; '…' bei mehr)"
     const l = faecherLayout(22, 26, 54);
     expect(l.sichtbar).toBe(14);
     expect(l.mehr).toBe(true);
+  });
+});
+
+// F2: Inhalt des Glas-Popovers (Marker-Hover).
+describe("popoverZeilen", () => {
+  it("Titel zuerst, darunter Materialart, Ort und Status", () => {
+    expect(
+      popoverZeilen({ titel: "Hof Müller", untertitel: "Rindergülle", ort: "Speyer", statusText: "verfügbar." }),
+    ).toEqual({ titel: "Hof Müller", zeilen: ["Rindergülle", "Speyer", "verfügbar."] });
+  });
+  it("laesst leere Angaben weg, statt Trennzeichen zu haeufen", () => {
+    expect(
+      popoverZeilen({ titel: "Nur Titel", untertitel: "", ort: null, statusText: "" }),
+    ).toEqual({ titel: "Nur Titel", zeilen: [] });
   });
 });

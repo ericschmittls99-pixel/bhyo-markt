@@ -10,7 +10,7 @@ import { useEffect, useRef, useState } from "react";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
-import { farbeFuer, ringFuer } from "@/lib/farben";
+import { farbeFuer, ringFarbeFuer } from "@/lib/farben";
 import type { MapPunkt, RegionGebiet, RegionUmriss } from "@/lib/register";
 
 // Keyless OSM-Raster-Style (keine Lizenzkosten, kein API-Key). Fuer das interne
@@ -120,8 +120,11 @@ export function Karte({
         el.title = p.label;
         el.style.cssText = `width:${size}px;height:${size}px;padding:0;border:none;background:none;cursor:pointer;display:flex;align-items:center;justify-content:center;`;
         const shape = document.createElement("span");
-        const gemein = `background:${farbeFuer(p.art, p.farbeKey)};border:1px solid color-mix(in srgb, ${ringFuer(
-          p.qualitaet,
+        const gemein = `background:${farbeFuer(p.art, p.farbeKey)};border:1px solid color-mix(in srgb, ${ringFarbeFuer(
+          // V1-Karte (BewertungPanel): kennt nur die Stufe — ohne Stufe
+          // gilt "unbelegt". Der raeumliche Zustand "ausserhalb" ist der
+          // V2-Karte vorbehalten (E24/E27).
+          p.qualitaet ?? "unbelegt",
         )} 55%, transparent);box-shadow:0 1px 3px rgba(31,46,56,0.22);box-sizing:border-box;`;
         // Biomasse = Kreis, Output = Raute (rotiertes Quadrat, ~0.72*size, damit
         // die Diagonale wieder ~size ergibt). markerGroesse/Rahmen unveraendert.

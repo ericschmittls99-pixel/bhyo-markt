@@ -3091,12 +3091,16 @@ table.st-tabelle tbody tr:focus-visible {
   width: 100%;
   height: 100%;
 }
+/* F2 (Eric, 23.09.2026): Kontrast gesenkt und Helligkeit leicht angehoben,
+   damit die feinen OSM-Details (Hoehenangaben, Hoehenpunkte, Ortsstrassen)
+   zuruecktreten, ohne dass die Karte unscharf wirkt. Gewaehlt aus je drei
+   Varianten: hell V2, dunkel V1. grayscale/invert/hue-rotate unveraendert. */
 .km-flaeche canvas {
-  filter: grayscale(1) contrast(0.92) brightness(1.04);
+  filter: grayscale(1) contrast(0.8) brightness(1.1);
 }
 [data-theme="dark"] .km-flaeche canvas {
-  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.85)
-    brightness(0.9);
+  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.8)
+    brightness(0.94);
 }
 
 /* Marker: 1:1 Mockup — Orb-Bild (km-fill) 6 px im Glas-Halo, Zaehler-Pille,
@@ -3201,6 +3205,50 @@ table.st-tabelle tbody tr:focus-visible {
     opacity: 1;
     transform: none;
   }
+}
+
+/* F2: Glas-Popover am Marker-Hover — ersetzt den nativen Browser-Tooltip
+   (unstyled, verzoegert, im Dark Mode systemfarben). Titel zuerst, darunter
+   Materialart/Produkt und der abgeleitete Status. Erscheint ueber dem Orb,
+   faengt keine Mausereignisse ab (sonst flackert der Hover). */
+.km-pop {
+  position: absolute;
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 140px;
+  max-width: 240px;
+  padding: 8px 10px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-card);
+  background: var(--glass-fill-strong);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--shadow-card);
+  pointer-events: none;
+  text-align: left;
+  white-space: normal;
+}
+.km-marker:hover > .km-pop,
+.km-marker:focus-visible > .km-pop {
+  display: flex;
+  animation: km-pop-auf var(--duration-fast) var(--ease-standard);
+}
+@keyframes km-pop-auf {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(4px); }
+}
+.km-pop-titel {
+  font: 600 13px/1.35 var(--font-sans);
+  color: var(--text-primary);
+}
+.km-pop-zeile {
+  font: var(--type-caption);
+  color: var(--text-secondary);
 }
 
 /* Glas-Label der Regionsumrisse */
@@ -3425,7 +3473,10 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .km-leg-qual {
   display: flex;
-  gap: 12px;
+  /* F2: seit E24 stehen sechs Zustaende in der Zeile — ohne Umbruch fiel
+     "außerhalb" aus der Legende heraus. */
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 2px 8px;
   font: var(--type-caption);
   color: var(--text-secondary);
@@ -3771,6 +3822,40 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 8px;
 }
 .aw-statuszeile .aw-balken { width: 100%; }
+
+/* E27 (23.09.2026): Ring-Rampe der Kartenmarker — THEME-ABHAENGIG.
+   Light: dunkle Rampe auf hellen Kacheln (D gegenueber frueher ANGEHOBEN,
+   navy-300 war zu schwach). Dark: helle Grau/Weiss-Rampe, weil die dunkle
+   Rampe auf Navy-Grund verschwand (A war praktisch unsichtbar).
+   In beiden Themes dieselbe Rangfolge A > B > C > D; Breite und Strichart
+   tragen sie zusaetzlich (siehe ringStil in lib/karte-modell.ts).
+   "unbelegt" bleibt zurueckhaltend, "ausserhalb" faellt bewusst auf. */
+:root {
+  --ring-a: var(--bhyo-navy-900);
+  --ring-b: var(--bhyo-navy-700);
+  --ring-c: var(--bhyo-navy-500);
+  --ring-d: var(--bhyo-navy-400);
+  --ring-unbelegt: var(--bhyo-navy-200);
+  --ring-ausserhalb: var(--bhyo-navy-900);
+}
+[data-theme="dark"] {
+  --ring-a: #eaf0f2;
+  --ring-b: #a9b6bd;
+  --ring-c: #7f8f97;
+  --ring-d: #6c7a81;
+  --ring-unbelegt: #4a5a63;
+  --ring-ausserhalb: #eaf0f2;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --ring-a: #eaf0f2;
+    --ring-b: #a9b6bd;
+    --ring-c: #7f8f97;
+    --ring-d: #6c7a81;
+    --ring-unbelegt: #4a5a63;
+    --ring-ausserhalb: #eaf0f2;
+  }
+}
 
 /* Qualitaet: Donut in Navy-Rampe (dark: hell -> dunkel, wie Referenz) */
 :root {

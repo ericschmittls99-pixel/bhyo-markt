@@ -7,9 +7,8 @@ import {
   CLUSTER_LABEL,
   OUTPUT_FARBE,
   OUTPUT_LABEL,
-  QUALITAET_RING,
 } from "@/lib/farben";
-import { qualitaetsRing, type KartePunkt } from "@/lib/karte-modell";
+import { ringStil, type KartePunkt, type RingZustand } from "@/lib/karte-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 const MIN_HOEHE = 96;
@@ -23,6 +22,16 @@ const DEFAULT_HOEHE = 320;
  * Regionen mit Sichtbarkeitsschaltern. Offen/Hoehe/Regionsschalter leben im
  * Cookie bhyo_ui und ueberleben Einklappen und Reload.
  */
+/** E24/E27: Reihenfolge der Ring-Zustaende in der Legende. */
+const RING_LEGENDE: { zustand: RingZustand; label: string }[] = [
+  { zustand: "A", label: "A" },
+  { zustand: "B", label: "B" },
+  { zustand: "C", label: "C" },
+  { zustand: "D", label: "D" },
+  { zustand: "unbelegt", label: "unbelegt" },
+  { zustand: "ausserhalb", label: "außerhalb" },
+];
+
 export function KarteLegende({
   punkte,
   poolPunkte,
@@ -204,28 +213,32 @@ export function KarteLegende({
           </div>
 
           <div className="km-leg-grp">
-            <h3>rand · qualität.</h3>
+            <h3>rand · zustand.</h3>
             <div className="km-leg-qual">
-              {Object.entries(QUALITAET_RING).map(([k, farbe]) => {
-                const ring = qualitaetsRing(k);
+              {/* E24/E27: alle sechs Ring-Zustaende, je mit eigener Optik. */}
+              {RING_LEGENDE.map(({ zustand, label }) => {
+                const ring = ringStil(zustand);
                 return (
-                  <span className="km-leg-qual-item" key={k}>
+                  <span className="km-leg-qual-item" key={zustand}>
                     <i
                       style={{
-                        borderColor: farbe,
+                        borderColor: ring.farbe,
                         borderWidth: ring.breite,
                         borderStyle: ring.stil,
                       }}
                       aria-hidden
                     />
-                    {k}
+                    {label}
                   </span>
                 );
               })}
             </div>
             <p className="km-leg-hinweis">
-              Größe ~ Menge (t atro/a bzw. Bedarfsmenge). Ströme ohne
-              Karten-Pin erscheinen nicht.
+              Größe ~ Menge (t atro/a bzw. Bedarfsmenge). „außerhalb" heißt:
+              die Koordinate liegt in keinem Verwaltungsgebiet — oft ein
+              Hinweis auf einen falsch gesetzten Pin. Ströme{" "}
+              <strong>ohne Koordinate</strong> haben keinen Pin und
+              erscheinen deshalb nicht auf der Karte.
             </p>
           </div>
 

@@ -17,6 +17,7 @@ import {
 import "maplibre-gl/dist/maplibre-gl.css";
 
 import {
+  popoverZeilen,
   aggregiere,
   faecherLayout,
   fanStart,
@@ -25,7 +26,7 @@ import {
   markerGroesse,
   maxMengeJe,
   partGroesse,
-  qualitaetsRing,
+  ringStil,
   type KartePunkt,
 } from "@/lib/karte-modell";
 
@@ -49,6 +50,27 @@ export const OSM_STYLE = {
   },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
+
+/**
+ * F2: Glas-Popover am Marker-Hover — ersetzt den nativen Browser-Tooltip
+ * (unstyled, verzoegert, im Dark Mode systemfarben). Inhalt kommt aus der
+ * reinen Funktion popoverZeilen; Sichtbarkeit steuert CSS (.km-pop).
+ */
+function machePopover(titel: string, zeilen: string[]): HTMLSpanElement {
+  const pop = document.createElement("span");
+  pop.className = "km-pop";
+  const t = document.createElement("strong");
+  t.className = "km-pop-titel";
+  t.textContent = titel;
+  pop.appendChild(t);
+  for (const z of zeilen) {
+    const zeile = document.createElement("span");
+    zeile.className = "km-pop-zeile";
+    zeile.textContent = z;
+    pop.appendChild(zeile);
+  }
+  return pop;
+}
 
 const AGG_RADIUS = 80;
 const LIME = "#7DB535";
@@ -322,13 +344,13 @@ export function KarteMap({
       if (typ === "single") {
         const p = mitglieder[0]!;
         punktId = p.id;
-        const ring = qualitaetsRing(p.qualitaet);
+        const ring = ringStil(p.ringZustand);
         halo.style.border = `${ring.breite}px ${ring.stil} ${ring.farbe}`;
         if (p.id === aktiv) orbEl.classList.add("is-active");
-        // Status im Tooltip statt Marker-Faerbung (Beschluss 22.09.2026).
-        el.title = [p.titel, p.untertitel, p.statusText]
-          .filter(Boolean)
-          .join(" · ");
+        // Status im Popover statt Marker-Faerbung (Beschluss 22.09.2026),
+        // seit F2 als Glas-Popover statt nativem Tooltip.
+        const inhalt = popoverZeilen(p);
+        el.append(machePopover(inhalt.titel, inhalt.zeilen));
         orbEl.append(halo, fillEl(p.orb));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
@@ -399,7 +421,9 @@ export function KarteMap({
         const c0 = countEl(mitglieder.length);
         c0.style.zIndex = String(positionen + 3);
         orbEl.append(halo, f0, c0);
-        el.title = `${mitglieder.length} Ströme`;
+        el.append(
+          machePopover(`${mitglieder.length} Ströme`, ["hineinzoomen für Einzelheiten"]),
+        );
         el.addEventListener("mouseenter", () => orbEl.classList.add("is-open"));
         el.addEventListener("mouseleave", () => orbEl.classList.remove("is-open"));
         el.addEventListener("click", (e) => {
@@ -470,7 +494,11 @@ export function KarteMap({
         id: "km-regionen-line",
         type: "line",
         source: src,
-        paint: { "line-color": LIME, "line-width": 2, "line-opacity": 0.9 },
+        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken) und eine
+        // praegnantere Linie — die Umrisse sollen die Flaeche fuehren, ohne
+        // mit den Markern zu konkurrieren.
+        layout: { "line-join": "round", "line-cap": "round" },
+        paint: { "line-color": LIME, "line-width": 3, "line-opacity": 1 },
       });
     }
 
