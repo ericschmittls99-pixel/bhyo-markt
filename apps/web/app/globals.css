@@ -3425,7 +3425,10 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .km-leg-qual {
   display: flex;
-  gap: 12px;
+  /* F2: seit E24 stehen sechs Zustaende in der Zeile — ohne Umbruch fiel
+     "außerhalb" aus der Legende heraus. */
+  flex-wrap: wrap;
+  gap: 8px 12px;
   padding: 2px 8px;
   font: var(--type-caption);
   color: var(--text-secondary);
