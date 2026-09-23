@@ -10,6 +10,7 @@ import { jahresAnteil, type FensterKategorie } from "./fenster";
 import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
 import { fmtDatum, fmtGeldGross, fmtMenge, fmtPreis } from "./format";
+import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
 import { verifikationsFaelligkeit } from "./verifizierung";
@@ -515,7 +516,13 @@ export function statusZeilen(recs: Strom[]): StatusZeile[] {
   });
 }
 
-/** Gewichteter Monatsindex; fehlende Saisonalitaet zaehlt flach 100. */
+/**
+ * Gewichteter Monatsindex; fehlende Saisonalitaet zaehlt flach 100.
+ * Jeder Strom wird zuerst auf die Index-Skala normiert (saisonZuIndex) —
+ * die gespeicherte Skala ist bedeutungslos (Alt-Bestand Summe 100, neu
+ * Index um 100), roh gemischt wuerde ein Index-Profil ein Alt-Profil um
+ * den Faktor 12 dominieren.
+ */
 function saisonIndex(rs: Strom[], gewicht: (s: Strom) => number): number[] {
   let tw = sum(rs, gewicht);
   let w = gewicht;
@@ -524,8 +531,11 @@ function saisonIndex(rs: Strom[], gewicht: (s: Strom) => number): number[] {
     w = () => 1;
     tw = rs.length;
   }
+  const indexVon = new Map(
+    rs.map((s) => [s, s.saisonalitaet ? saisonZuIndex(s.saisonalitaet) : null]),
+  );
   return Array.from({ length: 12 }, (_, m) =>
-    tw ? Math.round(sum(rs, (s) => w(s) * (s.saisonalitaet?.[m] ?? 100)) / tw) : 0,
+    tw ? Math.round(sum(rs, (s) => w(s) * (indexVon.get(s)?.[m] ?? 100)) / tw) : 0,
   );
 }
 

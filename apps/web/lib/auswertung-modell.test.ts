@@ -415,7 +415,10 @@ describe("saisonDaten", () => {
       saisonalitaet: [80, 100, 100, 100, 100, 100, 100, 100, 100, 100, 100, 120],
     });
     const s = saisonDaten([o1, e2, co2]);
-    expect(s.outEnergie![9]).toBe(110);
+    // Index-Konvention (23.09.2026): Profile werden vor dem Mischen aufs
+    // Mittel 100 normiert — e2 (Summe 1220) traegt im Oktober 118 statt
+    // roher 120, gewichtet ergibt das 109.
+    expect(s.outEnergie![9]).toBe(109);
     expect(s.outStofflich![0]).toBe(80);
     // Waerme zaehlt nicht in die Energie-Saisonalitaet (nur Targets)
     const waerme = strom({

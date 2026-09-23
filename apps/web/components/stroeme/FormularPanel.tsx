@@ -29,6 +29,7 @@ import {
   type FormularWerte,
 } from "@/lib/formular-modell";
 import { stromSpeichern, type SpeichernErgebnis } from "@/lib/formular-actions";
+import { saisonZuIndex } from "@/lib/saison";
 import {
   leiteVerfuegbarkeitAb,
   verfuegbarkeitPill,
@@ -107,8 +108,10 @@ export function FormularPanel({
   );
 
   // Saisonalitaet (E10) + Beleg-Zustand fuer die Qualitaets-Ableitung.
-  const [saison, setSaison] = useState<number[]>(
-    () => werte?.saisonalitaet ?? Array(12).fill(0),
+  // Editor-Ansicht in Index-Normierung (Mittel = 100); die Verhaeltnisse
+  // des Bestands bleiben exakt erhalten (lib/saison).
+  const [saison, setSaison] = useState<number[]>(() =>
+    werte?.saisonalitaet ? saisonZuIndex(werte.saisonalitaet) : Array(12).fill(0),
   );
   const b = werte?.beleg ?? null;
   const [typ, setTyp] = useState<BelegTyp | "">((b?.typ as BelegTyp) ?? "");
@@ -691,6 +694,7 @@ export function FormularPanel({
           <section className="ov-sec">
             <h3>saisonalität.</h3>
             <SeasonBarsEdit werte={saison} onWerte={setSaison} />
+            {f.saison && <span className="pf-fehler">{f.saison}</span>}
             {saison.map((v, i) => (
               <input key={i} type="hidden" name={`saison_${i}`} value={v} />
             ))}
@@ -1017,25 +1021,31 @@ export function FormularPanel({
             </div>
           </section>
 
-          <section className="ov-sec">
-            <h3>begründung.</h3>
-            <label className="pf">
-              <span>
-                Begründung<em className="pf-pflicht" aria-hidden> *</em>
-              </span>
-              <span className="pf-feld">
-                <textarea
-                  name="begruendung"
-                  placeholder="Warum dieser Wert, warum diese Quelle?"
-                  aria-invalid={f.begruendung ? true : undefined}
-                />
-              </span>
-              {f.begruendung && <span className="pf-fehler">{f.begruendung}</span>}
-              <span className="fp-hinweis">
-                Wird in der Änderungshistorie protokolliert.
-              </span>
-            </label>
-          </section>
+          {/* Review 23.09.2026: Begruendung nur beim BEARBEITEN — sie ist die
+              Je-Aenderungs-Begruendung der Historie ("warum korrigiert").
+              Beim Anlegen entfaellt sie (Historie erhaelt "Ersterfassung");
+              auf die Qualitaets-Ableitung hat sie keinerlei Einfluss. */}
+          {!neu && (
+            <section className="ov-sec">
+              <h3>begründung.</h3>
+              <label className="pf">
+                <span>
+                  Begründung<em className="pf-pflicht" aria-hidden> *</em>
+                </span>
+                <span className="pf-feld">
+                  <textarea
+                    name="begruendung"
+                    placeholder="Warum dieser Wert, warum diese Quelle?"
+                    aria-invalid={f.begruendung ? true : undefined}
+                  />
+                </span>
+                {f.begruendung && <span className="pf-fehler">{f.begruendung}</span>}
+                <span className="fp-hinweis">
+                  Wird in der Änderungshistorie protokolliert.
+                </span>
+              </label>
+            </section>
+          )}
 
           <div className="ov-fuss">
             {state.fehler && <span className="pf-fehler">{state.fehler}</span>}

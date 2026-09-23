@@ -4137,3 +4137,61 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-xs);
   overflow: hidden;
 }
+
+/* --- Saison-Index-Editor (23.09.2026) --------------------------------- */
+.sbe-achse { position: relative; }
+.sbe-achse-max {
+  position: absolute;
+  top: -4px;
+  right: 0;
+  font-size: 11px;
+  color: var(--text-muted, #6b7a83);
+}
+.sbe-flaeche { position: relative; }
+.sbe-referenz {
+  position: absolute;
+  left: 0;
+  right: 0;
+  border-top: 1px dashed var(--text-muted, #6b7a83);
+  opacity: 0.6;
+  pointer-events: none;
+}
+.sbe-zahlen,
+.sbe-anteile {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 2px;
+  margin-top: 4px;
+}
+.sbe-zahlen input {
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  text-align: center;
+  padding: 2px 0;
+  border: 1px solid var(--border, #d5d8d6);
+  border-radius: 6px;
+  background: transparent;
+  -moz-appearance: textfield;
+}
+.sbe-zahlen input::-webkit-outer-spin-button,
+.sbe-zahlen input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+.sbe-anteile { user-select: none; }
+.sbe-anteil {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted, #6b7a83);
+}
+.sbe-anteile-caption { display: block; margin-top: 2px; }
+.sbe-referenz-label {
+  position: absolute;
+  right: 2px;
+  top: -14px;
+  font-size: 10px;
+  color: var(--text-muted, #6b7a83);
+}
+.sbe-info {
+  margin-left: 4px;
+  cursor: help;
+  vertical-align: -1px;
+}

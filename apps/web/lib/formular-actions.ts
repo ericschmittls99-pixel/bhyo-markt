@@ -63,6 +63,7 @@ function eingabenAus(formData: FormData): FormularEingaben {
     // Beim Bearbeiten zaehlt eine bereits hinterlegte Datei weiter als Datei.
     lat: s(text(formData, "lat")),
     lng: s(text(formData, "lng")),
+    saison: saisonAusFormData(formData),
     belegHatDatei:
       (datei instanceof File && datei.size > 0) ||
       formData.get("beleg_datei_vorhanden") === "1",
@@ -102,7 +103,7 @@ export async function stromSpeichern(
   const heute = new Date().toISOString().slice(0, 10);
 
   const feldFehler = {
-    ...validiereFormular(art, eingaben),
+    ...validiereFormular(art, eingaben, { neu: id == null }),
     ...validiereVergaben(eingaben.vonMonat, eingaben.bisMonat, vergaben),
   };
   // Erst validieren, dann hochladen — ein Validierungsfehler darf keine
@@ -200,7 +201,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: biomassestrom.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
           } else {
             const [row] = await tx
               .insert(outputBedarf)
@@ -213,7 +214,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: outputBedarf.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung);
+            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
           }
           return;
         }

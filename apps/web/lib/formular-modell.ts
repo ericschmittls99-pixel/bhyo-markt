@@ -48,15 +48,30 @@ export function saisonOderLeer(v: unknown, kontext: string): number[] {
   return Array(12).fill(0);
 }
 
-/** Gleichverteilung: 12 × 8,3 % (Summe 99,6 — bewusst nicht kuenstlich auf 100 gezogen). */
+/** Gleichverteilung (Index-Konvention 23.09.2026): alle Monate auf 100. */
 export function gleichverteilung(): number[] {
-  return Array(12).fill(Math.round((100 / 12) * 10) / 10);
+  return Array(12).fill(100);
 }
 
-/** Setzt einen Monatswert (0–100, ganzzahlig) und laesst die Nachbarn stehen. */
+/**
+ * Ziehen im Editor: setzt einen Index (0–200, ganzzahlig), Nachbarn bleiben.
+ * Werte ueber 200 gibt es nur ueber das Zahlenfeld (saisonWertDirekt) —
+ * die Achse laeuft beim Ziehen nie davon.
+ */
 export function saisonWertSetzen(werte: number[], i: number, v: number): number[] {
-  const geclampt = Math.min(100, Math.max(0, Math.round(v)));
+  const geclampt = Math.min(200, Math.max(0, Math.round(v)));
   return werte.map((x, j) => (j === i ? geclampt : x));
+}
+
+/**
+ * Zahlenfeld je Monat: kappt wie das Ziehen bei 200 (Review 23.09.2026 —
+ * urspruenglich fuer Indizes >200 gedacht, wieder gestrichen). Extremere
+ * Profile bleiben darstellbar, weil nur Verhaeltnisse zaehlen: statt
+ * 240/100 zieht man die uebrigen Monate herunter (200/83 ist dasselbe
+ * Profil).
+ */
+export function saisonWertDirekt(werte: number[], i: number, v: number): number[] {
+  return saisonWertSetzen(werte, i, v);
 }
 
 // --- Gekoppelte Auswahllisten ------------------------------------------------
@@ -139,6 +154,8 @@ export interface FormularEingaben {
   /** F0a: Pin-Koordinate als Rohstrings der Hidden-Inputs ("" = kein Pin). */
   lat: string;
   lng: string;
+  /** Saison-Index der 12 Monate (Skala bedeutungslos, nur Verhaeltnisse). */
+  saison: number[];
 }
 
 const PFLICHT = "Pflichtfeld";
@@ -152,7 +169,12 @@ function zahlOk(v: string): boolean {
  * Feld-Fehler fuer die Inline-Anzeige (leeres Objekt = gueltig). Die Keys sind
  * die FormData-Feldnamen; Client und Server nutzen dieselbe Funktion.
  */
-export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehler {
+export function validiereFormular(
+  art: StromArt,
+  e: FormularEingaben,
+  /** neu = Anlegen: keine Begruendungs-Pflicht (Review 23.09.2026). */
+  kontext: { neu: boolean } = { neu: false },
+): FeldFehler {
   const f: FeldFehler = {};
   const pflicht = (key: string, wert: string) => {
     if (!wert.trim()) f[key] = PFLICHT;
@@ -164,7 +186,11 @@ export function validiereFormular(art: StromArt, e: FormularEingaben): FeldFehle
   pflicht("akteur_id", e.akteurId);
   pflicht("zeitraum_von", e.vonMonat);
   pflicht("zeitraum_bis", e.bisMonat);
-  pflicht("begruendung", e.begruendung);
+  // Begruendung ist die Je-Aenderungs-Begruendung der Historie: beim
+  // Bearbeiten Pflicht ("warum korrigiert"), beim Anlegen entfallen
+  // (Review 23.09.2026). Auf die Qualitaets-Ableitung hat sie keinerlei
+  // Einfluss.
+  if (!kontext.neu) pflicht("begruendung", e.begruendung);
 
   if (art === "biomasse") {
     pflicht("materialart_code", e.materialartCode);
