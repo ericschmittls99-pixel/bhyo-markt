@@ -17,6 +17,7 @@
     "schema-gate": "tsx src/schema-gate.ts",
     "schema-stand": "tsx src/schema-gate.ts stand",
     "pre-drop-check": "tsx src/pre-drop-check.ts",
+    "verwaltung-check": "tsx src/verwaltung-check.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
