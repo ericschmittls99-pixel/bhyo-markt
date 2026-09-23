@@ -1,0 +1,102 @@
+name: Import VG250
+
+# F0b PR B: befuellt `verwaltungsgebiet` aus der VG250-Lieferung des BKG
+# (Ebene Gebiete, NICHT VG250-EW). NUR manuell, mit woertlicher Bestaetigung
+# der Zielumgebung, Host-Pruefung und Zielnachweis — wie migrate-production.
+# Preview darf direkt laufen; Production erst nach ausdruecklicher Freigabe
+# von Eric. Der Import ist idempotent: Ersetzung in einer Transaktion,
+# Sollwerte (16 Laender, 401 Kreise) brechen sonst laut ab.
+on:
+  workflow_dispatch:
+    inputs:
+      umgebung:
+        description: "Zielumgebung"
+        required: true
+        type: choice
+        options: [preview, production]
+      bestaetigung:
+        description: 'Zur Freigabe die Zielumgebung woertlich wiederholen'
+        required: true
+
+concurrency:
+  group: import-vg250
+  cancel-in-progress: false
+
+env:
+  # Feste, versionierte Quelle (Stichtag 01.01.2026) — bewusst NICHT der
+  # bewegliche "aktuell/"-Alias. Prueft die SHA-256 der Lieferung; jede
+  # Abweichung bricht ab (dann liegt eine neue Lieferung vor: Hash,
+  # Stichtag und Sollwerte bewusst aktualisieren).
+  VG250_URL: https://daten.gdz.bkg.bund.de/produkte/vg/vg250_ebenen_0101/2026/vg250_01-01.utm32s.gpkg.ebenen.zip
+  VG250_SHA256: 6b096eb4862b4eafda9294e425fb5a6d0e7773eb5815a4d4edc78b639ec2728f
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.umgebung == 'production' && 'production' || '' }}
+    permissions:
+      contents: read
+    steps:
+      - name: Bestaetigung pruefen
+        if: inputs.bestaetigung != inputs.umgebung
+        run: |
+          echo '::error::Abbruch: "bestaetigung" muss woertlich der Zielumgebung entsprechen.'
+          exit 1
+
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Host pruefen (Ziel = gewaehlte Umgebung)
+        env:
+          DATABASE_URL: ${{ inputs.umgebung == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_PREVIEW }}
+          UMGEBUNG: ${{ inputs.umgebung }}
+        run: |
+          host=$(node -e 'console.log(new URL(process.env.DATABASE_URL).hostname)')
+          case "$UMGEBUNG:$host" in
+            production:ep-purple-glade-b2tra1g7*|preview:ep-rough-term-b29rvd6c*)
+              echo "Endpoint bestaetigt: $UMGEBUNG -> $host" ;;
+            *)
+              echo "::error::DATABASE_URL zeigt auf '$host' — passt nicht zur Umgebung '$UMGEBUNG'. Abbruch."
+              exit 1 ;;
+          esac
+
+      - name: GDAL installieren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin
+
+      - name: VG250 laden und Pruefsumme verifizieren
+        run: |
+          curl -sSL -o vg250.zip "$VG250_URL"
+          echo "$VG250_SHA256  vg250.zip" | sha256sum -c - || {
+            echo "::error::SHA-256 weicht ab — neue BKG-Lieferung? Hash/Stichtag/Sollwerte bewusst aktualisieren. Abbruch."
+            exit 1
+          }
+          unzip -q vg250.zip -d vg250
+          find vg250 -name "*.gpkg"
+
+      - name: Staging laden (ogr2ogr, 25832 -> 4326, nur GF=4)
+        env:
+          DATABASE_URL: ${{ inputs.umgebung == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          gpkg=$(find vg250 -name "*.gpkg" | head -1)
+          pg=$(node -e '
+            const u = new URL(process.env.DATABASE_URL);
+            console.log(`PG:host=${u.hostname} port=${u.port || 5432} dbname=${u.pathname.slice(1)} user=${decodeURIComponent(u.username)} password=${decodeURIComponent(u.password)} sslmode=require`);
+          ')
+          for paar in "v_vg250_lan:vg250_import_lan" "v_vg250_krs:vg250_import_krs"; do
+            layer="${paar%%:*}"; ziel="${paar##*:}"
+            ogr2ogr -f PostgreSQL "$pg" "$gpkg" \
+              -nln "$ziel" -overwrite -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI \
+              -lco GEOMETRY_NAME=geom \
+              -sql "SELECT \"Regionalschlüssel_ARS\" AS ars, \"GeografischerName_GEN\" AS gen, \"Bezeichnung\" AS bez FROM $layer WHERE GF = 4"
+          done
+
+      - name: Bestand ersetzen (Transaktion, Sollwerte, Zielnachweis)
+        env:
+          DATABASE_URL: ${{ inputs.umgebung == 'production' && secrets.DATABASE_URL_PRODUCTION || secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db vg250-import
