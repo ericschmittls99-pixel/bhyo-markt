@@ -9,6 +9,12 @@ import { deriveQualitaet } from "../lib/qualitaet";
 
 const sql = createSql(process.env.DATABASE_URL!);
 
+// Achtung Treiber-Falle: metadata MUSS ueber sql.json() gebunden werden.
+// Ein String-Parameter, den Postgres als jsonb inferiert, wird von
+// postgres.js als JSON-SKALAR serialisiert ("{\"a\":1}" statt Objekt) —
+// ->> liefert dann NULL und jeder "vollstaendig"-Fall kippt still auf
+// unvollstaendig (gefunden 23.09.2026 ueber die Flag-Instrumentierung).
+
 async function main() {
   const fehler: string[] = [];
   for (const a of ANKERFAELLE) {
@@ -20,7 +26,7 @@ async function main() {
         ${b.dateiKey ?? null},
         ${b.linkUrl ?? null},
         ${b.gueltigBis ?? null}::date,
-        ${JSON.stringify(b.metadata)}::jsonb,
+        ${sql.json(b.metadata as never)},
         ${b.erhebungsdatum ?? null}::timestamptz
       )::text as stufe`;
     const db = row!.stufe as string;
