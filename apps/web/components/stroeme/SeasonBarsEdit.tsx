@@ -8,7 +8,7 @@ import {
   saisonWertSetzen,
 } from "@/lib/formular-modell";
 import { fmtAnteil } from "@/lib/format";
-import { saisonAchse, saisonAnteileProzent } from "@/lib/saison";
+import { saisonAchse, saisonAnteileProzent, saisonStrecken } from "@/lib/saison";
 
 const MONATE = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const MONAT_LANG = [
@@ -63,8 +63,9 @@ function ZahlenFeld({
 }
 
 /**
- * Saison-INDEX-Editor (Umbau 23.09.2026): 100 = Durchschnittsmonat, feste
- * Achse 0-200 mit Referenzlinie bei 100. Ziehen UND Zahlenfeld kappen bei
+ * Saison-INDEX-Editor (Umbau 23.09.2026): feste Achse 0-200 mit
+ * Referenzlinie "100 %" (bewusst nicht "Durchschnitt" — ohne Normierung
+ * ist der Mittelwert der zwoelf Werte beliebig). Ziehen UND Zahlenfeld kappen bei
  * 200 (Review 23.09.); extremere Profile entstehen ueber die Verhaeltnisse
  * (uebrige Monate senken). Die Achse springt nur noch fuer Altdaten mit
  * Werten ueber 200 (saisonAchse, defensiv). Unter dem Editor eine
@@ -143,12 +144,14 @@ export function SeasonBarsEdit({
           }}
           onPointerUp={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
         >
-          {/* Referenzlinie: 100 = Durchschnittsmonat. */}
+          {/* Referenzlinie "100 %" — Referenzmarke, kein Durchschnitt. */}
           <div
             className="sbe-referenz"
             style={{ bottom: `${(100 / achse) * 100}%` }}
             aria-hidden
-          />
+          >
+            <span className="sbe-referenz-label">100 %</span>
+          </div>
           {werte.map((v, i) => (
             <div className="sbar" key={i}>
               <div
@@ -211,7 +214,13 @@ export function SeasonBarsEdit({
         ))}
       </div>
       <span className="c sbe-anteile-caption">
-        Abgeleitete Jahresanteile in % (Summe 100) — 100 % Index = Durchschnittsmonat.
+        Abgeleitete Jahresanteile in % (Summe 100).
+        <i
+          className="ph ph-info sbe-info"
+          title="Die abgeleitete Anteilszeile ist die fachliche Aussage — der Index darüber ist nur das Bedienmodell."
+          aria-label="Die abgeleitete Anteilszeile ist die fachliche Aussage — der Index darüber ist nur das Bedienmodell."
+          role="img"
+        />
       </span>
       <div className="sbe-aktionen">
         <button
@@ -220,6 +229,14 @@ export function SeasonBarsEdit({
           onClick={() => onWerte(gleichverteilung())}
         >
           Gleichverteilung
+        </button>
+        <button
+          type="button"
+          className="btn btn--sm"
+          title="Skaliert alle Monate so, dass der größte bei 200 % liegt — Form und Anteile bleiben identisch."
+          onClick={() => onWerte(saisonStrecken(werte))}
+        >
+          Profil strecken
         </button>
         <button
           type="button"

@@ -251,7 +251,8 @@ export const biomassestrom = pgTable("biomassestrom", {
   ),
   zeitraumVon: date("zeitraum_von").notNull(),
   zeitraumBis: date("zeitraum_bis").notNull(),
-  // Saison-INDEX (23.09.2026): 12 Zahlen, 100 = Durchschnittsmonat. Die
+  // Saison-INDEX (23.09.2026): 12 Zahlen, Referenzmarke 100 (kein
+  // "Durchschnitt" — ohne Normierung ist das Mittel beliebig). Die
   // Skala ist BEDEUTUNGSLOS — nur die Verhaeltnisse zaehlen (anteil_m =
   // wert_m / Summe). Alt-Bestand summiert auf 100 und liefert damit exakt
   // dieselben Anteile. NICHT "gut gemeint" normieren.
@@ -321,7 +322,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   preisHerkunft: preisHerkunft("preis_herkunft"),
   zeitraumVon: date("zeitraum_von").notNull(),
   zeitraumBis: date("zeitraum_bis").notNull(),
-  // Saison-INDEX (23.09.2026): 12 Zahlen, 100 = Durchschnittsmonat. Die
+  // Saison-INDEX (23.09.2026): 12 Zahlen, Referenzmarke 100 (kein
+  // "Durchschnitt" — ohne Normierung ist das Mittel beliebig). Die
   // Skala ist BEDEUTUNGSLOS — nur die Verhaeltnisse zaehlen (anteil_m =
   // wert_m / Summe). Alt-Bestand summiert auf 100 und liefert damit exakt
   // dieselben Anteile. NICHT "gut gemeint" normieren.

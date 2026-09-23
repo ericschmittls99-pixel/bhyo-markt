@@ -4183,3 +4183,15 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-muted, #6b7a83);
 }
 .sbe-anteile-caption { display: block; margin-top: 2px; }
+.sbe-referenz-label {
+  position: absolute;
+  right: 2px;
+  top: -14px;
+  font-size: 10px;
+  color: var(--text-muted, #6b7a83);
+}
+.sbe-info {
+  margin-left: 4px;
+  cursor: help;
+  vertical-align: -1px;
+}

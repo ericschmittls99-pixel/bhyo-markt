@@ -275,7 +275,7 @@ describe("Kopplung Cluster→Materialart / Gruppe→Produkt", () => {
   });
 });
 
-describe("Saison-Helfer (Index, 100 = Durchschnittsmonat)", () => {
+describe("Saison-Helfer (Index, Referenzmarke 100 %)", () => {
   it("gleichverteilung: alle zwoelf Monate Index 100", () => {
     expect(gleichverteilung()).toEqual(Array(12).fill(100));
   });

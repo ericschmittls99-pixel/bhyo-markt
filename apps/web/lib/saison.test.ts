@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   saisonAchse,
+  saisonStrecken,
   saisonAnteilBruch,
   saisonAnteileProzent,
   saisonZuIndex,
@@ -66,5 +67,25 @@ describe("saisonAchse (fest 0-200, einmaliger 50er-Sprung)", () => {
   it("springt bei 240 auf 250 — kein Clipping", () => {
     expect(saisonAchse([240, ...Array(11).fill(100)])).toBe(250);
     expect(saisonAchse([301, ...Array(11).fill(100)])).toBe(350);
+  });
+});
+
+describe("saisonStrecken (Aufloesung zurueckgewinnen)", () => {
+  it("skaliert den groessten Wert auf 200; Form und Anteile bleiben identisch", () => {
+    const klein = [50, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25, 25];
+    const gestreckt = saisonStrecken(klein);
+    expect(Math.max(...gestreckt)).toBe(200);
+    expect(gestreckt[0]! / gestreckt[1]!).toBeCloseTo(2, 12);
+    expect(saisonAnteileProzent(gestreckt)).toEqual(saisonAnteileProzent(klein));
+  });
+
+  it("Profil [200,200,200,7,...] bleibt beim Strecken unveraendert", () => {
+    const profil = [200, 200, 200, 7, 7, 7, 7, 7, 7, 7, 7, 7];
+    expect(saisonStrecken(profil)).toEqual(profil);
+    expect(saisonAnteileProzent(saisonStrecken(profil))).toEqual(saisonAnteileProzent(profil));
+  });
+
+  it("Null-Profil bleibt unveraendert", () => {
+    expect(saisonStrecken(Array(12).fill(0))).toEqual(Array(12).fill(0));
   });
 });
