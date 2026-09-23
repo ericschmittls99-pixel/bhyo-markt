@@ -66,6 +66,16 @@ jobs:
               exit 1 ;;
           esac
 
+      # Freigabe-Bedingung 0014 (Eric, 23.09.2026): unmittelbar vor dem DROP
+      # muessen die stillgelegten Stufenspalten leer sein, sonst Abbruch ohne
+      # DROP; Zielnachweis (Host + Kontrollzaehlung) im selben Log. Der Step
+      # ist defensiv (entfaellt, wenn die Spalten schon weg sind) und kann
+      # deshalb stehen bleiben.
+      - name: Vor-DROP-Waechter + Zielnachweis (read-only)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db pre-drop-check
+
       - name: Migrate Production-DB
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}

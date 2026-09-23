@@ -189,12 +189,9 @@ async function main() {
     if (db !== erwartet)
       fehler.push(`${s.bezeichnung}: DB-Stufe ${db ?? "fehlt"} statt ${erwartet}`);
   }
-  const [altspalte] = await sql`SELECT count(*)::int AS n FROM (
-      SELECT qualitaet FROM biomassestrom WHERE bezeichnung LIKE ${"%" + MARKER}
-      UNION ALL SELECT qualitaet FROM output_bedarf WHERE bezeichnung LIKE ${"%" + MARKER}
-    ) x WHERE x.qualitaet IS NOT NULL`;
-  if (altspalte!.n !== 0)
-    fehler.push(`${altspalte!.n} Seed-Zeilen mit Wert in der stillgelegten Strom-Spalte qualitaet`);
+  // (Der Waechter auf die stillgelegte Strom-Spalte qualitaet ist mit
+  // Migration 0014 entfallen — die Spalte existiert nicht mehr; ein
+  // Wiedereinfuehren scheitert jetzt physisch am Schema.)
 
   // Vergaben + Saison + Status ueber die generierten (deterministisch = DB-Inhalt)
   for (const s of alle) {

@@ -99,6 +99,13 @@
       "when": 1790164018357,
       "tag": "0013_e23_qualitaet_generated",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1790169838195,
+      "tag": "0014_e23_drop_strom_qualitaet",
+      "breakpoints": true
     }
   ]
 }
