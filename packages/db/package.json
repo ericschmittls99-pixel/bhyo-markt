@@ -18,6 +18,7 @@
     "schema-stand": "tsx src/schema-gate.ts stand",
     "pre-drop-check": "tsx src/pre-drop-check.ts",
     "vg250-import": "tsx src/vg250-import.ts",
+    "verwaltung-check": "tsx src/verwaltung-check.ts",
     "seed": "tsx src/seed.ts",
     "test": "vitest run",
     "test:watch": "vitest"
