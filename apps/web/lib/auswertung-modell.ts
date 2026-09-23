@@ -9,7 +9,7 @@ import { energieKwh, preisEuroMwh, preisEuroT, STOFFLICHE_PRODUKTE } from "./ene
 import { jahresAnteil, type FensterKategorie } from "./fenster";
 import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
-import { fmtDatum, fmtGeldGross, fmtMenge, fmtPreis } from "./format";
+import { anteileProzent, fmtDatum, fmtGeldGross, fmtMenge, fmtPreis } from "./format";
 import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
@@ -31,6 +31,31 @@ export interface MaterialartZeile {
   pct: number;
   wertText: string;
   meta: string;
+  /** E26: Wert 0 in der Auswahl — dimmen statt ausblenden. */
+  null0?: boolean;
+}
+
+/**
+ * E26 (Eric, 23.09.2026): Zusammensetzungs-Kacheln zeigen ANTEILE an der
+ * Kachelsumme — ein voller Balken ist 100 %, nicht das Maximum. Die
+ * Bezugsgroesse steht sichtbar in der Kachel (`basisText`); die
+ * Zeilen-Prozente sind Largest-Remainder-gerundet und summieren auf 100.
+ */
+export interface Zusammensetzung<T> {
+  basisText: string;
+  zeilen: T[];
+}
+
+/**
+ * E26: Zeitreihen bleiben ABSOLUT, aber mit sichtbarer Skala — Achse ab 0,
+ * Obergrenze als Text in der Kachel. Eine Skala je Einheit; wechselt ein
+ * Umschalter die Einheit, wechselt die Skala mit (eigene Zeitreihe je Reihe).
+ */
+export interface Zeitreihe {
+  balken: JahresBalken[];
+  max: number;
+  /** "0 – 115.839 t atro/a" — steht in der Kachel. */
+  skalaText: string;
 }
 
 export interface ClusterZeile {
@@ -41,13 +66,17 @@ export interface ClusterZeile {
   pct: number;
   wertText: string;
   meta: string;
+  /** E26: Wert 0 in der Auswahl — Zeile bleibt sichtbar und dimmt (nie ausblenden). */
+  null0: boolean;
   unter: MaterialartZeile[];
 }
 
 export interface QualitaetsDaten {
   segmente: { stufe: string; anteil: number }[];
   abProzent: number;
-  zeilen: { stufe: string; label: string; anzahl: number; pct: number }[];
+  /** E26: Basis der A+B-Quote und des Donuts, z. B. "von 69 bewerteten". */
+  basisText: string;
+  zeilen: { stufe: string; label: string; anzahl: number; pct: number; null0?: boolean }[];
 }
 
 export interface StatusZeile {
@@ -70,6 +99,8 @@ export interface OutputUnterzeile {
   pct: number;
   wertText: string;
   meta: string;
+  /** E26: Wert 0 in der Auswahl — dimmen statt ausblenden. */
+  null0?: boolean;
   /** Suffix hinter dem Wert, z. B. "(n=7 von 9)" oder "· ungewichtet". */
   zusatz?: string | null;
   /** Popover-/Caption-Text, z. B. "2 Belege, keine Menge im Bezugsjahr". */
@@ -93,13 +124,18 @@ export interface OutputZeile extends OutputUnterzeile {
 export interface OutputListen {
   energetisch: OutputZeile[];
   stofflich: OutputZeile[];
+  /** E26: nur Zusammensetzungs-Kacheln (outputMengen) — je Liste eine eigene Anteilsbasis. */
+  basisEnergetisch?: string;
+  basisStofflich?: string;
 }
 
 export interface BelegtypZeile {
   key: string;
   label: string;
   anzahl: number;
+  /** E26: Anteil an der Kachelsumme in % (Balkenlaenge UND Anzeigewert). */
   pct: number;
+  null0: boolean;
 }
 
 export interface JahresBalken {
@@ -411,48 +447,63 @@ export function kpiKarten(
  * kommen aus dem POOL (ungefilterte Sicht), die Werte aus der Auswahl — so
  * bleiben Zeilen beim Klick-Filtern sichtbar und dimmen nur (Mockup rowSt).
  */
-export function clusterZeilen(pool: Strom[], recs: Strom[], sicht: Sicht): ClusterZeile[] {
+export function clusterZeilen(
+  pool: Strom[],
+  recs: Strom[],
+  sicht: Sicht,
+): Zusammensetzung<ClusterZeile> {
   const feedMode = sicht !== "outputs";
   const alleKeys = feedMode ? Object.keys(CLUSTER_LABEL) : Object.keys(OUTPUT_LABEL);
   const keyVon = (s: Strom) => (s.art === "biomasse" ? s.cluster : s.gruppe);
   const keys = alleKeys.filter((k) => pool.some((s) => keyVon(s) === k));
-  const { feed } = feedOut(recs);
-  const atroSum = sum(feed, atroVon);
 
   const werte = keys.map((k) => {
     const rs = recs.filter((s) => keyVon(s) === k);
     return { k, rs, v: feedMode ? sum(rs.filter((s) => s.art === "biomasse"), atroVon) : rs.length };
   });
-  const max = Math.max(1, ...werte.map((w) => w.v));
+  // E26: Bezug ist die KACHELSUMME, nicht das Maximum — ein voller Balken
+  // heisst 100 %. Anteile Largest-Remainder-gerundet (Summe exakt 100).
+  const summe = werte.reduce((a, w) => a + w.v, 0);
+  const anteile = anteileProzent(werte.map((w) => w.v));
 
-  return werte.map(({ k, rs, v }) => ({
-    key: k,
-    label: feedMode ? (CLUSTER_LABEL[k] ?? k) : (OUTPUT_LABEL[k] ?? k),
-    orb: feedMode
-      ? `/orbs/cluster/${k}.webp`
-      : `/orbs/output/${k === "add_ons" ? "waerme" : k}.webp`,
-    farbe: (feedMode ? CLUSTER_FARBE[k] : OUTPUT_FARBE[k]) ?? "#b9c0bd",
-    pct: Math.round((v / max) * 100),
-    wertText: feedMode ? fmtMenge(v) : nBelege(rs.length),
-    meta: feedMode
-      ? `${nBelege(rs.length)} · ${pct(v, atroSum)} %`
-      : einheitenText(rs),
-    unter: feedMode
-      ? materialartGruppen(
-          pool.filter((s) => s.art === "biomasse" && keyVon(s) === k),
-          rs.filter((s) => s.art === "biomasse"),
-        )
-          .map((g) => ({ g, v: sum(g.rs, atroVon) }))
-          .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
-          .map(({ g, v: gv }) => ({
-            key: g.key,
-            label: g.label,
-            pct: Math.round((gv / max) * 100),
-            wertText: fmtMenge(gv),
-            meta: nBelege(g.rs.length),
-          }))
-      : [],
-  }));
+  return {
+    basisText: feedMode
+      ? `Anteil an ${fmtMenge(summe)} t atro/a`
+      : `Anteil an ${nBelege(summe)}`,
+    zeilen: werte.map(({ k, rs, v }, i) => ({
+      key: k,
+      label: feedMode ? (CLUSTER_LABEL[k] ?? k) : (OUTPUT_LABEL[k] ?? k),
+      orb: feedMode
+        ? `/orbs/cluster/${k}.webp`
+        : `/orbs/output/${k === "add_ons" ? "waerme" : k}.webp`,
+      farbe: (feedMode ? CLUSTER_FARBE[k] : OUTPUT_FARBE[k]) ?? "#b9c0bd",
+      pct: anteile[i]!,
+      wertText: feedMode
+        ? `${anteile[i]} % · ${fmtMenge(v)}`
+        : `${anteile[i]} % · ${nBelege(rs.length)}`,
+      meta: feedMode ? nBelege(rs.length) : einheitenText(rs),
+      null0: v === 0,
+      unter: feedMode
+        ? materialartGruppen(
+            pool.filter((s) => s.art === "biomasse" && keyVon(s) === k),
+            rs.filter((s) => s.art === "biomasse"),
+          )
+            .map((g) => ({ g, v: sum(g.rs, atroVon) }))
+            .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
+            .map(({ g, v: gv }) => ({
+              key: g.key,
+              label: g.label,
+              // Unterzeilen liegen auf DERSELBEN Spur und Skala wie die
+              // Elternzeilen (design-system) — also ebenfalls Anteil an
+              // der Kachelsumme, ungerundet in der Balkenlaenge.
+              pct: summe ? Math.round((gv / summe) * 100) : 0,
+              wertText: `${summe ? Math.round((gv / summe) * 100) : 0} % · ${fmtMenge(gv)}`,
+              meta: nBelege(g.rs.length),
+              null0: gv === 0,
+            }))
+        : [],
+    })),
+  };
 }
 
 /**
@@ -506,12 +557,14 @@ export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
       anteil: bewertet.length ? anzahl(stufe) / bewertet.length : 0,
     })),
     abProzent: pct(anzahl("A") + anzahl("B"), bewertet.length),
+    basisText: `von ${bewertet.length} bewerteten`,
     zeilen: [
       ...stufen.map((stufe) => ({
         stufe,
         label: QUALITAET_BESCHREIBUNG[stufe]!,
         anzahl: anzahl(stufe),
         pct: pct(anzahl(stufe), bewertet.length),
+        null0: anzahl(stufe) === 0,
       })),
       ...(unbelegt > 0
         ? [{
@@ -525,11 +578,15 @@ export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
   };
 }
 
-export function statusZeilen(recs: Strom[]): StatusZeile[] {
-  return STATUS_REIHENFOLGE.map((key) => {
-    const n = recs.filter((s) => s.status === key).length;
-    return { key, label: STATUS_LABEL[key] ?? key, anzahl: n, pct: pct(n, recs.length) };
-  });
+export function statusZeilen(recs: Strom[]): Zusammensetzung<StatusZeile> {
+  // E26: jede %-Angabe nennt ihre Basis — hier alle Stroeme der Auswahl.
+  return {
+    basisText: `${recs.length} Ströme der Auswahl`,
+    zeilen: STATUS_REIHENFOLGE.map((key) => {
+      const n = recs.filter((s) => s.status === key).length;
+      return { key, label: STATUS_LABEL[key] ?? key, anzahl: n, pct: pct(n, recs.length) };
+    }),
+  };
 }
 
 /**
@@ -570,16 +627,22 @@ export function saisonDaten(recs: Strom[]): SaisonDaten {
   };
 }
 
-export function belegtypZeilen(recs: Strom[]): BelegtypZeile[] {
-  const zeilen = Object.keys(BELEG_LABEL).map((key) => ({
-    key,
-    label: BELEG_LABEL[key]!,
-    anzahl: recs.filter((s) => s.beleg?.typ === key).length,
-    pct: 0,
-  }));
-  const max = Math.max(1, ...zeilen.map((z) => z.anzahl));
-  for (const z of zeilen) z.pct = Math.round((z.anzahl / max) * 100);
-  return zeilen;
+export function belegtypZeilen(recs: Strom[]): Zusammensetzung<BelegtypZeile> {
+  const keys = Object.keys(BELEG_LABEL);
+  const anzahlen = keys.map((key) => recs.filter((s) => s.beleg?.typ === key).length);
+  // E26: Anteil an der Kachelsumme (= Belege MIT Typ), nicht am Maximum.
+  const summe = anzahlen.reduce((a, b) => a + b, 0);
+  const anteile = anteileProzent(anzahlen);
+  return {
+    basisText: `Anteil an ${nBelege(summe)} mit Typ`,
+    zeilen: keys.map((key, i) => ({
+      key,
+      label: BELEG_LABEL[key]!,
+      anzahl: anzahlen[i]!,
+      pct: anteile[i]!,
+      null0: anzahlen[i] === 0,
+    })),
+  };
 }
 
 /**
@@ -643,16 +706,24 @@ function zuJahresBalken(
   werte: number[],
   aktuellesJahr: number,
   ueberlaufBis: number | null,
-): JahresBalken[] {
+  einheit: string,
+): Zeitreihe {
+  // E26: Zeitreihe bleibt absolut, die Achse beginnt bei 0 und die
+  // Obergrenze wird sichtbar gemacht. Ein Wert 0 bekommt KEINE
+  // Mindesthoehe mehr (sonst suggeriert der Stummel einen Bestand).
   const max = Math.max(1, ...werte);
-  return achse.map((jahr, i) => ({
-    jahr,
-    wertText: fmtMenge(Math.round(werte[i]!)),
-    pct: Math.max(2, Math.round((werte[i]! / max) * 100)),
-    aktuell: jahr === aktuellesJahr,
-    vergangen: jahr < aktuellesJahr,
-    ueberlaufBis: i === achse.length - 1 ? ueberlaufBis : null,
-  }));
+  return {
+    max,
+    skalaText: `0 – ${fmtMenge(max)} ${einheit}`,
+    balken: achse.map((jahr, i) => ({
+      jahr,
+      wertText: fmtMenge(Math.round(werte[i]!)),
+      pct: werte[i]! <= 0 ? 0 : Math.max(2, Math.round((werte[i]! / max) * 100)),
+      aktuell: jahr === aktuellesJahr,
+      vergangen: jahr < aktuellesJahr,
+      ueberlaufBis: i === achse.length - 1 ? ueberlaufBis : null,
+    })),
+  };
 }
 
 /** Feedstock: verfuegbare t atro je Jahr, monatsscharf auf gedeckelter Achse. */
@@ -661,7 +732,7 @@ export function jahresBalken(
   aktuellesJahr: number,
   vergabenMap: Map<string, VergabeDaten[]> = new Map(),
   kategorien: ReadonlySet<FensterKategorie> | null = null,
-): JahresBalken[] {
+): Zeitreihe {
   const feed = recs.filter((s) => s.art === "biomasse");
   const { achse, ueberlaufBis } = jahresAchse(feed, aktuellesJahr);
   return zuJahresBalken(
@@ -669,6 +740,7 @@ export function jahresBalken(
     jahresWerte(feed, achse, vergabenMap, kategorien, atroVon),
     aktuellesJahr,
     ueberlaufBis,
+    "t atro/a",
   );
 }
 
@@ -682,21 +754,26 @@ export function outputJahre(
   aktuellesJahr: number,
   vergabenMap: Map<string, VergabeDaten[]> = new Map(),
   kategorien: ReadonlySet<FensterKategorie> | null = null,
-): { energie: JahresBalken[]; stofflich: JahresBalken[] } {
+): { energie: Zeitreihe; stofflich: Zeitreihe } {
   const out = recs.filter((s) => s.art === "output");
   const { achse, ueberlaufBis } = jahresAchse(out, aktuellesJahr);
+  // E26: Die JAHRESACHSE ist gemeinsam (der Switch verschiebt sie nicht),
+  // die WERTESKALA aber je Reihe eigen — MWh/a und t/a teilen sich nie
+  // eine Skala; die sichtbare Obergrenze zieht mit dem Umschalter mit.
   return {
     energie: zuJahresBalken(
       achse,
       jahresWerte(out.filter((s) => s.kategorie === "target"), achse, vergabenMap, kategorien, (s) => kwhVon(s) / 1000),
       aktuellesJahr,
       ueberlaufBis,
+      "MWh/a",
     ),
     stofflich: zuJahresBalken(
       achse,
       jahresWerte(out.filter(istStofflich), achse, vergabenMap, kategorien, (s) => s.mengeWert ?? 0),
       aktuellesJahr,
       ueberlaufBis,
+      "t/a",
     ),
   };
 }
@@ -919,45 +996,54 @@ export function outputMengen(pool: Strom[], recs: Strom[]): OutputListen {
   const outPool = pool.filter((s) => s.art === "output");
   const outRecs = recs.filter((s) => s.art === "output");
 
+  // E26: JEDE Liste bekommt ihre EIGENE Anteilsbasis — energetisch rechnet
+  // in MWh, stofflich in t; zwei Einheiten teilen sich nie eine Skala.
   const baue = (
     ds: OutputRowDef[],
     wertVon: (s: Strom) => number,
-    text: (v: number) => string,
-  ): OutputZeile[] => {
+    einheit: string,
+  ): Zusammensetzung<OutputZeile> => {
     const werte = ds.map((d) => sum(outRecs.filter(d.passt), wertVon));
-    const max = Math.max(1, ...werte);
-    return ds.map((d, i) => ({
-      facette: d.facette,
-      key: d.key,
-      label: d.label,
-      orb: d.orb,
-      farbe: d.farbe,
-      pct: Math.round((werte[i]! / max) * 100),
-      wertText: text(werte[i]!),
-      meta: nBelege(outRecs.filter(d.passt).length),
-      unter:
-        d.facette === "gruppe"
-          ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
-              .map((g) => ({ g, v: sum(g.rs, wertVon) }))
-              .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
-              .map(({ g, v }) => ({
-                key: g.key,
-                label: g.label,
-                pct: Math.round((v / max) * 100),
-                wertText: text(v),
-                meta: nBelege(g.rs.length),
-              }))
-          : [],
-    }));
+    const summe = werte.reduce((a, b) => a + b, 0);
+    const anteile = anteileProzent(werte);
+    const anteilVon = (v: number) => (summe ? Math.round((v / summe) * 100) : 0);
+    return {
+      basisText: `Anteil an ${fmtMenge(Math.round(summe))} ${einheit}`,
+      zeilen: ds.map((d, i) => ({
+        facette: d.facette,
+        key: d.key,
+        label: d.label,
+        orb: d.orb,
+        farbe: d.farbe,
+        pct: anteile[i]!,
+        wertText: `${anteile[i]} % · ${fmtMenge(Math.round(werte[i]!))}`,
+        meta: nBelege(outRecs.filter(d.passt).length),
+        null0: werte[i] === 0,
+        unter:
+          d.facette === "gruppe"
+            ? produktGruppen(outPool.filter(d.passt), outRecs.filter(d.passt))
+                .map((g) => ({ g, v: sum(g.rs, wertVon) }))
+                .sort((a, b) => b.v - a.v || a.g.label.localeCompare(b.g.label, "de"))
+                .map(({ g, v }) => ({
+                  key: g.key,
+                  label: g.label,
+                  pct: anteilVon(v),
+                  wertText: `${anteilVon(v)} % · ${fmtMenge(Math.round(v))}`,
+                  meta: nBelege(g.rs.length),
+                  null0: v === 0,
+                }))
+            : [],
+      })),
+    };
   };
 
+  const e = baue(defs.energetisch, (s) => kwhVon(s) / 1000, "MWh/a");
+  const st = baue(defs.stofflich, (s) => (s.mengeEinheit === "t/a" ? (s.mengeWert ?? 0) : 0), "t/a");
   return {
-    energetisch: baue(defs.energetisch, (s) => kwhVon(s) / 1000, (v) => fmtMenge(Math.round(v))),
-    stofflich: baue(
-      defs.stofflich,
-      (s) => (s.mengeEinheit === "t/a" ? (s.mengeWert ?? 0) : 0),
-      (v) => fmtMenge(Math.round(v)),
-    ),
+    energetisch: e.zeilen,
+    stofflich: st.zeilen,
+    basisEnergetisch: e.basisText,
+    basisStofflich: st.basisText,
   };
 }
 

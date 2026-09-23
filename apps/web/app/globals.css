@@ -3561,7 +3561,11 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-grid {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
-  grid-auto-rows: 168px;
+  /* F1/E26 Akkordeon-Raster: Zeilenhoehe ist die UNTERGRENZE, nicht die
+     Obergrenze — ein aufgeklapptes Akkordeon laesst die Rasterzeile
+     wachsen, statt den Inhalt zu beschneiden. Das Raster selbst (4 Spalten,
+     Spans) bleibt unveraendert. */
+  grid-auto-rows: minmax(168px, auto);
   grid-auto-flow: row dense;
   gap: 16px;
 }
@@ -3701,9 +3705,14 @@ table.st-tabelle tbody tr:focus-visible {
 /* stumm = Zeile ohne ausweisbaren Wert (keine Menge im Bezugsjahr) —
    gleiche Optik wie das Vergangenheits-Dimming, getrennt vom
    Filter-Dimming (.gedimmt), damit sich beide kombinieren lassen. */
+/* Nullzeilen (E26) teilen die Optik der stummen Zeilen: sichtbar, aber
+   zurueckgenommen — ausgeblendet wird nie. */
 .aw-spannzeile.stumm,
 .aw-clusterzeile.stumm,
-.aw-unterzeile.stumm { opacity: 0.45; }
+.aw-unterzeile.stumm,
+.aw-statuszeile.stumm,
+.aw-belegzeile.stumm,
+.aw-qualzeile.stumm { opacity: 0.45; }
 .aw-zeilen .lbl {
   flex: 1;
   min-width: 0;
