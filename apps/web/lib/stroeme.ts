@@ -43,6 +43,8 @@ import {
 
 const belegSelect = {
   belegId: beleg.id,
+  // E28: die kurze Nummer ersetzt die UUID in der Anzeige und ist suchbar.
+  belegNr: beleg.belegNr,
   belegTyp: beleg.typ,
   belegDateiKey: beleg.dateiKey,
   belegLinkUrl: beleg.linkUrl,

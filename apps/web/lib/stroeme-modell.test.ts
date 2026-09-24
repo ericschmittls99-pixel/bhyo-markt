@@ -217,13 +217,56 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
   });
 });
 
+// E28: die Belegnummer ist Anzeige UND Suchbegriff.
+describe("Belegnummer-Suche (E28)", () => {
+  const mitNr = strom({
+    id: "n1",
+    beleg: {
+      id: "eaea5128-c093-4dd2-9d1e-167354f96cec",
+      nr: "B-000123",
+      typ: "vertrag",
+      quellenangabe: null,
+      href: null,
+      externNachvollziehbar: false,
+      gueltigBis: null,
+      erhebungsdatum: null,
+      amtlich: null,
+      gespraechsdatum: null,
+      gespraechspartner: null,
+      kernnotiz: null,
+    },
+  });
+  const treffer = (q: string) =>
+    filterStroeme([mitNr], { ...LEERER_FILTER, q }).map((s) => s.id);
+
+  it("findet mit Praefix, ohne Praefix und ohne fuehrende Nullen", () => {
+    expect(treffer("B-000123")).toEqual(["n1"]);
+    expect(treffer("000123")).toEqual(["n1"]);
+    expect(treffer("123")).toEqual(["n1"]);
+  });
+
+  it("ignoriert Gross- und Kleinschreibung", () => {
+    expect(treffer("b-000123")).toEqual(["n1"]);
+    expect(treffer("B-000123".toUpperCase())).toEqual(["n1"]);
+  });
+
+  it("findet weiterhin ueber die UUID (Altprotokolle)", () => {
+    expect(treffer("eaea5128")).toEqual(["n1"]);
+  });
+
+  it("findet nicht bei fremder Nummer", () => {
+    expect(treffer("B-000999")).toEqual([]);
+  });
+});
+
 describe("Beleg-ID-Suche", () => {
   it("die Freitextsuche findet einen Strom ueber die Beleg-ID (Praefix reicht)", () => {
     const mit = strom({
       id: "m",
       beleg: {
         id: "3f2a91c4-0000-4000-8000-000000000001",
-        typ: "vertrag",
+        nr: null,
+      typ: "vertrag",
         quellenangabe: null,
         href: null,
         externNachvollziehbar: false,
