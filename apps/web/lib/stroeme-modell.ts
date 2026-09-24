@@ -51,8 +51,14 @@ export function landAnzeige(s: Pick<Strom, "verwaltung" | "lng" | "lat">): strin
 }
 
 export interface StromBeleg {
-  /** Beleg-UUID — sichtbar im Detail, suchbar in der Freitextsuche (Beschluss 22.09.2026). */
+  /**
+   * Beleg-UUID — seit E28 nicht mehr sichtbar (die kurze Nummer steht an
+   * ihrer Stelle), aber weiterhin suchbar: wer eine UUID aus einem alten
+   * Protokoll hat, findet den Beleg damit (Beschluss 22.09./23.09.2026).
+   */
   id: string;
+  /** E28: interne Belegnummer B-000123 aus der Sequenz — Anzeige und Suche. */
+  nr: string | null;
   typ: string;
   quellenangabe: string | null;
   href: string | null;
@@ -323,6 +329,11 @@ export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
         s.produktLabel,
         // Beleg-ID mitsuchen (Praefix reicht als Substring, niemand tippt 36 Zeichen).
         s.beleg?.id,
+        // E28: Belegnummer mit UND ohne Praefix suchbar ("B-000123",
+        // "000123", "123" als Praefixtreffer); der Vergleich laeuft ohnehin
+        // in Kleinschreibung.
+        s.beleg?.nr,
+        s.beleg?.nr?.replace(/^B-0*/i, ""),
         ...s.regionNamen,
       ]
         .filter(Boolean)

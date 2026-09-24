@@ -21,7 +21,8 @@ import type { Strom, StromBeleg } from "./stroeme-modell";
 
 const beleg = (patch: Partial<StromBeleg>): StromBeleg => ({
   id: "00000000-0000-4000-8000-000000000000",
-  typ: "vertrag",
+  nr: null,
+      typ: "vertrag",
   quellenangabe: null,
   href: null,
   externNachvollziehbar: false,
