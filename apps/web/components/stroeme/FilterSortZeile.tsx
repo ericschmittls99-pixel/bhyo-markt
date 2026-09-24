@@ -175,13 +175,6 @@ export function FilterSortZeile({
       )}
 
       <div className="st-filterzeile-rechts">
-        {/* F4-Review: CSV-Export auch in stroeme. — dieselbe Route und
-            dieselben geteilten Filter-Parameter wie in auswertung., nur
-            mit der Art dieses Tabs als sicht. */}
-        <a className="btn btn--sm" href={exportHref} download>
-          <i className="ph ph-download-simple" aria-hidden />
-          CSV-Export
-        </a>
         <button
           type="button"
           className={`fchip${offen || filterAnzahl ? " aktiv" : ""}`}
@@ -261,6 +254,20 @@ export function FilterSortZeile({
             Liste
           </button>
         </div>
+
+        {/* F4-Review: CSV-Export auch in stroeme. — dieselbe Route und
+            dieselben geteilten Filter-Parameter wie in auswertung., nur mit
+            der Art dieses Tabs als sicht. Rechts vom Ansichts-Schalter und
+            nur als Icon (Review Eric, 24.09.2026). */}
+        <a
+          className="btn btn--sm btn--icon"
+          href={exportHref}
+          download
+          title="CSV-Export der gefilterten Liste"
+          aria-label="CSV-Export der gefilterten Liste"
+        >
+          <i className="ph ph-download-simple" aria-hidden />
+        </a>
       </div>
     </div>
   );

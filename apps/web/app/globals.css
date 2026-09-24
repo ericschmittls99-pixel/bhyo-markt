@@ -1391,6 +1391,13 @@ input[readonly],
   padding: 0 var(--control-px-sm);
   font: var(--type-button-sm);
 }
+/* Nur-Icon-Variante: quadratisch statt Textpolster. Die Kantenlaenge folgt
+   der Hoehe der jeweiligen Groesse, damit das Icon mittig sitzt und der
+   Knopf neben Text-Knoepfen derselben Groesse auf der Linie bleibt. */
+.btn--icon {
+  padding: 0;
+  aspect-ratio: 1;
+}
 .btn:disabled {
   opacity: var(--action-disabled-opacity);
   cursor: default;
