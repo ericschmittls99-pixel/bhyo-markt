@@ -20,6 +20,7 @@
     "vg250-import": "tsx src/vg250-import.ts",
     "verwaltung-check": "tsx src/verwaltung-check.ts",
     "beleg-nr-check": "tsx src/beleg-nr-check.ts",
+    "benutzer-check": "tsx src/benutzer-check.ts",
     "archiv-altfelder": "tsx src/archiv-altfelder.ts",
     "test": "vitest run",
     "test:watch": "vitest"

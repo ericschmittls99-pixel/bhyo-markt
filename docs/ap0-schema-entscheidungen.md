@@ -173,6 +173,41 @@ Ableitung — die E23-Absage an Trigger betraf abgeleitete Werte). Der
 Nachtrag für Bestandsbelege läuft deterministisch nach `erstellt_am`, bei
 Gleichstand nach `id`, damit ein erneuter Lauf dieselben Nummern ergibt.
 
+## 10. Rollen und Zugang (E30, 24.09.2026)
+
+**Drei Rollen, nicht vier.** `betrachter` liest, `bearbeiter` erfasst und
+bearbeitet, `admin` verwaltet zusätzlich die Benutzer. „Bewerten" ist **keine**
+eigene Rolle — die Frage wird erst mit AP3 geprüft. Frühere Fassungen in
+`CLAUDE.md` (vier Stufen) und `docs/ap1i-delta-v2.md` (Behauptung,
+`benutzer.rolle` existiere bereits) sind damit überholt und an Ort und Stelle
+korrigiert.
+
+Die **Identität** kommt aus Cloudflare Access und wird serverseitig gegen den
+JWKS geprüft (unverändert); die **Rolle** liegt in der Datenbank
+(`benutzer.rolle`). Access entscheidet, wer hereinkommt — die Anwendung
+entscheidet, was diese Person darf.
+
+**Fail closed.** Eine E-Mail ohne Eintrag in `benutzer` oder mit
+`aktiv = false` bekommt keinen Zugang und eine klare Seite („kein Zugang, bitte
+beim Admin melden"). Kein stilles Zurückfallen auf Lesezugriff: Ein Zugang, der
+sich bei fehlender Regel öffnet, ist keiner.
+
+**Jede Rechteprüfung sitzt serverseitig**, an einer einzigen gebündelten Stelle
+— nicht als Kopie je Datei. Die Oberfläche blendet zusätzlich aus, ersetzt die
+Prüfung aber nie: Wer die Server-Action direkt aufruft, umgeht die Oberfläche.
+Die Tests rufen deshalb die Aktionen direkt auf, nicht die Oberfläche.
+
+**E-Mails nur in Kleinschreibung**, erzwungen per `CHECK (email = lower(email))`;
+die Anwendung normalisiert beim Vergleich ebenso. Eine Größe, eine Schreibweise
+(vgl. Abschnitt 8 und E23).
+
+**Erster Admin per Migration**, sonst kann niemand Rollen vergeben — ein leeres
+`benutzer` bedeutet bei Fail closed, dass sich alle aussperren.
+
+Die Urheberschaft im Änderungsprotokoll wandert vom Textpräfix in die eigene
+Spalte `aenderung.benutzer_email`. Altzeilen werden **nicht** durch
+Textzerlegung nachgetragen: Sie bleiben leer und zeigen „unbekannt".
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

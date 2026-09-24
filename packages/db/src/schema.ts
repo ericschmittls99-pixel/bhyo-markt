@@ -57,6 +57,16 @@ export const bereitschaftStufe = pgEnum("bereitschaft_stufe", [
 
 /** Abgeleitete Qualitaetsstufe eines Belegs (A hoch, D niedrig). Nie gewaehlt. */
 export const qualitaetsStufe = pgEnum("qualitaets_stufe", ["A", "B", "C", "D"]);
+/**
+ * F8/E30: Genau drei Rollen. "Bewerten" ist bewusst KEINE eigene Rolle — die
+ * Frage wird erst mit AP3 geprueft. Reihenfolge = aufsteigende Rechte.
+ */
+export const benutzerRolle = pgEnum("benutzer_rolle", [
+  "betrachter",
+  "bearbeiter",
+  "admin",
+]);
+
 // F0b: VG250-Ebenen — Laender (2-stelliger ARS) und Kreise (5-stellig).
 export const verwaltungsEbene = pgEnum("verwaltungs_ebene", ["land", "kreis"]);
 
@@ -562,4 +572,43 @@ export const aenderung = pgTable("aenderung", {
     .notNull()
     .defaultNow(),
   text: text("text").notNull(),
+  /**
+   * F8/E30: Urheber als eigene Spalte statt als Textpraefix in `text`. Der
+   * Praefix bleibt in Altzeilen stehen, wird aber nicht mehr als Quelle
+   * gelesen — nullable, weil Altzeilen bewusst NICHT durch Textzerlegung
+   * nachgetragen werden (sie zeigen "unbekannt").
+   */
+  benutzerEmail: text("benutzer_email"),
 });
+
+/**
+ * F8/E30: Rollen der internen Nutzenden. Die Identitaet kommt aus Cloudflare
+ * Access, die Rolle aus dieser Tabelle — Access entscheidet, wer hereinkommt,
+ * die Anwendung entscheidet, was diese Person darf.
+ *
+ * Die E-Mail ist der Primaerschluessel und liegt ausschliesslich in
+ * Kleinschreibung vor (CHECK in der Migration); die Anwendung normalisiert
+ * beim Vergleich ebenso. Kein Loeschen, nur `aktiv = false` — wie bei den
+ * Referenzdaten.
+ */
+export const benutzer = pgTable(
+  "benutzer",
+  {
+    email: text("email").primaryKey(),
+    rolle: benutzerRolle("rolle").notNull(),
+    name: text("name"),
+    aktiv: boolean("aktiv").notNull().default(true),
+    erstelltAm: timestamp("erstellt_am", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    geaendertAm: timestamp("geaendert_am", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    // Eine Groesse, eine Schreibweise: Gross-/Kleinschreibung darf nicht
+    // darueber entscheiden, ob jemand hereinkommt. Die Datenbank erzwingt
+    // Kleinschreibung, die Anwendung normalisiert vor dem Vergleich.
+    check("benutzer_email_lower_check", sql`${t.email} = lower(${t.email})`),
+  ],
+);
