@@ -221,6 +221,17 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   Elternzeilen**; klickbar auf ihre eigene Facette (materialart/produkt),
   ohne Code nicht klickbar. Zustand rein clientseitig, nicht in der URL.
 
+## Belegnummer (E28, 23.09.2026)
+
+Das Detail-Panel zeigt die **Belegnummer** `B-000123` statt der UUID; der
+Kopier-Knopf kopiert die Nummer. Die Freitextsuche findet sie mit Präfix
+(`B-000123`), ohne Präfix (`000123`) und ohne führende Nullen (`123`),
+Groß- und Kleinschreibung egal — die **UUID-Suche bleibt zusätzlich**, wer
+eine aus einem alten Protokoll hat, findet den Beleg weiterhin. Kein
+Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
+(E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
+Änderung gesichert.
+
 ## Formularblock „Ort" (F0a, 23.09.2026; F4-Korrekturen 24.09.2026)
 
 Reihenfolge von oben: Adresssuche (debounced Vorschlagsliste, Auswahl

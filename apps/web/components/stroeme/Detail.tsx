@@ -244,13 +244,15 @@ export function Detail({
                   <button
                     type="button"
                     className="beleg-id"
-                    title="Beleg-ID kopieren"
+                    title="Belegnummer kopieren"
                     onClick={() => {
-                      void navigator.clipboard.writeText(s.beleg!.id);
-                      zeigeToast("Beleg-ID kopiert");
+                      // E28: kopiert wird die NUMMER, nicht mehr die UUID —
+                      // sie ist die Referenz, die man weitergibt.
+                      void navigator.clipboard.writeText(s.beleg!.nr ?? s.beleg!.id);
+                      zeigeToast("Belegnummer kopiert");
                     }}
                   >
-                    Beleg-ID {s.beleg.id}
+                    Beleg {s.beleg.nr ?? s.beleg.id}
                     <i className="ph ph-copy" aria-hidden />
                   </button>
                 )}

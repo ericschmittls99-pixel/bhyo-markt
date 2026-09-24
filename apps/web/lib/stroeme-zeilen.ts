@@ -75,6 +75,8 @@ function num(v: string | null): number | null {
 
 export type BelegZeile = {
   belegId: string | null;
+  /** E28: Belegnummer B-000123 aus der Sequenz (Anzeige und Suche). */
+  belegNr: string | null;
   belegTyp: string | null;
   belegDateiKey: string | null;
   belegLinkUrl: string | null;
@@ -89,6 +91,7 @@ function belegAus(r: BelegZeile): StromBeleg | null {
   const m = (r.belegMetadata ?? {}) as Record<string, unknown>;
   return {
     id: r.belegId,
+    nr: r.belegNr,
     typ: r.belegTyp,
     quellenangabe: str(m.quellenangabe),
     href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
