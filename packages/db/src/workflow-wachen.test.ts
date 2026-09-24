@@ -43,6 +43,28 @@ describe("deploy.yml: Production nur von main", () => {
   });
 });
 
+describe("migrate-production.yml: Migration nur von main", () => {
+  const migrate = readFileSync(
+    new URL("../../../.github/workflows/migrate-production.yml", import.meta.url),
+    "utf8",
+  );
+
+  it("hat den Job ziel-wache und prueft den Ref", () => {
+    expect(migrate).toMatch(/^ {2}ziel-wache:$/m);
+    expect(migrate).toContain('"$REF" != "refs/heads/main"');
+    expect(migrate).toMatch(/MIGRATION NUR VON MAIN/);
+  });
+
+  it("laeuft ohne Environment — sonst greift die Branch-Policy vorher und die Meldung bleibt aus", () => {
+    const wache = migrate.slice(migrate.indexOf("  ziel-wache:"), migrate.indexOf("  migrate:"));
+    expect(wache).not.toContain("environment:");
+  });
+
+  it("macht die Wache zur Vorbedingung des migrate-Jobs", () => {
+    expect(migrate).toContain("needs: [ziel-wache]");
+  });
+});
+
 describe("schema-gate: Zielnachweis", () => {
   it("druckt Host und Datenbank vor dem Urteil", () => {
     const gate = readFileSync(new URL("./schema-gate.ts", import.meta.url), "utf8");
