@@ -105,10 +105,11 @@ je Stromart"), die Töne je Status identisch:
 | reserviert_bhyo | reserviert (bhyo). | reserviert (bhyo). | `quiet` |
 | noch_nicht_verfuegbar | noch nicht verfügbar. | noch nicht verfügbar. | `quiet` |
 
-Nebentag: Die Reservierung erscheint immer zusätzlich als kleiner
-**Stempel mit der Bildmarke** (`res-stempel`, 22 px, quiet-Ton, Tooltip
-„Für bhyo reserviert"), sobald sie nicht selbst der Haupttag ist — bewusst
-keine zweite große Pille, damit die Zeile einspurig bleibt.
+Nebentag: Der kleine **Stempel mit der Bildmarke** (`res-stempel`, 22 px,
+quiet-Ton) markiert, dass **bhyo an diesem Strom hängt** — er erscheint bei
+einer Reservierung *und* bei einer Vergabe „an bhyo" (Review Eric,
+24.09.2026), sobald das nicht schon der Haupttag ist. Bewusst keine zweite
+große Pille, damit die Zeile einspurig bleibt.
 
 Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
@@ -243,6 +244,22 @@ eine aus einem alten Protokoll hat, findet den Beleg weiterhin. Kein
 Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
+
+## Beleg-Feld „Extern nachvollziehbar" (Korrektur 24.09.2026)
+
+Der Hilfetext versprach eine **Freigabe fürs Kommunen-PDF** („die Quelle darf
+im Kommunen-PDF erscheinen" / „die Quelle bleibt im Werkzeug"). Das Feld
+steuert nichts am PDF — es ist ausschließlich Eingang der
+**Qualitäts-Ableitung**: „vollständig" verlangt `extern_nachvollziehbar = true`
+zusätzlich zu den Pflichtfeldern des Beleg-Typs (`docs/ap1b`, Abschnitt 2).
+Wer den Haken als Veröffentlichungsentscheidung liest, versteht nicht, warum
+die Stufe springt — genau so ist es im Praxistest passiert.
+
+Der Text nennt jetzt die Wirkung: gesetzt „ja – ein Dritter kann die Quelle
+prüfen. Zählt als vollständiger Beleg.", nicht gesetzt „nein – nur intern
+nachvollziehbar. Der Beleg gilt als unvollständig, die Qualitätsstufe fällt
+entsprechend niedriger aus." Im Detail steht „ja, extern prüfbar" bzw.
+„nein, nur intern" statt „ja, freigegeben" / „nein, intern".
 
 ## Zugang und Rollen (F8/E30, 24.09.2026)
 

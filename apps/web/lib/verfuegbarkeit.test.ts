@@ -56,12 +56,19 @@ describe("leiteVerfuegbarkeitAb", () => {
       v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
     ]);
     expect(erg.status).toBe("vergeben_extern");
+    // Gegenprobe: ohne bhyo-Bezug kein Stempel — der Stempel bleibt eine
+    // Aussage ueber bhyo, kein allgemeines Vergabe-Zeichen.
+    expect(erg.reserviertZusatz).toBe(false);
   });
 
-  it("vergeben (bhyo) wenn an_bhyo gesetzt ist", () => {
+  it("vergeben (bhyo) wenn an_bhyo gesetzt ist — MIT Stempel, auch ohne Reservierung", () => {
+    // Review Eric 24.09.2026: Der Stempel markiert, dass bhyo an diesem Strom
+    // haengt. Eine Vergabe "an bhyo" ist genau das — vorher blieb sie
+    // ungestempelt, weil nur reserviert_bhyo zaehlte.
     const erg = leiteVerfuegbarkeitAb("2027-06-15", strom, [
       v({ vergebenVon: "2027-01-01", anBhyo: true }),
     ]);
+    expect(erg).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true });
     expect(erg.status).toBe("vergeben_bhyo");
   });
 

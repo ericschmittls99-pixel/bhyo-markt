@@ -976,10 +976,17 @@ export function FormularPanel({
                   />
                   <span className="fp-toggle-text">
                     <span>Extern nachvollziehbar</span>
+                    {/* Review Eric 24.09.2026: Der alte Text versprach eine
+                        Freigabe fuers Kommunen-PDF. Dieses Feld steuert
+                        NICHTS am PDF — es geht allein in die
+                        Qualitaets-Ableitung ein („vollstaendig" verlangt es,
+                        siehe docs/ap1b Abschnitt 2). Der Text sagt jetzt, was
+                        der Haken bewirkt, damit die springende Stufe keine
+                        Ueberraschung mehr ist. */}
                     <span className="c">
                       {extern
-                        ? "ja, freigegeben – die Quelle darf im Kommunen-PDF erscheinen."
-                        : "nein, intern – die Quelle bleibt im Werkzeug."}
+                        ? "ja – ein Dritter kann die Quelle prüfen. Zählt als vollständiger Beleg."
+                        : "nein – nur intern nachvollziehbar. Der Beleg gilt als unvollständig, die Qualitätsstufe fällt entsprechend niedriger aus."}
                     </span>
                   </span>
                 </label>
