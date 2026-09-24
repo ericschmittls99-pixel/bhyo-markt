@@ -245,6 +245,34 @@ Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
 
+## Eingabeformate im Formular (F9, 24.09.2026)
+
+**Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native
+Eingabetypen richten sich nach Engine und Gebietsschema des Browsers — im
+Praxistest waren Monatsfelder in einem Browser nackte Textfelder
+(`type="month"` kennen Safari und Firefox nicht, `type="date"` schon), und
+`type="number"` wies das Komma ab, weil `navigator.language` `en-US` war.
+Deshalb gilt:
+
+- **Monate**: `MM/JJJJ` in einem eigenen Textfeld (`MonatFeld`, Platzhalter
+  sichtbar). Angenommen werden `01/2027`, `1/2027`, `01.2027`, `01-2027`,
+  `012027`; beim Verlassen des Feldes wird auf `01/2027` aufgeräumt — nie
+  währenddessen, sonst funkt es beim Tippen dazwischen.
+- **Zahlen**: Textfeld mit `inputMode="decimal"`. **Komma** ist das
+  Dezimaltrennzeichen; der Punkt wird weiterhin angenommen, damit niemand
+  umgewöhnt wird. Werte aus der Datenbank erscheinen mit Komma.
+- **Keine Tausenderpunkte** (Entscheidung Eric, 24.09.2026): Sie werden nicht
+  getippt und nicht unterstützt. Punkt-Dreiergruppen ohne Komma sind
+  mehrdeutig — `10.000` kann zehntausend sein, `33.333` ein TS-Anteil in
+  Prozent — und werden als solche gemeldet („bitte Komma … oder die Punkte
+  weglassen"), **nicht geraten**: `Number("10.000")` ist 10, drei
+  Größenordnungen würden lautlos verschwinden.
+
+Umgerechnet wird an **einer** Stelle (`lib/eingabe-format.ts`, reine
+Funktionen), einmal in der Server-Action; danach rechnen und schreiben alle
+mit demselben Wert. `type="number"` ist in den Formularen nicht mehr zulässig
+und wird von einem Test bewacht.
+
 ## Beleg-Feld „Extern nachvollziehbar" (Korrektur 24.09.2026)
 
 Der Hilfetext versprach eine **Freigabe fürs Kommunen-PDF** („die Quelle darf
