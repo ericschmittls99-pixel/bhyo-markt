@@ -328,13 +328,6 @@ export function FormularPanel({
                 />
               </span>
             </label>
-            <div className="hinweis-box">
-              <i className="ph ph-map-pin" aria-hidden />
-              <span>
-                Ohne Pin erscheint der Strom nicht auf der Karte — Pin oben im
-                Kartenausschnitt setzen.
-              </span>
-            </div>
           </section>
 
           <section className="ov-sec">
@@ -484,15 +477,17 @@ export function FormularPanel({
                       />
                     </span>
                   </label>
-                  <label className="pf">
+                  <label className={`pf${zeile.anBhyo ? " pf--aus" : ""}`}>
                     <span>Vergeben an</span>
                     <span className="pf-feld">
                       <input
                         type="text"
                         name={`vergabe_${i}_an`}
-                        value={zeile.an}
+                        value={zeile.anBhyo ? "" : zeile.an}
                         onChange={(e) => setzeVergabe(i, { an: e.target.value })}
-                        placeholder="z. B. Stadtwerke"
+                        // An bhyo vergeben heisst: der Empfaenger steht fest.
+                        disabled={zeile.anBhyo}
+                        placeholder={zeile.anBhyo ? "bhyo" : "z. B. Stadtwerke"}
                       />
                     </span>
                   </label>
@@ -590,6 +585,11 @@ export function FormularPanel({
             <h3>{feed ? "mengen." : "bedarfsmenge."}</h3>
             {feed ? (
               <>
+                {/* step ist ein Eingaberaster, keine Rundung: mit step="0.1"
+                    wies der Browser einen TS-Anteil von 33,333 % ab („nearest
+                    value"). Alle Zahlenfelder nehmen deshalb jeden Wert an;
+                    gerundet wird beim Rechnen und an der Ausgabegrenze.
+                    Gesichert in lib/formular-zahlenfelder.test.ts. */}
                 <div className="fp-zeile fp-zeile--3">
                   <label className="pf">
                     <span>
@@ -599,7 +599,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="menge_roh_fm"
-                        step="0.01"
+                        step="any"
                         min="0"
                         value={roh}
                         onChange={(e) => setRoh(e.target.value)}
@@ -617,7 +617,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="ts_anteil_pct"
-                        step="0.1"
+                        step="any"
                         min="0"
                         max="100"
                         value={ts}
@@ -636,7 +636,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="aschegehalt_pct"
-                        step="0.1"
+                        step="any"
                         min="0"
                         max="100"
                         value={asche}
@@ -662,7 +662,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="menge_wert"
-                      step="0.01"
+                      step="any"
                       min="0"
                       defaultValue={werte?.mengeWert ?? ""}
                       aria-invalid={f.menge_wert ? true : undefined}
@@ -711,7 +711,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_min"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMin ?? ""}
                     />
                     <em>€/t</em>
@@ -724,7 +724,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_mittel"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMittel ?? ""}
                     />
                     <em>€/t</em>
@@ -737,7 +737,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_max"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMax ?? ""}
                     />
                     <em>€/t</em>
@@ -753,7 +753,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preis ?? ""}
                       aria-invalid={f.preis ? true : undefined}
                     />
@@ -885,11 +885,15 @@ export function FormularPanel({
                     <span>Link</span>
                     <span className="pf-feld">
                       <input
-                        type="url"
+                        // type="text": bei type="url" verlangt der Browser
+                        // das Schema. "www.beispiel.de" genuegt jetzt — das
+                        // https:// ergaenzt normalisiereUrl beim Speichern.
+                        type="text"
+                        inputMode="url"
                         name="beleg_link"
                         value={link}
                         onChange={(e) => setLink(e.target.value)}
-                        placeholder="https://…"
+                        placeholder="www.beispiel.de oder https://…"
                       />
                     </span>
                   </label>

@@ -244,7 +244,7 @@ Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
 
-## Formularblock „Ort" (F0a, 23.09.2026)
+## Formularblock „Ort" (F0a, 23.09.2026; F4-Korrekturen 24.09.2026)
 
 Reihenfolge von oben: Adresssuche (debounced Vorschlagsliste, Auswahl
 füllt die Felder und setzt den Pin) → „Adresse von bestehendem Standort
@@ -259,6 +259,16 @@ Rückwärtssuche als „aus Pin übernommen" nachgezogen. Der Landkreis
 erscheint nicht im Formular (bleibt Attribut in Filter, Tabelle, CSV).
 Attribution „Suche: © OpenStreetMap-Mitwirkende" als Caption.
 
+
+**F4 (24.09.2026):** Der Hinweis „Ohne Pin erscheint der Strom nicht auf der
+Karte" hängt am **tatsächlichen Pin-Zustand** und steht im Ort-Block — vorher
+stand er statisch im Formular, erschien also auch nach einer Adresssuche und
+blieb stehen, wenn man den Pin von Hand setzte. Das Link-Feld des Belegs ist
+`type="text"` (nicht `url`): „www.beispiel.de" genügt, das `https://` ergänzt
+`normalisiereUrl` beim Speichern. Die Saison-Zahlenfelder nutzen `step="any"`
+— mit einem Fünferraster wies der Browser jeden Zwischenwert ab; die
+Fünferschritte bleiben auf den Pfeiltasten des Balkens. „Vergeben an" ist
+ausgegraut und leer, sobald „an bhyo" gesetzt ist.
 ## Beleg-Erfassung (F7, 23.09.2026)
 
 Pflicht am Beleg sind Quellenangabe und Erhebungsdatum; Datei und Link
