@@ -585,6 +585,11 @@ export function FormularPanel({
             <h3>{feed ? "mengen." : "bedarfsmenge."}</h3>
             {feed ? (
               <>
+                {/* step ist ein Eingaberaster, keine Rundung: mit step="0.1"
+                    wies der Browser einen TS-Anteil von 33,333 % ab („nearest
+                    value"). Alle Zahlenfelder nehmen deshalb jeden Wert an;
+                    gerundet wird beim Rechnen und an der Ausgabegrenze.
+                    Gesichert in lib/formular-zahlenfelder.test.ts. */}
                 <div className="fp-zeile fp-zeile--3">
                   <label className="pf">
                     <span>
@@ -594,7 +599,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="menge_roh_fm"
-                        step="0.01"
+                        step="any"
                         min="0"
                         value={roh}
                         onChange={(e) => setRoh(e.target.value)}
@@ -612,7 +617,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="ts_anteil_pct"
-                        step="0.1"
+                        step="any"
                         min="0"
                         max="100"
                         value={ts}
@@ -631,7 +636,7 @@ export function FormularPanel({
                       <input
                         type="number"
                         name="aschegehalt_pct"
-                        step="0.1"
+                        step="any"
                         min="0"
                         max="100"
                         value={asche}
@@ -657,7 +662,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="menge_wert"
-                      step="0.01"
+                      step="any"
                       min="0"
                       defaultValue={werte?.mengeWert ?? ""}
                       aria-invalid={f.menge_wert ? true : undefined}
@@ -706,7 +711,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_min"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMin ?? ""}
                     />
                     <em>€/t</em>
@@ -719,7 +724,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_mittel"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMittel ?? ""}
                     />
                     <em>€/t</em>
@@ -732,7 +737,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis_max"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preisMax ?? ""}
                     />
                     <em>€/t</em>
@@ -748,7 +753,7 @@ export function FormularPanel({
                     <input
                       type="number"
                       name="preis"
-                      step="0.01"
+                      step="any"
                       defaultValue={werte?.preis ?? ""}
                       aria-invalid={f.preis ? true : undefined}
                     />
