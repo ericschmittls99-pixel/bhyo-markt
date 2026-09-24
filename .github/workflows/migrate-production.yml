@@ -20,7 +20,33 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  # Ref-Wache (24.09.2026). Anders als im Deploy war hier KEINE Luecke offen:
+  # Der migrate-Job haengt am Environment "production", dessen
+  # Deployment-Branch-Policy nur "main" zulaesst — ein Dispatch von einem
+  # anderen Branch wird von GitHub abgewiesen, bevor der Job startet (belegt:
+  # Lauf 35989633127, kein Runner, null Schritte, kein Log). Genau das ist das
+  # Problem: Der Abbruch ist wortlos, und der Schutz lebt in einer
+  # Repo-Einstellung ausserhalb der Versionierung — wer sie aendert, verliert
+  # ihn unbemerkt. Diese Wache laeuft OHNE Environment, also vor der Sperre,
+  # und macht den Grund im Log sichtbar. Sie ersetzt die Policy nicht, sie
+  # erklaert sie und haelt sie im Repo fest.
+  ziel-wache:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Migrationsziel gegen den Ref pruefen
+        env:
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=MIGRATION NUR VON MAIN::Dieser Lauf (ref=$REF) wuerde die Migrationen dieses Branches auf die Produktions-DB anwenden. Abgebrochen — Migrationen laufen ausschliesslich von refs/heads/main, also erst nach dem Merge."
+            exit 1
+          fi
+          echo "ZIELWACHE ref=$REF -> Migration auf Production zulaessig"
+
   migrate:
+    needs: [ziel-wache]
     runs-on: ubuntu-latest
     # Environment "production" traegt das Secret DATABASE_URL_PRODUCTION und
     # ist auf den Branch main beschraenkt.
