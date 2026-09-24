@@ -1,0 +1,39 @@
+name: Leseweg Production (nur lesen)
+
+# Entscheidung Eric (24.09.2026), Variante b: Zielnachweis und
+# Abweichungslisten muessen VOR einem Merge laufen, also von einem Branch,
+# der nicht `main` ist. Das Environment `production` laesst das nicht zu —
+# seine Branch-Policy erlaubt nur `main`, auch fuer rein lesende Jobs
+# (belegt: Lauf 35994847637, Runner null, 0 Schritte, kein Log).
+#
+# Statt den schreibenden Zugang aufzuweichen, gibt es eine zweite
+# Zugangsberechtigung, die nichts als SELECT kann. Ihr Environment
+# `production-lesend` hat bewusst KEINE Branch-Beschraenkung. Der Vorbehalt
+# gegen ungeprueften Branch-Code faellt damit weg: Dieser Code kann nichts
+# veraendern — und genau das prueft der Lauf selbst, statt es zu behaupten.
+#
+# Schreibender Zugriff auf Production bleibt ausschliesslich ueber `main`:
+# Environment `production` plus die ziel-wache in migrate-production.yml.
+on:
+  workflow_dispatch:
+
+jobs:
+  lesen:
+    runs-on: ubuntu-latest
+    # KEINE Branch-Wache hier — dieser Workflow SOLL von jedem Branch laufen.
+    environment: production-lesend
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Zielnachweis + Schreibversuch (muss scheitern)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db lese-diagnose
