@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  normalisiereUrl,
   stufeObergrenzeOhneDatei,
   type BelegBewertung,
   berechneGueltigBis,
@@ -133,5 +134,24 @@ describe("stufeObergrenzeOhneDatei", () => {
 
   it("liefert null, wenn eine Datei die Stufe nicht hoebe (Gespraech)", () => {
     expect(stufeObergrenzeOhneDatei("gespraech")).toBeNull();
+  });
+});
+
+// F4: Link-Eingabe ohne Schema.
+describe("normalisiereUrl", () => {
+  it("ergaenzt https:// bei schemaloser Eingabe", () => {
+    expect(normalisiereUrl("www.beispiel.de")).toBe("https://www.beispiel.de");
+    expect(normalisiereUrl("beispiel.de/pfad?a=1")).toBe("https://beispiel.de/pfad?a=1");
+    expect(normalisiereUrl("  www.beispiel.de  ")).toBe("https://www.beispiel.de");
+  });
+  it("laesst vorhandene Schemata unangetastet", () => {
+    expect(normalisiereUrl("https://beispiel.de")).toBe("https://beispiel.de");
+    expect(normalisiereUrl("http://beispiel.de")).toBe("http://beispiel.de");
+    expect(normalisiereUrl("mailto:info@beispiel.de")).toBe("mailto:info@beispiel.de");
+  });
+  it("leer bleibt leer", () => {
+    expect(normalisiereUrl("")).toBeNull();
+    expect(normalisiereUrl(null)).toBeNull();
+    expect(normalisiereUrl("   ")).toBeNull();
   });
 });

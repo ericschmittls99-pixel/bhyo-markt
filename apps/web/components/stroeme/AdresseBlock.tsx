@@ -319,6 +319,18 @@ export function AdresseBlock({
       {hinweis && <span className="adr-hinweis">{hinweis}</span>}
       {fehler && <span className="pf-fehler">{fehler}</span>}
 
+      {/* F4: Der Hinweis haengt jetzt am tatsaechlichen Pin-Zustand. Vorher
+          stand er statisch im Formular — er erschien auch nach einer
+          Adresssuche und blieb stehen, wenn man den Pin von Hand setzte. */}
+      {(!w.lat || !w.lng) && (
+        <div className="hinweis-box">
+          <i className="ph ph-map-pin" aria-hidden />
+          <span>
+            Ohne Pin erscheint der Strom nicht auf der Karte — Adresse suchen
+            oder Pin in der Karte oben setzen.
+          </span>
+        </div>
+      )}
       <input type="hidden" name="lat" value={w.lat} />
       <input type="hidden" name="lng" value={w.lng} />
     </fieldset>

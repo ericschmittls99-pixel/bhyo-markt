@@ -328,13 +328,6 @@ export function FormularPanel({
                 />
               </span>
             </label>
-            <div className="hinweis-box">
-              <i className="ph ph-map-pin" aria-hidden />
-              <span>
-                Ohne Pin erscheint der Strom nicht auf der Karte — Pin oben im
-                Kartenausschnitt setzen.
-              </span>
-            </div>
           </section>
 
           <section className="ov-sec">
@@ -484,15 +477,17 @@ export function FormularPanel({
                       />
                     </span>
                   </label>
-                  <label className="pf">
+                  <label className={`pf${zeile.anBhyo ? " pf--aus" : ""}`}>
                     <span>Vergeben an</span>
                     <span className="pf-feld">
                       <input
                         type="text"
                         name={`vergabe_${i}_an`}
-                        value={zeile.an}
+                        value={zeile.anBhyo ? "" : zeile.an}
                         onChange={(e) => setzeVergabe(i, { an: e.target.value })}
-                        placeholder="z. B. Stadtwerke"
+                        // An bhyo vergeben heisst: der Empfaenger steht fest.
+                        disabled={zeile.anBhyo}
+                        placeholder={zeile.anBhyo ? "bhyo" : "z. B. Stadtwerke"}
                       />
                     </span>
                   </label>
@@ -885,11 +880,15 @@ export function FormularPanel({
                     <span>Link</span>
                     <span className="pf-feld">
                       <input
-                        type="url"
+                        // type="text": bei type="url" verlangt der Browser
+                        // das Schema. "www.beispiel.de" genuegt jetzt — das
+                        // https:// ergaenzt normalisiereUrl beim Speichern.
+                        type="text"
+                        inputMode="url"
                         name="beleg_link"
                         value={link}
                         onChange={(e) => setLink(e.target.value)}
-                        placeholder="https://…"
+                        placeholder="www.beispiel.de oder https://…"
                       />
                     </span>
                   </label>
