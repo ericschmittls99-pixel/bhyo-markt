@@ -473,7 +473,7 @@ export function Detail({
                   <Kv label="Erhebungsdatum" wert={fmtDatum(s.beleg.erhebungsdatum)} />
                   <Kv
                     label="Extern nachvollziehbar"
-                    wert={s.beleg.externNachvollziehbar ? "ja, freigegeben" : "nein, intern"}
+                    wert={s.beleg.externNachvollziehbar ? "ja, extern prüfbar" : "nein, nur intern"}
                   />
                   {s.beleg.amtlich != null && (
                     <Kv label="Amtliche Quelle" wert={s.beleg.amtlich ? "ja" : "nein"} />

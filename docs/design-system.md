@@ -105,10 +105,11 @@ je Stromart"), die Töne je Status identisch:
 | reserviert_bhyo | reserviert (bhyo). | reserviert (bhyo). | `quiet` |
 | noch_nicht_verfuegbar | noch nicht verfügbar. | noch nicht verfügbar. | `quiet` |
 
-Nebentag: Die Reservierung erscheint immer zusätzlich als kleiner
-**Stempel mit der Bildmarke** (`res-stempel`, 22 px, quiet-Ton, Tooltip
-„Für bhyo reserviert"), sobald sie nicht selbst der Haupttag ist — bewusst
-keine zweite große Pille, damit die Zeile einspurig bleibt.
+Nebentag: Der kleine **Stempel mit der Bildmarke** (`res-stempel`, 22 px,
+quiet-Ton) markiert, dass **bhyo an diesem Strom hängt** — er erscheint bei
+einer Reservierung *und* bei einer Vergabe „an bhyo" (Review Eric,
+24.09.2026), sobald das nicht schon der Haupttag ist. Bewusst keine zweite
+große Pille, damit die Zeile einspurig bleibt.
 
 Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
@@ -243,6 +244,50 @@ eine aus einem alten Protokoll hat, findet den Beleg weiterhin. Kein
 Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
+
+## Eingabeformate im Formular (F9, 24.09.2026)
+
+**Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native
+Eingabetypen richten sich nach Engine und Gebietsschema des Browsers — im
+Praxistest waren Monatsfelder in einem Browser nackte Textfelder
+(`type="month"` kennen Safari und Firefox nicht, `type="date"` schon), und
+`type="number"` wies das Komma ab, weil `navigator.language` `en-US` war.
+Deshalb gilt:
+
+- **Monate**: `MM/JJJJ` in einem eigenen Textfeld (`MonatFeld`, Platzhalter
+  sichtbar). Angenommen werden `01/2027`, `1/2027`, `01.2027`, `01-2027`,
+  `012027`; beim Verlassen des Feldes wird auf `01/2027` aufgeräumt — nie
+  währenddessen, sonst funkt es beim Tippen dazwischen.
+- **Zahlen**: Textfeld mit `inputMode="decimal"`. **Komma** ist das
+  Dezimaltrennzeichen; der Punkt wird weiterhin angenommen, damit niemand
+  umgewöhnt wird. Werte aus der Datenbank erscheinen mit Komma.
+- **Keine Tausenderpunkte** (Entscheidung Eric, 24.09.2026): Sie werden nicht
+  getippt und nicht unterstützt. Punkt-Dreiergruppen ohne Komma sind
+  mehrdeutig — `10.000` kann zehntausend sein, `33.333` ein TS-Anteil in
+  Prozent — und werden als solche gemeldet („bitte Komma … oder die Punkte
+  weglassen"), **nicht geraten**: `Number("10.000")` ist 10, drei
+  Größenordnungen würden lautlos verschwinden.
+
+Umgerechnet wird an **einer** Stelle (`lib/eingabe-format.ts`, reine
+Funktionen), einmal in der Server-Action; danach rechnen und schreiben alle
+mit demselben Wert. `type="number"` ist in den Formularen nicht mehr zulässig
+und wird von einem Test bewacht.
+
+## Beleg-Feld „Extern nachvollziehbar" (Korrektur 24.09.2026)
+
+Der Hilfetext versprach eine **Freigabe fürs Kommunen-PDF** („die Quelle darf
+im Kommunen-PDF erscheinen" / „die Quelle bleibt im Werkzeug"). Das Feld
+steuert nichts am PDF — es ist ausschließlich Eingang der
+**Qualitäts-Ableitung**: „vollständig" verlangt `extern_nachvollziehbar = true`
+zusätzlich zu den Pflichtfeldern des Beleg-Typs (`docs/ap1b`, Abschnitt 2).
+Wer den Haken als Veröffentlichungsentscheidung liest, versteht nicht, warum
+die Stufe springt — genau so ist es im Praxistest passiert.
+
+Der Text nennt jetzt die Wirkung: gesetzt „ja – ein Dritter kann die Quelle
+prüfen. Zählt als vollständiger Beleg.", nicht gesetzt „nein – nur intern
+nachvollziehbar. Der Beleg gilt als unvollständig, die Qualitätsstufe fällt
+entsprechend niedriger aus." Im Detail steht „ja, extern prüfbar" bzw.
+„nein, nur intern" statt „ja, freigegeben" / „nein, intern".
 
 ## Zugang und Rollen (F8/E30, 24.09.2026)
 

@@ -31,6 +31,7 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { schreibrechtFuerAction } from "@/lib/wache";
+import { dezimalKanonisch, monatKanonisch } from "@/lib/eingabe-format";
 
 export interface SpeichernErgebnis {
   ok?: boolean;
@@ -40,23 +41,40 @@ export interface SpeichernErgebnis {
 
 const s = (v: string | null) => v ?? "";
 
+/** Zahlenfeld: Rohtext in die Speicherform, leer bleibt leer. */
+function zahl(formData: FormData, key: string): string {
+  return dezimalKanonisch(s(text(formData, key)));
+}
+
+const leerZuNull = (v: string): string | null => (v.trim() === "" ? null : v);
+
+function nichtLeer(v: string, label: string): string {
+  if (v.trim() === "") throw new ValidierungsFehler(`${label} ist ein Pflichtfeld.`);
+  return v;
+}
+
 function eingabenAus(formData: FormData): FormularEingaben {
   const datei = formData.get("beleg_datei");
   return {
     akteurId: s(text(formData, "akteur_id")),
     materialartCode: s(text(formData, "materialart_code")),
     produktCode: s(text(formData, "produkt_code")),
-    mengeRohFm: s(text(formData, "menge_roh_fm")),
-    tsAnteilPct: s(text(formData, "ts_anteil_pct")),
-    aschegehaltPct: s(text(formData, "aschegehalt_pct")),
-    mengeWert: s(text(formData, "menge_wert")),
+    // F9: Die Felder kommen als deutscher Text herein (Komma, MM/JJJJ) und
+    // werden HIER einmal in die Speicherform gebracht — danach rechnet und
+    // schreibt alles mit demselben Wert. Mehrdeutige Zahlen bleiben stehen
+    // und werden von validiereFormular abgewiesen, nicht stillschweigend
+    // gedeutet.
+    mengeRohFm: zahl(formData, "menge_roh_fm"),
+    tsAnteilPct: zahl(formData, "ts_anteil_pct"),
+    aschegehaltPct: zahl(formData, "aschegehalt_pct"),
+    mengeWert: zahl(formData, "menge_wert"),
     mengeEinheit: s(text(formData, "menge_einheit")),
-    preisMin: s(text(formData, "preis_min")),
-    preisMittel: s(text(formData, "preis_mittel")),
-    preisMax: s(text(formData, "preis_max")),
-    preis: s(text(formData, "preis")),
-    vonMonat: s(text(formData, "zeitraum_von")),
-    bisMonat: s(text(formData, "zeitraum_bis")),
+    preisMin: zahl(formData, "preis_min"),
+    preisMittel: zahl(formData, "preis_mittel"),
+    preisMax: zahl(formData, "preis_max"),
+    preis: zahl(formData, "preis"),
+    vonMonat: monatKanonisch(s(text(formData, "zeitraum_von"))),
+    bisMonat: monatKanonisch(s(text(formData, "zeitraum_bis"))),
     begruendung: s(text(formData, "begruendung")),
     belegTyp: s(text(formData, "beleg_typ")),
     belegQuellenangabe: s(text(formData, "beleg_quellenangabe")),
@@ -95,8 +113,8 @@ export async function stromSpeichern(
   const vergaben: VergabeFormZeile[] = [];
   for (let i = 0; formData.get(`vergabe_${i}_marker`) != null; i++) {
     vergaben.push({
-      vonMonat: s(text(formData, `vergabe_${i}_von`)),
-      bisMonat: s(text(formData, `vergabe_${i}_bis`)),
+      vonMonat: monatKanonisch(s(text(formData, `vergabe_${i}_von`))),
+      bisMonat: monatKanonisch(s(text(formData, `vergabe_${i}_bis`))),
       an: s(text(formData, `vergabe_${i}_an`)),
       anBhyo: formData.get(`vergabe_${i}_bhyo`) === "on",
     });
@@ -166,20 +184,23 @@ export async function stromSpeichern(
         ? {
             ...gemeinsam,
             materialartCode: eingaben.materialartCode,
-            mengeRohFm: pflicht(formData, "menge_roh_fm", "Rohmenge"),
-            tsAnteilPct: pflicht(formData, "ts_anteil_pct", "TS-Anteil"),
-            aschegehaltPct: pflicht(formData, "aschegehalt_pct", "Aschegehalt"),
-            preisMin: text(formData, "preis_min"),
-            preisMittel: text(formData, "preis_mittel"),
-            preisMax: text(formData, "preis_max"),
+            // Aus `eingaben`, nicht erneut aus formData: sonst kaeme hier
+            // der unnormalisierte Text an und "1,5" landete in einer
+            // numeric-Spalte.
+            mengeRohFm: nichtLeer(eingaben.mengeRohFm, "Rohmenge"),
+            tsAnteilPct: nichtLeer(eingaben.tsAnteilPct, "TS-Anteil"),
+            aschegehaltPct: nichtLeer(eingaben.aschegehaltPct, "Aschegehalt"),
+            preisMin: leerZuNull(eingaben.preisMin),
+            preisMittel: leerZuNull(eingaben.preisMittel),
+            preisMax: leerZuNull(eingaben.preisMax),
             preisHerkunft: herkunftOderNull(text(formData, "preis_herkunft")),
           }
         : {
             ...gemeinsam,
             produktCode: eingaben.produktCode,
-            mengeWert: pflicht(formData, "menge_wert", "Bedarfsmenge"),
+            mengeWert: nichtLeer(eingaben.mengeWert, "Bedarfsmenge"),
             mengeEinheit: pflicht(formData, "menge_einheit", "Einheit"),
-            preis: text(formData, "preis"),
+            preis: leerZuNull(eingaben.preis),
             preisEinheit: text(formData, "preis_einheit"),
             preisHerkunft: herkunftOderNull(text(formData, "preis_herkunft")),
           };

@@ -9,6 +9,7 @@ import {
 } from "@/lib/formular-modell";
 import { fmtAnteil } from "@/lib/format";
 import { saisonAchse, saisonAnteileProzent, saisonStrecken } from "@/lib/saison";
+import { dezimalAnzeige, dezimalKanonisch } from "@/lib/eingabe-format";
 
 const MONATE = ["J", "F", "M", "A", "M", "J", "J", "A", "S", "O", "N", "D"];
 const MONAT_LANG = [
@@ -36,26 +37,26 @@ function ZahlenFeld({
 }) {
   const [text, setText] = useState(String(wert));
   const [fokus, setFokus] = useState(false);
-  const anzeige = fokus ? text : String(wert);
+  const anzeige = fokus ? text : dezimalAnzeige(String(wert));
   return (
     <input
-      type="number"
-      min={0}
-      max={ZIEH_MAX}
-      // Freies Raster: mit step=5 wies der Browser jeden Zwischenwert mit
-      // "Please enter a nearest value" ab — die Fuenferschritte gehoeren an
-      // die Pfeiltasten des Balkens, nicht an die Tastatureingabe.
-      step="any"
+      // Kein type="number": Das Feld folgte sonst dem Gebietsschema des
+      // BROWSERS (gemessen: en-US) und wies das Komma zurueck, bevor es den
+      // Server erreichte. Mit einem Textfeld entscheidet die Anwendung —
+      // dieselbe Umrechnung wie im uebrigen Formular.
+      type="text"
+      inputMode="decimal"
       value={anzeige}
       aria-label={label}
       onFocus={(e) => {
-        setText(String(wert));
+        setText(dezimalAnzeige(String(wert)));
         setFokus(true);
         e.currentTarget.select();
       }}
       onChange={(e) => {
         setText(e.target.value);
-        if (e.target.value !== "") onWert(Number(e.target.value));
+        const k = dezimalKanonisch(e.target.value);
+        if (k !== "" && Number.isFinite(Number(k))) onWert(Number(k));
       }}
       onBlur={() => {
         setFokus(false);

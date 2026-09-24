@@ -104,9 +104,16 @@ export function leiteVerfuegbarkeitAb(
   // Beschluss 22.09.2026: Die Reservierung erscheint IMMER als Nebentag,
   // sobald sie nicht selbst der Haupttag ist — Regeln 1-3 bestimmen den
   // Haupttag, die Zusatz-Pille macht die Zusage trotzdem sichtbar.
+  //
+  // Review Eric 24.09.2026: Der Stempel markiert nicht die Reservierung,
+  // sondern dass bhyo an diesem Strom haengt — er erscheint deshalb auch bei
+  // einer Vergabe "an bhyo". Ausgenommen bleibt nur der Fall, in dem die
+  // Reservierung selbst der Haupttag ist: dort stuende er doppelt.
   const mit = (status: VerfuegbarkeitsStatus): VerfuegbarkeitsErgebnis => ({
     status,
-    reserviertZusatz: strom.reserviertBhyo && status !== "reserviert_bhyo",
+    reserviertZusatz:
+      (strom.reserviertBhyo || status === "vergeben_bhyo") &&
+      status !== "reserviert_bhyo",
   });
 
   if (stichtag > strom.zeitraumBis) return mit("abgelaufen");

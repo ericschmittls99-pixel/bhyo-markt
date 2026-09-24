@@ -2,6 +2,7 @@ import type { StromArt } from "./stroeme-modell";
 // Nur Typ-Import: verfuegbarkeit.ts importiert zur Laufzeit aus dieser Datei,
 // die Gegenrichtung bleibt typenreiner Import ohne Zykluswirkung.
 import type { VergabeFormZeile } from "./verfuegbarkeit";
+import { dezimalKanonisch, istMehrdeutig } from "@/lib/eingabe-format";
 
 /**
  * Reine Formular-Logik fuer das Panel (AP1i PR 5) — ohne Datenbank- oder
@@ -160,9 +161,16 @@ export interface FormularEingaben {
 
 const PFLICHT = "Pflichtfeld";
 const KEINE_ZAHL = "Muss eine Zahl sein";
+const MEHRDEUTIG =
+  "Mehrdeutig — bitte Komma als Dezimaltrennzeichen (z. B. 33,333) oder die Punkte weglassen (33333)";
 
 function zahlOk(v: string): boolean {
-  return v === "" || Number.isFinite(Number(v.replace(",", ".")));
+  return v === "" || Number.isFinite(Number(dezimalKanonisch(v)));
+}
+
+/** Eine Groesse, eine Umrechnung: derselbe Weg wie im Eingabefeld. */
+function zahlWert(v: string): number | null {
+  return v.trim() === "" || !zahlOk(v) ? null : Number(dezimalKanonisch(v));
 }
 
 /**
@@ -180,7 +188,10 @@ export function validiereFormular(
     if (!wert.trim()) f[key] = PFLICHT;
   };
   const zahl = (key: string, wert: string) => {
-    if (!zahlOk(wert)) f[key] = KEINE_ZAHL;
+    // Mehrdeutig vor "keine Zahl": "10.000" IST eine Zahl, nur nicht
+    // erkennbar welche. Der Hinweis muss sagen, was zu tun ist.
+    if (istMehrdeutig(wert)) f[key] = MEHRDEUTIG;
+    else if (!zahlOk(wert)) f[key] = KEINE_ZAHL;
   };
 
   pflicht("akteur_id", e.akteurId);
@@ -207,8 +218,7 @@ export function validiereFormular(
     // entgelt). Die Reihenfolge Min <= Mittel <= Max muss auch ueber das
     // Vorzeichen hinweg gelten — verdrehte Werte wuerden Spannen und
     // Saldo still verzerren. Verglichen wird nur, was befuellt ist.
-    const preisWert = (v: string): number | null =>
-      v.trim() === "" || !zahlOk(v) ? null : Number(v.replace(",", "."));
+    const preisWert = zahlWert;
     const pMin = preisWert(e.preisMin);
     const pMittel = preisWert(e.preisMittel);
     const pMax = preisWert(e.preisMax);
