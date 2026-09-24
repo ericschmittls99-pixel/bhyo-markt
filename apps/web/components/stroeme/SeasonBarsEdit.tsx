@@ -42,7 +42,10 @@ function ZahlenFeld({
       type="number"
       min={0}
       max={ZIEH_MAX}
-      step={5}
+      // Freies Raster: mit step=5 wies der Browser jeden Zwischenwert mit
+      // "Please enter a nearest value" ab — die Fuenferschritte gehoeren an
+      // die Pfeiltasten des Balkens, nicht an die Tastatureingabe.
+      step="any"
       value={anzeige}
       aria-label={label}
       onFocus={(e) => {

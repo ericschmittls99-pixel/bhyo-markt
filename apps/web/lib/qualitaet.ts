@@ -100,6 +100,22 @@ export function deriveQualitaet(beleg: BelegBewertung): Qualitaet {
  * "gueltig bis" als Nutzereingabe (Pflichtfeld), wird also nicht hier berechnet.
  * Andere Typen haben (noch) keine Verfallsdauer – dann kein `gueltig_bis`.
  */
+/**
+ * F4: Eine Eingabe wie "www.beispiel.de" oder "beispiel.de/pfad" ist als
+ * Beleg-Link gemeint — die App ergaenzt das Schema, statt die Eingabe
+ * abzuweisen. Vorhandene Schemata (http/https) bleiben unangetastet,
+ * ebenso Leerwerte. Bewusst kein Erraten von Tippfehlern: nur das fehlende
+ * "https://" wird vorangestellt.
+ */
+export function normalisiereUrl(roh: string | null): string | null {
+  const t = (roh ?? "").trim();
+  if (!t) return null;
+  if (/^https?:\/\//i.test(t)) return t;
+  // Andere Schemata (mailto:, ftp:, …) nicht anfassen.
+  if (/^[a-z][a-z0-9+.-]*:/i.test(t)) return t;
+  return `https://${t}`;
+}
+
 export function berechneGueltigBis(
   typ: BelegTyp,
   erhebungsdatum: string | null | undefined,

@@ -2,7 +2,7 @@ import { aenderung, beleg } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AppDb, getBelegeBucket, getEnvironment } from "@/lib/db";
-import { type BelegTyp, berechneGueltigBis } from "@/lib/qualitaet";
+import { type BelegTyp, berechneGueltigBis, normalisiereUrl } from "@/lib/qualitaet";
 
 /**
  * Geteilte Server-Helfer fuer die Erfassungs-Actions (PR 5): FormData-Zugriff,
@@ -73,7 +73,8 @@ function belegDatenAus(formData: FormData): BelegDaten | null {
     typ,
     quellenangabe,
     erhebungsdatum,
-    linkUrl: text(formData, "beleg_link"),
+    // F4: "www.beispiel.de" genuegt — das Schema ergaenzt die App.
+    linkUrl: normalisiereUrl(text(formData, "beleg_link")),
     externNachvollziehbar: formData.get("beleg_extern") === "on",
     metadata,
     angebotGueltigBis: typ === "angebot" ? text(formData, "beleg_gueltig_bis") : null,

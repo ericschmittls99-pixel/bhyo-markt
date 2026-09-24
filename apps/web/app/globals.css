@@ -3251,6 +3251,10 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-secondary);
 }
 
+/* F4: ausgegrautes Formularfeld (z. B. "Vergeben an" bei Vergabe an bhyo) */
+.pf--aus { opacity: 0.55; }
+.pf--aus input { cursor: not-allowed; }
+
 /* Glas-Label der Regionsumrisse */
 .km-region-label {
   display: inline-flex;
