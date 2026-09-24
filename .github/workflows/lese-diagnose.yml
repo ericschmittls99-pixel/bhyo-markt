@@ -16,6 +16,12 @@ name: Leseweg Production (nur lesen)
 # Environment `production` plus die ziel-wache in migrate-production.yml.
 on:
   workflow_dispatch:
+  # VORUEBERGEHEND fuer den Erstnachweis: GitHub startet workflow_dispatch
+  # erst, wenn die Datei auf dem Default-Branch liegt — vor dem Merge laesst
+  # sich der Leseweg also nur ueber einen push-Trigger belegen. Wird vor dem
+  # Merge wieder entfernt; danach bleibt ausschliesslich workflow_dispatch.
+  push:
+    branches: [leseweg-production]
 
 jobs:
   lesen:
