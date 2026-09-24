@@ -62,6 +62,39 @@ async function main() {
       from drizzle.__drizzle_migrations`;
   console.log("MIGRATIONEN " + JSON.stringify(m));
 
+  // --- Standardrechte: gelten sie fuer die MIGRIERENDE Rolle? --------------
+  // Standardrechte (ALTER DEFAULT PRIVILEGES) gelten pro vergebender Rolle.
+  // Sind sie fuer die falsche gesetzt, hat die Leserolle auf jede KUENFTIG
+  // migrierte Tabelle kein SELECT — und das faellt genau dann auf, wenn der
+  // Leseweg fuer den Zielnachweis vor einer Migration gebraucht wird.
+  // Deshalb wird es hier gemessen, nicht angenommen (Review Eric, 24.09.2026).
+  const [besitzer] = await sql`
+    select tableowner as rolle from pg_tables where tablename = 'biomassestrom'`;
+  const standard = await sql`
+    select n.nspname as schema,
+           pg_get_userbyid(d.defaclrole) as vergeber,
+           array_to_string(d.defaclacl, ' ') as rechte
+      from pg_default_acl d
+      join pg_namespace n on n.oid = d.defaclnamespace
+     where d.defaclobjtype = 'r'`;
+  console.log(`TABELLENBESITZER ${besitzer!.rolle}`);
+  console.log("STANDARDRECHTE " + JSON.stringify(standard));
+
+  for (const schema of ["public", "drizzle"]) {
+    const treffer = standard.find(
+      (d) =>
+        d.schema === schema &&
+        d.vergeber === besitzer!.rolle &&
+        String(d.rechte).includes(`${wer!.rolle}=r/`),
+    );
+    if (!treffer) {
+      fehler.push(
+        `Standardrechte fuer Schema ${schema} fehlen oder gelten nicht fuer ${besitzer!.rolle} — ` +
+          `kuenftige Tabellen waeren fuer ${wer!.rolle} nicht lesbar`,
+      );
+    }
+  }
+
   // --- Die Zusicherung: Schreiben MUSS scheitern ----------------------------
   // Zwei Wege, weil ein fehlendes INSERT-Recht nicht automatisch ein fehlendes
   // UPDATE-Recht bedeutet — beide werden einzeln geprueft.
@@ -98,11 +131,21 @@ async function main() {
   await sql.end();
 
   if (fehler.length) {
+    const nachSql = fehler.some((f) => f.startsWith("Standardrechte"))
+      ? `\nNachzutragen im Neon SQL Editor (als ${besitzer!.rolle} oder Eigentuemer):\n` +
+        ["public", "drizzle"]
+          .map(
+            (sch) =>
+              `ALTER DEFAULT PRIVILEGES FOR ROLE ${besitzer!.rolle} IN SCHEMA ${sch} GRANT SELECT ON TABLES TO ${wer!.rolle};`,
+          )
+          .join("\n")
+      : "";
     console.error(
-      "::error title=ROLLE HAT ZU VIELE RECHTE::" +
+      "::error title=LESEWEG UNVOLLSTAENDIG::" +
         fehler.join(" · ") +
-        ". Diese Zugangsberechtigung darf ausschliesslich SELECT koennen; " +
-        "Rechte in Neon pruefen, bevor der Leseweg benutzt wird.",
+        ". Diese Zugangsberechtigung darf ausschliesslich SELECT koennen — " +
+        "aber auf alles Fachliche, auch auf kuenftig migrierte Tabellen." +
+        nachSql,
     );
     process.exit(1);
   }

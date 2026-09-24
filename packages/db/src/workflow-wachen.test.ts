@@ -104,6 +104,19 @@ describe("lese-diagnose.yml: der Leseweg", () => {
     // Zielnachweis im gewohnten Format, mit Rolle.
     expect(skript).toContain("LESEND host=");
   });
+
+  it("prueft die Standardrechte gegen die migrierende Rolle", () => {
+    // Review Eric (24.09.2026): Standardrechte gelten PRO VERGEBENDER ROLLE.
+    // Sind sie fuer die falsche gesetzt, hat die Leserolle auf jede kuenftig
+    // migrierte Tabelle kein SELECT — und das faellt genau dann auf, wenn der
+    // Leseweg vor einer Migration gebraucht wird. Deshalb wird der
+    // Tabellenbesitzer gelesen und mit dem Vergeber verglichen, statt ihn
+    // anzunehmen.
+    const skript = readFileSync(new URL("./lese-diagnose.ts", import.meta.url), "utf8");
+    expect(skript).toContain("pg_default_acl");
+    expect(skript).toContain("tableowner");
+    expect(skript).toContain("ALTER DEFAULT PRIVILEGES FOR ROLE");
+  });
 });
 
 describe("schema-gate: Zielnachweis", () => {
