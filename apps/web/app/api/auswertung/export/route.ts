@@ -59,6 +59,9 @@ export async function GET(req: Request) {
 
   const header = [
     "Art",
+    // F4-Review: die Belegnummer gehoert in den Export — sie ist die
+    // Referenz, mit der man ausserhalb des Tools ueber einen Beleg spricht.
+    "Belegnummer",
     "Bezeichnung",
     "Akteur",
     "Ort",
@@ -82,6 +85,7 @@ export async function GET(req: Request) {
     lines.push(
       [
         feed ? "Feedstock" : "Output",
+        s.beleg?.nr ?? "",
         s.bezeichnung,
         s.akteurName,
         s.ort,

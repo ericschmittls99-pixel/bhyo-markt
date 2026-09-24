@@ -7,6 +7,7 @@ import {
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 export type FacettenChip = FacettenChipDef;
@@ -53,7 +54,7 @@ export function FilterSortZeile({
   offenInitial: boolean;
   irgendeinFilter: boolean;
 }) {
-  const { setze } = useUrlZustand();
+  const { setze, searchParams } = useUrlZustand();
   const [offen, setOffen] = useState(offenInitial);
   const [sortOffen, setSortOffen] = useState(false);
   const [schliessSignal, setSchliessSignal] = useState(0);
@@ -140,6 +141,16 @@ export function FilterSortZeile({
   }
 
   const einheit = art === "biomasse" ? "t FM/a" : "Menge";
+
+  // Derselbe Export wie in auswertung. (eine Route, ein Ursprung): die
+  // geteilten Filter-Parameter plus die Art dieses Tabs als sicht.
+  const exportParams = new URLSearchParams();
+  for (const k of GETEILTE_FILTER_PARAMS) {
+    const v = searchParams.get(k);
+    if (v) exportParams.set(k, v);
+  }
+  exportParams.set("sicht", art === "biomasse" ? "feedstock" : "outputs");
+  const exportHref = `/api/auswertung/export?${exportParams}`;
 
   return (
     <div className="st-filterzeile" ref={zeileRef}>
@@ -243,6 +254,20 @@ export function FilterSortZeile({
             Liste
           </button>
         </div>
+
+        {/* F4-Review: CSV-Export auch in stroeme. — dieselbe Route und
+            dieselben geteilten Filter-Parameter wie in auswertung., nur mit
+            der Art dieses Tabs als sicht. Rechts vom Ansichts-Schalter und
+            nur als Icon (Review Eric, 24.09.2026). */}
+        <a
+          className="btn btn--sm btn--icon"
+          href={exportHref}
+          download
+          title="CSV-Export der gefilterten Liste"
+          aria-label="CSV-Export der gefilterten Liste"
+        >
+          <i className="ph ph-download-simple" aria-hidden />
+        </a>
       </div>
     </div>
   );
