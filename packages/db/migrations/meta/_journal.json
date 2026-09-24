@@ -134,6 +134,13 @@
       "when": 1790195265131,
       "tag": "0018_f3_beleg_nr_fk_indizes",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1790247798094,
+      "tag": "0019_f8_benutzer_rollen",
+      "breakpoints": true
     }
   ]
 }

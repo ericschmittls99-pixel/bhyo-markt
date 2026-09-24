@@ -226,7 +226,7 @@ mit erfundenen Feldern:
 | Mockup-Element | Fehlende Daten | Behandlung in AP1i |
 | --- | --- | --- |
 | Inbox (Einladungen, Import-Berichte, Rollenänderungen) | Kein Benachrichtigungs-Modell im Schema | Button + Popover mit EmptyState `keine nachrichten.`; keine Fake-Einträge |
-| Rollen-Pille + Schreibrechte (`canEdit`) | `benutzer.rolle` existiert; `/api/me` liefert Identität | umsetzbar — kein Platzhalter nötig |
+| Rollen-Pille + Schreibrechte (`canEdit`) | ~~`benutzer.rolle` existiert~~ **falsch, siehe Korrektur unten**; `/api/me` liefert Identität | vertagt auf F8 (E30) |
 | Avatar mit Foto (`avatarSrc`) | keine Avatar-Quelle | Initialen-Avatar aus E-Mail/Name |
 | `Profil`, `Abmelden` | kein Profil; Logout ist Cloudflare-Access-Sache | Menüpunkte mit Toast wie im Mockup (`… folgt im nächsten Schritt.`) |
 | `import.`-Funktion | kein Import-Backend | EmptyState + Button mit Toast (exakt so zeigt es das Mockup) |
@@ -239,6 +239,22 @@ mit erfundenen Feldern:
 | Vollständigkeits-Ring / `ø erfassungsgrad.` | kein Schema-Feld, aber aus vorhandenen Feldern berechenbar (Mockup-Checkliste: Bezeichnung, Kontakt, Ort, Landkreis, Zeitraum, Mengen, Preis, Saison ≠ flat, Beleg-Felder, Begründung, Status ≠ entwurf) | als reine Ableitung im Web-Code umsetzbar; Feldliste übernehme ich 1:1 aus dem Mockup |
 | Koordinaten-Anzeige + `Auf der Karte` | `standort_geom` existiert | umsetzbar |
 | Karten-Pin im Formular | Geocoding/Pin-Setzen fehlt | Hinweis-Box exakt wie Mockup (`Karten-Pin setzen folgt …`) |
+
+### Korrektur 24.09.2026: `benutzer.rolle` existierte nie
+
+Die Zeile zur Rollen-Pille stützte sich auf die Angabe „`benutzer.rolle`
+existiert" und schloss daraus „umsetzbar — kein Platzhalter nötig". **Die
+Angabe war falsch.** Es gab zu keinem Zeitpunkt eine `benutzer`-Tabelle; die
+Handoffs AP0b und AP1a führen „Rollenkonzept/`benutzer`-Tabelle" ausdrücklich
+unter „Nicht in diesem Paket". Gebaut wurde die Pille folgerichtig auch nicht
+— die Falschaussage blieb aber als vermeintliche Umsetzungsgrundlage stehen.
+
+Der Zugang war bis F8 **binär**: Cloudflare Access lässt herein, danach darf
+jede eingeloggte Person alles (`canEdit = true`, hart verdrahtet). Rollen
+kommen mit **F8 / E30** — drei Stück (`betrachter.`, `bearbeiter.`, `admin.`),
+Tabelle `benutzer`, Durchsetzung serverseitig. Diese Korrektur steht hier,
+damit die alte Zeile nicht erneut als Beleg dafür gelesen wird, dass etwas
+schon da sei.
 
 ---
 

@@ -106,8 +106,15 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
 - Der Header wird **immer** serverseitig gegen
   `https://bhyo.cloudflareaccess.com/cdn-cgi/access/certs` validiert. Ihm
   ungeprüft zu vertrauen ist die klassische Lücke.
-- **Rollen liegen in der App**, nicht in Access: eine `benutzer`-Tabelle mappt die
-  E-Mail auf eine Rolle (Lesen / Erfassen / Bewerten / Admin)
+- **Rollen liegen in der App**, nicht in Access: die `benutzer`-Tabelle mappt die
+  E-Mail auf genau eine von drei Rollen (E30, 24.09.2026) — `betrachter` liest,
+  `bearbeiter` erfasst und bearbeitet, `admin` verwaltet zusätzlich die
+  Benutzer. Frühere Fassungen nannten vier Stufen mit „Bewerten"; das ist keine
+  eigene Rolle, die Frage wird erst mit AP3 geprüft.
+- **Fail closed**: Eine E-Mail ohne Eintrag in `benutzer` oder mit
+  `aktiv = false` bekommt keinen Zugang — kein stilles Zurückfallen auf
+  Lesezugriff. Jede Rechteprüfung sitzt serverseitig; die Oberfläche blendet
+  nur zusätzlich aus.
 
 ## Design
 
