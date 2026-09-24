@@ -25,6 +25,35 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  # Review Eric (24.09.2026): Das Deploy-Ziel hing allein am EVENT —
+  # `pull_request` deployt auf die Preview, JEDES andere Event nach
+  # Production. Ein workflow_dispatch auf einem Feature- oder tmp-Branch
+  # haette dessen ungeprueften Code nach Production geschoben; der Notausgang
+  # war nie auf main beschraenkt. Diese Wache macht den Ref zur zweiten
+  # Bedingung: Production ausschliesslich von refs/heads/main, Preview
+  # weiterhin von jedem Branch. Sie laeuft VOR Gate und Deploy, beide haengen
+  # per `needs` daran — ein falscher Ref bricht den Lauf ab, statt ihn still
+  # zu ueberspringen.
+  ziel-wache:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Deploy-Ziel gegen den Ref pruefen
+        env:
+          EVENT: ${{ github.event_name }}
+          REF: ${{ github.ref }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            echo "ZIELWACHE event=$EVENT ref=$REF -> Preview (jeder Branch zulaessig)"
+            exit 0
+          fi
+          if [ "$REF" != "refs/heads/main" ]; then
+            echo "::error title=PRODUCTION NUR VON MAIN::Dieser Lauf (event=$EVENT, ref=$REF) wuerde nach Production deployen, laeuft aber nicht auf refs/heads/main. Abgebrochen. Fuer einen Preview-Deploy eines Branches einen Pull Request oeffnen; ein workflow_dispatch gehoert ausschliesslich auf main."
+            exit 1
+          fi
+          echo "ZIELWACHE event=$EVENT ref=$REF -> Production (zulaessig)"
+
   # E21 (22.09.2026): Vorab-Check statt Auto-Migration — dieser Workflow
   # migriert Production NIE selbst. Migrationen laufen ausschliesslich ueber
   # den manuell ausgeloesten Workflow migrate-production.yml (Leitplanke
@@ -68,7 +97,7 @@ jobs:
         run: pnpm --filter @bhyo/db test
 
   schema-gate:
-    needs: [typen-und-tests]
+    needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     # Environment nur wegen des Secrets DATABASE_URL_PRODUCTION; das Gate
@@ -102,13 +131,14 @@ jobs:
           echo "=============================================================="
 
   deploy:
-    needs: [typen-und-tests, schema-gate]
+    needs: [typen-und-tests, ziel-wache, schema-gate]
     # Typen/Tests sind IMMER Vorbedingung (auch bei PRs — sonst deployt ein
     # roter Stand auf die Preview). Zusaetzlich bei main-Pushes: nur wenn das
     # schema-gate gruen ist.
     if: >-
       always() && !cancelled() &&
       needs.typen-und-tests.result == 'success' &&
+      needs.ziel-wache.result == 'success' &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
     runs-on: ubuntu-latest
