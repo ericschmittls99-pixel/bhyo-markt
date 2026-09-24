@@ -230,7 +230,13 @@ Zusammenfassung aus Materialart/Produkt und Verfügbarkeit (die Bezeichnung
 steht unten unter „quelle." und ist aus dem Kopf raus) → Pillen → Abstand →
 „quelle.". Die Nummer steht außerdem als eigene Spalte im **CSV-Export**,
 den es jetzt auch in ströme. gibt — dieselbe Route und dieselben geteilten
-Filter-Parameter wie in auswertung., nur mit der Art des Tabs als `sicht`. Die Freitextsuche findet sie mit Präfix
+Filter-Parameter wie in auswertung., nur mit der Art des Tabs als `sicht`.
+Er sitzt in der Filterzeile **rechts außen, hinter dem Ansichts-Schalter**,
+und trägt nur das Download-Icon (Review Eric, 24.09.): `btn btn--icon` —
+die Nur-Icon-Variante ist quadratisch über `aspect-ratio: 1` und behält
+damit die Höhe ihrer Größenklasse, statt eine eigene Maßangabe zu bekommen.
+Ohne Textlabel braucht sie `aria-label` **und** `title`.
+Die Freitextsuche findet die Nummer mit Präfix
 (`B-000123`), ohne Präfix (`000123`) und ohne führende Nullen (`123`),
 Groß- und Kleinschreibung egal — die **UUID-Suche bleibt zusätzlich**, wer
 eine aus einem alten Protokoll hat, findet den Beleg weiterhin. Kein
