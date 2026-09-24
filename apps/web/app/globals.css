@@ -1391,6 +1391,13 @@ input[readonly],
   padding: 0 var(--control-px-sm);
   font: var(--type-button-sm);
 }
+/* Nur-Icon-Variante: quadratisch statt Textpolster. Die Kantenlaenge folgt
+   der Hoehe der jeweiligen Groesse, damit das Icon mittig sitzt und der
+   Knopf neben Text-Knoepfen derselben Groesse auf der Linie bleibt. */
+.btn--icon {
+  padding: 0;
+  aspect-ratio: 1;
+}
 .btn:disabled {
   opacity: var(--action-disabled-opacity);
   cursor: default;
@@ -2219,6 +2226,12 @@ button.leg-toggle.aus {
 .beleg-id:hover {
   color: var(--text-secondary);
 }
+/* F4-Review: Abstaende im Detail-Kopf — Nummer direkt unter dem Titel,
+   dann ein kleiner Abstand vor der Zusammenfassung und einer vor den
+   Pillen, damit die drei Ebenen lesbar bleiben. */
+.ov-kopf-text .beleg-id { margin-top: 2px; }
+.ov-kopf-summe { margin-top: 8px; }
+.ov-kopf-text .ov-pillen { margin-top: 8px; }
 
 /* AP1j PR 3: Reservierungs-Stempel — Bildmarke statt grosser Pille (Review),
    quiet-Ton wie die reserviert-Pille, passt neben die Verfuegbarkeits-Pille. */
