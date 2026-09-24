@@ -2531,14 +2531,21 @@ button.leg-toggle.aus {
   padding: 24px;
   background: var(--surface-page);
 }
-.zugang-sperre .empty-state {
+.zugang-sperre {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
   max-width: 420px;
+}
+.zugang-sperre .empty-state {
+  max-width: none;
+  padding-bottom: 8px;
 }
 .zs-details {
   display: grid;
   gap: 8px;
   width: 100%;
-  margin-top: 4px;
   padding: 16px;
   border-radius: var(--radius-control);
   background: var(--surface-sunken);
