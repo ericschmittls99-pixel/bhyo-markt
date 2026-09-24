@@ -65,6 +65,60 @@ describe("migrate-production.yml: Migration nur von main", () => {
   });
 });
 
+describe("lese-diagnose.yml: der Leseweg", () => {
+  // Ohne Kommentare: Der erklaerende Vorspann dieses Workflows NENNT die
+  // ziel-wache und `main`, um zu begruenden, warum es sie hier nicht gibt.
+  // Ein Guard, der daran scheitert, wird durch Umformulieren umgangen statt
+  // befolgt — geprueft wird, was YAML tatsaechlich ausfuehrt.
+  const leseweg = readFileSync(
+    new URL("../../../.github/workflows/lese-diagnose.yml", import.meta.url),
+    "utf8",
+  )
+    .split("\n")
+    .filter((z) => !/^\s*#/.test(z))
+    .join("\n");
+
+  it("laeuft im Environment production-lesend, nicht in production", () => {
+    expect(leseweg).toContain("environment: production-lesend");
+    // Ein Tippfehler hier waere fatal: `production` traegt die schreibende
+    // Zugangsberechtigung UND die main-Policy — der Leseweg liefe dann mit
+    // Schreibrechten und nur noch von main.
+    expect(leseweg).not.toMatch(/environment: production\s*$/m);
+  });
+
+  it("hat bewusst KEINE Branch-Wache — er soll von jedem Branch laufen", () => {
+    expect(leseweg).not.toContain("ziel-wache");
+    expect(leseweg).not.toContain("refs/heads/main");
+  });
+
+  it("nutzt ausschliesslich das lesende Secret", () => {
+    expect(leseweg).toContain("DATABASE_URL_PRODUCTION_LESEND");
+    expect(leseweg).not.toMatch(/DATABASE_URL_PRODUCTION\s*\}\}/);
+  });
+
+  it("das Skript prueft den Schreibversuch, statt ihn zu behaupten", () => {
+    const skript = readFileSync(new URL("./lese-diagnose.ts", import.meta.url), "utf8");
+    expect(skript).toContain("SCHREIBVERSUCH");
+    expect(skript).toContain("insert into");
+    expect(skript).toContain("update ");
+    // Zielnachweis im gewohnten Format, mit Rolle.
+    expect(skript).toContain("LESEND host=");
+  });
+
+  it("prueft die Standardrechte gegen die migrierende Rolle", () => {
+    // Review Eric (24.09.2026): Standardrechte gelten PRO VERGEBENDER ROLLE.
+    // Sind sie fuer die falsche gesetzt, hat die Leserolle auf jede kuenftig
+    // migrierte Tabelle kein SELECT — und das faellt genau dann auf, wenn der
+    // Leseweg vor einer Migration gebraucht wird. Deshalb wird der
+    // Tabellenbesitzer gelesen und mit dem Vergeber verglichen, statt ihn
+    // anzunehmen.
+    const skript = readFileSync(new URL("./lese-diagnose.ts", import.meta.url), "utf8");
+    expect(skript).toContain("pg_default_acl");
+    expect(skript).toContain("tableowner");
+    expect(skript).toContain("ALTER DEFAULT PRIVILEGES FOR ROLE");
+  });
+});
+
 describe("schema-gate: Zielnachweis", () => {
   it("druckt Host und Datenbank vor dem Urteil", () => {
     const gate = readFileSync(new URL("./schema-gate.ts", import.meta.url), "utf8");
