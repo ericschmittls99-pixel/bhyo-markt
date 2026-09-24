@@ -19,17 +19,29 @@ const DATEIEN = [
 
 describe("Zahlenfelder im Erfassungsformular", () => {
   for (const rel of DATEIEN) {
-    it(`${rel}: kein enges step-Raster`, () => {
-      // Kommentare zuerst raus: dieser Test erklaert sich im Code selbst mit
-      // einem `step="0.1"` als Beispiel — ein Guard, der am erklaerenden Text
-      // scheitert, wird durch Umformulieren umgangen statt befolgt.
-      const quelle = readFileSync(join(process.cwd(), rel), "utf8")
+    const quelle = () =>
+      readFileSync(join(process.cwd(), rel), "utf8")
+        // Kommentare zuerst raus: dieser Test erklaert sich im Code selbst mit
+        // einem `step="0.1"` als Beispiel — ein Guard, der am erklaerenden Text
+        // scheitert, wird durch Umformulieren umgangen statt befolgt.
         .replace(/\/\*[\s\S]*?\*\//g, "")
         .replace(/\/\/.*$/gm, "");
-      const enge = [...quelle.matchAll(/step=(?:"([^"]*)"|\{([^}]*)\})/g)]
+
+    it(`${rel}: kein enges step-Raster`, () => {
+      const enge = [...quelle().matchAll(/step=(?:"([^"]*)"|\{([^}]*)\})/g)]
         .map((m) => (m[1] ?? m[2]).trim())
         .filter((wert) => wert !== "any" && wert !== '"any"');
       expect(enge).toEqual([]);
+    });
+
+    it(`${rel}: kein type="number" — das Gebietsschema gehoert nicht dem Browser`, () => {
+      // Zweiter Befund (24.09.2026): `type="number"` folgt dem Gebietsschema
+      // des BROWSERS, nicht dem `lang` der Seite. Gemessen war es en-US, also
+      // wies das Feld "1,5" zurueck, bevor der Server es sehen konnte — und
+      // der versteht das Komma laengst. Dasselbe Feld trug vorher das
+      // step-Raster: eine Ursache, zwei Symptome. Die Formulare nutzen
+      // deshalb Textfelder mit eigener Umrechnung (lib/eingabe-format.ts).
+      expect(quelle()).not.toMatch(/type="number"/);
     });
   }
 });

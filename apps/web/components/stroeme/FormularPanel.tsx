@@ -41,6 +41,7 @@ import { deriveQualitaet, stufeObergrenzeOhneDatei, type BelegTyp } from "@/lib/
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
+import { dezimalAnzeige, monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
 
 const BELEG_TYPEN: BelegTyp[] = [
   "dokument_link",
@@ -57,6 +58,54 @@ const BELEG_TYPEN: BelegTyp[] = [
  * Fehler kommen aus der Server-Action (erst nach Speichern-Versuch, wie im
  * Mockup); Qualitaet ist eine live abgeleitete, gesperrte Anzeige.
  */
+/**
+ * Monatsfeld als eigenes Textfeld (Review Eric, 24.09.2026).
+ *
+ * `type="month"` kennen Safari und Firefox nicht — dort fiel das Feld auf
+ * ein nacktes Textfeld ohne jede Hilfe zurueck, waehrend das Erhebungsdatum
+ * (`type="date"`) weiter funktionierte. Statt auf Browser-Verhalten zu
+ * bauen, fragt das Formular jetzt ueberall gleich nach `MM/JJJJ`.
+ *
+ * Der getippte Text lebt lokal, der kanonische Wert geht an das Formular —
+ * sonst wuerde sich das Feld beim Tippen der ersten Ziffer selbst leeren.
+ * Abgeschickt wird der sichtbare Text; die Server-Action normalisiert ihn
+ * mit derselben Funktion (`monatKanonisch`).
+ */
+function MonatFeld({
+  name,
+  wert,
+  onWert,
+  ungueltig,
+}: {
+  name: string;
+  wert: string;
+  onWert: (kanonisch: string) => void;
+  ungueltig?: boolean;
+}) {
+  const [text, setText] = useState(() => monatAnzeige(wert));
+  return (
+    <input
+      type="text"
+      inputMode="numeric"
+      placeholder="MM/JJJJ"
+      maxLength={7}
+      name={name}
+      value={text}
+      onChange={(e) => {
+        setText(e.target.value);
+        onWert(monatKanonisch(e.target.value));
+      }}
+      // Aufraeumen erst beim Verlassen: "1/2027" wird zu "01/2027", ohne
+      // waehrend des Tippens dazwischenzufunken.
+      onBlur={() => {
+        const k = monatKanonisch(text);
+        if (k) setText(monatAnzeige(k));
+      }}
+      aria-invalid={ungueltig ? true : undefined}
+    />
+  );
+}
+
 export function FormularPanel({
   art,
   werte,
@@ -93,9 +142,9 @@ export function FormularPanel({
   const [akteurId, setAkteurId] = useState<string | null>(werte?.akteurId || null);
 
   // Mengen fuer die Live-Umrechnungskette (nur Biomasse).
-  const [roh, setRoh] = useState(werte?.mengeRohFm ?? "");
-  const [ts, setTs] = useState(werte?.tsAnteilPct ?? "");
-  const [asche, setAsche] = useState(werte?.aschegehaltPct ?? "");
+  const [roh, setRoh] = useState(dezimalAnzeige(werte?.mengeRohFm));
+  const [ts, setTs] = useState(dezimalAnzeige(werte?.tsAnteilPct));
+  const [asche, setAsche] = useState(dezimalAnzeige(werte?.aschegehaltPct));
   const [mengeEinheit, setMengeEinheit] = useState(werte?.mengeEinheit ?? "t/a");
 
   // Vergabe (AP1j): Zeitraum-Inputs kontrolliert, damit die Live-Pille auf
@@ -415,12 +464,11 @@ export function FormularPanel({
                   Verfügbar ab<em className="pf-pflicht" aria-hidden> *</em>
                 </span>
                 <span className="pf-feld">
-                  <input
-                    type="month"
+                  <MonatFeld
                     name="zeitraum_von"
-                    value={vonMonat}
-                    onChange={(e) => setVonMonat(e.target.value)}
-                    aria-invalid={f.zeitraum_von ? true : undefined}
+                    wert={vonMonat}
+                    onWert={setVonMonat}
+                    ungueltig={!!f.zeitraum_von}
                   />
                 </span>
                 {f.zeitraum_von && <span className="pf-fehler">{f.zeitraum_von}</span>}
@@ -430,12 +478,11 @@ export function FormularPanel({
                   Verfügbar bis<em className="pf-pflicht" aria-hidden> *</em>
                 </span>
                 <span className="pf-feld">
-                  <input
-                    type="month"
+                  <MonatFeld
                     name="zeitraum_bis"
-                    value={bisMonat}
-                    onChange={(e) => setBisMonat(e.target.value)}
-                    aria-invalid={f.zeitraum_bis ? true : undefined}
+                    wert={bisMonat}
+                    onWert={setBisMonat}
+                    ungueltig={!!f.zeitraum_bis}
                   />
                 </span>
                 {f.zeitraum_bis && <span className="pf-fehler">{f.zeitraum_bis}</span>}
@@ -452,28 +499,22 @@ export function FormularPanel({
                   <label className="pf">
                     <span>Vergeben ab</span>
                     <span className="pf-feld">
-                      <input
-                        type="month"
+                      <MonatFeld
                         name={`vergabe_${i}_von`}
-                        value={zeile.vonMonat}
-                        onChange={(e) =>
-                          setzeVergabe(i, { vonMonat: e.target.value })
-                        }
-                        aria-invalid={f[`vergabe_${i}_von`] ? true : undefined}
+                        wert={zeile.vonMonat}
+                        onWert={(k) => setzeVergabe(i, { vonMonat: k })}
+                        ungueltig={!!f[`vergabe_${i}_von`]}
                       />
                     </span>
                   </label>
                   <label className="pf">
                     <span>Vergeben bis</span>
                     <span className="pf-feld">
-                      <input
-                        type="month"
+                      <MonatFeld
                         name={`vergabe_${i}_bis`}
-                        value={zeile.bisMonat}
-                        onChange={(e) =>
-                          setzeVergabe(i, { bisMonat: e.target.value })
-                        }
-                        aria-invalid={f[`vergabe_${i}_bis`] ? true : undefined}
+                        wert={zeile.bisMonat}
+                        onWert={(k) => setzeVergabe(i, { bisMonat: k })}
+                        ungueltig={!!f[`vergabe_${i}_bis`]}
                       />
                     </span>
                   </label>
@@ -597,10 +638,9 @@ export function FormularPanel({
                     </span>
                     <span className="pf-feld">
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         name="menge_roh_fm"
-                        step="any"
-                        min="0"
                         value={roh}
                         onChange={(e) => setRoh(e.target.value)}
                         aria-invalid={f.menge_roh_fm ? true : undefined}
@@ -615,11 +655,9 @@ export function FormularPanel({
                     </span>
                     <span className="pf-feld">
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         name="ts_anteil_pct"
-                        step="any"
-                        min="0"
-                        max="100"
                         value={ts}
                         onChange={(e) => setTs(e.target.value)}
                         aria-invalid={f.ts_anteil_pct ? true : undefined}
@@ -634,11 +672,9 @@ export function FormularPanel({
                     </span>
                     <span className="pf-feld">
                       <input
-                        type="number"
+                        type="text"
+                        inputMode="decimal"
                         name="aschegehalt_pct"
-                        step="any"
-                        min="0"
-                        max="100"
                         value={asche}
                         onChange={(e) => setAsche(e.target.value)}
                         aria-invalid={f.aschegehalt_pct ? true : undefined}
@@ -660,11 +696,10 @@ export function FormularPanel({
                   </span>
                   <span className="pf-feld">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       name="menge_wert"
-                      step="any"
-                      min="0"
-                      defaultValue={werte?.mengeWert ?? ""}
+                      defaultValue={dezimalAnzeige(werte?.mengeWert)}
                       aria-invalid={f.menge_wert ? true : undefined}
                     />
                   </span>
@@ -709,10 +744,10 @@ export function FormularPanel({
                   <span>Min</span>
                   <span className="pf-feld">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       name="preis_min"
-                      step="any"
-                      defaultValue={werte?.preisMin ?? ""}
+                      defaultValue={dezimalAnzeige(werte?.preisMin)}
                     />
                     <em>€/t</em>
                   </span>
@@ -722,10 +757,10 @@ export function FormularPanel({
                   <span>Mittel</span>
                   <span className="pf-feld">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       name="preis_mittel"
-                      step="any"
-                      defaultValue={werte?.preisMittel ?? ""}
+                      defaultValue={dezimalAnzeige(werte?.preisMittel)}
                     />
                     <em>€/t</em>
                   </span>
@@ -735,10 +770,10 @@ export function FormularPanel({
                   <span>Max</span>
                   <span className="pf-feld">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       name="preis_max"
-                      step="any"
-                      defaultValue={werte?.preisMax ?? ""}
+                      defaultValue={dezimalAnzeige(werte?.preisMax)}
                     />
                     <em>€/t</em>
                   </span>
@@ -751,10 +786,10 @@ export function FormularPanel({
                   <span>Preis</span>
                   <span className="pf-feld">
                     <input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       name="preis"
-                      step="any"
-                      defaultValue={werte?.preis ?? ""}
+                      defaultValue={dezimalAnzeige(werte?.preis)}
                       aria-invalid={f.preis ? true : undefined}
                     />
                   </span>
