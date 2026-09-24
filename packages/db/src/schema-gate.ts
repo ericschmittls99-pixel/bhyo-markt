@@ -31,6 +31,14 @@ if (!url) {
   process.exit(1);
 }
 
+// Zielnachweis vor dem Urteil (Review Eric, 24.09.2026): Ein Gate, dessen
+// Ziel nicht im Log steht, erfuellt die Nachweisregel nicht — auch dann
+// nicht, wenn es nichts migriert. Gleiches Format wie pre-drop-check und die
+// DB-Checks, damit sich Laeufe vergleichen lassen. Nur Host und Datenbank,
+// nie die vollstaendige URL (sie traegt das Passwort).
+const ziel = new URL(url);
+console.log(`GATE host=${ziel.hostname} db=${ziel.pathname.slice(1)}`);
+
 // Zwei Fehlerklassen, die NICHT dieselbe Meldung bekommen duerfen (Review
 // Eric 22.09.2026): Eine fehlende Migrationstabelle (Postgres 42P01,
 // undefined_table) ist ein echter Schema-Befund — nie migrierte DB, alles
