@@ -208,6 +208,29 @@ Die Urheberschaft im Änderungsprotokoll wandert vom Textpräfix in die eigene
 Spalte `aenderung.benutzer_email`. Altzeilen werden **nicht** durch
 Textzerlegung nachgetragen: Sie bleiben leer und zeigen „unbekannt".
 
+## 11. Zahleneingabe (E31, 24.09.2026)
+
+**Dezimaltrenner ist das Komma.** Tausenderpunkte werden weder getippt noch
+unterstützt.
+
+**Eine Eingabe, die zwei Deutungen zulässt, wird als mehrdeutig abgewiesen,
+nie geraten.** Punkt-Dreiergruppen ohne Komma sind genau so ein Fall:
+`10.000` kann zehntausend sein, `33.333` ein TS-Anteil in Prozent. Beide
+Deutungen wären still falsch — `Number("10.000")` ergibt **10**, drei
+Größenordnungen verschwinden lautlos. Das Formular meldet solche Eingaben
+und bittet um ein Komma.
+
+**Zahlen- und Monatsfelder sind eigene Textfelder mit eigener Umrechnung**,
+keine nativen `type="number"` oder `type="month"`. Deren Verhalten hängt an
+Engine und Sprache des Browsers und verwirft Eingaben stillschweigend:
+gemessen war `navigator.language` `en-US`, damit setzte ein Zahlenfeld den
+Wert „1,5" auf leer zurück, bevor der Server ihn sehen konnte; `type="month"`
+kennen Safari und Firefox gar nicht. Monate werden als `MM/JJJJ` erfasst.
+
+**Normalisiert wird einmal, in der Server-Action.** Danach rechnen und
+schreiben alle mit demselben Wert (`lib/eingabe-format.ts`, reine
+Funktionen). Ein Test verbietet `type="number"` in den Formularen.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

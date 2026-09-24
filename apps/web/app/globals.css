@@ -2444,6 +2444,84 @@ button.leg-toggle.aus {
   letter-spacing: var(--tracking-tight);
 }
 
+/* F8/E30 PR C: Benutzerverwaltung in einstellungen. Ruhige Tabelle im
+   bestehenden Stil — keine eigene Designsprache fuer eine Admin-Seite. */
+.einst {
+  flex: 1;
+  min-height: 100%;
+  padding: 8px var(--gutter) var(--gutter);
+}
+.einst-leer {
+  flex: 1;
+  min-height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 8px var(--gutter) var(--gutter);
+}
+.einst-inhalt {
+  display: grid;
+  gap: 20px;
+  max-width: 880px;
+}
+.einst-kopf h2 {
+  margin: 0 0 4px;
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+}
+.einst-kopf .c,
+.einst-fuss {
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.einst-anlegen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+}
+.einst-anlegen .pf {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+.einst-fehler {
+  flex-basis: 100%;
+}
+.einst-tabelle {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-body-sm);
+}
+.einst-tabelle th {
+  text-align: left;
+  padding: 0 12px 8px 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.einst-tabelle td {
+  padding: 10px 12px 10px 0;
+  border-top: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+/* Deaktiviert wird gedimmt, nicht durchgestrichen — der Eintrag gilt weiter,
+   er kommt nur nicht herein. */
+.einst-inaktiv td {
+  opacity: 0.55;
+}
+.einst-du {
+  margin-left: 8px;
+  padding: 0 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-selected);
+  font: 600 11px/1.6 var(--font-sans);
+  color: var(--text-secondary);
+}
+
 /* F8/E30: Zugangsseite. Sie ersetzt die gesamte Oberflaeche, steht also
    allein auf der Flaeche — ruhig, mittig, ohne Navigation daneben. */
 .shell--gesperrt {
@@ -2453,14 +2531,21 @@ button.leg-toggle.aus {
   padding: 24px;
   background: var(--surface-page);
 }
-.zugang-sperre .empty-state {
+.zugang-sperre {
+  display: grid;
+  justify-items: center;
+  gap: 4px;
+  width: 100%;
   max-width: 420px;
+}
+.zugang-sperre .empty-state {
+  max-width: none;
+  padding-bottom: 8px;
 }
 .zs-details {
   display: grid;
   gap: 8px;
   width: 100%;
-  margin-top: 4px;
   padding: 16px;
   border-radius: var(--radius-control);
   background: var(--surface-sunken);

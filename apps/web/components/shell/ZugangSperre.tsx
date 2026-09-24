@@ -35,26 +35,28 @@ export function ZugangSperre({
             ? "Der Zugang für diese Adresse wurde deaktiviert."
             : "Für diese Adresse ist noch kein Zugang eingerichtet."
         }
-      >
-        <div className="zs-details">
-          <p className="zs-zeile">
-            <span className="zs-label">Angemeldet als</span>
-            <span className="zs-wert">{email}</span>
-          </p>
-          <p className="zs-zeile">
-            <span className="zs-label">Kontakt</span>
-            {adminKontakt ? (
-              <a className="zs-wert" href={`mailto:${adminKontakt}`}>
-                {adminKontakt}
-              </a>
-            ) : (
-              <span className="zs-wert zs-wert--leer">
-                Zurzeit ist keine Ansprechperson hinterlegt.
-              </span>
-            )}
-          </p>
-        </div>
-      </EmptyState>
+      />
+      {/* Bewusst NEBEN dem EmptyState, nicht als dessen `children`: Dort
+          landete der Block im Aktionen-Container und schrumpfte auf
+          Inhaltsbreite zusammen. Hier trägt er die volle Breite. */}
+      <div className="zs-details">
+        <p className="zs-zeile">
+          <span className="zs-label">Angemeldet als</span>
+          <span className="zs-wert">{email}</span>
+        </p>
+        <p className="zs-zeile">
+          <span className="zs-label">Kontakt</span>
+          {adminKontakt ? (
+            <a className="zs-wert" href={`mailto:${adminKontakt}`}>
+              {adminKontakt}
+            </a>
+          ) : (
+            <span className="zs-wert zs-wert--leer">
+              Zurzeit ist keine Ansprechperson hinterlegt.
+            </span>
+          )}
+        </p>
+      </div>
     </div>
   );
 }
