@@ -244,6 +244,33 @@ Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
 
+## Zugang und Rollen (F8/E30, 24.09.2026)
+
+Die **Rollen-Pille** im Konto-Menü zeigt die Rolle aus der Datenbank
+(`betrachter.` / `bearbeiter.` / `admin.`) — zurückgenommen wie die
+Qualitäts-Pillen (`konf--rolle`, Sunken-Fläche, Sekundärtext): Sie benennt
+einen Zustand, sie wirbt nicht. Keine Ampelfarben, kein Rang durch Farbe.
+
+Die **Zugangsseite** ist kein Randfall, sondern Regelfall: Die Access-Policy
+ist eine Domänenregel, jede `@bhyo.de`-Adresse kommt durch Access — wer neu
+dazukommt, landet zuerst hier. Sie ersetzt die gesamte Oberfläche
+(`shell--gesperrt`, mittig, ohne Navigation daneben) und nutzt den bestehenden
+`EmptyState` statt eines eigenen Layouts.
+
+Inhalt in dieser Reihenfolge: Icon-Scheibe → Titel lowercase mit Punkt
+(„kein zugang eingerichtet." bzw. „zugang deaktiviert.") → ein erklärender
+Satz → Detailblock mit **der angemeldeten Adresse** (damit sichtbar ist,
+welches Konto gemeint ist — man ist womöglich mit dem falschen angemeldet)
+und der **Kontaktadresse**. Die Kontaktadresse ist die E-Mail des ersten
+aktiven Admins, **aus der Datenbank gelesen, nie fest eingetragen**, damit sie
+stimmt, wenn sich die Admins ändern; ohne aktiven Admin steht dort ein
+neutraler Hinweis statt einer leeren Zeile. Zwei Fälle, zwei Wortlaute — eine
+deaktivierte Adresse bekommt nicht denselben Text wie eine unbekannte.
+
+Kein Schreibrecht heißt: Aktionen werden **ausgeblendet** (`canEdit` aus der
+Rolle), nicht deaktiviert dargestellt. Die Oberfläche ist dabei nie der
+Schutz — die Durchsetzung sitzt serverseitig in `lib/wache.ts`.
+
 ## Formularblock „Ort" (F0a, 23.09.2026; F4-Korrekturen 24.09.2026)
 
 Reihenfolge von oben: Adresssuche (debounced Vorschlagsliste, Auswahl

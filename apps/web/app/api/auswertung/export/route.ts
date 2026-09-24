@@ -1,5 +1,5 @@
-import { currentUserEmail } from "@/lib/db";
 import { ladeAlleVergaben, ladeStroeme } from "@/lib/stroeme";
+import { wacheFuerRoute } from "@/lib/wache";
 import {
   filterAusSearchParams,
   filterStroeme,
@@ -28,9 +28,10 @@ function csvFeld(v: unknown): string {
  * Tabelle mit vereinheitlichten Spalten; Biomasse-Menge als t atro/a.
  */
 export async function GET(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: auch Lesen laeuft ueber die Wache — eine unbekannte oder
+  // deaktivierte Adresse darf keine Daten sehen (fail closed).
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
   const p = new URL(req.url).searchParams;
   const roh: Record<string, string> = {};
   for (const [k, v] of p.entries()) roh[k] = v;

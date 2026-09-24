@@ -2432,6 +2432,64 @@ button.leg-toggle.aus {
   background: var(--surface-sunken);
   color: var(--text-secondary);
 }
+/* F8/E30: Rollen-Pille im Konto-Menue. Zurueckgenommen wie die
+   Qualitaets-Pillen — sie benennt einen Zustand, sie wirbt nicht. */
+.konf--rolle {
+  align-self: flex-start;
+  margin-top: 4px;
+  padding: 0 8px;
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: 600 11px/1 var(--font-sans);
+  letter-spacing: var(--tracking-tight);
+}
+
+/* F8/E30: Zugangsseite. Sie ersetzt die gesamte Oberflaeche, steht also
+   allein auf der Flaeche — ruhig, mittig, ohne Navigation daneben. */
+.shell--gesperrt {
+  display: grid;
+  place-items: center;
+  min-height: 100dvh;
+  padding: 24px;
+  background: var(--surface-page);
+}
+.zugang-sperre .empty-state {
+  max-width: 420px;
+}
+.zs-details {
+  display: grid;
+  gap: 8px;
+  width: 100%;
+  margin-top: 4px;
+  padding: 16px;
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+  text-align: left;
+}
+.zs-zeile {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+}
+.zs-label {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.zs-wert {
+  font: var(--type-body-sm);
+  color: var(--text-primary);
+  overflow-wrap: anywhere;
+}
+a.zs-wert {
+  color: var(--action-primary-bg);
+  text-decoration: none;
+}
+a.zs-wert:hover {
+  text-decoration: underline;
+}
+.zs-wert--leer {
+  color: var(--text-secondary);
+}
 .spill {
   display: inline-flex;
   align-items: center;

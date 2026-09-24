@@ -187,6 +187,10 @@ export async function logAenderung(
   await db.insert(aenderung).values({
     entitaetTyp,
     entitaetId,
+    // F8/E30: Urheber als eigene Spalte. Der Textpraefix bleibt fuer die
+    // bestehende Anzeige, ist aber nicht mehr die Quelle — Altzeilen ohne
+    // Spalte zeigen "unbekannt", statt per Textzerlegung nachgetragen zu werden.
     text: `${email}: ${begruendung}`,
+    benutzerEmail: email,
   });
 }

@@ -1,8 +1,9 @@
 import { feedstockCluster, materialart } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
-import { currentUserEmail, withDb } from "@/lib/db";
+import { withDb } from "@/lib/db";
 import { sucheMaterialarten } from "@/lib/register";
+import { wacheFuerRoute } from "@/lib/wache";
 
 export const dynamic = "force-dynamic";
 
@@ -21,18 +22,18 @@ function toCode(label: string): string {
 
 /** Live-Suche fuer die Materialart-Combobox. */
 export async function GET(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: Lesen reicht hier — ein Betrachter muss Auswahllisten sehen.
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
   const q = new URL(req.url).searchParams.get("q") ?? "";
   return Response.json({ materialarten: await sucheMaterialarten(q) });
 }
 
 /** Inline-Neuanlage einer Materialart (Label -> abgeleiteter Code). */
 export async function POST(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
+  const wache = await wacheFuerRoute("schreiben");
+  if (!wache.ok) return wache.antwort;
   const body = (await req.json().catch(() => null)) as {
     label?: string;
     cluster?: string;

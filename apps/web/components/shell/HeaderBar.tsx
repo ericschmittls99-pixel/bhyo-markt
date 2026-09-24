@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { updateUiCookie } from "@/lib/ui-state";
+import { ROLLE_LABEL, type Rolle } from "@/lib/rollen";
 
 const TITEL: [string, string][] = [
   ["/register", "ströme."],
@@ -30,9 +31,11 @@ function initialen(email: string | null): string {
  */
 export function HeaderBar({
   email,
+  rolle,
   initialTheme,
 }: {
   email: string | null;
+  rolle: Rolle | null;
   initialTheme: "light" | "dark";
 }) {
   const pathname = usePathname();
@@ -140,6 +143,9 @@ export function HeaderBar({
                 <span className="who">
                   <span className="name">{name}</span>
                   <span className="mail">{email ?? "—"}</span>
+                  {/* F8/E30: Rollen-Pille wie in ap1i-delta-v2.md — jetzt mit
+                      echter Rolle aus der Datenbank statt als Platzhalter. */}
+                  {rolle && <span className="konf konf--rolle">{ROLLE_LABEL[rolle]}</span>}
                 </span>
               </div>
               <div className="pop-divider" />

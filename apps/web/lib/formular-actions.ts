@@ -13,7 +13,7 @@ import {
   text,
   ValidierungsFehler,
 } from "@/lib/beleg-server";
-import { currentUserEmail, withDb, type AppDb } from "@/lib/db";
+import { withDb, type AppDb } from "@/lib/db";
 import {
   herkunftOderNull,
   monatZuBis,
@@ -30,6 +30,7 @@ import {
   vergabenZuWerten,
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
+import { schreibrechtFuerAction } from "@/lib/wache";
 
 export interface SpeichernErgebnis {
   ok?: boolean;
@@ -83,8 +84,10 @@ export async function stromSpeichern(
   _prev: SpeichernErgebnis,
   formData: FormData,
 ): Promise<SpeichernErgebnis> {
-  const email = await currentUserEmail();
-  if (!email) return { fehler: "Nicht authentifiziert." };
+  // F8/E30: Rechtepruefung VOR jeder Wirkung, ueber die zentrale Wache.
+  const wache = await schreibrechtFuerAction();
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  const email = wache.email;
 
   const eingaben = eingabenAus(formData);
   // Vergabezeilen (AP1j): das Panel nummeriert lueckenlos ab 0 und legt je
