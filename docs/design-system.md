@@ -245,6 +245,23 @@ Eingabefeld, kein Schreibpfad: die Nummer kommt aus der Sequenz
 (E29), ist `NOT NULL`, `UNIQUE` und in der Datenbank per Trigger gegen
 Änderung gesichert.
 
+## Benutzerverwaltung (F8/E30 PR C, 24.09.2026)
+
+`einstellungen.` trägt die Benutzerliste — **nur für Admins**; wer kein
+Verwaltungsrecht hat, sieht den bisherigen Leerzustand mit dem Hinweis, an
+wen er sich wendet. Die Seite nutzt die vorhandene Formular- und
+Tabellensprache, keine eigene Designsprache für eine Admin-Seite.
+
+- **Gelöscht wird nicht**, nur deaktiviert (wie bei den Referenzdaten). Ein
+  deaktivierter Eintrag bleibt gedimmt in der Liste stehen — nicht
+  durchgestrichen: Er gilt weiter, er kommt nur nicht herein, und die
+  Änderungshistorie soll auf einen Namen zeigen können.
+- **Der letzte aktive Admin ist sichtbar gesperrt** (Auswahl und Knopf
+  `disabled`, Begründung im `title`), damit niemand erst nach dem Klick
+  erfährt, dass es nicht geht. Der tragende Schutz sitzt trotzdem in der
+  Server-Action: Wer sie direkt aufruft, sieht diese Seite nie.
+- Die eigene Zeile trägt eine kleine Pille „du".
+
 ## Eingabeformate im Formular (F9, 24.09.2026)
 
 **Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native

@@ -136,6 +136,22 @@ export async function schreibrechtFuerAction(): Promise<
 }
 
 /**
+ * Wie `schreibrechtFuerAction`, nur fuer die Benutzerverwaltung. Gibt `null`
+ * zurueck, wenn das Recht da ist — sonst das fertige Fehlerergebnis.
+ */
+export async function verwaltungsrechtFuerAction(): Promise<{
+  ok: false;
+  fehler: string;
+} | null> {
+  try {
+    await verlangeVerwaltungsrecht();
+    return null;
+  } catch (e) {
+    return { ok: false, fehler: fehlertext(e) ?? "Kein Verwaltungsrecht." };
+  }
+}
+
+/**
  * Fuer Server-Actions, die ein Ergebnisobjekt zurueckgeben statt zu werfen:
  * liefert die Fehlermeldung, die die Oberflaeche anzeigt. Bewusst ohne
  * technische Einzelheiten — der Grund steht auf der Zugangsseite.
