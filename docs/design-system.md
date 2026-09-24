@@ -221,10 +221,16 @@ Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
   Elternzeilen**; klickbar auf ihre eigene Facette (materialart/produkt),
   ohne Code nicht klickbar. Zustand rein clientseitig, nicht in der URL.
 
-## Belegnummer (E28, 23.09.2026)
+## Belegnummer (E28, 23.09.2026; Kopf-Reihenfolge 24.09.2026)
 
 Das Detail-Panel zeigt die **Belegnummer** `B-000123` statt der UUID; der
-Kopier-Knopf kopiert die Nummer. Die Freitextsuche findet sie mit Präfix
+Kopier-Knopf kopiert die Nummer. **Reihenfolge im Kopf** (Review Eric,
+24.09.): Titel (Akteur) → Nummer ohne Beschriftung → kleiner Abstand →
+Zusammenfassung aus Materialart/Produkt und Verfügbarkeit (die Bezeichnung
+steht unten unter „quelle." und ist aus dem Kopf raus) → Pillen → Abstand →
+„quelle.". Die Nummer steht außerdem als eigene Spalte im **CSV-Export**,
+den es jetzt auch in ströme. gibt — dieselbe Route und dieselben geteilten
+Filter-Parameter wie in auswertung., nur mit der Art des Tabs als `sicht`. Die Freitextsuche findet sie mit Präfix
 (`B-000123`), ohne Präfix (`000123`) und ohne führende Nullen (`123`),
 Groß- und Kleinschreibung egal — die **UUID-Suche bleibt zusätzlich**, wer
 eine aus einem alten Protokoll hat, findet den Beleg weiterhin. Kein

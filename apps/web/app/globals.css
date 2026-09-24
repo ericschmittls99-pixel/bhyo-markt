@@ -2219,6 +2219,12 @@ button.leg-toggle.aus {
 .beleg-id:hover {
   color: var(--text-secondary);
 }
+/* F4-Review: Abstaende im Detail-Kopf — Nummer direkt unter dem Titel,
+   dann ein kleiner Abstand vor der Zusammenfassung und einer vor den
+   Pillen, damit die drei Ebenen lesbar bleiben. */
+.ov-kopf-text .beleg-id { margin-top: 2px; }
+.ov-kopf-summe { margin-top: 8px; }
+.ov-kopf-text .ov-pillen { margin-top: 8px; }
 
 /* AP1j PR 3: Reservierungs-Stempel — Bildmarke statt grosser Pille (Review),
    quiet-Ton wie die reserviert-Pille, passt neben die Verfuegbarkeits-Pille. */

@@ -136,11 +136,10 @@ export function Detail({
   const feed = s.art === "biomasse";
   const item = feed ? s.materialartLabel : s.produktLabel;
   const titel = s.akteurName ?? s.bezeichnung ?? "–";
-  const untertitel = [
-    item,
-    s.bezeichnung && s.bezeichnung !== item ? s.bezeichnung : null,
-    fmtZeitraum(s.zeitraumVon, s.zeitraumBis),
-  ]
+  // F4-Review (Eric, 24.09.2026): Die Zusammenfassung unter dem Titel nennt
+  // Materialart/Produkt und die Verfuegbarkeit — die Bezeichnung steht
+  // ohnehin unten unter "quelle." und doppelte den Kopf nur.
+  const untertitel = [item, fmtZeitraum(s.zeitraumVon, s.zeitraumBis)]
     .filter(Boolean)
     .join(" · ");
   const pill = STATUS_PILL[s.status] ?? { text: `${s.status}.`, tone: "quiet" };
@@ -191,7 +190,23 @@ export function Detail({
               <Orb strom={s} size={44} />
               <div className="ov-kopf-text">
                 <h2>{titel}</h2>
-                <p>{untertitel}</p>
+                {/* F4-Review: Reihenfolge Titel -> Nummer -> Abstand ->
+                    Zusammenfassung -> Pillen -> Abstand -> quelle. */}
+                {s.beleg && (
+                  <button
+                    type="button"
+                    className="beleg-id"
+                    title="Belegnummer kopieren"
+                    onClick={() => {
+                      void navigator.clipboard.writeText(s.beleg!.nr ?? s.beleg!.id);
+                      zeigeToast("Belegnummer kopiert");
+                    }}
+                  >
+                    {s.beleg.nr ?? s.beleg.id}
+                    <i className="ph ph-copy" aria-hidden />
+                  </button>
+                )}
+                <p className="ov-kopf-summe">{untertitel}</p>
                 <div className="ov-pillen">
                   <KonfidenzPill stufe={s.qualitaet} />
                   <span data-pop className="pop-anchor">
@@ -240,22 +255,6 @@ export function Detail({
                   )}
                   <span className="pill pill--num">{s.vollstaendigkeit} % vollständig.</span>
                 </div>
-                {s.beleg && (
-                  <button
-                    type="button"
-                    className="beleg-id"
-                    title="Belegnummer kopieren"
-                    onClick={() => {
-                      // E28: kopiert wird die NUMMER, nicht mehr die UUID —
-                      // sie ist die Referenz, die man weitergibt.
-                      void navigator.clipboard.writeText(s.beleg!.nr ?? s.beleg!.id);
-                      zeigeToast("Belegnummer kopiert");
-                    }}
-                  >
-                    Beleg {s.beleg.nr ?? s.beleg.id}
-                    <i className="ph ph-copy" aria-hidden />
-                  </button>
-                )}
               </div>
             </div>
             <div className="ov-kopf-aktionen">
