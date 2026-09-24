@@ -54,7 +54,7 @@ export async function benutzerAnlegen(
   });
 
   if (fehler) return { ok: false, fehler };
-  revalidatePath("/einstellungen/benutzer");
+  revalidatePath("/einstellungen");
   return { ok: true };
 }
 
@@ -83,7 +83,7 @@ export async function rolleSetzen(email: string, rolle: string): Promise<Benutze
   });
 
   if (fehler) return { ok: false, fehler };
-  revalidatePath("/einstellungen/benutzer");
+  revalidatePath("/einstellungen");
   return { ok: true };
 }
 
@@ -110,6 +110,6 @@ export async function aktivSetzen(email: string, aktiv: boolean): Promise<Benutz
   );
 
   if (fehler) return { ok: false, fehler };
-  revalidatePath("/einstellungen/benutzer");
+  revalidatePath("/einstellungen");
   return { ok: true };
 }

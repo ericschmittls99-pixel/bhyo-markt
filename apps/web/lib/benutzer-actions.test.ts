@@ -6,6 +6,9 @@
  * Ablehnung nicht anfassen. Eine Regel, die nur in der Bibliothek stimmt und
  * in der Aktion nicht aufgerufen wird, schützt niemanden.
  */
+import { existsSync, readFileSync } from "node:fs";
+import { join } from "node:path";
+
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Rolle } from "./rollen";
@@ -143,3 +146,19 @@ function formular(email: string, rolle: string): FormData {
   fd.set("rolle", rolle);
   return fd;
 }
+
+describe("Aktualisierung der Liste", () => {
+  it("revalidiert den Pfad, unter dem die Seite wirklich liegt", async () => {
+    // Befund aus dem Preview-Test (24.09.2026): Der Pfad lautete
+    // "/einstellungen/benutzer" — diese Route gibt es nicht. Die Aktion
+    // schrieb, die Liste blieb stehen und das kontrollierte Select sprang
+    // auf den alten Wert zurueck: fuer den Nutzer sah es aus, als sei
+    // nichts passiert, obwohl die Datenbank sich geaendert hatte.
+    const quelle = readFileSync(join(process.cwd(), "lib/benutzer-actions.ts"), "utf8");
+    const pfade = [...quelle.matchAll(/revalidatePath\("([^"]+)"\)/g)].map((m) => m[1]);
+    expect(pfade.length).toBeGreaterThan(0);
+    for (const pfad of pfade) {
+      expect(existsSync(join(process.cwd(), "app", pfad, "page.tsx"))).toBe(true);
+    }
+  });
+});
