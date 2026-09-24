@@ -1,6 +1,6 @@
 import { dedupeAdressen, photonZuAdresse, type Adresse } from "@/lib/geocode";
 import { erstelleRateLimit } from "@/lib/rate-limit";
-import { currentUserEmail } from "@/lib/db";
+import { wacheFuerRoute } from "@/lib/wache";
 
 /**
  * Geocoding-Proxy (F0a): einziger Netz-Austritt fuer die Adresssuche —
@@ -27,10 +27,11 @@ const BBOX_DE = "5.5,47.1,15.6,55.1";
 const erlaubt = erstelleRateLimit(10, 10_000);
 
 export async function GET(req: Request) {
-  const email = await currentUserEmail();
-  if (!email) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: auch Lesen laeuft ueber die Wache — eine unbekannte oder
+  // deaktivierte Adresse darf keine Daten sehen (fail closed).
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
+  const email = wache.zugang.email;
   if (!erlaubt(email, Date.now())) {
     return Response.json(
       { error: "Zu viele Anfragen — kurz warten und weitertippen." },

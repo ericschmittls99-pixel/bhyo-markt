@@ -1,24 +1,25 @@
 import { akteur } from "@bhyo/db/schema";
 
-import { currentUserEmail, withDb } from "@/lib/db";
+import { withDb } from "@/lib/db";
 import { sucheAkteure } from "@/lib/register";
+import { wacheFuerRoute } from "@/lib/wache";
 
 export const dynamic = "force-dynamic";
 
 /** Live-Suche fuer die Akteur-Combobox. */
 export async function GET(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: Lesen reicht hier — ein Betrachter muss Auswahllisten sehen.
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
   const q = new URL(req.url).searchParams.get("q") ?? "";
   return Response.json({ akteure: await sucheAkteure(q) });
 }
 
 /** Inline-Neuanlage eines Akteurs (Name Pflicht, Sektor optional). */
 export async function POST(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
+  const wache = await wacheFuerRoute("schreiben");
+  if (!wache.ok) return wache.antwort;
   const body = (await req.json().catch(() => null)) as {
     name?: string;
     sektor?: string;

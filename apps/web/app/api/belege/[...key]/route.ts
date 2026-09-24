@@ -1,4 +1,5 @@
-import { currentUserEmail, getBelegeBucket } from "@/lib/db";
+import { getBelegeBucket } from "@/lib/db";
+import { wacheFuerRoute } from "@/lib/wache";
 
 // Immer frisch: liest die verifizierte Identitaet und ein R2-Objekt, nie aus dem Cache.
 export const dynamic = "force-dynamic";
@@ -12,10 +13,11 @@ export async function GET(
   _req: Request,
   ctx: { params: Promise<{ key: string[] }> },
 ) {
-  const email = await currentUserEmail();
-  if (!email) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: auch Lesen laeuft ueber die Wache — eine unbekannte oder
+  // deaktivierte Adresse darf keine Daten sehen (fail closed).
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
+  const email = wache.zugang.email;
 
   const { key: segments } = await ctx.params;
   const key = segments.join("/");

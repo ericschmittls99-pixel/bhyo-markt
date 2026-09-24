@@ -4,8 +4,9 @@ import { aenderung, biomassestrom, outputBedarf } from "@bhyo/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { currentUserEmail, withDb } from "@/lib/db";
+import { withDb } from "@/lib/db";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL } from "@/lib/status";
+import { schreibrechtFuerAction } from "@/lib/wache";
 import type { StromArt } from "@/lib/stroeme-modell";
 
 export interface AktionErgebnis {
@@ -13,14 +14,19 @@ export interface AktionErgebnis {
   fehler?: string;
 }
 
+/**
+ * Gemeinsamer Rumpf. Bekommt die BEREITS geprueffte E-Mail uebergeben — die
+ * Wache sitzt am Eingang jeder exportierten Aktion, nicht hier drin: Eine
+ * Pruefung eine Ebene tiefer sieht man der Signatur nicht an, und
+ * scripts/wache-abdeckung.ts sieht sie auch nicht.
+ */
 async function wechsleStatus(
+  email: string,
   art: StromArt,
   id: string,
   neu: string,
   logText: string,
 ): Promise<AktionErgebnis> {
-  const email = await currentUserEmail();
-  if (!email) return { ok: false, fehler: "Nicht authentifiziert." };
   if (!(neu in STATUS_LABEL)) return { ok: false, fehler: "Unbekannter Status." };
 
   try {
@@ -57,6 +63,7 @@ async function wechsleStatus(
           entitaetTyp: art === "biomasse" ? "biomassestrom" : "output_bedarf",
           entitaetId: id,
           text: `${email}: ${logText}`,
+          benutzerEmail: email,
         });
       }),
     );
@@ -77,7 +84,15 @@ export async function statusSetzen(
   id: string,
   neu: string,
 ): Promise<AktionErgebnis> {
-  return wechsleStatus(art, id, neu, `Status auf ${STATUS_LABEL[neu] ?? neu} gesetzt`);
+  const wache = await schreibrechtFuerAction();
+  if ("fehler" in wache) return wache;
+  return wechsleStatus(
+    wache.email,
+    art,
+    id,
+    neu,
+    `Status auf ${STATUS_LABEL[neu] ?? neu} gesetzt`,
+  );
 }
 
 /**
@@ -88,5 +103,7 @@ export async function stromVerwerfen(
   art: StromArt,
   id: string,
 ): Promise<AktionErgebnis> {
-  return wechsleStatus(art, id, "verworfen", "Strom verworfen (statt gelöscht)");
+  const wache = await schreibrechtFuerAction();
+  if ("fehler" in wache) return wache;
+  return wechsleStatus(wache.email, art, id, "verworfen", "Strom verworfen (statt gelöscht)");
 }

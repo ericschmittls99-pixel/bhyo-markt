@@ -1,7 +1,8 @@
 import { biomassestrom, outputBedarf } from "@bhyo/db/schema";
 import { and, eq, isNotNull, sql } from "drizzle-orm";
 
-import { currentUserEmail, withDb } from "@/lib/db";
+import { withDb } from "@/lib/db";
+import { wacheFuerRoute } from "@/lib/wache";
 
 /**
  * Vorhandene Standorte eines Akteurs (F0a): speist den Formular-Knopf
@@ -10,9 +11,10 @@ import { currentUserEmail, withDb } from "@/lib/db";
  * 23.09.2026, ap0-schema-entscheidungen Abschnitt 7).
  */
 export async function GET(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: auch Lesen laeuft ueber die Wache — eine unbekannte oder
+  // deaktivierte Adresse darf keine Daten sehen (fail closed).
+  const wache = await wacheFuerRoute("lesen");
+  if (!wache.ok) return wache.antwort;
   const akteurId = new URL(req.url).searchParams.get("akteur");
   if (!akteurId) return Response.json({ standorte: [] });
 

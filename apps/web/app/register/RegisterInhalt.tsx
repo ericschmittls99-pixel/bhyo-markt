@@ -35,6 +35,8 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { darf } from "@/lib/rollen";
+import { aktuellerZugang } from "@/lib/wache";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -98,9 +100,11 @@ export async function RegisterInhalt({
 
   const countText = `${stroeme.length} ${stroeme.length === 1 ? "Strom" : "Ströme"}${irgendeinFilter ? " gefiltert" : ""}`;
 
-  // Rollen kommen mit der benutzer-Tabelle; bis dahin darf jede eingeloggte
-  // Person erfassen (wie bisher, Zugang ist ueber Cloudflare Access begrenzt).
-  const canEdit = true;
+  // F8/E30: Schreibrecht kommt aus der Rolle, nicht mehr hart aus `true`.
+  // Das blendet nur aus — die tragende Pruefung sitzt in der Wache, die jede
+  // Server-Action und jede schreibende Route aufruft.
+  const zugang = await aktuellerZugang();
+  const canEdit = zugang.art === "erlaubt" && darf(zugang.rolle, "schreiben");
 
   // Formular-Panel (PR 5): ?form=neu oder ?form=<id>; gewinnt gegen ?detail=.
   const formParam = ersterWert(sp.form);

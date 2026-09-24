@@ -1,5 +1,5 @@
 import { erstelleRegion } from "@/lib/bewertung";
-import { currentUserEmail } from "@/lib/db";
+import { wacheFuerRoute } from "@/lib/wache";
 
 export const dynamic = "force-dynamic";
 
@@ -17,9 +17,9 @@ function normBbox(bbox: unknown): [number, number, number, number] | null {
 
 /** Weg 1: Fokusregion aus gezeichnetem Rechteck sofort anlegen. */
 export async function POST(req: Request) {
-  if (!(await currentUserEmail())) {
-    return Response.json({ error: "Nicht authentifiziert" }, { status: 403 });
-  }
+  // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
+  const wache = await wacheFuerRoute("schreiben");
+  if (!wache.ok) return wache.antwort;
   const body = (await req.json().catch(() => null)) as {
     name?: string;
     bbox?: unknown;

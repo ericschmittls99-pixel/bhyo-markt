@@ -95,6 +95,12 @@ jobs:
         run: pnpm --filter web test -- --run
       - name: Tests — packages/db
         run: pnpm --filter @bhyo/db test
+      # F8/E30: Meldet jede Server-Action und jede schreibende Route, die die
+      # Wache nicht aufruft. Laeuft zusaetzlich als Vitest-Fall; hier eigens,
+      # damit die Luecke im Log als eigene Zeile mit Dateibezug erscheint.
+      - name: Wache-Abdeckung (Schreibpfade)
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/wache-abdeckung.ts
 
   schema-gate:
     needs: [typen-und-tests, ziel-wache]

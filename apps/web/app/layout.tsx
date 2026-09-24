@@ -5,7 +5,8 @@ import { Geist } from "next/font/google";
 
 import { HeaderBar } from "@/components/shell/HeaderBar";
 import { Sidebar } from "@/components/shell/Sidebar";
-import { currentUserEmail } from "@/lib/db";
+import { ZugangSperre } from "@/components/shell/ZugangSperre";
+import { adminKontakt, aktuellerZugang } from "@/lib/wache";
 import { listRegionen } from "@/lib/register";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 
@@ -37,11 +38,34 @@ export default async function RootLayout({
   const ui = parseUiState((await cookies()).get(UI_COOKIE)?.value);
   const theme = ui.theme === "dark" ? "dark" : "light";
 
-  const [email, regionen] = await Promise.all([
-    currentUserEmail().catch(() => null),
-    // Fokusregionen fuer das planer.-Akkordeon; ohne DB bleibt die Liste leer.
-    listRegionen().catch(() => []),
-  ]);
+  // F8/E30: Der Zugang wird HIER entschieden, einmal fuer die ganze
+  // Anwendung — nicht je Seite. Eine unbekannte oder deaktivierte Adresse
+  // sieht statt der Oberflaeche die Zugangsseite; die Wache in den Actions
+  // und Routen bleibt trotzdem bestehen, denn die Oberflaeche ist kein
+  // Schutz (wer die Server-Action direkt aufruft, umgeht sie).
+  //
+  // Bewusst OHNE .catch(): Ist die Datenbank nicht erreichbar, gibt es keine
+  // Zugangsentscheidung — dann muss ein Fehler sichtbar werden. Die Alternative
+  // waere, einen Infrastrukturausfall als "kein Zugang eingerichtet" auszugeben
+  // und die Person zum Admin zu schicken, obwohl ihr Konto in Ordnung ist.
+  const zugang = await aktuellerZugang();
+
+  if (zugang.art === "unbekannt" || zugang.art === "deaktiviert") {
+    const kontakt = await adminKontakt().catch(() => null);
+    return (
+      <html lang="de" data-theme={theme} className={geist.variable}>
+        <body>
+          <div className="shell shell--gesperrt">
+            <ZugangSperre grund={zugang.art} email={zugang.email} adminKontakt={kontakt} />
+          </div>
+        </body>
+      </html>
+    );
+  }
+
+  const email = zugang.art === "erlaubt" ? zugang.email : null;
+  // Fokusregionen fuer das planer.-Akkordeon; ohne DB bleibt die Liste leer.
+  const regionen = await listRegionen().catch(() => []);
 
   return (
     <html lang="de" data-theme={theme} className={geist.variable}>
@@ -52,7 +76,11 @@ export default async function RootLayout({
           </Suspense>
           <div className="shell-main">
             <Suspense fallback={null}>
-              <HeaderBar email={email} initialTheme={theme} />
+              <HeaderBar
+                email={email}
+                rolle={zugang.art === "erlaubt" ? zugang.rolle : null}
+                initialTheme={theme}
+              />
             </Suspense>
             <div className="shell-content">{children}</div>
           </div>
