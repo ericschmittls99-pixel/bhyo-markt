@@ -6,6 +6,7 @@ import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import type { FacettenOption } from "@/lib/stroeme-modell";
 import { HierarchieBaum } from "@/components/stroeme/HierarchieBaum";
 import { leere, type Ebene, type Knoten } from "@/lib/hierarchie";
+import { monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
 
 export interface FacettenChipDef {
   key: string;
@@ -118,6 +119,14 @@ export function FacettenChips({
         return { label: " ", typ: "number", em: "€", platzhalter: "max" };
       case "vonAb":
         return { label: "Verfügbar ab", typ: "month" };
+      // F5 PR B: Vergabefenster. Zwei Monatsgrenzen plus der benannte
+      // Zustand — der bekommt ein Kaestchen, kein Textfeld.
+      case "vergebenVon":
+        return { label: "Vergeben ab", typ: "month" };
+      case "vergebenBis":
+        return { label: "Vergeben bis", typ: "month" };
+      case "vergabeZustand":
+        return { label: "auch nicht vergebene Ströme", typ: "zustand" };
       case "erstellt":
         return { label: "Erstellt am", typ: "date" };
       default:
@@ -269,6 +278,44 @@ export function FacettenChips({
           >
             {bereichKeys.map((k) => {
               const feld = bereichFeld(k);
+              // Der benannte Zustand ist ein Kaestchen, kein Textfeld —
+              // sonst saehe eine Wahl wie eine Eingabe aus.
+              if (feld.typ === "zustand") {
+                const an = (bereich[k] ?? "") !== "";
+                return (
+                  <label className="pf pf--zustand" key={k}>
+                    <input
+                      type="checkbox"
+                      checked={an}
+                      onChange={(e) =>
+                        setze({ [k]: e.target.checked ? "nicht_vergeben" : null })
+                      }
+                    />
+                    <span>{feld.label}</span>
+                  </label>
+                );
+              }
+              if (feld.typ === "month") {
+                // E31: Monate als eigenes MM/JJJJ-Feld, nie type="month" —
+                // dessen Verhalten haengt an Engine und Sprache des Browsers.
+                return (
+                  <label className="pf" key={k}>
+                    <span>{feld.label}</span>
+                    <span className="pf-feld">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="MM/JJJJ"
+                        maxLength={7}
+                        value={monatAnzeige(bereich[k] ?? "")}
+                        onChange={(e) =>
+                          setze({ [k]: monatKanonisch(e.target.value) || null })
+                        }
+                      />
+                    </span>
+                  </label>
+                );
+              }
               return (
                 <label className="pf" key={k}>
                   <span aria-hidden={feld.label === " " || undefined}>

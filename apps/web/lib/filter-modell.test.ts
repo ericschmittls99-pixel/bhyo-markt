@@ -87,6 +87,8 @@ describe("Einzigkeit: genau eine Definition", () => {
     for (const f of FILTER) {
       if (f.typ === "bereich") expect(f.params.length).toBe(2);
       else if (f.typ === "hierarchie") expect(f.params.length).toBeGreaterThan(1);
+      // Zeitfenster: zwei Grenzen plus der benannte Zustand.
+      else if (f.typ === "zeitfenster") expect(f.params.length).toBe(3);
       else expect(f.params.length).toBe(1);
     }
   });

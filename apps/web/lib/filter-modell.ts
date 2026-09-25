@@ -52,7 +52,14 @@ export type FilterTyp =
   /** Ein Datum (JJJJ-MM-TT). */
   | "datum"
   /** Gruppierter Baum mit einem Parameter je Ebene (F5 PR B). */
-  | "hierarchie";
+  | "hierarchie"
+  /**
+   * Zeitfenster mit zwei Monatsgrenzen UND einem benannten Zustand
+   * (F5 PR B). Kein `bereich`: Der dritte Parameter traegt den Zustand
+   * „nicht vergeben" — ihn als Bereich auszugeben hiesse, den Unterschied
+   * zu verwischen.
+   */
+  | "zeitfenster";
 
 export interface FilterDef {
   /** Logischer Name; bei einfachen Filtern zugleich der URL-Parameter. */
@@ -190,6 +197,19 @@ export const FILTER: readonly FilterDef[] = [
     // Entscheidung Eric 25.09.2026: In auswertung. uebernehmen die
     // anklickbaren Jahrespillen diese Rolle.
     ansichten: ["stroeme", "karte"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    // F5 PR B: Zwei Felder, ein Filter. Beantwortet "was ist in diesem
+    // Zeitraum vergeben" (Ueberschneidung). Der dritte Parameter traegt den
+    // benannten Zustand "nicht vergeben" (E24) — sonst fielen Stroeme ohne
+    // Vergabe still heraus.
+    key: "vergabe",
+    label: "Vergeben ab / bis",
+    typ: "zeitfenster",
+    params: ["vergebenVon", "vergebenBis", "vergabeZustand"],
+    ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "haupt",
   },

@@ -141,16 +141,22 @@ export function reichereVerfuegbarkeitAn<
     zeitraumBis: string | null;
     reserviertBhyo: boolean;
     verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+    /** F5 PR B: Die Vergaben selbst, fuer den Filter "Vergeben ab / bis". */
+    vergaben?: VergabeDaten[];
   },
 >(
   stroeme: T[],
   vergabenJeStrom: Map<string, VergabeDaten[]>,
   stichtag: string,
 ): T[] {
-  return stroeme.map((s) =>
-    s.zeitraumVon && s.zeitraumBis
+  return stroeme.map((s) => {
+    // Die Vergaben haengen wir IMMER an — auch bei unvollstaendigem
+    // Zeitraum, wo der Status bewusst offen bleibt. Der Vergabefilter
+    // braucht sie unabhaengig davon.
+    const mitVergaben = { ...s, vergaben: vergabenJeStrom.get(s.id) ?? [] };
+    return s.zeitraumVon && s.zeitraumBis
       ? {
-          ...s,
+          ...mitVergaben,
           verfuegbarkeit: leiteVerfuegbarkeitAb(
             stichtag,
             {
@@ -161,8 +167,8 @@ export function reichereVerfuegbarkeitAn<
             vergabenJeStrom.get(s.id) ?? [],
           ),
         }
-      : s,
-  );
+      : mitVergaben;
+  });
 }
 
 /** Anzeige eines Vergabezeitraums; offene Enden nach Handoff-Konvention. */

@@ -2444,6 +2444,18 @@ button.leg-toggle.aus {
   letter-spacing: var(--tracking-tight);
 }
 
+/* F5 PR B: Der benannte Zustand im Zeitfenster-Filter ist ein Kaestchen,
+   keine Eingabe — er steht deshalb in einer eigenen Zeile ueber die volle
+   Breite, nicht in der Spalte der Monatsfelder. */
+.pf--zustand {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font: var(--type-body-sm);
+  color: var(--text-secondary);
+}
+
 /* F5 PR B: Gruppierter Filter als Baum. Auf- und Zuklappen und Auswaehlen
    sind getrennte Ziele, beide mindestens 32 px hoch — sonst trifft man das
    falsche. */

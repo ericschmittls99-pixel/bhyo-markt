@@ -6,9 +6,11 @@ import {
   verfuegbarkeitLabel,
   type VerfuegbarkeitsErgebnis,
   type VerfuegbarkeitsStatus,
+  type VergabeDaten,
 } from "./verfuegbarkeit";
 import { FILTER, filterDef, sichtAusArt } from "./filter-modell";
 import { trifft } from "./hierarchie";
+import { trifftVergabefenster } from "./vergabe-fenster";
 import { ortsSchluessel } from "./hierarchie-baeume";
 
 export type StromArt = "biomasse" | "output";
@@ -129,6 +131,8 @@ export interface Strom {
   reserviertSeit: string | null;
   /** Abgeleiteter Verfuegbarkeitsstatus (PR 3) — nur gesetzt, wo angereichert. */
   verfuegbarkeit?: VerfuegbarkeitsErgebnis;
+  /** F5 PR B: Vergabezeilen fuer den Filter "Vergeben ab / bis". */
+  vergaben?: VergabeDaten[];
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;
@@ -155,6 +159,10 @@ export interface StroemeFilter {
   mengeMax: string;
   preisMin: string;
   preisMax: string;
+  /** F5 PR B: Vergabefenster (JJJJ-MM) und der Zustand "nicht vergeben". */
+  vergebenVon: string;
+  vergebenBis: string;
+  vergabeZustand: string;
   /** Verfuegbar ab (JJJJ-MM): zeitraum_von >= Monatsanfang. */
   vonAb: string;
   /** Erstellt am (JJJJ-MM-TT): exakter Tag. */
@@ -179,6 +187,9 @@ export const LEERER_FILTER: StroemeFilter = {
   mengeMax: "",
   preisMin: "",
   preisMax: "",
+  vergebenVon: "",
+  vergebenBis: "",
+  vergabeZustand: "",
   vonAb: "",
   erstellt: "",
 };
@@ -346,6 +357,13 @@ const ANWENDUNG: Record<string, Pruefer> = {
     if (f.preisMax !== "" && (preis == null || preis > +f.preisMax)) return false;
     return true;
   },
+  vergabe: (s, f) =>
+    trifftVergabefenster(s, {
+      von: f.vergebenVon,
+      bis: f.vergebenBis,
+      // Ein einziger benannter Wert; mehr braucht der Zustand nicht.
+      nichtVergeben: f.vergabeZustand === "nicht_vergeben",
+    }),
   vonAb: (s, f) => !f.vonAb || (s.zeitraumVon ?? "") >= `${f.vonAb}-01`,
   erstellt: (s, f) => !f.erstellt || s.erstelltAm === f.erstellt,
 };

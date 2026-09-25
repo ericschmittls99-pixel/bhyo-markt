@@ -333,6 +333,30 @@ Statt einer langen Liste eine Kurzfassung: der erste gewählte Name, dann die
 Zahl der weiteren, benannt nach ihrer Ebene — „Baden-Württemberg, +2
 Landkreise".
 
+## Filter „Vergeben ab / bis" (F5 PR B, 25.09.2026)
+
+Ein Filter mit **zwei Feldern**. Er beantwortet **„was ist in diesem Zeitraum
+vergeben"**, nicht „was ändert sich darin" — gesucht ist die gewöhnliche
+**Überschneidung**. Eine Vergabe, die das Fenster vollständig umschließt, ist
+damit der wichtigste Treffer, nicht der einzige Nicht-Treffer.
+
+Die Ränder sind **monatsgenau eingeschlossen**: Der erste Tag des Startmonats
+und der letzte Tag des Endmonats zählen dazu.
+
+**Offene Enden** werden mit derselben Ersetzung behandelt wie in der
+Verfügbarkeits-Ableitung — fehlendes `vergeben_von` durch den
+Verfügbarkeitsbeginn, fehlendes `vergeben_bis` durch das Verfügbarkeitsende.
+Kein zweites Regelwerk für dieselbe Sache.
+
+**Eine beidseitig offene Vergabe trifft jedes Fenster.** Wir wissen nicht,
+wann sie endet, also können wir sie nicht ausschließen; ein geratenes Ende
+wäre schlechter als ein weiter Treffer.
+
+**„Nicht vergeben" ist ein wählbarer Zustand**, keine stille Ausnahme (E24):
+Bei gesetztem Fenster fallen Ströme ohne jede Vergabe heraus — es sei denn,
+der Zustand ist gewählt. Ist nur der Zustand gewählt und kein Fenster, zeigt
+der Filter genau die unvergebenen Ströme.
+
 ## Eingabeformate im Formular (F9, 24.09.2026)
 
 **Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native
