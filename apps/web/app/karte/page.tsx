@@ -27,6 +27,7 @@ import {
 } from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { leiste } from "@/lib/filter-modell";
 
 export const dynamic = "force-dynamic";
 
@@ -124,43 +125,29 @@ export default async function KartePage({
     label,
   }));
 
-  const facetten: FacettenChipDef[] = [
-    { key: "region", label: "Region", optionen: basisOpt.region ?? [] },
-    ...(sicht !== "outputs"
-      ? [
-          { key: "cluster", label: "Cluster", optionen: bioOpt.cluster ?? [] },
-          ...(sicht === "feedstock"
-            ? [{ key: "materialart", label: "Materialart", optionen: bioOpt.materialart ?? [] }]
-            : []),
-        ]
-      : []),
-    ...(sicht !== "feedstock"
-      ? [
-          { key: "gruppe", label: "Gruppe", optionen: gruppeOptionen },
-          ...(sicht === "outputs"
-            ? [{ key: "produkt", label: "Output", optionen: outOpt.produkt ?? [] }]
-            : []),
-        ]
-      : []),
-    { key: "qualitaet", label: "Qualität", optionen: basisOpt.qualitaet ?? [] },
-    { key: "status", label: "Status", optionen: basisOpt.status ?? [] },
-    {
-      key: "verfuegbarkeit",
-      label: "Verfügbarkeit",
-      optionen: basisOpt.verfuegbarkeit ?? [],
-    },
-    { key: "belegtyp", label: "Belegtyp", optionen: basisOpt.belegtyp ?? [] },
-  ];
-
-  const auswahl = Object.fromEntries(
-    facetten.map(({ key }) => [key, filter[key as "cluster"] as string[]]),
-  );
-  const bereich = { vonAb: filter.vonAb, erstellt: filter.erstellt };
-  const irgendeinFilter =
-    filter.q.trim() !== "" ||
-    facetten.some(({ key }) => (filter[key as "cluster"] as string[]).length > 0) ||
-    filter.vonAb !== "" ||
-    filter.erstellt !== "";
+  // E32: Die Leiste kommt aus dem Filtermodell — vorher stand hier eine
+  // handgeschriebene Liste, die sich von der in auswertung. und der in
+  // stroeme. unabhaengig entwickeln konnte.
+  const optionen: Record<string, { wert: string; label: string }[]> = {
+    region: basisOpt.region ?? [],
+    cluster: bioOpt.cluster ?? [],
+    materialart: bioOpt.materialart ?? [],
+    gruppe: gruppeOptionen,
+    produkt: outOpt.produkt ?? [],
+    qualitaet: basisOpt.qualitaet ?? [],
+    status: basisOpt.status ?? [],
+    verfuegbarkeit: basisOpt.verfuegbarkeit ?? [],
+    belegtyp: basisOpt.belegtyp ?? [],
+    landkreis: basisOpt.landkreis ?? [],
+  };
+  const lst = leiste("karte", sicht, filter as unknown as Record<string, unknown>, optionen);
+  const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
+    .filter((e) => e.def.typ === "facette")
+    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+  const { auswahl, bereich, irgendeinFilter } = lst;
+  const bereichKeys = [...lst.haupt, ...lst.weitere]
+    .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+    .flatMap((e) => e.def.params);
 
   // Marker-Klick oeffnet DASSELBE Detail wie stroeme. (Spec-Anpassung Eric):
   // vollen Strom + Historie laden; nicht im Pool (Filter/500er-Limit) →
@@ -210,6 +197,8 @@ export default async function KartePage({
       facetten={facetten}
       auswahl={auswahl}
       bereich={bereich}
+      bereichKeys={bereichKeys}
+      zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
       sicht={sicht}
       detailPunkt={detailPunkt}
       detailStrom={detailStrom}

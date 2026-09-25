@@ -7,6 +7,7 @@ import {
   type VerfuegbarkeitsErgebnis,
   type VerfuegbarkeitsStatus,
 } from "./verfuegbarkeit";
+import { FILTER, FILTER_PARAMS, sichtAusArt } from "./filter-modell";
 
 export type StromArt = "biomasse" | "output";
 
@@ -135,7 +136,7 @@ export interface StroemeFilter {
   q: string;
   region: string[];
   cluster: string[];
-  /** Output-Gruppe (karte./auswertung.; stroeme. nutzt produkt/kategorie). */
+  /** Output-Gruppe. */
   gruppe: string[];
   materialart: string[];
   qualitaet: string[];
@@ -145,7 +146,6 @@ export interface StroemeFilter {
   belegtyp: string[];
   landkreis: string[];
   produkt: string[];
-  kategorie: string[];
   mengeMin: string;
   mengeMax: string;
   preisMin: string;
@@ -168,7 +168,6 @@ export const LEERER_FILTER: StroemeFilter = {
   belegtyp: [],
   landkreis: [],
   produkt: [],
-  kategorie: [],
   mengeMin: "",
   mengeMax: "",
   preisMin: "",
@@ -178,27 +177,10 @@ export const LEERER_FILTER: StroemeFilter = {
 };
 
 /** Facetten-Schluessel in Chip-Reihenfolge des Mockups. */
-export const FACETTEN: Record<StromArt, { key: keyof StroemeFilter; label: string }[]> = {
-  biomasse: [
-    { key: "region", label: "Region" },
-    { key: "cluster", label: "Cluster" },
-    { key: "materialart", label: "Materialart" },
-    { key: "qualitaet", label: "Qualität" },
-    { key: "status", label: "Status" },
-    { key: "verfuegbarkeit", label: "Verfügbarkeit" },
-    { key: "belegtyp", label: "Belegtyp" },
-  ],
-  output: [
-    { key: "region", label: "Region" },
-    { key: "landkreis", label: "Landkreis" },
-    { key: "kategorie", label: "Output-Kategorie" },
-    { key: "produkt", label: "Output" },
-    { key: "qualitaet", label: "Qualität" },
-    { key: "status", label: "Status" },
-    { key: "verfuegbarkeit", label: "Verfügbarkeit" },
-    { key: "belegtyp", label: "Belegtyp" },
-  ],
-};
+// FACETTEN ist mit E32 entfallen: Welcher Filter in welcher Ansicht und fuer
+// welche Stromart gilt, steht ausschliesslich in lib/filter-modell.ts. Die
+// frueheren drei Listen (hier, karte/page.tsx, auswertung/page.tsx) waren
+// genau die Doppelung, die den landkreis-Fall erzeugt hat.
 
 export const SORTIERUNGEN: Record<StromArt, [string, string][]> = {
   biomasse: [
@@ -280,8 +262,6 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
       return [s.verwaltung?.kreisArs ?? verwaltungsZustand(s)];
     case "produkt":
       return s.produktCode ? [s.produktCode] : [];
-    case "kategorie":
-      return s.kategorie ? [s.kategorie] : [];
     default:
       return [];
   }
@@ -295,51 +275,98 @@ function mengeVon(s: Strom): number | null {
   return s.art === "biomasse" ? s.mengeFm : s.mengeWert;
 }
 
-export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
-  const q = f.q.trim().toLowerCase();
-  return pool.filter((s) => {
-    for (const { key } of FACETTEN[s.art]) {
-      const sel = f[key] as string[];
-      if (sel.length && !facettenWert(s, key).some((v) => sel.includes(v)))
-        return false;
-    }
-    // gruppe wirkt wie cluster nur auf die eigene Art (karte./auswertung.).
-    if (
-      f.gruppe.length &&
-      s.art === "output" &&
-      (!s.gruppe || !f.gruppe.includes(s.gruppe))
-    )
-      return false;
+/**
+ * Prueflogik je Filter. Der Schluessel ist derselbe wie im Filtermodell —
+ * das ist der Punkt: `filterStroeme` iteriert ueber das MODELL, nicht ueber
+ * eine eigene Liste. Was gilt, wird damit auch angewendet, und was fehlt,
+ * meldet der Vollstaendigkeitstest, statt lautlos nichts zu tun.
+ */
+type Pruefer = (s: Strom, f: StroemeFilter, q: string) => boolean;
+
+const ANWENDUNG: Record<string, Pruefer> = {
+  q: (s, _f, q) => {
+    if (!q) return true;
+    const hay = [
+      s.akteurName,
+      s.bezeichnung,
+      s.ort,
+      s.verwaltung?.kreisName,
+      s.verwaltung?.landName,
+      s.materialartLabel,
+      s.produktLabel,
+      // Beleg-ID mitsuchen (Praefix reicht als Substring, niemand tippt 36 Zeichen).
+      s.beleg?.id,
+      // E28: Belegnummer mit UND ohne Praefix suchbar ("B-000123",
+      // "000123", "123" als Praefixtreffer).
+      s.beleg?.nr,
+      s.beleg?.nr?.replace(/^B-0*/i, ""),
+      ...s.regionNamen,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return hay.includes(q);
+  },
+  region: facette("region"),
+  cluster: facette("cluster"),
+  materialart: facette("materialart"),
+  produkt: facette("produkt"),
+  qualitaet: facette("qualitaet"),
+  status: facette("status"),
+  verfuegbarkeit: facette("verfuegbarkeit"),
+  belegtyp: facette("belegtyp"),
+  landkreis: facette("landkreis"),
+  gruppe: (s, f) => !f.gruppe.length || (!!s.gruppe && f.gruppe.includes(s.gruppe)),
+  menge: (s, f) => {
     const menge = mengeVon(s);
     if (f.mengeMin !== "" && (menge == null || menge < +f.mengeMin)) return false;
     if (f.mengeMax !== "" && (menge == null || menge > +f.mengeMax)) return false;
+    return true;
+  },
+  preis: (s, f) => {
     const preis = preisVon(s);
     if (f.preisMin !== "" && (preis == null || preis < +f.preisMin)) return false;
     if (f.preisMax !== "" && (preis == null || preis > +f.preisMax)) return false;
-    if (f.vonAb && (s.zeitraumVon ?? "") < `${f.vonAb}-01`) return false;
-    if (f.erstellt && s.erstelltAm !== f.erstellt) return false;
-    if (q) {
-      const hay = [
-        s.akteurName,
-        s.bezeichnung,
-        s.ort,
-        s.verwaltung?.kreisName,
-        s.verwaltung?.landName,
-        s.materialartLabel,
-        s.produktLabel,
-        // Beleg-ID mitsuchen (Praefix reicht als Substring, niemand tippt 36 Zeichen).
-        s.beleg?.id,
-        // E28: Belegnummer mit UND ohne Praefix suchbar ("B-000123",
-        // "000123", "123" als Praefixtreffer); der Vergleich laeuft ohnehin
-        // in Kleinschreibung.
-        s.beleg?.nr,
-        s.beleg?.nr?.replace(/^B-0*/i, ""),
-        ...s.regionNamen,
-      ]
-        .filter(Boolean)
-        .join(" ")
-        .toLowerCase();
-      if (!hay.includes(q)) return false;
+    return true;
+  },
+  vonAb: (s, f) => !f.vonAb || (s.zeitraumVon ?? "") >= `${f.vonAb}-01`,
+  erstellt: (s, f) => !f.erstellt || s.erstelltAm === f.erstellt,
+};
+
+function facette(key: keyof StroemeFilter): Pruefer {
+  return (s, f) => {
+    const sel = f[key] as string[];
+    return !sel.length || facettenWert(s, key).some((v) => sel.includes(v));
+  };
+}
+
+/**
+ * Welche Filter tatsaechlich angewendet werden, als `schluessel:stromart`.
+ * Kommt aus DENSELBEN Daten wie die Anwendung — eine getrennte Liste waere
+ * eine zweite Wahrheit und koennte genau den Bruch verdecken, den der
+ * Vollstaendigkeitstest finden soll.
+ */
+export function angewandteSchluessel(): string[] {
+  const out: string[] = [];
+  for (const def of FILTER) {
+    if (!ANWENDUNG[def.key]) continue;
+    for (const art of def.arten) out.push(`${def.key}:${art}`);
+  }
+  return out;
+}
+
+export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
+  const q = f.q.trim().toLowerCase();
+  return pool.filter((s) => {
+    const art = sichtAusArt(s.art);
+    for (const def of FILTER) {
+      if (!def.arten.includes(art)) continue;
+      const pruefer = ANWENDUNG[def.key];
+      // Kein stillschweigendes Ueberspringen: Fehlt hier ein Pruefer, taucht
+      // der Schluessel auch nicht in angewandteSchluessel() auf, und der
+      // Vollstaendigkeitstest meldet ihn namentlich.
+      if (!pruefer) continue;
+      if (!pruefer(s, f, q)) return false;
     }
     return true;
   });
@@ -498,54 +525,24 @@ function liste(v: string | string[] | undefined): string[] {
   return ersterWert(v).split(",").filter(Boolean);
 }
 
-/** Datenfilter aus searchParams — EINE Stelle fuer alle drei Views. */
+/**
+ * Datenfilter aus searchParams — die Schluessel kommen aus dem Filtermodell,
+ * nicht aus einer zweiten Aufzaehlung daneben.
+ */
 export function filterAusSearchParams(sp: SearchParamsRoh): StroemeFilter {
-  return {
-    ...LEERER_FILTER,
-    q: ersterWert(sp.q),
-    region: liste(sp.region),
-    cluster: liste(sp.cluster),
-    gruppe: liste(sp.gruppe),
-    materialart: liste(sp.materialart),
-    qualitaet: liste(sp.qualitaet),
-    status: liste(sp.status),
-    verfuegbarkeit: liste(sp.verfuegbarkeit),
-    belegtyp: liste(sp.belegtyp),
-    landkreis: liste(sp.landkreis),
-    produkt: liste(sp.produkt),
-    kategorie: liste(sp.kategorie),
-    mengeMin: ersterWert(sp.mengeMin),
-    mengeMax: ersterWert(sp.mengeMax),
-    preisMin: ersterWert(sp.preisMin),
-    preisMax: ersterWert(sp.preisMax),
-    vonAb: ersterWert(sp.vonAb),
-    erstellt: ersterWert(sp.erstellt),
-  };
+  const f: StroemeFilter = { ...LEERER_FILTER };
+  for (const def of FILTER) {
+    for (const param of def.params) {
+      const roh = sp[param];
+      if (def.typ === "facette") {
+        (f as unknown as Record<string, unknown>)[param] = liste(roh);
+      } else {
+        (f as unknown as Record<string, unknown>)[param] = ersterWert(roh);
+      }
+    }
+  }
+  return f;
 }
 
-/**
- * Parameter, die karte. und auswertung. teilen (Delta §5.4/§6): reine
- * Datenfilter plus sicht. Bedienzustand (detail, ansicht, sort, form, …)
- * gehoert bewusst NICHT dazu.
- */
-export const GETEILTE_FILTER_PARAMS = [
-  "q",
-  "region",
-  "cluster",
-  "gruppe",
-  "materialart",
-  "produkt",
-  "kategorie",
-  "qualitaet",
-  "status",
-  "verfuegbarkeit",
-  "belegtyp",
-  "landkreis",
-  "mengeMin",
-  "mengeMax",
-  "preisMin",
-  "preisMax",
-  "vonAb",
-  "erstellt",
-  "sicht",
-] as const;
+// GETEILTE_FILTER_PARAMS ist mit E32 entfallen — die Parameterliste leitet
+// sich aus dem Filtermodell ab (FILTER_PARAMS in lib/filter-modell.ts).

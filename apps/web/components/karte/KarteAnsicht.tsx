@@ -48,6 +48,8 @@ export function KarteAnsicht({
   facetten,
   auswahl,
   bereich,
+  bereichKeys,
+  zurueckgehalten,
   sicht,
   detailPunkt,
   detailStrom,
@@ -69,6 +71,8 @@ export function KarteAnsicht({
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
+  bereichKeys: readonly string[];
+  zurueckgehalten: string[];
   sicht: "alle" | "feedstock" | "outputs";
   detailPunkt: KartePunkt | null;
   detailStrom: Strom | null;
@@ -176,6 +180,8 @@ export function KarteAnsicht({
         facetten={facetten}
         auswahl={auswahl}
         bereich={bereich}
+        bereichKeys={bereichKeys}
+        zurueckgehalten={zurueckgehalten}
         sicht={sicht}
         offenInitial={filterOffenInitial}
         irgendeinFilter={irgendeinFilter}

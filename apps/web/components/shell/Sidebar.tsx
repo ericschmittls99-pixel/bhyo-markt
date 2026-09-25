@@ -4,7 +4,13 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
-import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
+import {
+  FILTER_PARAMS,
+  leseSicht,
+  zuVerwerfen,
+  type Ansicht,
+  type Sicht,
+} from "@/lib/filter-modell";
 import { updateUiCookie, type UiState } from "@/lib/ui-state";
 
 interface NavKind {
@@ -45,17 +51,33 @@ export function Sidebar({
   const [collapsed, setCollapsed] = useState(!!initial.sidebarZu);
   const [open, setOpen] = useState<string[]>(initial.akkordeons ?? []);
 
-  // karte. und auswertung. teilen die Datenfilter (Delta §5.4): beim Wechsel
-  // zwischen den beiden Views tragen ihre Nav-Links die Parameter weiter.
-  let geteilteQuery = "";
-  if (pathname === "/karte" || pathname === "/auswertung") {
+  // E32: Filter ueberleben JEDEN Ansichtswechsel — vorher trugen nur die
+  // Links von karte. und auswertung. sie weiter, ein Wechsel aus oder nach
+  // stroeme. verlor alles. Nicht geltende Filter bleiben gemerkt und wirken
+  // in der Zielansicht nicht; nur ausdrueckliche Ausnahmen (zuVerwerfen)
+  // fallen weg.
+  const filterQuery = (ziel: Ansicht, zielSicht: Sicht, extra?: [string, string]) => {
+    const raus = new Set(zuVerwerfen(ziel, zielSicht));
     const p = new URLSearchParams();
-    for (const k of GETEILTE_FILTER_PARAMS) {
+    for (const k of FILTER_PARAMS) {
+      if (raus.has(k)) continue;
       const v = searchParams.get(k);
       if (v) p.set(k, v);
     }
-    geteilteQuery = p.size ? `?${p.toString()}` : "";
-  }
+    // Die Stromart gehoert mit: Wer auf Feedstock steht und auf die Karte
+    // wechselt, will Feedstock sehen. `sicht` ist kein Datenfilter und
+    // deshalb nicht in FILTER_PARAMS — mitgetragen wird sie trotzdem.
+    const sicht = searchParams.get("sicht");
+    if (sicht) p.set("sicht", sicht);
+    if (extra) p.set(extra[0], extra[1]);
+    return p.size ? `?${p.toString()}` : "";
+  };
+
+  // Die Sicht der Zielansicht: aus der Adresszeile, sonst der Standard.
+  const { sicht: aktuelleSicht } = leseSicht(
+    searchParams.get("sicht") ?? undefined,
+    "feedstock",
+  );
 
   const nav: NavEintrag[] = [
     {
@@ -67,17 +89,17 @@ export function Sidebar({
         {
           id: "feedstock",
           label: "Feedstock",
-          href: "/register?tab=biomasse",
-          param: "tab",
-          wert: "biomasse",
+          href: `/register${filterQuery("stroeme", "feedstock", ["sicht", "feedstock"])}`,
+          param: "sicht",
+          wert: "feedstock",
           defaultKind: true,
         },
         {
           id: "outputs",
           label: "Outputs",
-          href: "/register?tab=output",
-          param: "tab",
-          wert: "output",
+          href: `/register${filterQuery("stroeme", "outputs", ["sicht", "outputs"])}`,
+          param: "sicht",
+          wert: "outputs",
         },
       ],
     },
@@ -85,13 +107,13 @@ export function Sidebar({
       key: "karte",
       label: "karte.",
       icon: "map-trifold",
-      href: `/karte${geteilteQuery}`,
+      href: `/karte${filterQuery("karte", aktuelleSicht)}`,
     },
     {
       key: "auswertung",
       label: "auswertung.",
       icon: "chart-bar",
-      href: `/auswertung${geteilteQuery}`,
+      href: `/auswertung${filterQuery("auswertung", aktuelleSicht)}`,
     },
     {
       key: "planer",

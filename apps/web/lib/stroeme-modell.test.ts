@@ -4,7 +4,6 @@ import {
   facettenOptionen,
   filterAusSearchParams,
   filterStroeme,
-  GETEILTE_FILTER_PARAMS,
   kreisAnzeige,
   landAnzeige,
   LEERER_FILTER,
@@ -284,12 +283,3 @@ describe("Beleg-ID-Suche", () => {
   });
 });
 
-describe("GETEILTE_FILTER_PARAMS", () => {
-  it("enthält die karte./auswertung.-Parameter inkl. sicht und gruppe", () => {
-    expect(GETEILTE_FILTER_PARAMS).toContain("sicht");
-    expect(GETEILTE_FILTER_PARAMS).toContain("gruppe");
-    expect(GETEILTE_FILTER_PARAMS).toContain("q");
-    expect(GETEILTE_FILTER_PARAMS).not.toContain("detail");
-    expect(GETEILTE_FILTER_PARAMS).not.toContain("ansicht");
-  });
-});
