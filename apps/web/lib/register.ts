@@ -7,8 +7,9 @@ import {
   outputBedarf,
   outputProdukt,
   region,
+  sektor,
 } from "@bhyo/db/schema";
-import { and, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
+import { and, asc, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
 import { withDb } from "@/lib/db";
 import { geojsonOderNull } from "@/lib/karte-modell";
@@ -198,6 +199,21 @@ export function sucheMaterialarten(query: string): Promise<MaterialartOption[]> 
     const filtered = q ? base.where(ilike(materialart.label, `%${q}%`)) : base;
     return filtered.orderBy(materialart.label).limit(20);
   });
+}
+
+export interface SektorOption {
+  code: string;
+  label: string;
+}
+
+/** Die Sektoren der Referenztabelle (0020) in Listenreihenfolge — Quelle fuer Auswahl UND Pruefung. */
+export function ladeSektoren(): Promise<SektorOption[]> {
+  return withDb((db) =>
+    db
+      .select({ code: sektor.code, label: sektor.label })
+      .from(sektor)
+      .orderBy(asc(sektor.sortierung), asc(sektor.label)),
+  );
 }
 
 /** Live-Suche fuer die Akteur-Combobox (Name oder Sektor). */

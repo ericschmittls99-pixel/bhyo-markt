@@ -1,7 +1,8 @@
 import { akteur } from "@bhyo/db/schema";
 
+import { sektorAusEingabe } from "@/lib/akteur-anlage";
 import { withDb } from "@/lib/db";
-import { sucheAkteure } from "@/lib/register";
+import { ladeSektoren, sucheAkteure } from "@/lib/register";
 import { wacheFuerRoute } from "@/lib/wache";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,12 @@ export async function GET(req: Request) {
   return Response.json({ akteure: await sucheAkteure(q) });
 }
 
-/** Inline-Neuanlage eines Akteurs (Name Pflicht, Sektor optional). */
+/**
+ * Inline-Neuanlage eines Akteurs (Name Pflicht, Sektor optional). Der Sektor
+ * muss ein Code der Referenztabelle sein (Fremdschluessel seit 0020) — ein
+ * unbekannter Wert wird hier mit 400 und Nennung abgewiesen, nicht erst von
+ * der Datenbank mit 500.
+ */
 export async function POST(req: Request) {
   // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
   const wache = await wacheFuerRoute("schreiben");
@@ -28,7 +34,12 @@ export async function POST(req: Request) {
   if (!name) {
     return Response.json({ error: "Name ist Pflicht" }, { status: 400 });
   }
-  const sektor = body?.sektor?.trim() || null;
+  const codes = (await ladeSektoren()).map((s) => s.code);
+  const eingabe = sektorAusEingabe(body?.sektor, codes);
+  if (!eingabe.ok) {
+    return Response.json({ error: eingabe.fehler }, { status: 400 });
+  }
+  const sektor = eingabe.sektor;
 
   const created = await withDb(async (db) => {
     const [row] = await db
