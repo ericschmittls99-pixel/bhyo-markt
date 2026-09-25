@@ -231,6 +231,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db benutzer-check
 
+      # F5 PR B: Sektor-Referenzdaten — die acht Werte stehen, kein Akteur
+      # traegt einen unbekannten Sektor, "abnehmer" ist keiner mehr, und der
+      # Fremdschluessel greift wirklich.
+      - name: Sektor-Check (sektor)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db sektor-check
+
       - name: Build (OpenNext)
         working-directory: apps/web
         env:

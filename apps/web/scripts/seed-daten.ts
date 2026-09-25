@@ -123,7 +123,8 @@ export interface SeedBeleg {
 export interface SeedAkteur {
   id: string;
   name: string;
-  sektor: string;
+  /** F5 PR B: null ist der benannte Zustand "ohne Sektor". */
+  sektor: string | null;
 }
 
 // --- PRNG (mulberry32) -------------------------------------------------------
@@ -321,6 +322,48 @@ interface ProduktPlan {
   saison: (abnehmer: string) => number[];
 }
 
+/**
+ * Branche je Abnehmer-Typ. Bewusst eine vollstaendige Zuordnung und keine
+ * Rateregel: Ein unbekannter Name bricht laut ab, statt still auf einem
+ * Ersatzwert zu landen.
+ *
+ * ANKER_OHNE_SEKTOR bleiben absichtlich ohne Branche — der benannte Zustand
+ * "ohne Sektor" braucht Faelle, an denen er sich pruefen laesst.
+ */
+const ANKER_OHNE_SEKTOR = new Set(["Trockeneis-Service", "Schwimmbad"]);
+
+const SEKTOR_JE_ABNEHMER: Record<string, string> = {
+  Baustoffhandel: "industrie",
+  Betonwerk: "industrie",
+  Chemiepark: "industrie",
+  Fernwärmenetz: "energie",
+  Getränkehersteller: "lebensmittel",
+  Gewächshaus: "landwirtschaft",
+  Glasindustrie: "industrie",
+  Industriebetrieb: "industrie",
+  Papierfabrik: "industrie",
+  Schwimmbad: "kommunal",
+  Spedition: "industrie",
+  Stadtwerke: "kommunal",
+  Tankstellenbetreiber: "energie",
+  "Trockeneis-Service": "industrie",
+  Zementwerk: "industrie",
+  Ziegelei: "industrie",
+  "ÖPNV-Betrieb": "kommunal",
+};
+
+function sektorFuerAbnehmer(abnehmer: string): string | null {
+  if (ANKER_OHNE_SEKTOR.has(abnehmer)) return null;
+  const sektor = SEKTOR_JE_ABNEHMER[abnehmer];
+  if (!sektor) {
+    throw new Error(
+      `Kein Sektor fuer Abnehmer "${abnehmer}" hinterlegt. ` +
+        "In SEKTOR_JE_ABNEHMER ergaenzen — kein stiller Ersatzwert.",
+    );
+  }
+  return sektor;
+}
+
 const PRODUKTE: ProduktPlan[] = [
   { code: "h2_niederdruck", label: "H2 (Niederdruck)", n: 7, einheiten: ["t/a", "MWh/a"], menge: [20, 400], preis: [180, 280], preisEinheit: "€/MWh", abnehmer: ["ÖPNV-Betrieb", "Spedition", "Tankstellenbetreiber"], saison: () => GLEICH },
   { code: "h2_hochdruck", label: "H2 (Hochdruck)", n: 7, einheiten: ["t/a", "MWh/a"], menge: [20, 400], preis: [180, 280], preisEinheit: "€/MWh", abnehmer: ["Chemiepark", "Glasindustrie", "Spedition"], saison: () => GLEICH },
@@ -423,8 +466,10 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     return Math.round(Math.min(18000, Math.max(500, v)) / 10) * 10;
   };
 
+  // E23: Die Rolle (Anbieter/Abnehmer) wird bewusst NICHT gespeichert — sie
+  // ist vollstaendig aus den Stroemen ableitbar, und vier Akteure sind beides.
   const akteure: SeedAkteur[] = [];
-  const machAkteur = (name: string, sektor: string): number => {
+  const machAkteur = (name: string, sektor: string | null): number => {
     akteure.push({ id: uuid(), name: `Seed: ${name}`, sektor });
     return akteure.length - 1;
   };
@@ -703,7 +748,12 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     const anker = so.anker ?? unbelegtAnker;
     const belegDatum = `${B}-0${rBeleg.ganz(1, 8)}-1${rBeleg.ganz(0, 5)}`;
     const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
-    const akteurIndex = machAkteur(`${abnehmer} ${ort}`, "abnehmer");
+    // F5 PR B: "abnehmer" war nie ein Sektor, sondern eine Rolle — und als
+    // haeufigster Wert haette er die Auswahlliste verdorben. Die Abnehmer
+    // bekommen jetzt plausible Branchen, damit der Filter an echter Streuung
+    // geprueft werden kann; zwei bleiben bewusst OHNE Sektor als Ankerfaelle
+    // (dieselbe Logik wie bei den unbelegten Stroemen, E24).
+    const akteurIndex = machAkteur(`${abnehmer} ${ort}`, sektorFuerAbnehmer(abnehmer));
 
     return {
       id: uuid(),

@@ -261,6 +261,149 @@ Diskriminator `Strom.art` behält die Werte `biomasse`/`output`, weil sie als
 Literale aus den SQL-Abfragen kommen; umgerechnet wird an einer Stelle
 (`artAusSicht`/`sichtAusArt`).
 
+## 13. Belegtypen, Rangfolge, Qualität (E34, 25.09.2026)
+
+**Sieben Typen in dieser Reihenfolge** — überall so angezeigt und sortiert;
+sie ist zugleich die Rangfolge der Beweiskraft. Die Stufe gilt für den
+vollständigen Beleg, ein unvollständiger liegt eine Stufe darunter. **D ist
+die Untergrenze.** „Unbelegt" bleibt dem Fall vorbehalten, dass gar kein
+Beleg existiert (E24) — der Zustand wird nicht überladen.
+
+| # | Belegtyp | vollständig | unvollständig | Was entscheidet |
+| --- | --- | --- | --- | --- |
+| 1 | Betriebsdaten | **A** | B | Datei oder Link |
+| 2 | Vertrag | **A** | B | Datei |
+| 3 | Absichtserklärung | **B** | C | Datei |
+| 4 | Angebot | **B** | C | Datei oder Link |
+| 5 | Gespräch | **C** | C | nichts — glatt C |
+| 6 | Dokument | **C** | D | Datei oder Link |
+| 7 | Webrecherche | **D** | D | nichts — glatt D |
+
+**Gespräch und Webrecherche sind bewusst glatt.** Für sie hat die
+Vollständigkeitsrechnung keine Wirkung auf die Stufe. Das ist gewollt und
+steht hier, damit niemand später einen Defekt darin sucht. Typspezifische
+Pflichten, die keine Stufe mehr bewegen (etwa der Link bei Webrecherche),
+sind **Formularpflichten**, keine Stufenbedingungen — das Formular macht den
+Unterschied erkennbar.
+
+**Zwei Folgen der Zuordnung**, ebenfalls gewollt:
+- **A ist nur noch über Betriebsdaten und Vertrag erreichbar.**
+- **C wird zum Sammelbecken**: Absichtserklärung und Angebot unvollständig,
+  Gespräch immer, Dokument vollständig.
+- **D heißt nicht mehr „lückenhaft"**: Ein *vollständiger* Recherche-Beleg
+  landet auf D. Legende und Hilfetexte müssen das sagen, sonst erklärt sich
+  die Stufe falsch.
+
+**Zwei CHECKs sichern, was vorher Bedingungen waren:** Quellenangabe für alle
+sieben Typen, `gueltig_bis` für die oberen vier. Ein Formular ist eine Bitte,
+ein CHECK ist eine Zusicherung. Der Quellenangabe-CHECK prüft den JSON-Pfad
+und weist auch leere und reine Leerzeichen-Werte ab — ein leerer String ist
+keine Quellenangabe.
+
+Die Ableitung bekommt damit nur noch `(typ, datei_key, link_url)`. Sie liegt
+weiterhin doppelt vor (TypeScript und IMMUTABLE-SQL-Funktion hinter der
+GENERATED-Spalte); der Paritätstest hält beide deckungsgleich.
+
+### Durchsicht abgeschlossen am 25.09.2026 — keine Bedingung ohne Wirkung
+
+Vier Bedingungen wurden entfernt, weil sie nichts mehr entschieden:
+
+| Entfernt | Warum |
+| --- | --- |
+| `amtlich` | Mit Dokument fest auf C hatte der Haken keine Wirkung mehr |
+| Erhebungsdatum gesetzt | `erstellt_am` ist `NOT NULL DEFAULT now()` — die Prüfung `IS NOT NULL` konnte nie falsch sein |
+| Gesprächsdatum, Gesprächspartner | Dieselbe Information steht in der seit F7 pflichtigen Quellenangabe; zwei Orte werden unterschiedlich gefüllt |
+| `extern_nachvollziehbar` | Nachweiskraft und Freigabe sind zwei Größen — siehe unten |
+
+**`extern_nachvollziehbar` wurde nicht entfernt, sondern umgewidmet.** Es ist
+jetzt eine **Freigabe zur externen Verwendung** und beeinflusst die
+Qualitätsstufe nicht. Beschriftung und Hilfetext sagen das ausdrücklich.
+Wirksam wird es in **F6**: PDF-Abzug und CSV-Export berücksichtigen die
+Freigabe (siehe `docs/f6-handoff-pdf-export.md`). Damit löst das Feld genau
+das Versprechen ein, das sein alter Hilfetext gegeben hatte, ohne es zu
+halten — der Fehlerbericht aus dem Praxistest vom 24.09. ging darauf zurück.
+
+Bestehende Werte von `amtlich`, Gesprächsdatum und Gesprächspartner bleiben
+in der Datenbank unangetastet, werden aber nicht mehr gelesen. **Kein
+Datenverlust**, nur ein stillgelegter Lesepfad.
+
+### Kandidat für eine spätere Migration
+
+**Die Quellenangabe gehört in eine eigene Spalte, nicht in `metadata`.** Ein
+Pflichtfeld in einem JSON-Feld ist schwerer zu prüfen, zu indizieren und zu
+lesen. Der saubere Umzug braucht Expand und Contract über zwei Runden; dieses
+Paket ist groß genug. Nachzuholen, wenn ohnehin eine Migration ansteht.
+
+## 14. Fälligkeit je Belegtyp (E33, 25.09.2026)
+
+**Jeder Beleg hat genau eine Quelle für seine Fälligkeit.**
+
+- **Obere vier Typen** (Betriebsdaten, Vertrag, Absichtserklärung, Angebot):
+  `gueltig_bis` ist **Pflichtfeld** (CHECK). Für sie gibt es **keine
+  Typ-Frist** mehr.
+- **Untere drei Typen**: kein Enddatum im Dokument, deshalb gilt die
+  Typ-Frist ab dem **Erhebungsdatum** — Gespräch **3 Monate**, Dokument
+  **6 Monate**, Webrecherche **3 Monate**. Auch bei Webrecherche; ein eigenes
+  Abrufdatum wird **nicht** eingeführt.
+
+`BELEG_MONATE` schrumpft damit auf drei Einträge.
+
+**Die alten Zahlen gelten nicht mehr.** Vor E33 widersprachen sich Code und
+Abschnitt 3 dieses Dokuments: Angebot 3 gegen 6 Monate, Dokument/Link 12
+gegen 24, Gespräch 6 gegen 12. Beide Fassungen sind überholt — wer sie
+irgendwo findet, findet Altbestand.
+
+Ein Feld, nicht vier: `gueltig_bis` bleibt das einzige Feld, bekommt aber
+eine **typabhängige Beschriftung**, die die tatsächliche Bedeutung nennt —
+„Vertrag läuft bis", „Angebot gültig bis", „Absichtserklärung gültig bis",
+„Daten repräsentativ bis".
+
+Die **Gesamtfälligkeit** bleibt das früheste Datum aus dieser Belegfrist, dem
+Verfügbarkeitsende, befristeten Vergabeenden und der Reservierung.
+
+## 15. Sektor als Referenzdaten (F5 PR B, 25.09.2026)
+
+`akteur.sektor` war ein **Freitextfeld**. Folge: Zwei Schreibweisen ergaben
+zwei Filterwerte — gemessen am 25.09.2026 standen auf der Preview 14
+Schreibweisen für 11 Werte, darunter `Energie`/`energie`,
+`Forstwirtschaft`/`forstwirtschaft`, `Landwirtschaft`/`landwirtschaft`.
+
+**Acht Werte** in der Referenztabelle `sektor`, Muster wie `materialart` und
+`output_produkt`: `abfallwirtschaft`, `energie`, `forstwirtschaft`,
+`holzwirtschaft`, `industrie`, `kommunal`, `landwirtschaft`, `lebensmittel`.
+
+**Leer heißt „ohne Sektor", nicht „sonstige"** — fehlende Information ist
+keine Restkategorie (dieselbe Haltung wie „unbelegt" in E24).
+
+Vier Entscheidungen zur Zuordnung des Bestands:
+
+1. **Schreibweisen zusammengeführt.** Der Vergleich läuft ohne Rücksicht auf
+   Groß- und Kleinschreibung und ohne Randleerraum, damit künftige Varianten
+   gar nicht erst entstehen.
+2. **`abnehmer` ist kein Sektor, sondern eine Rolle** — und war mit 50 von
+   117 Akteuren der häufigste Wert. Ein Wert, der in einer Auswahlliste etwas
+   anderes bedeutet als alle übrigen, verdirbt die ganze Liste. Diese Akteure
+   bekommen „ohne Sektor"; die Rolle wird dabei **nicht** nach `akteur.rollen`
+   gerettet. **Gemessen am 25.09.2026:** Nichts liest `rollen` (die Spalte war
+   bei allen 117 Akteuren leer und nur die Schema-Definition erwähnt sie), und
+   die Rolle ist vollständig aus den Strömen ableitbar — 63 nur Anbieter, 50
+   nur Abnehmer, 4 beides, 0 ohne Strom. Nach E23 wird nicht gespeichert, was
+   sich ableiten lässt; die vier Akteure, die beides sind, zeigen zudem: Eine
+   Rolle ist eine **Menge**, kein Wert.
+3. **`akteur.rollen` bleibt als Spalte stehen**, wird aber heute weder gelesen
+   noch geschrieben. **Vormerkung:** Sobald ein Akteur ohne Strom irgendwo
+   sichtbar wird — etwa in einer Akteursliste —, fehlt die Rolle. Dann ist der
+   Zeitpunkt, sie entweder zu füllen oder die Ableitung um einen benannten
+   Zustand zu erweitern („Rolle noch offen"). Nicht jetzt, aber notiert.
+4. **`Entsorgung` und `Entsorgungswirtschaft` → `abfallwirtschaft`.** Eine
+   fachliche Zusammenlegung, keine Schreibweise: drei Namen für eine Sache.
+
+**Einschränkung, bewusst in Kauf genommen:** Ein neuer Sektor braucht künftig
+eine **Migration**, genau wie Materialarten und Produkte. Das ist mit dem
+bestehenden Muster stimmig, wird aber Reibung erzeugen, sobald echte Daten
+neue Branchen bringen. Wenn es so weit ist, wird eine **Verwaltung der
+Referenzdaten durch Admins** ein eigenes Paket — jetzt nicht.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
