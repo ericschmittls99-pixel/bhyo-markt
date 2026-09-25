@@ -262,6 +262,77 @@ Tabellensprache, keine eigene Designsprache für eine Admin-Seite.
   Server-Action: Wer sie direkt aufruft, sieht diese Seite nie.
 - Die eigene Zeile trägt eine kleine Pille „du".
 
+## Gruppierte Filter als Baum (F5 PR B, 25.09.2026)
+
+**Ein Bauteil für alle drei Hierarchien** — Cluster → Materialart, Gruppe →
+Produkt, Bundesland → Landkreis → Ort. Nicht drei ähnliche Umsetzungen.
+
+### Bedienung
+
+**Aufklappen und Auswählen sind getrennte Ziele**, beide mindestens 32 px
+hoch: Der **Pfeil** klappt auf und zu, das **Kästchen** und der **Name**
+wählen — auf jeder Ebene gleich. Die häufigere Handlung bekommt die größere
+Fläche.
+
+**Tastatur ohne Mausanschluss:** ↑ ↓ bewegen über die *sichtbaren* Zeilen,
+→ ← klappen auf und zu, Leertaste wählt.
+
+**Drei Zustände, drei Bilder** — nicht drei Helligkeiten desselben Bildes:
+leeres Kästchen (offen), Häkchen (gewählt), waagerechter Strich
+(Teilauswahl). So bleibt der Unterschied bei Farbsehschwäche und in beiden
+Themes lesbar; dieselbe Haltung wie bei den Kartenringen (E27).
+
+**Implizit Gewähltes ist erkennbar anders** — gestricheltes Kästchen,
+zurückgenommener Name — **und trotzdem einzeln abwählbar**.
+
+### Was gespeichert wird
+
+**Die höchste Ebene, die vollständig gewählt ist.** Wer Baden-Württemberg
+wählt, bekommt `bundesland=08`, nicht alle Kreisschlüssel — das hält die
+Adresszeile kurz und bleibt richtig, wenn später ein Kreis dazukommt.
+
+Wählt jemand darunter einen Kreis ab, ist das Bundesland nicht mehr
+vollständig und wird **automatisch in seine übrigen Kinder aufgelöst**
+(`landkreis=08111,08115,…`). Die Adresszeile wird in diesem Fall länger; das
+Modell bleibt dafür ohne Zustand, der sich nicht schreiben lässt. Werden
+später wieder alle Kinder gewählt, fasst die Normalisierung sie erneut zum
+Elternteil zusammen.
+
+**Eine aufgelöste Auswahl ist eine Momentaufnahme.** Kommt später ein Kreis
+dazu, ist er nicht enthalten — bei einer Ausschluss-Auswahl ist genau das
+richtig. Eine zusammengefasste Auswahl (`bundesland=08`) nimmt ihn dagegen
+automatisch mit.
+
+Die Ebenen sind **ODER-verknüpft**: Ein Strom ist getroffen, wenn er auf
+*einer* der gewählten Ebenen passt. Zurückgesetzt wird **je Hierarchie
+einmal**.
+
+### Ortsliste
+
+Bundesland und Landkreis kommen räumlich über den ARS (E25), der Ort aus den
+strukturierten Adressfeldern (F0a) — **eingeschränkt auf den Kreis-ARS
+desselben Stroms**, damit „Neustadt" in zwei Kreisen zwei Einträge bleibt und
+nicht still zu einem Filterwert verschmilzt.
+
+Fürs Gruppieren wird normalisiert: Leerraum am Rand entfernt, mehrfache
+Leerzeichen zusammengezogen, Vergleich ohne Rücksicht auf Groß- und
+Kleinschreibung. **Angezeigt wird die häufigste Schreibweise; bei Gleichstand
+die alphabetisch erste.** Nicht die zuerst gelesene Zeile — sonst hinge die
+Anzeige an der Sortierung der Abfrage und dieselbe Datenlage ergäbe
+verschiedene Bäume. Kein neuer Schlüssel und keine Ortsdatenbank; die Suche
+nach einem Ortsnamen gibt es bereits über den Freitext.
+
+**Leere Äste erscheinen nicht** — ein Bundesland, ein Kreis oder ein Ort ohne
+Ströme wäre ein Eintrag, der nichts filtert. Ströme **ohne Koordinate** oder
+**außerhalb** behalten ihre benannten Zustände aus E24/F0b und tauchen im
+Baum nicht als leere Einträge auf.
+
+### Zusammengeklappt
+
+Statt einer langen Liste eine Kurzfassung: der erste gewählte Name, dann die
+Zahl der weiteren, benannt nach ihrer Ebene — „Baden-Württemberg, +2
+Landkreise".
+
 ## Eingabeformate im Formular (F9, 24.09.2026)
 
 **Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native
