@@ -50,7 +50,9 @@ export type FilterTyp =
   /** Ein Monat (JJJJ-MM). */
   | "monat"
   /** Ein Datum (JJJJ-MM-TT). */
-  | "datum";
+  | "datum"
+  /** Gruppierter Baum mit einem Parameter je Ebene (F5 PR B). */
+  | "hierarchie";
 
 export interface FilterDef {
   /** Logischer Name; bei einfachen Filtern zugleich der URL-Parameter. */
@@ -65,6 +67,12 @@ export interface FilterDef {
   arten: readonly FilterArt[];
   /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
   gruppe: "haupt" | "weitere";
+  /**
+   * Nur bei `hierarchie`: die Ebenen von oben nach unten. Ihre `param`
+   * entsprechen `params` in derselben Reihenfolge — eine zweite Liste waere
+   * eine zweite Wahrheit.
+   */
+  ebenen?: readonly { param: string; label: string }[];
   /**
    * Was passiert, wenn der Filter in der aktuellen Ansicht nicht gilt.
    * Voreinstellung `merken` (E32): Er bleibt in der Adresszeile, wirkt
@@ -110,50 +118,49 @@ export const FILTER: readonly FilterDef[] = [
     gruppe: "haupt",
   },
   {
-    key: "cluster",
-    label: "Cluster",
-    typ: "facette",
-    params: ["cluster"],
-    ansichten: ALLE_ANSICHTEN,
-    arten: ["feedstock"],
-    gruppe: "haupt",
-  },
-  {
+    // F5 PR B: Cluster und Materialart sind EIN gruppierter Filter, kein
+    // Paar nebeneinander — wer einen Cluster waehlt, meint seine
+    // Materialarten mit.
     key: "materialart",
-    label: "Materialart",
-    typ: "facette",
-    params: ["materialart"],
+    label: "Cluster / Materialart",
+    typ: "hierarchie",
+    params: ["cluster", "materialart"],
+    ebenen: [
+      { param: "cluster", label: "Cluster" },
+      { param: "materialart", label: "Materialarten" },
+    ],
     ansichten: ALLE_ANSICHTEN,
     arten: ["feedstock"],
-    gruppe: "haupt",
-  },
-  {
-    key: "gruppe",
-    label: "Gruppe",
-    typ: "facette",
-    params: ["gruppe"],
-    ansichten: ALLE_ANSICHTEN,
-    arten: ["outputs"],
     gruppe: "haupt",
   },
   {
     key: "produkt",
-    label: "Output",
-    typ: "facette",
-    params: ["produkt"],
+    label: "Gruppe / Output",
+    typ: "hierarchie",
+    params: ["gruppe", "produkt"],
+    ebenen: [
+      { param: "gruppe", label: "Gruppen" },
+      { param: "produkt", label: "Outputs" },
+    ],
     ansichten: ALLE_ANSICHTEN,
     arten: ["outputs"],
     gruppe: "haupt",
   },
   {
-    key: "landkreis",
-    label: "Landkreis",
-    typ: "facette",
-    params: ["landkreis"],
-    // PR B erweitert das zur Hierarchie Bundesland → Landkreis → Ort in
-    // allen Ansichten; hier wird zunaechst der Befund geschlossen, dass der
-    // Filter fuer Feedstock nie angewandt wurde.
-    ansichten: ["stroeme"],
+    // Bundesland und Landkreis raeumlich ueber den ARS (E25), der Ort aus
+    // den strukturierten Adressfeldern (F0a). Gilt jetzt in ALLEN Ansichten
+    // und fuer beide Stromarten — der landkreis-Fall aus PR A ist damit
+    // nicht nur geschlossen, sondern zur vollen Hierarchie ausgebaut.
+    key: "ort",
+    label: "Bundesland / Landkreis / Ort",
+    typ: "hierarchie",
+    params: ["bundesland", "landkreis", "ort"],
+    ebenen: [
+      { param: "bundesland", label: "Bundesländer" },
+      { param: "landkreis", label: "Landkreise" },
+      { param: "ort", label: "Orte" },
+    ],
+    ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "haupt",
   },
@@ -373,8 +380,11 @@ export function leiste(
   const bereich: Record<string, string> = {};
   for (const def of geltend) {
     for (const p of def.params) {
-      if (def.typ === "facette") auswahl[p] = (werte[p] as string[]) ?? [];
-      else bereich[p] = (werte[p] as string) ?? "";
+      if (def.typ === "facette" || def.typ === "hierarchie") {
+        auswahl[p] = (werte[p] as string[]) ?? [];
+      } else {
+        bereich[p] = (werte[p] as string) ?? "";
+      }
     }
   }
 

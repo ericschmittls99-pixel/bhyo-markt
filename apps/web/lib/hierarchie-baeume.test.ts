@@ -156,3 +156,18 @@ describe("Der Ort hängt am Kreis desselben Stroms", () => {
     expect(baum[1]!.kinder![0]!.kinder![0]!.wert).toBe("neustadt");
   });
 });
+
+describe("Ein Kreis ohne Bundesland", () => {
+  it("erscheint nicht im Baum, statt an einem geratenen Ast zu hängen", () => {
+    // Kann vorkommen, wenn der ARS-Praefix kein Land trifft (E25). Ihn
+    // irgendwo einzuhaengen waere geraten; ueber den Kreis-Filterwert bleibt
+    // er erreichbar.
+    const baum = baumOrt([
+      strom({
+        ort: "Irgendwo",
+        verwaltung: { kreisArs: "99999", kreisName: "Unbekannt", landArs: null, landName: null },
+      }),
+    ]);
+    expect(baum).toEqual([]);
+  });
+});

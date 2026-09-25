@@ -28,6 +28,7 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { leiste } from "@/lib/filter-modell";
+import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export const dynamic = "force-dynamic";
 
@@ -141,12 +142,27 @@ export default async function KartePage({
     landkreis: basisOpt.landkreis ?? [],
   };
   const lst = leiste("karte", sicht, filter as unknown as Record<string, unknown>, optionen);
+  // F5 PR B: Die Baeume kommen aus dem UNGEFILTERTEN Pool — der Baum zeigt
+  // den Bestand, nicht die aktuelle Auswahl; sonst verschwaenden beim
+  // Filtern die Aeste, ueber die man zurueckwaehlen wollte.
+  const baeume = baeumeAus([...bio, ...out]);
+  const hierarchien = hierarchienFuer(
+    ["materialart", "produkt", "ort"],
+    baeume,
+    filter as unknown as Record<string, unknown>,
+  );
+
   const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ === "facette")
-    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+    .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
+    .map((e) => ({
+      key: e.def.params[0]!,
+      label: e.def.label,
+      optionen: e.optionen,
+      hierarchie: hierarchien[e.def.key],
+    }));
   const { auswahl, bereich, irgendeinFilter } = lst;
   const bereichKeys = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+    .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
     .flatMap((e) => e.def.params);
 
   // Marker-Klick oeffnet DASSELBE Detail wie stroeme. (Spec-Anpassung Eric):

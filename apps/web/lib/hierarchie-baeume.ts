@@ -25,8 +25,9 @@ export interface BaumStrom {
   verwaltung: {
     kreisArs: string;
     kreisName: string;
-    landArs: string;
-    landName: string;
+    /** Kann fehlen, wenn der ARS-Praefix kein Land trifft (E25). */
+    landArs: string | null;
+    landName: string | null;
   } | null;
 }
 
@@ -120,7 +121,13 @@ export function baumOrt(stroeme: BaumStrom[]): Knoten[] {
   for (const s of stroeme) {
     const v = s.verwaltung;
     if (!v) continue; // ausserhalb / ohne Koordinate: eigene Filterwerte
-    const land = laender.get(v.landArs) ?? { label: v.landName, kreise: new Map() };
+    // Ein Kreis ohne Land haengt an keinem Ast. Ihn irgendwo einzuhaengen
+    // hiesse raten — er bleibt ueber den Kreis-Filterwert erreichbar.
+    if (!v.landArs) continue;
+    const land = laender.get(v.landArs) ?? {
+      label: v.landName ?? v.landArs,
+      kreise: new Map(),
+    };
     const kreis = land.kreise.get(v.kreisArs) ?? {
       label: v.kreisName,
       orte: new Map<string, Map<string, number>>(),

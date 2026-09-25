@@ -83,9 +83,21 @@ describe("Einzigkeit: genau eine Definition", () => {
     expect(FILTER_PARAMS).toEqual([...new Set(FILTER_PARAMS)]);
   });
 
-  it("bereich-Filter haben zwei Parameter, alle anderen genau einen", () => {
+  it("die Parameterzahl passt zum Typ", () => {
     for (const f of FILTER) {
-      expect(f.params.length).toBe(f.typ === "bereich" ? 2 : 1);
+      if (f.typ === "bereich") expect(f.params.length).toBe(2);
+      else if (f.typ === "hierarchie") expect(f.params.length).toBeGreaterThan(1);
+      else expect(f.params.length).toBe(1);
+    }
+  });
+
+  it("bei Hierarchien decken sich Ebenen und Parameter — Reihenfolge inklusive", () => {
+    // Zwei Listen fuer dieselbe Sache waeren zwei Wahrheiten: Die Ebenen
+    // bestimmen die Anzeige, die Parameter die Adresszeile. Driften sie
+    // auseinander, filtert der Baum etwas anderes, als er zeigt.
+    for (const f of FILTER.filter((x) => x.typ === "hierarchie")) {
+      expect(f.ebenen, `${f.key} hat keine Ebenen`).toBeDefined();
+      expect(f.ebenen!.map((e) => e.param)).toEqual([...f.params]);
     }
   });
 

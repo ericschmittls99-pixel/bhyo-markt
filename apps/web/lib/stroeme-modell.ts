@@ -7,7 +7,9 @@ import {
   type VerfuegbarkeitsErgebnis,
   type VerfuegbarkeitsStatus,
 } from "./verfuegbarkeit";
-import { FILTER, FILTER_PARAMS, sichtAusArt } from "./filter-modell";
+import { FILTER, filterDef, sichtAusArt } from "./filter-modell";
+import { trifft } from "./hierarchie";
+import { ortsSchluessel } from "./hierarchie-baeume";
 
 export type StromArt = "biomasse" | "output";
 
@@ -145,6 +147,9 @@ export interface StroemeFilter {
   verfuegbarkeit: string[];
   belegtyp: string[];
   landkreis: string[];
+  /** F5 PR B: Ebenen der Ortshierarchie neben landkreis. */
+  bundesland: string[];
+  ort: string[];
   produkt: string[];
   mengeMin: string;
   mengeMax: string;
@@ -167,6 +172,8 @@ export const LEERER_FILTER: StroemeFilter = {
   verfuegbarkeit: [],
   belegtyp: [],
   landkreis: [],
+  bundesland: [],
+  ort: [],
   produkt: [],
   mengeMin: "",
   mengeMax: "",
@@ -308,15 +315,25 @@ const ANWENDUNG: Record<string, Pruefer> = {
     return hay.includes(q);
   },
   region: facette("region"),
-  cluster: facette("cluster"),
-  materialart: facette("materialart"),
-  produkt: facette("produkt"),
   qualitaet: facette("qualitaet"),
   status: facette("status"),
   verfuegbarkeit: facette("verfuegbarkeit"),
   belegtyp: facette("belegtyp"),
-  landkreis: facette("landkreis"),
-  gruppe: (s, f) => !f.gruppe.length || (!!s.gruppe && f.gruppe.includes(s.gruppe)),
+  // F5 PR B: drei gruppierte Filter ueber dieselbe reine Funktion `trifft`.
+  // Die Ebenen kommen aus dem Modell, nicht aus einer Kopie hier.
+  materialart: hierarchie("materialart", (s) => ({
+    cluster: s.cluster,
+    materialart: s.materialartCode,
+  })),
+  produkt: hierarchie("produkt", (s) => ({
+    gruppe: s.gruppe,
+    produkt: s.produktCode,
+  })),
+  ort: hierarchie("ort", (s) => ({
+    bundesland: s.verwaltung?.landArs ?? null,
+    landkreis: s.verwaltung?.kreisArs ?? verwaltungsZustand(s),
+    ort: s.ort ? ortsSchluessel(s.ort) : null,
+  })),
   menge: (s, f) => {
     const menge = mengeVon(s);
     if (f.mengeMin !== "" && (menge == null || menge < +f.mengeMin)) return false;
@@ -332,6 +349,24 @@ const ANWENDUNG: Record<string, Pruefer> = {
   vonAb: (s, f) => !f.vonAb || (s.zeitraumVon ?? "") >= `${f.vonAb}-01`,
   erstellt: (s, f) => !f.erstellt || s.erstelltAm === f.erstellt,
 };
+
+/**
+ * Gruppierter Filter: Die Ebenen kommen aus dem Filtermodell, die Werte des
+ * Stroms liefert der Aufrufer. Getroffen ist ein Strom, wenn er auf EINER
+ * gewaehlten Ebene passt (`trifft`).
+ */
+function hierarchie(
+  key: string,
+  werte: (s: Strom) => Record<string, string | null>,
+): Pruefer {
+  return (s, f) => {
+    const def = filterDef(key);
+    if (!def?.ebenen) return true;
+    const auswahl: Record<string, string[]> = {};
+    for (const e of def.ebenen) auswahl[e.param] = (f as never)[e.param] ?? [];
+    return trifft(auswahl, [...def.ebenen], werte(s));
+  };
+}
 
 function facette(key: keyof StroemeFilter): Pruefer {
   return (s, f) => {
@@ -534,7 +569,7 @@ export function filterAusSearchParams(sp: SearchParamsRoh): StroemeFilter {
   for (const def of FILTER) {
     for (const param of def.params) {
       const roh = sp[param];
-      if (def.typ === "facette") {
+      if (def.typ === "facette" || def.typ === "hierarchie") {
         (f as unknown as Record<string, unknown>)[param] = liste(roh);
       } else {
         (f as unknown as Record<string, unknown>)[param] = ersterWert(roh);

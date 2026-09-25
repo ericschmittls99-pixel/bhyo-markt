@@ -4,11 +4,27 @@ import { useEffect, useRef, useState } from "react";
 
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import type { FacettenOption } from "@/lib/stroeme-modell";
+import { HierarchieBaum } from "@/components/stroeme/HierarchieBaum";
+import { leere, type Ebene, type Knoten } from "@/lib/hierarchie";
 
 export interface FacettenChipDef {
   key: string;
   label: string;
   optionen: FacettenOption[];
+  /**
+   * F5 PR B: Gruppierter Filter. Ist er gesetzt, traegt der Chip einen Baum
+   * statt einer flachen Liste — dieselbe Chip-Huelle, anderer Inhalt.
+   */
+  hierarchie?: {
+    baum: Knoten[];
+    ebenen: Ebene[];
+    /** Auswahl je Ebenen-Parameter. */
+    auswahl: Record<string, string[]>;
+    /** Zusammengeklappte Kurzfassung, z. B. „Baden-Württemberg, +2 Landkreise". */
+    kurz: string;
+    /** Wie viele Knoten ausdruecklich gewaehlt sind (fuer den Zaehler). */
+    anzahl: number;
+  };
 }
 
 /**
@@ -118,13 +134,19 @@ export function FacettenChips({
         const optionen = istOffen
           ? f.optionen.filter((o) => !fq || o.label.toLowerCase().includes(fq))
           : [];
+        const h = f.hierarchie;
+        const aktiv = h ? h.anzahl > 0 : sel.length > 0;
         return (
           <div key={f.key} data-pop className="pop-anchor">
             <button
               type="button"
-              className={`fchip${sel.length || istOffen ? " aktiv" : ""}`}
+              className={`fchip${aktiv || istOffen ? " aktiv" : ""}`}
               aria-haspopup="menu"
               aria-expanded={istOffen}
+              // Zusammengeklappt steht die Kurzfassung statt einer langen
+              // Liste: "Baden-Württemberg, +2 Landkreise" sagt mehr als sechs
+              // abgeschnittene Namen.
+              title={h && h.kurz ? h.kurz : undefined}
               onClick={() => {
                 setOffeneFacette(istOffen ? null : f.key);
                 setFacettenSuche("");
@@ -132,10 +154,44 @@ export function FacettenChips({
                 if (!istOffen) onPopoverOffen?.();
               }}
             >
-              {f.label}
-              {sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
+              {h && h.kurz ? h.kurz : f.label}
+              {!h && sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
+              {h && h.anzahl > 1 && <span className="fchip-count">{h.anzahl}</span>}
             </button>
-            {istOffen && (
+            {istOffen && h && (
+              <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 320 }}>
+                {h.anzahl > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      // Ein Zuruecksetzen je Hierarchie, nicht je Ebene.
+                      onClick={() => setze(leere(h.ebenen))}
+                    >
+                      <i className="ph-bold ph-x" aria-hidden />
+                      <span className="lbl">Auswahl aufheben</span>
+                    </button>
+                    <div className="pop-divider" />
+                  </>
+                )}
+                <HierarchieBaum
+                  baum={h.baum}
+                  ebenen={h.ebenen}
+                  auswahl={h.auswahl}
+                  onAuswahl={(neuA) =>
+                    setze(
+                      Object.fromEntries(
+                        h.ebenen.map((e) => [
+                          e.param,
+                          (neuA[e.param] ?? []).join(",") || null,
+                        ]),
+                      ),
+                    )
+                  }
+                />
+              </div>
+            )}
+            {istOffen && !h && (
               <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 280 }}>
                 <div className="pop-suche">
                   <div className="search search--sm">
