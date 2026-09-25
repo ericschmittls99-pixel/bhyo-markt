@@ -222,19 +222,28 @@ describe("Die Stromart wird mitgetragen", () => {
 });
 
 describe("Zurückgehaltene Filter werden in ALLEN Ansichten ausgewiesen", () => {
-  it("jede Filterleiste rendert den Hinweis", () => {
+  it("jede Filterleiste rendert die Leisten-Hinweise", () => {
     // Im Preview-Test (25.09.2026) gefunden: Die Prop war ueberall
     // durchgereicht, aber KarteToolbar rendert sie nicht — der Hinweis fehlte
-    // genau dort still. E32 verlangt ihn in jeder Ansicht.
+    // genau dort still. E32 verlangt ihn in jeder Ansicht. Seit F5 PR B ist
+    // das Rendern in EIN Bauteil gezogen (LeistenHinweise, traegt auch die
+    // Nicht-beruecksichtigt-Saetze); geprueft wird beides: jede Leiste bindet
+    // das Bauteil mit BEIDEN Props ein, und das Bauteil rendert den Hinweis.
     for (const datei of [
       "components/stroeme/FilterSortZeile.tsx",
       "components/karte/KarteToolbar.tsx",
       "components/auswertung/AuswertungToolbar.tsx",
     ]) {
       const text = readFileSync(join(process.cwd(), datei), "utf8");
-      expect(text, `${datei} rendert den Hinweis nicht`).toMatch(
-        /zurueckgehalten\.length > 0/,
+      expect(text, `${datei} rendert die Leisten-Hinweise nicht`).toMatch(
+        /<LeistenHinweise\s+zurueckgehalten=\{zurueckgehalten\}\s+hinweise=\{hinweise\}/,
       );
     }
+    const bauteil = readFileSync(
+      join(process.cwd(), "components/stroeme/LeistenHinweise.tsx"),
+      "utf8",
+    );
+    expect(bauteil).toMatch(/zurueckgehalten\.length > 0/);
+    expect(bauteil).toMatch(/hinweise\.map/);
   });
 });

@@ -8,10 +8,16 @@ import {
   type VerfuegbarkeitsStatus,
   type VergabeDaten,
 } from "./verfuegbarkeit";
-import { FILTER, filterDef, sichtAusArt } from "./filter-modell";
+import { FILTER, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
 import { trifft } from "./hierarchie";
 import { trifftVergabefenster } from "./vergabe-fenster";
 import { ortsSchluessel } from "./hierarchie-baeume";
+import {
+  energieKwh,
+  preisEuroMwh,
+  preisEuroT,
+  STOFFLICHE_PRODUKTE,
+} from "./energie";
 
 export type StromArt = "biomasse" | "output";
 
@@ -159,6 +165,14 @@ export interface StroemeFilter {
   mengeMax: string;
   preisMin: string;
   preisMax: string;
+  /** F5 PR B: energetische Groessen (MWh/a bzw. €/MWh), abgeleitet ueber Hu (E23). */
+  energieMengeMin: string;
+  energieMengeMax: string;
+  energiePreisMin: string;
+  energiePreisMax: string;
+  /** F5 PR B: Erfassungsgrad-Bereich in Prozent. */
+  vollMin: string;
+  vollMax: string;
   /** F5 PR B: Vergabefenster (JJJJ-MM) und der Zustand "nicht vergeben". */
   vergebenVon: string;
   vergebenBis: string;
@@ -187,6 +201,12 @@ export const LEERER_FILTER: StroemeFilter = {
   mengeMax: "",
   preisMin: "",
   preisMax: "",
+  energieMengeMin: "",
+  energieMengeMax: "",
+  energiePreisMin: "",
+  energiePreisMax: "",
+  vollMin: "",
+  vollMax: "",
   vergebenVon: "",
   vergebenBis: "",
   vergabeZustand: "",
@@ -285,12 +305,97 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
   }
 }
 
-function preisVon(s: Strom): number | null {
-  return s.art === "biomasse" ? s.preisMittel : s.preis;
+// --- Bereichsgroessen (F5 PR B: stofflich/energetisch getrennt) --------------
+
+/**
+ * Wert einer Bereichsgroesse fuer einen Strom. `{ ohne }` ist der BENANNTE
+ * Zustand "diese Groesse existiert fuer diesen Strom nicht" (E24-Muster) —
+ * er wird bei gesetzter Grenze nicht mitverglichen, sondern sichtbar
+ * gezaehlt (Entscheidung Eric, 25.09.2026: weder als 0 zaehlen noch lautlos
+ * verschwinden). `null` dagegen ist eine FEHLENDE ANGABE und faellt bei
+ * gesetzter Grenze wie bisher still heraus.
+ */
+export type GroessenWert = number | null | { ohne: string };
+
+const OHNE_ENERGIE = "ohne Energieäquivalent";
+
+/**
+ * Stofflich heisst: als Masse messbar. Feedstock-Rohmenge (t FM/a) und
+ * Output-Mengen in t/a. Ein Output in MWh/a oder Nm³/a hat keine stoffliche
+ * Menge — seine Zahl auf der t-Skala mitzuvergleichen waere die alte
+ * Einheiten-Mischung, die die Aufteilung gerade abschafft.
+ */
+export function stofflicheMenge(s: Strom): GroessenWert {
+  if (s.art === "biomasse") return s.mengeFm;
+  if (s.mengeWert == null || !s.mengeEinheit) return null;
+  if (s.mengeEinheit === "t/a") return s.mengeWert;
+  return { ohne: "ohne stoffliche Menge" };
 }
 
-function mengeVon(s: Strom): number | null {
-  return s.art === "biomasse" ? s.mengeFm : s.mengeWert;
+/** Stofflicher Preis in €/t (E20): Feedstock-Korridormittel, Output €/t oder €/kg. */
+export function stofflicherPreis(s: Strom): GroessenWert {
+  if (s.art === "biomasse") return s.preisMittel;
+  if (s.preis == null || !s.preisEinheit) return null;
+  const eurT = preisEuroT(s.preis, s.preisEinheit);
+  return eurT == null ? { ohne: "ohne stofflichen Preis" } : eurT;
+}
+
+/**
+ * Energetische Menge in MWh/a, ueber den unteren Heizwert abgeleitet und nie
+ * gespeichert (E23). co2/asche tragen den benannten Zustand — ebenso ein
+ * Wert, dessen erfasste Einheit keinen belegbaren Hu-Faktor hat.
+ */
+export function energetischeMenge(s: Strom): GroessenWert {
+  if (s.art !== "output") return null;
+  if (STOFFLICHE_PRODUKTE.has(s.produktCode ?? "")) return { ohne: OHNE_ENERGIE };
+  if (s.mengeWert == null || !s.mengeEinheit) return null;
+  const kwh = energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit);
+  return kwh == null ? { ohne: OHNE_ENERGIE } : kwh / 1000;
+}
+
+/** Energetischer Preis in €/MWh (E20), abgeleitet wie die energetische Menge. */
+export function energetischerPreis(s: Strom): GroessenWert {
+  if (s.art !== "output") return null;
+  if (STOFFLICHE_PRODUKTE.has(s.produktCode ?? "")) return { ohne: OHNE_ENERGIE };
+  if (s.preis == null || !s.preisEinheit) return null;
+  const eurMwh = preisEuroMwh(s.produktCode, s.preis, s.preisEinheit);
+  return eurMwh == null ? { ohne: OHNE_ENERGIE } : eurMwh;
+}
+
+/**
+ * Die Bereichsfilter und ihre Groesse — EINE Quelle fuer Pruefung und
+ * Bericht. Eine getrennte Zaehl-Logik koennte andere Stroeme zaehlen, als
+ * die Pruefung ausschliesst.
+ */
+const GROESSEN: Record<
+  string,
+  { min: keyof StroemeFilter; max: keyof StroemeFilter; wert: (s: Strom) => GroessenWert }
+> = {
+  menge: { min: "mengeMin", max: "mengeMax", wert: stofflicheMenge },
+  preis: { min: "preisMin", max: "preisMax", wert: stofflicherPreis },
+  energieMenge: { min: "energieMengeMin", max: "energieMengeMax", wert: energetischeMenge },
+  energiePreis: { min: "energiePreisMin", max: "energiePreisMax", wert: energetischerPreis },
+  vollstaendigkeit: { min: "vollMin", max: "vollMax", wert: (s) => s.vollstaendigkeit },
+};
+
+function bereichAktiv(key: string, f: StroemeFilter): boolean {
+  const g = GROESSEN[key]!;
+  return (f[g.min] as string) !== "" || (f[g.max] as string) !== "";
+}
+
+/** Prueft einen Zahlwert gegen die Grenzen; `{ ohne }` und null fallen heraus. */
+function bereichsPruefer(key: string): Pruefer {
+  return (s, f) => {
+    if (!bereichAktiv(key, f)) return true;
+    const g = GROESSEN[key]!;
+    const wert = g.wert(s);
+    if (wert == null || typeof wert === "object") return false;
+    const min = f[g.min] as string;
+    const max = f[g.max] as string;
+    if (min !== "" && wert < +min) return false;
+    if (max !== "" && wert > +max) return false;
+    return true;
+  };
 }
 
 /**
@@ -345,18 +450,13 @@ const ANWENDUNG: Record<string, Pruefer> = {
     landkreis: s.verwaltung?.kreisArs ?? verwaltungsZustand(s),
     ort: s.ort ? ortsSchluessel(s.ort) : null,
   })),
-  menge: (s, f) => {
-    const menge = mengeVon(s);
-    if (f.mengeMin !== "" && (menge == null || menge < +f.mengeMin)) return false;
-    if (f.mengeMax !== "" && (menge == null || menge > +f.mengeMax)) return false;
-    return true;
-  },
-  preis: (s, f) => {
-    const preis = preisVon(s);
-    if (f.preisMin !== "" && (preis == null || preis < +f.preisMin)) return false;
-    if (f.preisMax !== "" && (preis == null || preis > +f.preisMax)) return false;
-    return true;
-  },
+  // F5 PR B: alle fuenf Bereichsfilter laufen ueber GROESSEN — dieselbe
+  // Quelle, aus der auch der Nicht-beruecksichtigt-Bericht zaehlt.
+  menge: bereichsPruefer("menge"),
+  preis: bereichsPruefer("preis"),
+  energieMenge: bereichsPruefer("energieMenge"),
+  energiePreis: bereichsPruefer("energiePreis"),
+  vollstaendigkeit: bereichsPruefer("vollstaendigkeit"),
   vergabe: (s, f) =>
     trifftVergabefenster(s, {
       von: f.vergebenVon,
@@ -408,21 +508,98 @@ export function angewandteSchluessel(): string[] {
   return out;
 }
 
-export function filterStroeme(pool: Strom[], f: StroemeFilter): Strom[] {
+/** Ein Grund, aus dem Stroeme trotz passender uebriger Filter fehlen, samt Anzahl. */
+export interface NichtBeruecksichtigt {
+  grund: string;
+  anzahl: number;
+}
+
+export interface FilterErgebnis {
+  stroeme: Strom[];
+  /**
+   * Stroeme, die JEDE andere Bedingung erfuellen, aber eine gesetzte
+   * Bereichsgroesse nicht besitzen (benannter Zustand, z. B. "ohne
+   * Energieäquivalent"). Die Leiste weist sie sichtbar aus — wer eine
+   * energetische Grenze setzt, soll sehen, dass co2/asche nicht
+   * mitverglichen wurden, statt sie fuer weggefiltert zu halten.
+   */
+  nichtBeruecksichtigt: NichtBeruecksichtigt[];
+}
+
+/**
+ * Filtert und berichtet in einem Lauf. Die Ansicht gehoert zur Signatur,
+ * weil ein Filter, den das Modell hier nicht vorsieht, auch nicht wirken
+ * darf (E32) — vorher entschied allein die Stromart, und ein gesetzter
+ * vonAb wirkte in auswertung., waehrend die Leiste ihn als "gilt hier
+ * nicht" auswies.
+ */
+export function filterStroemeMitBericht(
+  pool: Strom[],
+  f: StroemeFilter,
+  ansicht: Ansicht,
+): FilterErgebnis {
   const q = f.q.trim().toLowerCase();
-  return pool.filter((s) => {
+  const stroeme: Strom[] = [];
+  const zaehler = new Map<string, number>();
+
+  for (const s of pool) {
     const art = sichtAusArt(s.art);
+    // Ein Strom zaehlt je Grund einmal, auch wenn zwei Grenzen (Menge UND
+    // Preis) dieselbe fehlende Groesse treffen.
+    const gruende = new Set<string>();
+    let besteht = true;
     for (const def of FILTER) {
+      if (!def.ansichten.includes(ansicht)) continue;
       if (!def.arten.includes(art)) continue;
+      const groesse = GROESSEN[def.key];
+      if (groesse && bereichAktiv(def.key, f)) {
+        const wert = groesse.wert(s);
+        if (wert != null && typeof wert === "object") {
+          gruende.add(wert.ohne);
+          continue;
+        }
+      }
       const pruefer = ANWENDUNG[def.key];
       // Kein stillschweigendes Ueberspringen: Fehlt hier ein Pruefer, taucht
       // der Schluessel auch nicht in angewandteSchluessel() auf, und der
       // Vollstaendigkeitstest meldet ihn namentlich.
       if (!pruefer) continue;
-      if (!pruefer(s, f, q)) return false;
+      if (!pruefer(s, f, q)) {
+        besteht = false;
+        break;
+      }
     }
-    return true;
-  });
+    if (!besteht) continue;
+    if (gruende.size > 0) {
+      for (const g of gruende) zaehler.set(g, (zaehler.get(g) ?? 0) + 1);
+      continue;
+    }
+    stroeme.push(s);
+  }
+
+  return {
+    stroeme,
+    nichtBeruecksichtigt: [...zaehler].map(([grund, anzahl]) => ({ grund, anzahl })),
+  };
+}
+
+/** Leisten-Wortlaut, an einer Stelle: "3 Ströme ohne Energieäquivalent nicht berücksichtigt". */
+export function nichtBeruecksichtigtText(n: NichtBeruecksichtigt): string {
+  return `${n.anzahl} ${n.anzahl === 1 ? "Strom" : "Ströme"} ${n.grund} nicht berücksichtigt`;
+}
+
+/** Fasst die Berichte mehrerer Teil-Pools (z. B. Feedstock + Outputs auf der Karte) zusammen. */
+export function fasseBerichteZusammen(
+  ...berichte: NichtBeruecksichtigt[][]
+): NichtBeruecksichtigt[] {
+  const zaehler = new Map<string, number>();
+  for (const bericht of berichte)
+    for (const n of bericht) zaehler.set(n.grund, (zaehler.get(n.grund) ?? 0) + n.anzahl);
+  return [...zaehler].map(([grund, anzahl]) => ({ grund, anzahl }));
+}
+
+export function filterStroeme(pool: Strom[], f: StroemeFilter, ansicht: Ansicht): Strom[] {
+  return filterStroemeMitBericht(pool, f, ansicht).stroeme;
 }
 
 function sortWert(s: Strom, key: string): string | number {
@@ -450,11 +627,13 @@ function sortWert(s: Strom, key: string): string | number {
     case "belegtyp":
       return s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "";
     case "menge":
-      return mengeVon(s) ?? -Infinity;
+      // Sortiert wird weiter ueber den ROHEN Erfassungswert (bewusst nicht
+      // Teil der stofflich/energetisch-Trennung der Filter, F5 PR B).
+      return (s.art === "biomasse" ? s.mengeFm : s.mengeWert) ?? -Infinity;
     case "atro":
       return s.mengeAtro ?? -Infinity;
     case "preis":
-      return preisVon(s) ?? -Infinity;
+      return (s.art === "biomasse" ? s.preisMittel : s.preis) ?? -Infinity;
     case "von":
       return s.zeitraumVon ?? "";
     case "bis":

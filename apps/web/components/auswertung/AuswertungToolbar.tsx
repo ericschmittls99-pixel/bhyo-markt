@@ -7,6 +7,7 @@ import {
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import type { Sicht } from "@/lib/auswertung-modell";
 import { FILTER_PARAMS } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
@@ -28,6 +29,7 @@ export function AuswertungToolbar({
   bereichKeys,
   offenInitial,
   zurueckgehalten,
+  hinweise,
   sicht,
   irgendeinFilter,
 }: {
@@ -38,6 +40,8 @@ export function AuswertungToolbar({
   /** Gemerkter Auf-/Zuklappzustand der Filterleiste (Cookie bhyo_ui). */
   offenInitial: boolean;
   zurueckgehalten: string[];
+  /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
+  hinweise: string[];
   sicht: Sicht;
   irgendeinFilter: boolean;
 }) {
@@ -107,14 +111,7 @@ export function AuswertungToolbar({
         Filter
       </button>
 
-      {zurueckgehalten.length > 0 && (
-        <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
-          <i className="ph ph-funnel-simple" aria-hidden />
-          {zurueckgehalten.length === 1
-            ? "1 Filter gilt hier nicht"
-            : `${zurueckgehalten.length} Filter gelten hier nicht`}
-        </span>
-      )}
+      <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
 
       {offen && (
       <FacettenChips

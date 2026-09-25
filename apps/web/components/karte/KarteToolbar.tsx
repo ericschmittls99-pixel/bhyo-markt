@@ -7,6 +7,7 @@ import {
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { farbeFuer } from "@/lib/farben";
 import {
   sucheKarte,
@@ -36,6 +37,7 @@ export function KarteToolbar({
   bereich,
   bereichKeys,
   zurueckgehalten,
+  hinweise,
   sicht,
   offenInitial,
   irgendeinFilter,
@@ -50,6 +52,8 @@ export function KarteToolbar({
   bereichKeys: readonly string[];
   /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
   zurueckgehalten: string[];
+  /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
+  hinweise: string[];
   sicht: "alle" | "feedstock" | "outputs";
   offenInitial: boolean;
   irgendeinFilter: boolean;
@@ -198,16 +202,7 @@ export function KarteToolbar({
           {facettenAnzahl > 0 && <span className="fchip-count">{facettenAnzahl}</span>}
         </button>
 
-        {/* E32: gesetzte Filter, die hier nicht gelten — sichtbar, damit
-            niemand eine Karte fuer ungefiltert haelt, die es anderswo ist. */}
-        {zurueckgehalten.length > 0 && (
-          <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
-            <i className="ph ph-funnel-simple" aria-hidden />
-            {zurueckgehalten.length === 1
-              ? "1 Filter gilt hier nicht"
-              : `${zurueckgehalten.length} Filter gelten hier nicht`}
-          </span>
-        )}
+        <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
       </div>
 
       {offen && (

@@ -357,6 +357,46 @@ Bei gesetztem Fenster fallen Ströme ohne jede Vergabe heraus — es sei denn,
 der Zustand ist gewählt. Ist nur der Zustand gewählt und kein Fenster, zeigt
 der Filter genau die unvergebenen Ströme.
 
+Die Zielmatrix führt den Filter unter **„weitere Filter"** — die erste
+Fassung hatte ihn fälschlich als Hauptfilter.
+
+## Bereichsfilter stofflich / energetisch (F5 PR B, 25.09.2026)
+
+**Menge und Preis sind zwei Filterpaare, nicht eins.** Vorher verglich der
+eine Mengenfilter die rohen Erfassungswerte über alle Einheiten hinweg —
+9 999 MWh/a lag auf derselben Skala wie 100 t/a. Jetzt gilt:
+
+- **Stofflich** heißt: als **Masse messbar**. Feedstock-Rohmenge (t FM/a)
+  und Output-Mengen in t/a; Preise in €/t, wobei €/kg umgerechnet wird
+  (E20). Maßgeblich ist die **erfasste Einheit des Stroms**, nicht die
+  Produktklasse — ein Methanol-Bedarf in t/a hat eine stoffliche Menge.
+- **Energetisch** heißt: über den **unteren Heizwert abgeleitet**
+  (`lib/energie.ts`), nie gespeichert (E23). Menge in MWh/a, Preis in €/MWh.
+  Gilt nur für Outputs.
+
+**Benannte Zustände statt stiller Ausfälle:** Ein Strom, der die gesetzte
+Größe **nicht besitzt** — co2/asche „ohne Energieäquivalent", ein
+MWh/a-Bedarf „ohne stoffliche Menge", ein €/MWh-Preis „ohne stofflichen
+Preis" — wird **nicht mitverglichen und nicht angezeigt**, und die Leiste
+sagt das sichtbar: „3 Ströme ohne Energieäquivalent nicht berücksichtigt"
+(Entscheidung Eric: weder als 0 zählen noch lautlos verschwinden). Eine
+**fehlende Angabe** (kein Wert erfasst) fällt dagegen wie bisher still
+heraus — fehlende Daten sind kein benannter Zustand, sondern eine Lücke.
+
+Gezählt werden nur Ströme, die **alle übrigen Filter bestehen** — der
+Hinweis beziffert, was genau diese Grenze aus dem Ergebnis nimmt, nicht den
+Bestand. Die Hinweis-Zeile teilt sich das Bauteil mit dem
+E32-„gilt hier nicht"-Ausweis (`LeistenHinweise`), in allen drei Ansichten.
+
+**Vollständigkeit** ist derselbe Bereichstyp: Erfassungsgrad 0–100 % aus
+`lib/vollstaendigkeit.ts`, Min/Max in Prozent, unter „weitere Filter". Eine
+Untergrenze allein deckt „mindestens 80 %" ab, ohne Stufen zu erfinden.
+
+**Ansichts-Scope:** `filterStroeme` wendet seit F5 PR B nur an, was das
+Modell für die aktuelle Ansicht vorsieht. Vorher entschied allein die
+Stromart — ein gesetzter „Verfügbar ab" wirkte auch in auswertung.,
+während die Leiste ihn als „gilt hier nicht" auswies.
+
 ## Eingabeformate im Formular (F9, 24.09.2026)
 
 **Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native

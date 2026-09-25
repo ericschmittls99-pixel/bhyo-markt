@@ -16,7 +16,9 @@ import {
 import {
   facettenOptionen,
   filterAusSearchParams,
-  filterStroeme,
+  fasseBerichteZusammen,
+  filterStroemeMitBericht,
+  nichtBeruecksichtigtText,
   type FacettenOption,
   type SearchParamsRoh,
   type Strom,
@@ -77,9 +79,14 @@ export default async function KartePage({
   // Exklusiv filtern (Beschluss 22.09.2026): cluster blendet Outputs aus,
   // gruppe blendet Feedstock aus — sonst bleibt die fremde Art ungefiltert
   // stehen (CO2-Orb trotz Cluster-Filter).
-  const bioGefiltert = filter.gruppe.length ? [] : filterStroeme(bio, filter);
-  const outGefiltert = filter.cluster.length ? [] : filterStroeme(out, filter);
-  const pool = [...bioGefiltert, ...outGefiltert];
+  const leerErg = { stroeme: [] as Strom[], nichtBeruecksichtigt: [] };
+  const bioErg = filter.gruppe.length ? leerErg : filterStroemeMitBericht(bio, filter, "karte");
+  const outErg = filter.cluster.length ? leerErg : filterStroemeMitBericht(out, filter, "karte");
+  const pool = [...bioErg.stroeme, ...outErg.stroeme];
+  const hinweise = fasseBerichteZusammen(
+    bioErg.nichtBeruecksichtigt,
+    outErg.nichtBeruecksichtigt,
+  ).map(nichtBeruecksichtigtText);
   const punkte = pool
     .map(stromZuPunkt)
     .filter((p): p is KartePunkt => p != null);
@@ -215,6 +222,7 @@ export default async function KartePage({
       bereich={bereich}
       bereichKeys={bereichKeys}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
+      hinweise={hinweise}
       sicht={sicht}
       detailPunkt={detailPunkt}
       detailStrom={detailStrom}

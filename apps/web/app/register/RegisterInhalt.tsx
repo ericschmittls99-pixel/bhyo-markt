@@ -27,7 +27,8 @@ import {
 import {
   facettenOptionen,
   filterAusSearchParams,
-  filterStroeme,
+  filterStroemeMitBericht,
+  nichtBeruecksichtigtText,
   SORTIERUNGEN,
   sortiereStroeme,
 } from "@/lib/stroeme-modell";
@@ -93,7 +94,11 @@ export async function RegisterInhalt({
   const stichtag = new Date().toISOString().slice(0, 10);
   const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
 
-  const gefiltert = filterStroeme(pool, filter);
+  const { stroeme: gefiltert, nichtBeruecksichtigt } = filterStroemeMitBericht(
+    pool,
+    filter,
+    "stroeme",
+  );
   const stroeme = sortiereStroeme(gefiltert, sortKey, richtung);
 
   // E32: Facetten, Bereiche, Auswahl, Ruecksetz-Schluessel und die
@@ -191,6 +196,7 @@ export async function RegisterInhalt({
           .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
           .flatMap((e) => e.def.params)}
         zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
+        hinweise={nichtBeruecksichtigt.map(nichtBeruecksichtigtText)}
         sortKey={sortKey}
         richtung={richtung}
         sortOptionen={sortOptionen}

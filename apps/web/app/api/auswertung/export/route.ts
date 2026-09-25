@@ -49,7 +49,12 @@ export async function GET(req: Request) {
   const stichtag = new Date().toISOString().slice(0, 10);
   const bio = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
   const out = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
-  const rows = [...filterStroeme(bio, filter), ...filterStroeme(out, filter)];
+  // Der Export gehoert zur Auswertung — derselbe Ansichts-Scope, sonst
+  // exportiert er anders gefiltert, als die Seite anzeigt (E32).
+  const rows = [
+    ...filterStroeme(bio, filter, "auswertung"),
+    ...filterStroeme(out, filter, "auswertung"),
+  ];
   const vergabenVon = (s: Strom) =>
     ((s.art === "biomasse" ? vergabenBio : vergabenOut).get(s.id) ?? [])
       .map(

@@ -34,7 +34,8 @@ import {
 import {
   facettenOptionen,
   filterAusSearchParams,
-  filterStroeme,
+  filterStroemeMitBericht,
+  nichtBeruecksichtigtText,
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
@@ -109,9 +110,14 @@ export default async function AuswertungPage({
         : poolAchse;
 
   // verfuegbarkeit wirkt hier FENSTERBEZOGEN (Handoff), nicht auf heute —
-  // deshalb aus dem normalen Filter heraushalten und ueber wendeFensterAn
-  // anwenden; alle Module rechnen mit den fensterbezogen skalierten Kopien.
-  const recsHeute = filterStroeme(pool, { ...filter, verfuegbarkeit: [] });
+  // sie gilt in dieser Ansicht laut Modell nicht (der Scope haelt sie
+  // heraus) und wird stattdessen ueber wendeFensterAn angewendet; alle
+  // Module rechnen mit den fensterbezogen skalierten Kopien.
+  const { stroeme: recsHeute, nichtBeruecksichtigt } = filterStroemeMitBericht(
+    pool,
+    filter,
+    "auswertung",
+  );
   const recs = wendeFensterAn(
     recsHeute,
     vergabenMap,
@@ -232,6 +238,7 @@ export default async function AuswertungPage({
       bereichKeys={bereichKeys}
       offenInitial={!!ui.filterOffen?.auswertung}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
+      hinweise={nichtBeruecksichtigt.map(nichtBeruecksichtigtText)}
       sicht={sicht}
       zeitmodus={zeitmodus}
       agg={agg}

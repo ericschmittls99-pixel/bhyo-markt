@@ -172,21 +172,53 @@ export const FILTER: readonly FilterDef[] = [
     gruppe: "haupt",
   },
   {
+    // F5 PR B: "stofflich" heisst, was sich als Masse messen laesst —
+    // Feedstock-Rohmenge und Output-Mengen in t/a. Ein Output in MWh/a hat
+    // KEINE stoffliche Menge und wird bei gesetzter Grenze nicht
+    // beruecksichtigt (sichtbar ausgewiesen), statt seine Zahl auf einer
+    // fremden Skala mitzuvergleichen.
     key: "menge",
-    label: "Menge",
+    label: "Menge stofflich",
     typ: "bereich",
     params: ["mengeMin", "mengeMax"],
-    ansichten: ["stroeme"],
+    ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "haupt",
   },
   {
+    // F5 PR B: abgeleitet ueber den unteren Heizwert (lib/energie.ts),
+    // nie gespeichert (E23). co2/asche tragen den benannten Zustand
+    // "ohne Energieaequivalent" und werden bei gesetzter Grenze nicht
+    // beruecksichtigt — die Leiste sagt das sichtbar (Entscheidung Eric,
+    // 25.09.2026: weder als 0 zaehlen noch lautlos verschwinden).
+    key: "energieMenge",
+    label: "Menge energetisch",
+    typ: "bereich",
+    params: ["energieMengeMin", "energieMengeMax"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["outputs"],
+    gruppe: "haupt",
+  },
+  {
+    // Stofflicher Preis in €/t: Feedstock-Preiskorridor (Mittel) und
+    // Output-Preise, die je Tonne erfasst sind (€/kg wird umgerechnet,
+    // E20). €/MWh und €/Nm³ sind kein stofflicher Preis.
     key: "preis",
-    label: "Preis",
+    label: "Preis stofflich",
     typ: "bereich",
     params: ["preisMin", "preisMax"],
-    ansichten: ["stroeme"],
+    ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    // Energetischer Preis in €/MWh, abgeleitet wie die energetische Menge.
+    key: "energiePreis",
+    label: "Preis energetisch",
+    typ: "bereich",
+    params: ["energiePreisMin", "energiePreisMax"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["outputs"],
     gruppe: "haupt",
   },
   {
@@ -204,14 +236,15 @@ export const FILTER: readonly FilterDef[] = [
     // F5 PR B: Zwei Felder, ein Filter. Beantwortet "was ist in diesem
     // Zeitraum vergeben" (Ueberschneidung). Der dritte Parameter traegt den
     // benannten Zustand "nicht vergeben" (E24) — sonst fielen Stroeme ohne
-    // Vergabe still heraus.
+    // Vergabe still heraus. Die Zielmatrix fuehrt ihn unter "weitere
+    // Filter" — die erste Fassung hatte ihn faelschlich als Hauptfilter.
     key: "vergabe",
     label: "Vergeben ab / bis",
     typ: "zeitfenster",
     params: ["vergebenVon", "vergebenBis", "vergabeZustand"],
     ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
-    gruppe: "haupt",
+    gruppe: "weitere",
   },
   {
     key: "vonAb",
@@ -236,6 +269,19 @@ export const FILTER: readonly FilterDef[] = [
     label: "Status",
     typ: "facette",
     params: ["status"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
+    // F5 PR B: Erfassungsgrad 0-100 aus lib/vollstaendigkeit.ts, als
+    // Min/Max-Bereich in Prozent (Entscheidung Eric, 25.09.2026): Eine
+    // Untergrenze allein deckt den haeufigen Fall "mindestens 80 %" ab,
+    // ohne dass wir Stufen erfinden.
+    key: "vollstaendigkeit",
+    label: "Vollständigkeit",
+    typ: "bereich",
+    params: ["vollMin", "vollMax"],
     ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "weitere",

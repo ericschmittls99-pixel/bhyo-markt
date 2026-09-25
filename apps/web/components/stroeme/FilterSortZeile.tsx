@@ -7,6 +7,7 @@ import {
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { FILTER_PARAMS } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
@@ -31,6 +32,7 @@ export function FilterSortZeile({
   sortOptionen,
   bereichKeys,
   zurueckgehalten,
+  hinweise,
   ansicht,
   offenInitial,
   irgendeinFilter,
@@ -44,6 +46,8 @@ export function FilterSortZeile({
   bereichKeys: readonly string[];
   /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
   zurueckgehalten: string[];
+  /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
+  hinweise: string[];
   sortKey: string;
   richtung: "auf" | "ab";
   sortOptionen: [string, string][];
@@ -137,7 +141,9 @@ export function FilterSortZeile({
     setSortOffen(false);
   }
 
-  const einheit = art === "biomasse" ? "t FM/a" : "Menge";
+  // F5 PR B: Die stoffliche Menge ist immer eine Masse — Feedstock als
+  // Frischmasse, Outputs in t/a.
+  const einheit = art === "biomasse" ? "t FM/a" : "t/a";
 
   // Derselbe Export wie in auswertung. (eine Route, ein Ursprung): die
   // geteilten Filter-Parameter plus die Art dieses Tabs als sicht.
@@ -162,7 +168,7 @@ export function FilterSortZeile({
             bereich={bereich}
             bereichKompakt={bereichKompakt}
             einheit={einheit}
-            preisLabel={art === "biomasse" ? "Preiskorridor (Mittel)" : "Preis"}
+            preisLabel={art === "biomasse" ? "Preiskorridor (Mittel)" : "Preis stofflich"}
             mitReset={irgendeinFilter}
             onReset={zuruecksetzen}
             schliessSignal={schliessSignal}
@@ -171,17 +177,7 @@ export function FilterSortZeile({
         </div>
       )}
 
-      {/* E32: Filter, die hier nicht gelten, bleiben gemerkt und wirken
-          nicht — aber sie bleiben sichtbar. Sonst haelt man eine Liste fuer
-          ungefiltert, die anderswo gefiltert ist. */}
-      {zurueckgehalten.length > 0 && (
-        <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
-          <i className="ph ph-funnel-simple" aria-hidden />
-          {zurueckgehalten.length === 1
-            ? "1 Filter gilt hier nicht"
-            : `${zurueckgehalten.length} Filter gelten hier nicht`}
-        </span>
-      )}
+      <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
 
       <div className="st-filterzeile-rechts">
         <button

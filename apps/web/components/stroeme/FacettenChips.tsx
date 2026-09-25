@@ -41,8 +41,8 @@ export function FacettenChips({
   bereichKeys,
   bereich,
   bereichKompakt = false,
-  einheit = "Menge",
-  preisLabel = "Preis",
+  einheit = "t/a",
+  preisLabel = "Preis stofflich",
   mitReset,
   onReset,
   schliessSignal = 0,
@@ -109,14 +109,29 @@ export function FacettenChips({
 
   const bereichFeld = (key: string) => {
     switch (key) {
+      // F5 PR B: Menge und Preis sind in stofflich (t/a bzw. €/t) und
+      // energetisch (MWh/a bzw. €/MWh, ueber Hu abgeleitet) getrennt —
+      // vorher lagen alle Erfassungseinheiten auf einer Skala.
       case "mengeMin":
-        return { label: "Menge min", typ: "number", em: einheit };
+        return { label: "Menge stofflich min", typ: "number", em: einheit };
       case "mengeMax":
-        return { label: "Menge max", typ: "number", em: einheit };
+        return { label: "Menge stofflich max", typ: "number", em: einheit };
       case "preisMin":
-        return { label: preisLabel, typ: "number", em: "€", platzhalter: "min" };
+        return { label: preisLabel, typ: "number", em: "€/t", platzhalter: "min" };
       case "preisMax":
-        return { label: " ", typ: "number", em: "€", platzhalter: "max" };
+        return { label: " ", typ: "number", em: "€/t", platzhalter: "max" };
+      case "energieMengeMin":
+        return { label: "Menge energetisch min", typ: "number", em: "MWh/a" };
+      case "energieMengeMax":
+        return { label: "Menge energetisch max", typ: "number", em: "MWh/a" };
+      case "energiePreisMin":
+        return { label: "Preis energetisch", typ: "number", em: "€/MWh", platzhalter: "min" };
+      case "energiePreisMax":
+        return { label: " ", typ: "number", em: "€/MWh", platzhalter: "max" };
+      case "vollMin":
+        return { label: "Vollständigkeit", typ: "number", em: "%", platzhalter: "min" };
+      case "vollMax":
+        return { label: " ", typ: "number", em: "%", platzhalter: "max" };
       case "vonAb":
         return { label: "Verfügbar ab", typ: "month" };
       // F5 PR B: Vergabefenster. Zwei Monatsgrenzen plus der benannte
