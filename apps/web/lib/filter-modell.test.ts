@@ -190,3 +190,19 @@ const kurz = (p: string) => p.slice(process.cwd().length + 1);
 // Typ-Rauchprobe: `Ansicht` bleibt exportiert und benutzbar.
 const _a: Ansicht = "stroeme";
 void _a;
+
+describe("Die Stromart wird mitgetragen", () => {
+  it("`sicht` ist kein Datenfilter, gehört aber in die Navigationslinks", () => {
+    // Regression aus dem Preview-Test (25.09.2026): Die abgeloeste Liste
+    // GETEILTE_FILTER_PARAMS enthielt "sicht"; FILTER_PARAMS enthaelt sie
+    // bewusst nicht (sie filtert nicht, sie waehlt die Stromart). Beim
+    // Umstellen fiel sie deshalb aus den Links — wer von Feedstock auf die
+    // Karte wechselte, landete auf der Voreinstellung.
+    expect(FILTER_PARAMS).not.toContain("sicht");
+    const sidebar = readFileSync(
+      join(process.cwd(), "components/shell/Sidebar.tsx"),
+      "utf8",
+    );
+    expect(sidebar).toMatch(/p\.set\("sicht"/);
+  });
+});

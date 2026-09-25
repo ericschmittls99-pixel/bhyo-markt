@@ -64,6 +64,11 @@ export function Sidebar({
       const v = searchParams.get(k);
       if (v) p.set(k, v);
     }
+    // Die Stromart gehoert mit: Wer auf Feedstock steht und auf die Karte
+    // wechselt, will Feedstock sehen. `sicht` ist kein Datenfilter und
+    // deshalb nicht in FILTER_PARAMS — mitgetragen wird sie trotzdem.
+    const sicht = searchParams.get("sicht");
+    if (sicht) p.set("sicht", sicht);
     if (extra) p.set(extra[0], extra[1]);
     return p.size ? `?${p.toString()}` : "";
   };
