@@ -64,6 +64,7 @@ export function AuswertungAnsicht({
   bereichKeys,
   offenInitial,
   zurueckgehalten,
+  hinweise,
   sicht,
   zeitmodus,
   agg,
@@ -97,6 +98,8 @@ export function AuswertungAnsicht({
   bereichKeys: readonly string[];
   offenInitial: boolean;
   zurueckgehalten: string[];
+  /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
+  hinweise: string[];
   sicht: Sicht;
   /** Zeitbezug (AP1j PR 4): Fenster-Zustand aus der URL. */
   zeitmodus: "einzeljahr" | "zeitraum";
@@ -703,6 +706,7 @@ export function AuswertungAnsicht({
         bereichKeys={bereichKeys}
         offenInitial={offenInitial}
         zurueckgehalten={zurueckgehalten}
+        hinweise={hinweise}
         sicht={sicht}
         irgendeinFilter={irgendeinFilter}
       />

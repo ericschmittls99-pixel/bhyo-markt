@@ -301,7 +301,7 @@ export function Detail({
               <div className="kv">
                 <Kv
                   label="Akteur"
-                  wert={[s.akteurName, s.sektor].filter(Boolean).join(" · ") || "–"}
+                  wert={[s.akteurName, s.sektorLabel ?? s.sektor].filter(Boolean).join(" · ") || "–"}
                 />
                 <Kv label="Bezeichnung" wert={s.bezeichnung ?? "–"} />
                 <Kv label="Kontaktperson" wert={s.kontaktperson ?? "–"} />

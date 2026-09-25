@@ -15,8 +15,10 @@ import {
 const strom = (patch: Partial<Strom>): Strom => ({
   id: "x",
   art: "biomasse",
+  akteurId: "a",
   akteurName: "A",
   sektor: null,
+  sektorLabel: null,
   bezeichnung: null,
   kontaktperson: null,
   ort: null,
@@ -99,7 +101,7 @@ describe("verwaltung (F0b)", () => {
   it("Filter laeuft ueber den ARS; Sonderfaelle sind eigene Werte", () => {
     const pool = [zugeordnet, ausserhalb, ohneKoord];
     const f = (werte: string[]) =>
-      filterStroeme(pool, { ...LEERER_FILTER, landkreis: werte }).map((s) => s.id);
+      filterStroeme(pool, { ...LEERER_FILTER, landkreis: werte }, "stroeme").map((s) => s.id);
     expect(f(["07318"])).toEqual(["v1"]);
     expect(f(["ausserhalb"])).toEqual(["v2"]);
     expect(f(["ohne_koordinate"])).toEqual(["v3"]);
@@ -126,15 +128,17 @@ describe("qualitaet unbelegt (E24)", () => {
   const ohneBeleg = strom({ id: "q2", qualitaet: null });
 
   it("Filterwert unbelegt matcht genau die Stroeme ohne Stufe", () => {
-    const erg = filterStroeme([mitBeleg, ohneBeleg], {
-      ...LEERER_FILTER,
-      qualitaet: ["unbelegt"],
-    });
+    const erg = filterStroeme(
+      [mitBeleg, ohneBeleg],
+      { ...LEERER_FILTER, qualitaet: ["unbelegt"] },
+      "stroeme",
+    );
     expect(erg.map((s) => s.id)).toEqual(["q2"]);
-    const nurD = filterStroeme([mitBeleg, ohneBeleg], {
-      ...LEERER_FILTER,
-      qualitaet: ["D"],
-    });
+    const nurD = filterStroeme(
+      [mitBeleg, ohneBeleg],
+      { ...LEERER_FILTER, qualitaet: ["D"] },
+      "stroeme",
+    );
     expect(nurD.map((s) => s.id)).toEqual(["q1"]);
   });
 
@@ -174,10 +178,10 @@ describe("gruppe-Facette", () => {
   ];
   it("filtert Output-Ströme über die Gruppe; Biomasse bleibt (wie cluster umgekehrt)", () => {
     const f = { ...LEERER_FILTER, gruppe: ["wasserstoff"] };
-    expect(filterStroeme(pool, f).map((s) => s.id)).toEqual(["o1", "b1"]);
+    expect(filterStroeme(pool, f, "stroeme").map((s) => s.id)).toEqual(["o1", "b1"]);
   });
   it("leere Facette lässt alles durch", () => {
-    expect(filterStroeme(pool, LEERER_FILTER)).toHaveLength(3);
+    expect(filterStroeme(pool, LEERER_FILTER, "stroeme")).toHaveLength(3);
   });
 });
 
@@ -192,10 +196,11 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
       verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false },
     });
     const ohne = strom({ id: "o" });
-    const erg = filterStroeme([frei, weg, ohne], {
-      ...LEERER_FILTER,
-      verfuegbarkeit: ["verfuegbar"],
-    });
+    const erg = filterStroeme(
+      [frei, weg, ohne],
+      { ...LEERER_FILTER, verfuegbarkeit: ["verfuegbar"] },
+      "stroeme",
+    );
     expect(erg.map((s) => s.id)).toEqual(["f"]);
   });
 
@@ -236,7 +241,7 @@ describe("Belegnummer-Suche (E28)", () => {
     },
   });
   const treffer = (q: string) =>
-    filterStroeme([mitNr], { ...LEERER_FILTER, q }).map((s) => s.id);
+    filterStroeme([mitNr], { ...LEERER_FILTER, q }, "stroeme").map((s) => s.id);
 
   it("findet mit Praefix, ohne Praefix und ohne fuehrende Nullen", () => {
     expect(treffer("B-000123")).toEqual(["n1"]);
@@ -278,8 +283,299 @@ describe("Beleg-ID-Suche", () => {
       },
     });
     const ohne = strom({ id: "o" });
-    const erg = filterStroeme([mit, ohne], { ...LEERER_FILTER, q: "3f2a91c4" });
+    const erg = filterStroeme([mit, ohne], { ...LEERER_FILTER, q: "3f2a91c4" }, "stroeme");
     expect(erg.map((s) => s.id)).toEqual(["m"]);
   });
 });
 
+
+// --- F5 PR B: stofflich/energetisch, Vollstaendigkeit, Ansichts-Scope -------
+
+import { filterStroemeMitBericht } from "./stroeme-modell";
+
+/** Energetischer Output (Methanol, 100 t/a, 200 €/t): hat beide Ableitungen. */
+const methanol = (patch: Partial<Strom> = {}): Strom =>
+  strom({
+    id: "meth",
+    art: "output",
+    produktCode: "methanol",
+    mengeWert: 100,
+    mengeEinheit: "t/a",
+    preis: 200,
+    preisEinheit: "€/t",
+    status: "geprueft",
+    ...patch,
+  });
+
+/** Stofflicher Output (CO2, 500 t/a, 80 €/t): kein Energieaequivalent. */
+const co2 = (patch: Partial<Strom> = {}): Strom =>
+  strom({
+    id: "co2",
+    art: "output",
+    produktCode: "co2",
+    mengeWert: 500,
+    mengeEinheit: "t/a",
+    preis: 80,
+    preisEinheit: "€/t",
+    status: "geprueft",
+    ...patch,
+  });
+
+describe("Ansichts-Scope: nicht geltende Filter wirken nicht (E32)", () => {
+  // Der Befund dahinter: filterStroeme prueft bislang nur die Stromart.
+  // Ein gesetzter vonAb wirkte damit auch in auswertung. — waehrend die
+  // Leiste ihn als "gilt hier nicht" auswies. Die Beschriftung muss die
+  // echte Wirkung beschreiben, also wirkt er dort jetzt wirklich nicht.
+  const spaet = strom({ id: "spaet", zeitraumVon: "2027-01-01" });
+  const frueh = strom({ id: "frueh", zeitraumVon: "2020-01-01" });
+  const f = { ...LEERER_FILTER, vonAb: "2026-01" };
+
+  it("vonAb wirkt in stroeme.", () => {
+    expect(filterStroeme([spaet, frueh], f, "stroeme").map((s) => s.id)).toEqual(["spaet"]);
+  });
+
+  it("vonAb gilt in auswertung. nicht und laesst dort beide durch", () => {
+    expect(filterStroeme([spaet, frueh], f, "auswertung").map((s) => s.id)).toEqual([
+      "spaet",
+      "frueh",
+    ]);
+  });
+});
+
+describe("Menge stofflich: Masse zaehlt, andere Einheiten benannt heraus", () => {
+  it("Feedstock filtert wie bisher ueber mengeFm", () => {
+    const gross = strom({ id: "g", mengeFm: 5000 });
+    const klein = strom({ id: "k", mengeFm: 100 });
+    const erg = filterStroeme([gross, klein], { ...LEERER_FILTER, mengeMin: "1000" }, "stroeme");
+    expect(erg.map((s) => s.id)).toEqual(["g"]);
+  });
+
+  it("Output in t/a wird verglichen, MWh/a ist keine stoffliche Menge", () => {
+    const tonnen = co2({ id: "t" });
+    const mwh = methanol({ id: "mwh", mengeWert: 9999, mengeEinheit: "MWh/a" });
+    const { stroeme, nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [tonnen, mwh],
+      { ...LEERER_FILTER, mengeMin: "100" },
+      "stroeme",
+    );
+    // 9999 MWh/a liegt NICHT ueber der Grenze von 100 t — die Zahl gehoert
+    // auf eine andere Skala und wird nicht mitverglichen.
+    expect(stroeme.map((s) => s.id)).toEqual(["t"]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stoffliche Menge", anzahl: 1, art: "eigenschaft" }]);
+  });
+
+  it("fehlende Menge ist eine Luecke und wird als solche benannt gezaehlt", () => {
+    // Entscheidung Eric, 25.09.2026: Eine Luecke im Bestand kann jemand
+    // schliessen — verschwindet der Strom stumm, erfaehrt er es genau dann
+    // nicht, wenn es ihm nuetzen wuerde.
+    const ohne = co2({ id: "o", mengeWert: null, mengeEinheit: null });
+    const { stroeme, nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [ohne],
+      { ...LEERER_FILTER, mengeMin: "1" },
+      "stroeme",
+    );
+    expect(stroeme).toEqual([]);
+    expect(nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfasste Menge", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("Eigenschaft und Luecke sind zwei getrennte Hinweise, Eigenschaft zuerst", () => {
+    const luecke = methanol({ id: "l", mengeWert: null, mengeEinheit: null });
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [luecke, co2({ id: "c1" }), co2({ id: "c2" })],
+      { ...LEERER_FILTER, energieMengeMin: "1" },
+      "stroeme",
+    );
+    expect(nichtBeruecksichtigt).toEqual([
+      { grund: "ohne Energieäquivalent", anzahl: 2, art: "eigenschaft" },
+      { grund: "ohne erfasste Menge", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("fehlender Preis: stofflich und energetisch dieselbe Luecken-Formulierung", () => {
+    const ohnePreis = methanol({ id: "p", preis: null, preisEinheit: null });
+    const stofflich = filterStroemeMitBericht(
+      [ohnePreis],
+      { ...LEERER_FILTER, preisMin: "1" },
+      "stroeme",
+    );
+    const energetisch = filterStroemeMitBericht(
+      [ohnePreis],
+      { ...LEERER_FILTER, energiePreisMin: "1" },
+      "stroeme",
+    );
+    expect(stofflich.nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfassten Preis", anzahl: 1, art: "luecke" },
+    ]);
+    expect(energetisch.nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfassten Preis", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("die Luecke zaehlt nur, was alle uebrigen Filter besteht", () => {
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [co2({ id: "o", mengeWert: null, mengeEinheit: null, status: "entwurf" })],
+      { ...LEERER_FILTER, mengeMin: "1", status: ["geprueft"] },
+      "stroeme",
+    );
+    expect(nichtBeruecksichtigt).toEqual([]);
+  });
+});
+
+describe("Sektor → Akteur (F5 PR B)", () => {
+  const hof = strom({
+    id: "h",
+    akteurId: "a-hof",
+    akteurName: "Hof Müller",
+    sektor: "landwirtschaft",
+    sektorLabel: "Landwirtschaft",
+  });
+  const werk = strom({
+    id: "w",
+    akteurId: "a-werk",
+    akteurName: "Sägewerk",
+    sektor: "holzwirtschaft",
+    sektorLabel: "Holzwirtschaft",
+  });
+  const ohne = strom({ id: "o", akteurId: "a-ohne", akteurName: "Stadtwerke", sektor: null });
+
+  it("Sektor trifft alle Akteure des Sektors, in jeder Ansicht", () => {
+    for (const ansicht of ["stroeme", "karte", "auswertung"] as const) {
+      const erg = filterStroeme(
+        [hof, werk, ohne],
+        { ...LEERER_FILTER, sektor: ["landwirtschaft"] },
+        ansicht,
+      );
+      expect(erg.map((s) => s.id)).toEqual(["h"]);
+    }
+  });
+
+  it("Akteur trifft ueber die ID, nicht ueber den Namen", () => {
+    const erg = filterStroeme(
+      [hof, werk, ohne],
+      { ...LEERER_FILTER, akteur: ["a-werk"] },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["w"]);
+  });
+
+  it("'ohne Sektor' ist ein benannter Filterwert (E24), kein stilles Herausfallen", () => {
+    const erg = filterStroeme(
+      [hof, werk, ohne],
+      { ...LEERER_FILTER, sektor: ["ohne_sektor"] },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["o"]);
+  });
+
+  it("beide Ebenen kommen als Listen aus der Adresszeile", () => {
+    const f = filterAusSearchParams({ sektor: "energie,kommunal", akteur: "a-1" });
+    expect(f.sektor).toEqual(["energie", "kommunal"]);
+    expect(f.akteur).toEqual(["a-1"]);
+  });
+});
+
+describe("Menge energetisch: ueber Hu abgeleitet, co2/asche benannt heraus", () => {
+  it("MWh/a direkt, t/a ueber den Heizwert (Methanol 100 t/a ≈ 553 MWh/a)", () => {
+    const direkt = methanol({ id: "d", mengeWert: 700, mengeEinheit: "MWh/a" });
+    const ueberHu = methanol({ id: "hu" }); // 100 t/a * 19,9 MJ/kg / 3,6 = 552,8 MWh
+    const klein = methanol({ id: "k", mengeWert: 10, mengeEinheit: "MWh/a" });
+    const erg = filterStroeme(
+      [direkt, ueberHu, klein],
+      { ...LEERER_FILTER, energieMengeMin: "500", energieMengeMax: "800" },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["d", "hu"]);
+  });
+
+  it("co2 wird nicht beruecksichtigt und sichtbar gezaehlt", () => {
+    const { stroeme, nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [methanol({ id: "m", mengeWert: 600, mengeEinheit: "MWh/a" }), co2()],
+      { ...LEERER_FILTER, energieMengeMin: "1" },
+      "stroeme",
+    );
+    expect(stroeme.map((s) => s.id)).toEqual(["m"]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
+  });
+
+  it("zaehlt nur Stroeme, die alle anderen Filter bestehen", () => {
+    const passt = co2({ id: "a" });
+    const scheitertWoanders = co2({ id: "b", status: "entwurf" });
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [passt, scheitertWoanders],
+      { ...LEERER_FILTER, energieMengeMin: "1", status: ["geprueft"] },
+      "stroeme",
+    );
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
+  });
+
+  it("ein Strom zaehlt einmal, auch wenn Mengen- UND Preisgrenze gesetzt sind", () => {
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [co2()],
+      { ...LEERER_FILTER, energieMengeMin: "1", energiePreisMin: "1" },
+      "stroeme",
+    );
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
+  });
+});
+
+describe("Preis stofflich und energetisch: E20-Einheiten, nicht Rohwerte", () => {
+  it("Output in €/kg wird als €/t verglichen (0,25 €/kg = 250 €/t)", () => {
+    const kg = co2({ id: "kg", preis: 0.25, preisEinheit: "€/kg" });
+    const erg = filterStroeme(
+      [kg],
+      { ...LEERER_FILTER, preisMin: "200", preisMax: "300" },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["kg"]);
+  });
+
+  it("€/MWh ist kein stofflicher Preis und wird benannt gezaehlt", () => {
+    const mwh = methanol({ id: "mwh", preis: 90, preisEinheit: "€/MWh" });
+    const { stroeme, nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [mwh],
+      { ...LEERER_FILTER, preisMin: "1" },
+      "stroeme",
+    );
+    expect(stroeme).toEqual([]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stofflichen Preis", anzahl: 1, art: "eigenschaft" }]);
+  });
+
+  it("energetischer Preis: €/t ueber Hu (Methanol 200 €/t ≈ 36 €/MWh)", () => {
+    const erg = filterStroeme(
+      [methanol()],
+      { ...LEERER_FILTER, energiePreisMin: "30", energiePreisMax: "40" },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["meth"]);
+  });
+
+  it("Feedstock-Preis bleibt der Korridor-Mittelwert", () => {
+    const teuer = strom({ id: "t", preisMittel: 120 });
+    const billig = strom({ id: "b", preisMittel: 20 });
+    const erg = filterStroeme([teuer, billig], { ...LEERER_FILTER, preisMin: "50" }, "stroeme");
+    expect(erg.map((s) => s.id)).toEqual(["t"]);
+  });
+});
+
+describe("Vollständigkeit als Min/Max in Prozent", () => {
+  const voll = strom({ id: "v", vollstaendigkeit: 88 });
+  const halb = strom({ id: "h", vollstaendigkeit: 50 });
+
+  it("Untergrenze allein deckt 'mindestens 80 %' ab", () => {
+    expect(
+      filterStroeme([voll, halb], { ...LEERER_FILTER, vollMin: "80" }, "stroeme").map((s) => s.id),
+    ).toEqual(["v"]);
+  });
+
+  it("Ober- und Untergrenze zusammen", () => {
+    expect(
+      filterStroeme(
+        [voll, halb],
+        { ...LEERER_FILTER, vollMin: "40", vollMax: "60" },
+        "stroeme",
+      ).map((s) => s.id),
+    ).toEqual(["h"]);
+  });
+});

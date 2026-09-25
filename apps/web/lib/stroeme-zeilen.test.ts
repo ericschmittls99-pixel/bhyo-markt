@@ -15,8 +15,10 @@ import {
 
 const biomasseBasis: BiomasseZeile = {
   id: "b1",
+  akteurId: "a-hof",
   akteurName: "Hof Müller",
   sektor: "landwirtschaft",
+  sektorLabel: "Landwirtschaft",
   bezeichnung: "Rindergülle",
   kontaktperson: null,
   ort: "Rülzheim",
@@ -57,8 +59,10 @@ const biomasseBasis: BiomasseZeile = {
 
 const outputBasis: OutputZeile = {
   id: "o1",
+  akteurId: "a-stadtwerke",
   akteurName: "Stadtwerke",
   sektor: "energie",
+  sektorLabel: "Energie",
   bezeichnung: null,
   kontaktperson: null,
   ort: null,

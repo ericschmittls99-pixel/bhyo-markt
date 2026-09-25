@@ -4,11 +4,28 @@ import { useEffect, useRef, useState } from "react";
 
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import type { FacettenOption } from "@/lib/stroeme-modell";
+import { HierarchieBaum } from "@/components/stroeme/HierarchieBaum";
+import { leere, type Ebene, type Knoten } from "@/lib/hierarchie";
+import { monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
 
 export interface FacettenChipDef {
   key: string;
   label: string;
   optionen: FacettenOption[];
+  /**
+   * F5 PR B: Gruppierter Filter. Ist er gesetzt, traegt der Chip einen Baum
+   * statt einer flachen Liste — dieselbe Chip-Huelle, anderer Inhalt.
+   */
+  hierarchie?: {
+    baum: Knoten[];
+    ebenen: Ebene[];
+    /** Auswahl je Ebenen-Parameter. */
+    auswahl: Record<string, string[]>;
+    /** Zusammengeklappte Kurzfassung, z. B. „Baden-Württemberg, +2 Landkreise". */
+    kurz: string;
+    /** Wie viele Knoten ausdruecklich gewaehlt sind (fuer den Zaehler). */
+    anzahl: number;
+  };
 }
 
 /**
@@ -24,8 +41,8 @@ export function FacettenChips({
   bereichKeys,
   bereich,
   bereichKompakt = false,
-  einheit = "Menge",
-  preisLabel = "Preis",
+  einheit = "t/a",
+  preisLabel = "Preis stofflich",
   mitReset,
   onReset,
   schliessSignal = 0,
@@ -92,16 +109,39 @@ export function FacettenChips({
 
   const bereichFeld = (key: string) => {
     switch (key) {
+      // F5 PR B: Menge und Preis sind in stofflich (t/a bzw. €/t) und
+      // energetisch (MWh/a bzw. €/MWh, ueber Hu abgeleitet) getrennt —
+      // vorher lagen alle Erfassungseinheiten auf einer Skala.
       case "mengeMin":
-        return { label: "Menge min", typ: "number", em: einheit };
+        return { label: "Menge stofflich min", typ: "number", em: einheit };
       case "mengeMax":
-        return { label: "Menge max", typ: "number", em: einheit };
+        return { label: "Menge stofflich max", typ: "number", em: einheit };
       case "preisMin":
-        return { label: preisLabel, typ: "number", em: "€", platzhalter: "min" };
+        return { label: preisLabel, typ: "number", em: "€/t", platzhalter: "min" };
       case "preisMax":
-        return { label: " ", typ: "number", em: "€", platzhalter: "max" };
+        return { label: " ", typ: "number", em: "€/t", platzhalter: "max" };
+      case "energieMengeMin":
+        return { label: "Menge energetisch min", typ: "number", em: "MWh/a" };
+      case "energieMengeMax":
+        return { label: "Menge energetisch max", typ: "number", em: "MWh/a" };
+      case "energiePreisMin":
+        return { label: "Preis energetisch", typ: "number", em: "€/MWh", platzhalter: "min" };
+      case "energiePreisMax":
+        return { label: " ", typ: "number", em: "€/MWh", platzhalter: "max" };
+      case "vollMin":
+        return { label: "Vollständigkeit", typ: "number", em: "%", platzhalter: "min" };
+      case "vollMax":
+        return { label: " ", typ: "number", em: "%", platzhalter: "max" };
       case "vonAb":
         return { label: "Verfügbar ab", typ: "month" };
+      // F5 PR B: Vergabefenster. Zwei Monatsgrenzen plus der benannte
+      // Zustand — der bekommt ein Kaestchen, kein Textfeld.
+      case "vergebenVon":
+        return { label: "Vergeben ab", typ: "month" };
+      case "vergebenBis":
+        return { label: "Vergeben bis", typ: "month" };
+      case "vergabeZustand":
+        return { label: "auch nicht vergebene Ströme", typ: "zustand" };
       case "erstellt":
         return { label: "Erstellt am", typ: "date" };
       default:
@@ -118,13 +158,19 @@ export function FacettenChips({
         const optionen = istOffen
           ? f.optionen.filter((o) => !fq || o.label.toLowerCase().includes(fq))
           : [];
+        const h = f.hierarchie;
+        const aktiv = h ? h.anzahl > 0 : sel.length > 0;
         return (
           <div key={f.key} data-pop className="pop-anchor">
             <button
               type="button"
-              className={`fchip${sel.length || istOffen ? " aktiv" : ""}`}
+              className={`fchip${aktiv || istOffen ? " aktiv" : ""}`}
               aria-haspopup="menu"
               aria-expanded={istOffen}
+              // Zusammengeklappt steht die Kurzfassung statt einer langen
+              // Liste: "Baden-Württemberg, +2 Landkreise" sagt mehr als sechs
+              // abgeschnittene Namen.
+              title={h && h.kurz ? h.kurz : undefined}
               onClick={() => {
                 setOffeneFacette(istOffen ? null : f.key);
                 setFacettenSuche("");
@@ -132,10 +178,44 @@ export function FacettenChips({
                 if (!istOffen) onPopoverOffen?.();
               }}
             >
-              {f.label}
-              {sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
+              {h && h.kurz ? h.kurz : f.label}
+              {!h && sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
+              {h && h.anzahl > 1 && <span className="fchip-count">{h.anzahl}</span>}
             </button>
-            {istOffen && (
+            {istOffen && h && (
+              <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 320 }}>
+                {h.anzahl > 0 && (
+                  <>
+                    <button
+                      type="button"
+                      className="menu-item"
+                      // Ein Zuruecksetzen je Hierarchie, nicht je Ebene.
+                      onClick={() => setze(leere(h.ebenen))}
+                    >
+                      <i className="ph-bold ph-x" aria-hidden />
+                      <span className="lbl">Auswahl aufheben</span>
+                    </button>
+                    <div className="pop-divider" />
+                  </>
+                )}
+                <HierarchieBaum
+                  baum={h.baum}
+                  ebenen={h.ebenen}
+                  auswahl={h.auswahl}
+                  onAuswahl={(neuA) =>
+                    setze(
+                      Object.fromEntries(
+                        h.ebenen.map((e) => [
+                          e.param,
+                          (neuA[e.param] ?? []).join(",") || null,
+                        ]),
+                      ),
+                    )
+                  }
+                />
+              </div>
+            )}
+            {istOffen && !h && (
               <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 280 }}>
                 <div className="pop-suche">
                   <div className="search search--sm">
@@ -213,6 +293,44 @@ export function FacettenChips({
           >
             {bereichKeys.map((k) => {
               const feld = bereichFeld(k);
+              // Der benannte Zustand ist ein Kaestchen, kein Textfeld —
+              // sonst saehe eine Wahl wie eine Eingabe aus.
+              if (feld.typ === "zustand") {
+                const an = (bereich[k] ?? "") !== "";
+                return (
+                  <label className="pf pf--zustand" key={k}>
+                    <input
+                      type="checkbox"
+                      checked={an}
+                      onChange={(e) =>
+                        setze({ [k]: e.target.checked ? "nicht_vergeben" : null })
+                      }
+                    />
+                    <span>{feld.label}</span>
+                  </label>
+                );
+              }
+              if (feld.typ === "month") {
+                // E31: Monate als eigenes MM/JJJJ-Feld, nie type="month" —
+                // dessen Verhalten haengt an Engine und Sprache des Browsers.
+                return (
+                  <label className="pf" key={k}>
+                    <span>{feld.label}</span>
+                    <span className="pf-feld">
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        placeholder="MM/JJJJ"
+                        maxLength={7}
+                        value={monatAnzeige(bereich[k] ?? "")}
+                        onChange={(e) =>
+                          setze({ [k]: monatKanonisch(e.target.value) || null })
+                        }
+                      />
+                    </span>
+                  </label>
+                );
+              }
               return (
                 <label className="pf" key={k}>
                   <span aria-hidden={feld.label === " " || undefined}>

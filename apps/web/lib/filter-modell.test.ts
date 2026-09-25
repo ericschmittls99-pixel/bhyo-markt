@@ -83,9 +83,23 @@ describe("Einzigkeit: genau eine Definition", () => {
     expect(FILTER_PARAMS).toEqual([...new Set(FILTER_PARAMS)]);
   });
 
-  it("bereich-Filter haben zwei Parameter, alle anderen genau einen", () => {
+  it("die Parameterzahl passt zum Typ", () => {
     for (const f of FILTER) {
-      expect(f.params.length).toBe(f.typ === "bereich" ? 2 : 1);
+      if (f.typ === "bereich") expect(f.params.length).toBe(2);
+      else if (f.typ === "hierarchie") expect(f.params.length).toBeGreaterThan(1);
+      // Zeitfenster: zwei Grenzen plus der benannte Zustand.
+      else if (f.typ === "zeitfenster") expect(f.params.length).toBe(3);
+      else expect(f.params.length).toBe(1);
+    }
+  });
+
+  it("bei Hierarchien decken sich Ebenen und Parameter — Reihenfolge inklusive", () => {
+    // Zwei Listen fuer dieselbe Sache waeren zwei Wahrheiten: Die Ebenen
+    // bestimmen die Anzeige, die Parameter die Adresszeile. Driften sie
+    // auseinander, filtert der Baum etwas anderes, als er zeigt.
+    for (const f of FILTER.filter((x) => x.typ === "hierarchie")) {
+      expect(f.ebenen, `${f.key} hat keine Ebenen`).toBeDefined();
+      expect(f.ebenen!.map((e) => e.param)).toEqual([...f.params]);
     }
   });
 
@@ -208,19 +222,28 @@ describe("Die Stromart wird mitgetragen", () => {
 });
 
 describe("Zurückgehaltene Filter werden in ALLEN Ansichten ausgewiesen", () => {
-  it("jede Filterleiste rendert den Hinweis", () => {
+  it("jede Filterleiste rendert die Leisten-Hinweise", () => {
     // Im Preview-Test (25.09.2026) gefunden: Die Prop war ueberall
     // durchgereicht, aber KarteToolbar rendert sie nicht — der Hinweis fehlte
-    // genau dort still. E32 verlangt ihn in jeder Ansicht.
+    // genau dort still. E32 verlangt ihn in jeder Ansicht. Seit F5 PR B ist
+    // das Rendern in EIN Bauteil gezogen (LeistenHinweise, traegt auch die
+    // Nicht-beruecksichtigt-Saetze); geprueft wird beides: jede Leiste bindet
+    // das Bauteil mit BEIDEN Props ein, und das Bauteil rendert den Hinweis.
     for (const datei of [
       "components/stroeme/FilterSortZeile.tsx",
       "components/karte/KarteToolbar.tsx",
       "components/auswertung/AuswertungToolbar.tsx",
     ]) {
       const text = readFileSync(join(process.cwd(), datei), "utf8");
-      expect(text, `${datei} rendert den Hinweis nicht`).toMatch(
-        /zurueckgehalten\.length > 0/,
+      expect(text, `${datei} rendert die Leisten-Hinweise nicht`).toMatch(
+        /<LeistenHinweise\s+zurueckgehalten=\{zurueckgehalten\}\s+hinweise=\{hinweise\}/,
       );
     }
+    const bauteil = readFileSync(
+      join(process.cwd(), "components/stroeme/LeistenHinweise.tsx"),
+      "utf8",
+    );
+    expect(bauteil).toMatch(/zurueckgehalten\.length > 0/);
+    expect(bauteil).toMatch(/hinweise\.map/);
   });
 });

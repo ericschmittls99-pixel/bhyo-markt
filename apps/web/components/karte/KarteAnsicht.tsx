@@ -50,6 +50,7 @@ export function KarteAnsicht({
   bereich,
   bereichKeys,
   zurueckgehalten,
+  hinweise,
   sicht,
   detailPunkt,
   detailStrom,
@@ -73,6 +74,8 @@ export function KarteAnsicht({
   bereich: Record<string, string>;
   bereichKeys: readonly string[];
   zurueckgehalten: string[];
+  /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
+  hinweise: string[];
   sicht: "alle" | "feedstock" | "outputs";
   detailPunkt: KartePunkt | null;
   detailStrom: Strom | null;
@@ -182,6 +185,7 @@ export function KarteAnsicht({
         bereich={bereich}
         bereichKeys={bereichKeys}
         zurueckgehalten={zurueckgehalten}
+        hinweise={hinweise}
         sicht={sicht}
         offenInitial={filterOffenInitial}
         irgendeinFilter={irgendeinFilter}

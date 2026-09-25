@@ -262,6 +262,164 @@ Tabellensprache, keine eigene Designsprache für eine Admin-Seite.
   Server-Action: Wer sie direkt aufruft, sieht diese Seite nie.
 - Die eigene Zeile trägt eine kleine Pille „du".
 
+## Gruppierte Filter als Baum (F5 PR B, 25.09.2026)
+
+**Ein Bauteil für alle vier Hierarchien** — Cluster → Materialart, Gruppe →
+Produkt, Bundesland → Landkreis → Ort, Sektor → Akteur. Nicht vier ähnliche
+Umsetzungen.
+
+### Bedienung
+
+**Aufklappen und Auswählen sind getrennte Ziele**, beide mindestens 32 px
+hoch: Der **Pfeil** klappt auf und zu, das **Kästchen** und der **Name**
+wählen — auf jeder Ebene gleich. Die häufigere Handlung bekommt die größere
+Fläche.
+
+**Tastatur ohne Mausanschluss:** ↑ ↓ bewegen über die *sichtbaren* Zeilen,
+→ ← klappen auf und zu, Leertaste wählt.
+
+**Drei Zustände, drei Bilder** — nicht drei Helligkeiten desselben Bildes:
+leeres Kästchen (offen), Häkchen (gewählt), waagerechter Strich
+(Teilauswahl). So bleibt der Unterschied bei Farbsehschwäche und in beiden
+Themes lesbar; dieselbe Haltung wie bei den Kartenringen (E27).
+
+**Implizit Gewähltes ist erkennbar anders** — gestricheltes Kästchen,
+zurückgenommener Name — **und trotzdem einzeln abwählbar**.
+
+### Was gespeichert wird
+
+**Die höchste Ebene, die vollständig gewählt ist.** Wer Baden-Württemberg
+wählt, bekommt `bundesland=08`, nicht alle Kreisschlüssel — das hält die
+Adresszeile kurz und bleibt richtig, wenn später ein Kreis dazukommt.
+
+Wählt jemand darunter einen Kreis ab, ist das Bundesland nicht mehr
+vollständig und wird **automatisch in seine übrigen Kinder aufgelöst**
+(`landkreis=08111,08115,…`). Die Adresszeile wird in diesem Fall länger; das
+Modell bleibt dafür ohne Zustand, der sich nicht schreiben lässt. Werden
+später wieder alle Kinder gewählt, fasst die Normalisierung sie erneut zum
+Elternteil zusammen.
+
+**Eine aufgelöste Auswahl ist eine Momentaufnahme.** Kommt später ein Kreis
+dazu, ist er nicht enthalten — bei einer Ausschluss-Auswahl ist genau das
+richtig. Eine zusammengefasste Auswahl (`bundesland=08`) nimmt ihn dagegen
+automatisch mit.
+
+Die Ebenen sind **ODER-verknüpft**: Ein Strom ist getroffen, wenn er auf
+*einer* der gewählten Ebenen passt. Zurückgesetzt wird **je Hierarchie
+einmal**.
+
+### Ortsliste
+
+Bundesland und Landkreis kommen räumlich über den ARS (E25), der Ort aus den
+strukturierten Adressfeldern (F0a) — **eingeschränkt auf den Kreis-ARS
+desselben Stroms**, damit „Neustadt" in zwei Kreisen zwei Einträge bleibt und
+nicht still zu einem Filterwert verschmilzt.
+
+Fürs Gruppieren wird normalisiert: Leerraum am Rand entfernt, mehrfache
+Leerzeichen zusammengezogen, Vergleich ohne Rücksicht auf Groß- und
+Kleinschreibung. **Angezeigt wird die häufigste Schreibweise; bei Gleichstand
+die alphabetisch erste.** Nicht die zuerst gelesene Zeile — sonst hinge die
+Anzeige an der Sortierung der Abfrage und dieselbe Datenlage ergäbe
+verschiedene Bäume. Kein neuer Schlüssel und keine Ortsdatenbank; die Suche
+nach einem Ortsnamen gibt es bereits über den Freitext.
+
+**Leere Äste erscheinen nicht** — ein Bundesland, ein Kreis oder ein Ort ohne
+Ströme wäre ein Eintrag, der nichts filtert. Ströme **ohne Koordinate** oder
+**außerhalb** behalten ihre benannten Zustände aus E24/F0b und tauchen im
+Baum nicht als leere Einträge auf.
+
+### Sektor → Akteur
+
+Der Sektor kommt aus der Referenztabelle (Migration 0020, acht Werte), der
+Akteur aus dem Bestand. **Filterwert der Akteur-Ebene ist die ID, nicht der
+Name** — zwei Akteure dürfen gleich heißen, und ein Name kann sich ändern.
+Angezeigt wird der Name.
+
+**„ohne Sektor" ist ein eigener Ast** (E24, wie „ohne Koordinate" beim
+Kreis), zuletzt in der Liste: Akteure ohne Branche — etwa reine Abnehmer nach
+der Zuordnung aus 0020 — sind Bestand, kein Fehler, und müssen über den Baum
+erreichbar bleiben. Sonst fielen ihre Ströme bei gesetztem Sektor still
+heraus. Wie überall gilt: leere Äste erscheinen nicht.
+
+### Zusammengeklappt
+
+Statt einer langen Liste eine Kurzfassung: der erste gewählte Name, dann die
+Zahl der weiteren, benannt nach ihrer Ebene — „Baden-Württemberg, +2
+Landkreise".
+
+## Filter „Vergeben ab / bis" (F5 PR B, 25.09.2026)
+
+Ein Filter mit **zwei Feldern**. Er beantwortet **„was ist in diesem Zeitraum
+vergeben"**, nicht „was ändert sich darin" — gesucht ist die gewöhnliche
+**Überschneidung**. Eine Vergabe, die das Fenster vollständig umschließt, ist
+damit der wichtigste Treffer, nicht der einzige Nicht-Treffer.
+
+Die Ränder sind **monatsgenau eingeschlossen**: Der erste Tag des Startmonats
+und der letzte Tag des Endmonats zählen dazu.
+
+**Offene Enden** werden mit derselben Ersetzung behandelt wie in der
+Verfügbarkeits-Ableitung — fehlendes `vergeben_von` durch den
+Verfügbarkeitsbeginn, fehlendes `vergeben_bis` durch das Verfügbarkeitsende.
+Kein zweites Regelwerk für dieselbe Sache.
+
+**Eine beidseitig offene Vergabe trifft jedes Fenster.** Wir wissen nicht,
+wann sie endet, also können wir sie nicht ausschließen; ein geratenes Ende
+wäre schlechter als ein weiter Treffer.
+
+**„Nicht vergeben" ist ein wählbarer Zustand**, keine stille Ausnahme (E24):
+Bei gesetztem Fenster fallen Ströme ohne jede Vergabe heraus — es sei denn,
+der Zustand ist gewählt. Ist nur der Zustand gewählt und kein Fenster, zeigt
+der Filter genau die unvergebenen Ströme.
+
+Die Zielmatrix führt den Filter unter **„weitere Filter"** — die erste
+Fassung hatte ihn fälschlich als Hauptfilter.
+
+## Bereichsfilter stofflich / energetisch (F5 PR B, 25.09.2026)
+
+**Menge und Preis sind zwei Filterpaare, nicht eins.** Vorher verglich der
+eine Mengenfilter die rohen Erfassungswerte über alle Einheiten hinweg —
+9 999 MWh/a lag auf derselben Skala wie 100 t/a. Jetzt gilt:
+
+- **Stofflich** heißt: als **Masse messbar**. Feedstock-Rohmenge (t FM/a)
+  und Output-Mengen in t/a; Preise in €/t, wobei €/kg umgerechnet wird
+  (E20). Maßgeblich ist die **erfasste Einheit des Stroms**, nicht die
+  Produktklasse — ein Methanol-Bedarf in t/a hat eine stoffliche Menge.
+- **Energetisch** heißt: über den **unteren Heizwert abgeleitet**
+  (`lib/energie.ts`), nie gespeichert (E23). Menge in MWh/a, Preis in €/MWh.
+  Gilt nur für Outputs.
+
+**Benannte Zustände statt stiller Ausfälle:** Ein Strom, der die gesetzte
+Größe **nicht besitzt** — co2/asche „ohne Energieäquivalent", ein
+MWh/a-Bedarf „ohne stoffliche Menge", ein €/MWh-Preis „ohne stofflichen
+Preis" — wird **nicht mitverglichen und nicht angezeigt**, und die Leiste
+sagt das sichtbar: „3 Ströme ohne Energieäquivalent nicht berücksichtigt"
+(Entscheidung Eric: weder als 0 zählen noch lautlos verschwinden).
+
+Eine **fehlende Angabe** (kein Wert erfasst) wird ebenfalls genannt, nur
+anders formuliert — „5 Ströme ohne erfasste Menge nicht berücksichtigt",
+„… ohne erfassten Preis …". Der Unterschied ist für den Nutzer wesentlich:
+„ohne Energieäquivalent" ist eine **Eigenschaft der Sache** (Asche hat keinen
+Heizwert, daran ändert niemand etwas), „ohne erfasste Menge" ist eine
+**Lücke im Bestand**, und die kann er schließen. Verschwände ein Strom stumm,
+weil jemand die Menge vergessen hat, erführe er es genau dann nicht, wenn es
+ihm nützte (Entscheidung Eric, 25.09.2026). Zwei getrennte Hinweise in der
+Leiste, Eigenschaften vor Lücken; gilt für Menge und Preis, stofflich wie
+energetisch.
+
+Gezählt werden nur Ströme, die **alle übrigen Filter bestehen** — der
+Hinweis beziffert, was genau diese Grenze aus dem Ergebnis nimmt, nicht den
+Bestand. Die Hinweis-Zeile teilt sich das Bauteil mit dem
+E32-„gilt hier nicht"-Ausweis (`LeistenHinweise`), in allen drei Ansichten.
+
+**Vollständigkeit** ist derselbe Bereichstyp: Erfassungsgrad 0–100 % aus
+`lib/vollstaendigkeit.ts`, Min/Max in Prozent, unter „weitere Filter". Eine
+Untergrenze allein deckt „mindestens 80 %" ab, ohne Stufen zu erfinden.
+
+**Ansichts-Scope:** `filterStroeme` wendet seit F5 PR B nur an, was das
+Modell für die aktuelle Ansicht vorsieht. Vorher entschied allein die
+Stromart — ein gesetzter „Verfügbar ab" wirkte auch in auswertung.,
+während die Leiste ihn als „gilt hier nicht" auswies.
+
 ## Eingabeformate im Formular (F9, 24.09.2026)
 
 **Die Anwendung bestimmt das Eingabeformat, nicht der Browser.** Native

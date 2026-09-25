@@ -38,7 +38,9 @@ const beleg = (patch: Partial<StromBeleg>): StromBeleg => ({
 const strom = (patch: Partial<Strom>): Strom => ({
   id: "x",
   art: "biomasse",
+  akteurId: "a",
   akteurName: "A",
+  sektorLabel: null,
   sektor: null,
   bezeichnung: null,
   kontaktperson: null,

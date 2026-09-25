@@ -16,7 +16,9 @@ import {
 import {
   facettenOptionen,
   filterAusSearchParams,
-  filterStroeme,
+  fasseBerichteZusammen,
+  filterStroemeMitBericht,
+  nichtBeruecksichtigtText,
   type FacettenOption,
   type SearchParamsRoh,
   type Strom,
@@ -28,6 +30,7 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { leiste } from "@/lib/filter-modell";
+import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export const dynamic = "force-dynamic";
 
@@ -76,9 +79,14 @@ export default async function KartePage({
   // Exklusiv filtern (Beschluss 22.09.2026): cluster blendet Outputs aus,
   // gruppe blendet Feedstock aus — sonst bleibt die fremde Art ungefiltert
   // stehen (CO2-Orb trotz Cluster-Filter).
-  const bioGefiltert = filter.gruppe.length ? [] : filterStroeme(bio, filter);
-  const outGefiltert = filter.cluster.length ? [] : filterStroeme(out, filter);
-  const pool = [...bioGefiltert, ...outGefiltert];
+  const leerErg = { stroeme: [] as Strom[], nichtBeruecksichtigt: [] };
+  const bioErg = filter.gruppe.length ? leerErg : filterStroemeMitBericht(bio, filter, "karte");
+  const outErg = filter.cluster.length ? leerErg : filterStroemeMitBericht(out, filter, "karte");
+  const pool = [...bioErg.stroeme, ...outErg.stroeme];
+  const hinweise = fasseBerichteZusammen(
+    bioErg.nichtBeruecksichtigt,
+    outErg.nichtBeruecksichtigt,
+  ).map(nichtBeruecksichtigtText);
   const punkte = pool
     .map(stromZuPunkt)
     .filter((p): p is KartePunkt => p != null);
@@ -141,12 +149,23 @@ export default async function KartePage({
     landkreis: basisOpt.landkreis ?? [],
   };
   const lst = leiste("karte", sicht, filter as unknown as Record<string, unknown>, optionen);
+  // F5 PR B: Die Baeume kommen aus dem UNGEFILTERTEN Pool — der Baum zeigt
+  // den Bestand, nicht die aktuelle Auswahl; sonst verschwaenden beim
+  // Filtern die Aeste, ueber die man zurueckwaehlen wollte.
+  const baeume = baeumeAus([...bio, ...out]);
+  const hierarchien = hierarchienFuer(baeume, filter as unknown as Record<string, unknown>);
+
   const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ === "facette")
-    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+    .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
+    .map((e) => ({
+      key: e.def.params[0]!,
+      label: e.def.label,
+      optionen: e.optionen,
+      hierarchie: hierarchien[e.def.key],
+    }));
   const { auswahl, bereich, irgendeinFilter } = lst;
   const bereichKeys = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+    .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
     .flatMap((e) => e.def.params);
 
   // Marker-Klick oeffnet DASSELBE Detail wie stroeme. (Spec-Anpassung Eric):
@@ -199,6 +218,7 @@ export default async function KartePage({
       bereich={bereich}
       bereichKeys={bereichKeys}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
+      hinweise={hinweise}
       sicht={sicht}
       detailPunkt={detailPunkt}
       detailStrom={detailStrom}

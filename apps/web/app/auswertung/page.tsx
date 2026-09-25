@@ -34,7 +34,8 @@ import {
 import {
   facettenOptionen,
   filterAusSearchParams,
-  filterStroeme,
+  filterStroemeMitBericht,
+  nichtBeruecksichtigtText,
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
@@ -42,6 +43,7 @@ import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { leiste } from "@/lib/filter-modell";
 import { cookies } from "next/headers";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
+import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export const dynamic = "force-dynamic";
 
@@ -108,9 +110,14 @@ export default async function AuswertungPage({
         : poolAchse;
 
   // verfuegbarkeit wirkt hier FENSTERBEZOGEN (Handoff), nicht auf heute —
-  // deshalb aus dem normalen Filter heraushalten und ueber wendeFensterAn
-  // anwenden; alle Module rechnen mit den fensterbezogen skalierten Kopien.
-  const recsHeute = filterStroeme(pool, { ...filter, verfuegbarkeit: [] });
+  // sie gilt in dieser Ansicht laut Modell nicht (der Scope haelt sie
+  // heraus) und wird stattdessen ueber wendeFensterAn angewendet; alle
+  // Module rechnen mit den fensterbezogen skalierten Kopien.
+  const { stroeme: recsHeute, nichtBeruecksichtigt } = filterStroemeMitBericht(
+    pool,
+    filter,
+    "auswertung",
+  );
   const recs = wendeFensterAn(
     recsHeute,
     vergabenMap,
@@ -154,12 +161,23 @@ export default async function AuswertungPage({
     filter as unknown as Record<string, unknown>,
     optionen,
   );
+  // F5 PR B: Die Baeume kommen aus dem UNGEFILTERTEN Pool — der Baum zeigt
+  // den Bestand, nicht die aktuelle Auswahl; sonst verschwaenden beim
+  // Filtern die Aeste, ueber die man zurueckwaehlen wollte.
+  const baeume = baeumeAus(pool);
+  const hierarchien = hierarchienFuer(baeume, filter as unknown as Record<string, unknown>);
+
   const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ === "facette")
-    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+    .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
+    .map((e) => ({
+      key: e.def.params[0]!,
+      label: e.def.label,
+      optionen: e.optionen,
+      hierarchie: hierarchien[e.def.key],
+    }));
   const { auswahl, bereich, irgendeinFilter } = lst;
   const bereichKeys = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+    .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
     .flatMap((e) => e.def.params);
 
   // Detail wie karte. (eine Detailansicht, zwei Einstiegspunkte): Strom nicht
@@ -216,6 +234,7 @@ export default async function AuswertungPage({
       bereichKeys={bereichKeys}
       offenInitial={!!ui.filterOffen?.auswertung}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
+      hinweise={nichtBeruecksichtigt.map(nichtBeruecksichtigtText)}
       sicht={sicht}
       zeitmodus={zeitmodus}
       agg={agg}
