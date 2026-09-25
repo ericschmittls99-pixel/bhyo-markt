@@ -8,6 +8,12 @@
  * 3. `abnehmer` ist KEIN Sektor mehr. Er war eine Rolle, kein Sektor; kaeme
  *    er zurueck, stuende in der Auswahlliste wieder ein Wert, der etwas
  *    anderes bedeutet als alle uebrigen.
+ * 4. Die beiden Schreibfaelle der Akteur-Anlage (POST /api/akteure) gehen
+ *    durch: neuer Akteur MIT Sektor aus der Liste, neuer Akteur OHNE Sektor.
+ *    Nachweis nach E21 gegen die echte Tabelle mit Fremdschluessel, in einer
+ *    zurueckgerollten Transaktion — nichts bleibt liegen. Der Fall fehlte im
+ *    Nachweis zu 0020; die Combobox schickte Freitext, und die Anlage brach
+ *    auf Production (25.09.2026).
  */
 import postgres from "postgres";
 
@@ -62,6 +68,28 @@ async function main() {
   }
   console.log(`FREMDSCHLUESSEL_GREIFT ${abgewiesen}`);
   if (!abgewiesen) fehler.push("Ein unbekannter Sektor liess sich einfuegen");
+
+  // Schreibpfad Akteur-Anlage: mit Sektor und ohne — beides muss durchgehen.
+  const ROLLBACK = Symbol("rollback");
+  const faelle: [string, string | null][] = [
+    ["mit Sektor", codes[0] ?? "energie"],
+    ["ohne Sektor", null],
+  ];
+  for (const [fall, wert] of faelle) {
+    let angelegt = false;
+    try {
+      await sql.begin(async (tx) => {
+        const [row] = await tx`insert into akteur (name, sektor, status)
+          values ('Sektor-Testzeile', ${wert}, 'entwurf') returning id, sektor`;
+        angelegt = !!row && row.sektor === wert;
+        throw ROLLBACK;
+      });
+    } catch (e) {
+      if (e !== ROLLBACK) console.error(e);
+    }
+    console.log(`ANLAGE_${fall === "mit Sektor" ? "MIT" : "OHNE"}_SEKTOR ${angelegt}`);
+    if (!angelegt) fehler.push(`Akteur-Anlage ${fall} scheitert am Schema`);
+  }
 
   await sql.end();
   if (fehler.length) {

@@ -5,12 +5,21 @@ import { useEffect, useRef, useState } from "react";
 interface AkteurOption {
   id: string;
   name: string;
+  /** Sektor-Code der Referenztabelle (0020) oder null = "ohne Sektor". */
   sektor: string | null;
+}
+
+interface SektorOption {
+  code: string;
+  label: string;
 }
 
 /**
  * Combobox mit Live-Suche ueber /api/akteure. Kein Treffer -> Inline-Neuanlage
- * (Name = aktuelle Eingabe, Sektor optional). Der gewaehlte Akteur landet als
+ * (Name = aktuelle Eingabe, Sektor aus der Auswahlliste der Referenztabelle
+ * oder "ohne Sektor" — kein Freitext mehr, seit 0020 haengt ein
+ * Fremdschluessel daran). Angezeigt wird das Label, gespeichert der Code.
+ * Der gewaehlte Akteur landet als
  * versteckter `akteur_id`-Wert im umgebenden Formular. Seit PR 5 im V2-Look
  * (pf-Feld + Glas-Popover) und mit Prefill fuer das Bearbeiten.
  */
@@ -32,7 +41,24 @@ export function AkteurCombobox({
   const [offen, setOffen] = useState(false);
   const [laedt, setLaedt] = useState(false);
   const [sektor, setSektor] = useState("");
+  const [sektoren, setSektoren] = useState<SektorOption[]>([]);
   const box = useRef<HTMLDivElement>(null);
+
+  // Einmal laden: acht Zeilen, Quelle fuer Auswahl und Anzeige-Label.
+  useEffect(() => {
+    let aktiv = true;
+    fetch("/api/sektoren")
+      .then((r) => r.json() as Promise<{ sektoren?: SektorOption[] }>)
+      .then((d) => aktiv && setSektoren(d.sektoren ?? []))
+      .catch(() => aktiv && setSektoren([]));
+    return () => {
+      aktiv = false;
+    };
+  }, []);
+
+  /** Label zum Code; ein unbekannter Code (Altbestand) bleibt sichtbar. */
+  const sektorLabel = (code: string | null) =>
+    code ? (sektoren.find((s) => s.code === code)?.label ?? code) : null;
 
   useEffect(() => {
     if (gewaehlt) return;
@@ -83,7 +109,7 @@ export function AkteurCombobox({
       const res = await fetch("/api/akteure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nm, sektor: sektor.trim() || undefined }),
+        body: JSON.stringify({ name: nm, sektor: sektor || undefined }),
       });
       if (!res.ok) return;
       const data = (await res.json()) as { akteur: AkteurOption };
@@ -126,7 +152,7 @@ export function AkteurCombobox({
         <span className="akteur-gewaehlt">
           <span className="pill pill--accent">
             {gewaehlt.name}
-            {gewaehlt.sektor ? ` · ${gewaehlt.sektor}` : ""}
+            {gewaehlt.sektor ? ` · ${sektorLabel(gewaehlt.sektor)}` : ""}
           </span>
           <button type="button" className="btn btn--sm" onClick={loesen}>
             ändern
@@ -150,7 +176,7 @@ export function AkteurCombobox({
                   }}
                 >
                   <span className="lbl">{a.name}</span>
-                  {a.sektor && <span className="scb-meta">{a.sektor}</span>}
+                  {a.sektor && <span className="scb-meta">{sektorLabel(a.sektor)}</span>}
                 </button>
               ))}
             {!laedt && !treffer.length && (
@@ -159,12 +185,18 @@ export function AkteurCombobox({
             {!laedt && query.trim() && !exakt && (
               <div className="akteur-neu">
                 <span className="pf-feld">
-                  <input
-                    type="text"
+                  <select
+                    aria-label="Sektor"
                     value={sektor}
-                    placeholder="Sektor (optional)"
                     onChange={(e) => setSektor(e.target.value)}
-                  />
+                  >
+                    <option value="">ohne Sektor</option>
+                    {sektoren.map((s) => (
+                      <option key={s.code} value={s.code}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
                 </span>
                 <button
                   type="button"
