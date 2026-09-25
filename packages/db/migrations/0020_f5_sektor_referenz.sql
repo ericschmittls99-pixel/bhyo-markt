@@ -24,16 +24,6 @@ INSERT INTO "sektor" ("code", "label", "sortierung") VALUES
   ('lebensmittel',     'Lebensmittel',     80);
 --> statement-breakpoint
 
--- Die Rolle sichern, BEVOR das Feld geleert wird. Gemessen am 25.09.2026:
--- `rollen` war bei allen Akteuren leer, `sektor = 'abnehmer'` also der
--- einzige Traeger dieser Angabe. Sie wandert an die richtige Stelle, statt
--- verloren zu gehen.
-UPDATE "akteur"
-   SET "rollen" = array_append("rollen", 'abnehmer')
- WHERE lower(btrim("sektor")) = 'abnehmer'
-   AND NOT ('abnehmer' = ANY("rollen"));
---> statement-breakpoint
-
 -- Zuordnung. Der Vergleich laeuft ohne Ruecksicht auf Gross- und
 -- Kleinschreibung und ohne Randleerraum, damit kuenftige Varianten gar nicht
 -- erst entstehen ("Energie"/"energie" waren zwei Filterwerte).
@@ -41,6 +31,10 @@ UPDATE "akteur"
 -- "Entsorgung" und "Entsorgungswirtschaft" gehen auf "abfallwirtschaft":
 -- Das ist eine FACHLICHE Zusammenlegung, keine Schreibweise — drei Namen
 -- fuer eine Sache.
+--
+-- 'abnehmer' wird geleert und NICHT nach "rollen" gerettet: Gemessen am
+-- 25.09.2026 liest nichts diese Spalte, und die Rolle ist vollstaendig aus
+-- den Stroemen ableitbar (E23) — vier Akteure sind sogar beides zugleich.
 UPDATE "akteur"
    SET "sektor" = CASE lower(btrim("sektor"))
      WHEN 'abnehmer'              THEN NULL   -- Rolle, kein Sektor
@@ -63,7 +57,6 @@ DO $$
 DECLARE
   n_ohne integer;
   n_zugeordnet integer;
-  n_rolle integer;
   unbekannt text;
 BEGIN
   SELECT string_agg(DISTINCT a.sektor, ', ' ORDER BY a.sektor) INTO unbekannt
@@ -75,11 +68,10 @@ BEGIN
   END IF;
 
   SELECT count(*) FILTER (WHERE sektor IS NULL),
-         count(*) FILTER (WHERE sektor IS NOT NULL),
-         count(*) FILTER (WHERE 'abnehmer' = ANY(rollen))
-    INTO n_ohne, n_zugeordnet, n_rolle
+         count(*) FILTER (WHERE sektor IS NOT NULL)
+    INTO n_ohne, n_zugeordnet
     FROM "akteur";
-  RAISE NOTICE 'SEKTOR ohne=% zugeordnet=% rolle_abnehmer=%', n_ohne, n_zugeordnet, n_rolle;
+  RAISE NOTICE 'SEKTOR ohne=% zugeordnet=%', n_ohne, n_zugeordnet;
 END $$;
 --> statement-breakpoint
 

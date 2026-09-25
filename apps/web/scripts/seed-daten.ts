@@ -125,12 +125,6 @@ export interface SeedAkteur {
   name: string;
   /** F5 PR B: null ist der benannte Zustand "ohne Sektor". */
   sektor: string | null;
-  /**
-   * F5 PR B: Anbieter oder Abnehmer. Die Angabe stand vorher faelschlich im
-   * Sektorfeld; sie gehoert hierher. `rollen` war bis dahin bei allen
-   * Akteuren leer — gemessen am 25.09.2026.
-   */
-  rollen: string[];
 }
 
 // --- PRNG (mulberry32) -------------------------------------------------------
@@ -472,13 +466,11 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     return Math.round(Math.min(18000, Math.max(500, v)) / 10) * 10;
   };
 
+  // E23: Die Rolle (Anbieter/Abnehmer) wird bewusst NICHT gespeichert — sie
+  // ist vollstaendig aus den Stroemen ableitbar, und vier Akteure sind beides.
   const akteure: SeedAkteur[] = [];
-  const machAkteur = (
-    name: string,
-    sektor: string | null,
-    rolle: "anbieter" | "abnehmer",
-  ): number => {
-    akteure.push({ id: uuid(), name: `Seed: ${name}`, sektor, rollen: [rolle] });
+  const machAkteur = (name: string, sektor: string | null): number => {
+    akteure.push({ id: uuid(), name: `Seed: ${name}`, sektor });
     return akteure.length - 1;
   };
 
@@ -641,7 +633,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     // mehr verschieben — der Vor-E24-Zugverbrauchs-Hack entfaellt.
     const belegDatum = `${B}-0${rBeleg.ganz(1, 8)}-1${rBeleg.ganz(0, 5)}`;
     const ankerTag = anker ? ` [ANKER-${anker.replace("A", "")}]` : "";
-    const akteurIndex = machAkteur(`${art.anbieter} ${ort}`, art.sektor, "anbieter");
+    const akteurIndex = machAkteur(`${art.anbieter} ${ort}`, art.sektor);
 
     return {
       id: uuid(),
@@ -761,7 +753,7 @@ export function baueSeedDaten(basisJahr: number = BASIS_JAHR): {
     // bekommen jetzt plausible Branchen, damit der Filter an echter Streuung
     // geprueft werden kann; zwei bleiben bewusst OHNE Sektor als Ankerfaelle
     // (dieselbe Logik wie bei den unbelegten Stroemen, E24).
-    const akteurIndex = machAkteur(`${abnehmer} ${ort}`, sektorFuerAbnehmer(abnehmer), "abnehmer");
+    const akteurIndex = machAkteur(`${abnehmer} ${ort}`, sektorFuerAbnehmer(abnehmer));
 
     return {
       id: uuid(),

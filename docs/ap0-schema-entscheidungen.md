@@ -275,7 +275,7 @@ Schreibweisen für 11 Werte, darunter `Energie`/`energie`,
 **Leer heißt „ohne Sektor", nicht „sonstige"** — fehlende Information ist
 keine Restkategorie (dieselbe Haltung wie „unbelegt" in E24).
 
-Drei Entscheidungen zur Zuordnung des Bestands:
+Vier Entscheidungen zur Zuordnung des Bestands:
 
 1. **Schreibweisen zusammengeführt.** Der Vergleich läuft ohne Rücksicht auf
    Groß- und Kleinschreibung und ohne Randleerraum, damit künftige Varianten
@@ -283,10 +283,19 @@ Drei Entscheidungen zur Zuordnung des Bestands:
 2. **`abnehmer` ist kein Sektor, sondern eine Rolle** — und war mit 50 von
    117 Akteuren der häufigste Wert. Ein Wert, der in einer Auswahlliste etwas
    anderes bedeutet als alle übrigen, verdirbt die ganze Liste. Diese Akteure
-   bekommen „ohne Sektor"; die Rolle wandert vorher nach `akteur.rollen`.
-   **Gemessen:** `rollen` war bei allen 117 Akteuren leer, `sektor` also der
-   einzige Träger dieser Angabe — deshalb wird sie gesichert, nicht gelöscht.
-3. **`Entsorgung` und `Entsorgungswirtschaft` → `abfallwirtschaft`.** Eine
+   bekommen „ohne Sektor"; die Rolle wird dabei **nicht** nach `akteur.rollen`
+   gerettet. **Gemessen am 25.09.2026:** Nichts liest `rollen` (die Spalte war
+   bei allen 117 Akteuren leer und nur die Schema-Definition erwähnt sie), und
+   die Rolle ist vollständig aus den Strömen ableitbar — 63 nur Anbieter, 50
+   nur Abnehmer, 4 beides, 0 ohne Strom. Nach E23 wird nicht gespeichert, was
+   sich ableiten lässt; die vier Akteure, die beides sind, zeigen zudem: Eine
+   Rolle ist eine **Menge**, kein Wert.
+3. **`akteur.rollen` bleibt als Spalte stehen**, wird aber heute weder gelesen
+   noch geschrieben. **Vormerkung:** Sobald ein Akteur ohne Strom irgendwo
+   sichtbar wird — etwa in einer Akteursliste —, fehlt die Rolle. Dann ist der
+   Zeitpunkt, sie entweder zu füllen oder die Ableitung um einen benannten
+   Zustand zu erweitern („Rolle noch offen"). Nicht jetzt, aber notiert.
+4. **`Entsorgung` und `Entsorgungswirtschaft` → `abfallwirtschaft`.** Eine
    fachliche Zusammenlegung, keine Schreibweise: drei Namen für eine Sache.
 
 **Einschränkung, bewusst in Kauf genommen:** Ein neuer Sektor braucht künftig
