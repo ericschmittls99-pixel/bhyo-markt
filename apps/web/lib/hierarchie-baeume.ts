@@ -15,6 +15,10 @@ import type { Knoten } from "./hierarchie";
 
 /** Was ein Baum vom Strom braucht — bewusst schmal gehalten. */
 export interface BaumStrom {
+  akteurId: string | null;
+  akteurName: string | null;
+  sektor: string | null;
+  sektorLabel: string | null;
   cluster: string | null;
   materialartCode: string | null;
   materialartLabel: string | null;
@@ -61,6 +65,42 @@ function haeufigsteSchreibweise(varianten: Map<string, number>): string {
 }
 
 const sortiere = (a: Knoten, b: Knoten) => a.label.localeCompare(b.label, "de");
+
+/** Filterwert fuer Akteure ohne Sektor (E24) — eine Quelle fuer Baum und Pruefer. */
+export const OHNE_SEKTOR = "ohne_sektor";
+
+/**
+ * Sektor → Akteur. Zweistufig; der Sektor-Wert ist der Code der
+ * Referenztabelle, der Akteur-Wert die ID. Akteure ohne Sektor haengen unter
+ * dem benannten Ast „ohne Sektor", der zuletzt steht — sie sind Bestand,
+ * kein Fehler, und muessen erreichbar bleiben. Ein Strom ohne Akteur haengt
+ * an keinem Ast (die Spalte ist NOT NULL; das ist reine Typ-Vorsicht).
+ */
+export function baumAkteur(stroeme: BaumStrom[]): Knoten[] {
+  const sektoren = new Map<string, { label: string; akteure: Map<string, string> }>();
+  for (const s of stroeme) {
+    if (!s.akteurId) continue;
+    const wert = s.sektor ?? OHNE_SEKTOR;
+    const sektor = sektoren.get(wert) ?? {
+      label: s.sektor ? (s.sektorLabel ?? s.sektor) : "ohne Sektor",
+      akteure: new Map<string, string>(),
+    };
+    sektor.akteure.set(s.akteurId, s.akteurName ?? s.akteurId);
+    sektoren.set(wert, sektor);
+  }
+  const knoten = [...sektoren.entries()]
+    .map(([wert, sektor]) => ({
+      wert,
+      label: sektor.label,
+      kinder: [...sektor.akteure.entries()]
+        .map(([w, l]) => ({ wert: w, label: l }))
+        .sort(sortiere),
+    }))
+    .sort(sortiere);
+  // "ohne Sektor" ans Ende, unabhaengig vom Alphabet.
+  const rang = (k: Knoten) => (k.wert === OHNE_SEKTOR ? 1 : 0);
+  return knoten.sort((a, b) => rang(a) - rang(b));
+}
 
 /** Cluster → Materialart. Zweistufig, Werte sind die Codes. */
 export function baumMaterialart(

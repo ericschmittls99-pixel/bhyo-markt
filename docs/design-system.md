@@ -264,8 +264,9 @@ Tabellensprache, keine eigene Designsprache für eine Admin-Seite.
 
 ## Gruppierte Filter als Baum (F5 PR B, 25.09.2026)
 
-**Ein Bauteil für alle drei Hierarchien** — Cluster → Materialart, Gruppe →
-Produkt, Bundesland → Landkreis → Ort. Nicht drei ähnliche Umsetzungen.
+**Ein Bauteil für alle vier Hierarchien** — Cluster → Materialart, Gruppe →
+Produkt, Bundesland → Landkreis → Ort, Sektor → Akteur. Nicht vier ähnliche
+Umsetzungen.
 
 ### Bedienung
 
@@ -327,6 +328,19 @@ Ströme wäre ein Eintrag, der nichts filtert. Ströme **ohne Koordinate** oder
 **außerhalb** behalten ihre benannten Zustände aus E24/F0b und tauchen im
 Baum nicht als leere Einträge auf.
 
+### Sektor → Akteur
+
+Der Sektor kommt aus der Referenztabelle (Migration 0020, acht Werte), der
+Akteur aus dem Bestand. **Filterwert der Akteur-Ebene ist die ID, nicht der
+Name** — zwei Akteure dürfen gleich heißen, und ein Name kann sich ändern.
+Angezeigt wird der Name.
+
+**„ohne Sektor" ist ein eigener Ast** (E24, wie „ohne Koordinate" beim
+Kreis), zuletzt in der Liste: Akteure ohne Branche — etwa reine Abnehmer nach
+der Zuordnung aus 0020 — sind Bestand, kein Fehler, und müssen über den Baum
+erreichbar bleiben. Sonst fielen ihre Ströme bei gesetztem Sektor still
+heraus. Wie überall gilt: leere Äste erscheinen nicht.
+
 ### Zusammengeklappt
 
 Statt einer langen Liste eine Kurzfassung: der erste gewählte Name, dann die
@@ -379,9 +393,18 @@ Größe **nicht besitzt** — co2/asche „ohne Energieäquivalent", ein
 MWh/a-Bedarf „ohne stoffliche Menge", ein €/MWh-Preis „ohne stofflichen
 Preis" — wird **nicht mitverglichen und nicht angezeigt**, und die Leiste
 sagt das sichtbar: „3 Ströme ohne Energieäquivalent nicht berücksichtigt"
-(Entscheidung Eric: weder als 0 zählen noch lautlos verschwinden). Eine
-**fehlende Angabe** (kein Wert erfasst) fällt dagegen wie bisher still
-heraus — fehlende Daten sind kein benannter Zustand, sondern eine Lücke.
+(Entscheidung Eric: weder als 0 zählen noch lautlos verschwinden).
+
+Eine **fehlende Angabe** (kein Wert erfasst) wird ebenfalls genannt, nur
+anders formuliert — „5 Ströme ohne erfasste Menge nicht berücksichtigt",
+„… ohne erfassten Preis …". Der Unterschied ist für den Nutzer wesentlich:
+„ohne Energieäquivalent" ist eine **Eigenschaft der Sache** (Asche hat keinen
+Heizwert, daran ändert niemand etwas), „ohne erfasste Menge" ist eine
+**Lücke im Bestand**, und die kann er schließen. Verschwände ein Strom stumm,
+weil jemand die Menge vergessen hat, erführe er es genau dann nicht, wenn es
+ihm nützte (Entscheidung Eric, 25.09.2026). Zwei getrennte Hinweise in der
+Leiste, Eigenschaften vor Lücken; gilt für Menge und Preis, stofflich wie
+energetisch.
 
 Gezählt werden nur Ströme, die **alle übrigen Filter bestehen** — der
 Hinweis beziffert, was genau diese Grenze aus dem Ergebnis nimmt, nicht den

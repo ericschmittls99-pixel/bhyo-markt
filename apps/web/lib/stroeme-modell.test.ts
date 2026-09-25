@@ -15,8 +15,10 @@ import {
 const strom = (patch: Partial<Strom>): Strom => ({
   id: "x",
   art: "biomasse",
+  akteurId: "a",
   akteurName: "A",
   sektor: null,
+  sektorLabel: null,
   bezeichnung: null,
   kontaktperson: null,
   ort: null,
@@ -359,10 +361,13 @@ describe("Menge stofflich: Masse zaehlt, andere Einheiten benannt heraus", () =>
     // 9999 MWh/a liegt NICHT ueber der Grenze von 100 t — die Zahl gehoert
     // auf eine andere Skala und wird nicht mitverglichen.
     expect(stroeme.map((s) => s.id)).toEqual(["t"]);
-    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stoffliche Menge", anzahl: 1 }]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stoffliche Menge", anzahl: 1, art: "eigenschaft" }]);
   });
 
-  it("fehlende Menge faellt still heraus (fehlende Angabe, kein benannter Zustand)", () => {
+  it("fehlende Menge ist eine Luecke und wird als solche benannt gezaehlt", () => {
+    // Entscheidung Eric, 25.09.2026: Eine Luecke im Bestand kann jemand
+    // schliessen — verschwindet der Strom stumm, erfaehrt er es genau dann
+    // nicht, wenn es ihm nuetzen wuerde.
     const ohne = co2({ id: "o", mengeWert: null, mengeEinheit: null });
     const { stroeme, nichtBeruecksichtigt } = filterStroemeMitBericht(
       [ohne],
@@ -370,7 +375,104 @@ describe("Menge stofflich: Masse zaehlt, andere Einheiten benannt heraus", () =>
       "stroeme",
     );
     expect(stroeme).toEqual([]);
+    expect(nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfasste Menge", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("Eigenschaft und Luecke sind zwei getrennte Hinweise, Eigenschaft zuerst", () => {
+    const luecke = methanol({ id: "l", mengeWert: null, mengeEinheit: null });
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [luecke, co2({ id: "c1" }), co2({ id: "c2" })],
+      { ...LEERER_FILTER, energieMengeMin: "1" },
+      "stroeme",
+    );
+    expect(nichtBeruecksichtigt).toEqual([
+      { grund: "ohne Energieäquivalent", anzahl: 2, art: "eigenschaft" },
+      { grund: "ohne erfasste Menge", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("fehlender Preis: stofflich und energetisch dieselbe Luecken-Formulierung", () => {
+    const ohnePreis = methanol({ id: "p", preis: null, preisEinheit: null });
+    const stofflich = filterStroemeMitBericht(
+      [ohnePreis],
+      { ...LEERER_FILTER, preisMin: "1" },
+      "stroeme",
+    );
+    const energetisch = filterStroemeMitBericht(
+      [ohnePreis],
+      { ...LEERER_FILTER, energiePreisMin: "1" },
+      "stroeme",
+    );
+    expect(stofflich.nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfassten Preis", anzahl: 1, art: "luecke" },
+    ]);
+    expect(energetisch.nichtBeruecksichtigt).toEqual([
+      { grund: "ohne erfassten Preis", anzahl: 1, art: "luecke" },
+    ]);
+  });
+
+  it("die Luecke zaehlt nur, was alle uebrigen Filter besteht", () => {
+    const { nichtBeruecksichtigt } = filterStroemeMitBericht(
+      [co2({ id: "o", mengeWert: null, mengeEinheit: null, status: "entwurf" })],
+      { ...LEERER_FILTER, mengeMin: "1", status: ["geprueft"] },
+      "stroeme",
+    );
     expect(nichtBeruecksichtigt).toEqual([]);
+  });
+});
+
+describe("Sektor → Akteur (F5 PR B)", () => {
+  const hof = strom({
+    id: "h",
+    akteurId: "a-hof",
+    akteurName: "Hof Müller",
+    sektor: "landwirtschaft",
+    sektorLabel: "Landwirtschaft",
+  });
+  const werk = strom({
+    id: "w",
+    akteurId: "a-werk",
+    akteurName: "Sägewerk",
+    sektor: "holzwirtschaft",
+    sektorLabel: "Holzwirtschaft",
+  });
+  const ohne = strom({ id: "o", akteurId: "a-ohne", akteurName: "Stadtwerke", sektor: null });
+
+  it("Sektor trifft alle Akteure des Sektors, in jeder Ansicht", () => {
+    for (const ansicht of ["stroeme", "karte", "auswertung"] as const) {
+      const erg = filterStroeme(
+        [hof, werk, ohne],
+        { ...LEERER_FILTER, sektor: ["landwirtschaft"] },
+        ansicht,
+      );
+      expect(erg.map((s) => s.id)).toEqual(["h"]);
+    }
+  });
+
+  it("Akteur trifft ueber die ID, nicht ueber den Namen", () => {
+    const erg = filterStroeme(
+      [hof, werk, ohne],
+      { ...LEERER_FILTER, akteur: ["a-werk"] },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["w"]);
+  });
+
+  it("'ohne Sektor' ist ein benannter Filterwert (E24), kein stilles Herausfallen", () => {
+    const erg = filterStroeme(
+      [hof, werk, ohne],
+      { ...LEERER_FILTER, sektor: ["ohne_sektor"] },
+      "stroeme",
+    );
+    expect(erg.map((s) => s.id)).toEqual(["o"]);
+  });
+
+  it("beide Ebenen kommen als Listen aus der Adresszeile", () => {
+    const f = filterAusSearchParams({ sektor: "energie,kommunal", akteur: "a-1" });
+    expect(f.sektor).toEqual(["energie", "kommunal"]);
+    expect(f.akteur).toEqual(["a-1"]);
   });
 });
 
@@ -394,7 +496,7 @@ describe("Menge energetisch: ueber Hu abgeleitet, co2/asche benannt heraus", () 
       "stroeme",
     );
     expect(stroeme.map((s) => s.id)).toEqual(["m"]);
-    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1 }]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
   });
 
   it("zaehlt nur Stroeme, die alle anderen Filter bestehen", () => {
@@ -405,7 +507,7 @@ describe("Menge energetisch: ueber Hu abgeleitet, co2/asche benannt heraus", () 
       { ...LEERER_FILTER, energieMengeMin: "1", status: ["geprueft"] },
       "stroeme",
     );
-    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1 }]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
   });
 
   it("ein Strom zaehlt einmal, auch wenn Mengen- UND Preisgrenze gesetzt sind", () => {
@@ -414,7 +516,7 @@ describe("Menge energetisch: ueber Hu abgeleitet, co2/asche benannt heraus", () 
       { ...LEERER_FILTER, energieMengeMin: "1", energiePreisMin: "1" },
       "stroeme",
     );
-    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1 }]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne Energieäquivalent", anzahl: 1, art: "eigenschaft" }]);
   });
 });
 
@@ -437,7 +539,7 @@ describe("Preis stofflich und energetisch: E20-Einheiten, nicht Rohwerte", () =>
       "stroeme",
     );
     expect(stroeme).toEqual([]);
-    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stofflichen Preis", anzahl: 1 }]);
+    expect(nichtBeruecksichtigt).toEqual([{ grund: "ohne stofflichen Preis", anzahl: 1, art: "eigenschaft" }]);
   });
 
   it("energetischer Preis: €/t ueber Hu (Methanol 200 €/t ≈ 36 €/MWh)", () => {

@@ -109,8 +109,10 @@ function belegAus(r: BelegZeile): StromBeleg | null {
 
 type GemeinsameZeile = BelegZeile & {
   id: string;
+  akteurId: string | null;
   akteurName: string | null;
   sektor: string | null;
+  sektorLabel: string | null;
   bezeichnung: string | null;
   kontaktperson: string | null;
   ort: string | null;
@@ -159,8 +161,10 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
   const basis = {
     id: r.id,
     art: "biomasse" as const,
+    akteurId: r.akteurId,
     akteurName: r.akteurName,
     sektor: r.sektor,
+    sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
     ort: r.ort,
@@ -234,8 +238,10 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
   const basis = {
     id: r.id,
     art: "output" as const,
+    akteurId: r.akteurId,
     akteurName: r.akteurName,
     sektor: r.sektor,
+    sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
     ort: r.ort,

@@ -7,6 +7,7 @@ import {
   outputBedarf,
   outputProdukt,
   region,
+  sektor,
   vergabeZeitraum,
 } from "@bhyo/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
@@ -66,8 +67,10 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
       const rows = await db
         .select({
           id: biomassestrom.id,
+          akteurId: biomassestrom.akteurId,
           akteurName: akteur.name,
           sektor: akteur.sektor,
+          sektorLabel: sektor.label,
           bezeichnung: biomassestrom.bezeichnung,
           kontaktperson: biomassestrom.kontaktperson,
           ort: biomassestrom.ort,
@@ -101,6 +104,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         })
         .from(biomassestrom)
         .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
+        .leftJoin(sektor, eq(sektor.code, akteur.sektor))
         .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
         .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
         .where(nurId ? eq(biomassestrom.id, nurId) : undefined)
@@ -114,8 +118,10 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
     const rows = await db
       .select({
         id: outputBedarf.id,
+        akteurId: outputBedarf.akteurId,
         akteurName: akteur.name,
         sektor: akteur.sektor,
+        sektorLabel: sektor.label,
         bezeichnung: outputBedarf.bezeichnung,
         kontaktperson: outputBedarf.kontaktperson,
         ort: outputBedarf.ort,
@@ -144,6 +150,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
+      .leftJoin(sektor, eq(sektor.code, akteur.sektor))
       .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
       .where(nurId ? eq(outputBedarf.id, nurId) : undefined)

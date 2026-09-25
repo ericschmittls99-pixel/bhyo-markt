@@ -11,7 +11,7 @@ import {
 import { FILTER, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
 import { trifft } from "./hierarchie";
 import { trifftVergabefenster } from "./vergabe-fenster";
-import { ortsSchluessel } from "./hierarchie-baeume";
+import { OHNE_SEKTOR, ortsSchluessel } from "./hierarchie-baeume";
 import {
   energieKwh,
   preisEuroMwh,
@@ -85,8 +85,12 @@ export interface StromBeleg {
 export interface Strom {
   id: string;
   art: StromArt;
+  /** F5 PR B: Filterwert der Akteur-Ebene — die ID, nicht der Name (Namen duerfen doppelt sein). */
+  akteurId: string | null;
   akteurName: string | null;
+  /** Sektor-Code (Referenztabelle seit Migration 0020); null = "ohne Sektor". */
   sektor: string | null;
+  sektorLabel: string | null;
   bezeichnung: string | null;
   kontaktperson: string | null;
   ort: string | null;
@@ -161,6 +165,9 @@ export interface StroemeFilter {
   bundesland: string[];
   ort: string[];
   produkt: string[];
+  /** F5 PR B: Ebenen der Akteurshierarchie (Sektor-Code, Akteur-ID). */
+  sektor: string[];
+  akteur: string[];
   mengeMin: string;
   mengeMax: string;
   preisMin: string;
@@ -197,6 +204,8 @@ export const LEERER_FILTER: StroemeFilter = {
   bundesland: [],
   ort: [],
   produkt: [],
+  sektor: [],
+  akteur: [],
   mengeMin: "",
   mengeMax: "",
   preisMin: "",
@@ -312,8 +321,11 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
  * Zustand "diese Groesse existiert fuer diesen Strom nicht" (E24-Muster) —
  * er wird bei gesetzter Grenze nicht mitverglichen, sondern sichtbar
  * gezaehlt (Entscheidung Eric, 25.09.2026: weder als 0 zaehlen noch lautlos
- * verschwinden). `null` dagegen ist eine FEHLENDE ANGABE und faellt bei
- * gesetzter Grenze wie bisher still heraus.
+ * verschwinden). `null` ist eine FEHLENDE ANGABE — eine Luecke im Bestand,
+ * die jemand schliessen kann. Auch sie wird bei gesetzter Grenze benannt
+ * gezaehlt, nur anders formuliert (GROESSEN.luecke): "ohne Energieäquivalent"
+ * ist eine Eigenschaft der Sache, "ohne erfasste Menge" eine Luecke, und der
+ * Nutzer soll den Unterschied sehen (Eric, 25.09.2026).
  */
 export type GroessenWert = number | null | { ohne: string };
 
@@ -367,15 +379,41 @@ export function energetischerPreis(s: Strom): GroessenWert {
  * Bericht. Eine getrennte Zaehl-Logik koennte andere Stroeme zaehlen, als
  * die Pruefung ausschliesst.
  */
+const OHNE_MENGE = "ohne erfasste Menge";
+const OHNE_PREIS = "ohne erfassten Preis";
+
 const GROESSEN: Record<
   string,
-  { min: keyof StroemeFilter; max: keyof StroemeFilter; wert: (s: Strom) => GroessenWert }
+  {
+    min: keyof StroemeFilter;
+    max: keyof StroemeFilter;
+    wert: (s: Strom) => GroessenWert;
+    /** Wortlaut fuer die Luecke (`wert` liefert null): Was fehlt, ist erfassbar. */
+    luecke: string;
+  }
 > = {
-  menge: { min: "mengeMin", max: "mengeMax", wert: stofflicheMenge },
-  preis: { min: "preisMin", max: "preisMax", wert: stofflicherPreis },
-  energieMenge: { min: "energieMengeMin", max: "energieMengeMax", wert: energetischeMenge },
-  energiePreis: { min: "energiePreisMin", max: "energiePreisMax", wert: energetischerPreis },
-  vollstaendigkeit: { min: "vollMin", max: "vollMax", wert: (s) => s.vollstaendigkeit },
+  menge: { min: "mengeMin", max: "mengeMax", wert: stofflicheMenge, luecke: OHNE_MENGE },
+  preis: { min: "preisMin", max: "preisMax", wert: stofflicherPreis, luecke: OHNE_PREIS },
+  energieMenge: {
+    min: "energieMengeMin",
+    max: "energieMengeMax",
+    wert: energetischeMenge,
+    luecke: OHNE_MENGE,
+  },
+  energiePreis: {
+    min: "energiePreisMin",
+    max: "energiePreisMax",
+    wert: energetischerPreis,
+    luecke: OHNE_PREIS,
+  },
+  // Der Erfassungsgrad ist immer eine Zahl; der Wortlaut ist nur der
+  // Vollstaendigkeit der Tabelle halber da und wird nie erreicht.
+  vollstaendigkeit: {
+    min: "vollMin",
+    max: "vollMax",
+    wert: (s) => s.vollstaendigkeit,
+    luecke: "ohne Erfassungsgrad",
+  },
 };
 
 function bereichAktiv(key: string, f: StroemeFilter): boolean {
@@ -383,7 +421,11 @@ function bereichAktiv(key: string, f: StroemeFilter): boolean {
   return (f[g.min] as string) !== "" || (f[g.max] as string) !== "";
 }
 
-/** Prueft einen Zahlwert gegen die Grenzen; `{ ohne }` und null fallen heraus. */
+/**
+ * Prueft einen Zahlwert gegen die Grenzen. `{ ohne }` und null fallen hier
+ * heraus — filterStroemeMitBericht faengt beide VORHER ab und zaehlt sie
+ * benannt; dieser Pruefer sieht sie nur, wenn er direkt aufgerufen wird.
+ */
 function bereichsPruefer(key: string): Pruefer {
   return (s, f) => {
     if (!bereichAktiv(key, f)) return true;
@@ -450,6 +492,13 @@ const ANWENDUNG: Record<string, Pruefer> = {
     landkreis: s.verwaltung?.kreisArs ?? verwaltungsZustand(s),
     ort: s.ort ? ortsSchluessel(s.ort) : null,
   })),
+  // Sektor → Akteur. Ein Akteur ohne Sektor ist ein benannter Filterwert
+  // (E24, wie `ohne_koordinate` beim Kreis) — sonst waere er im Baum
+  // unerreichbar und fiele bei gesetztem Sektor still heraus.
+  akteur: hierarchie("akteur", (s) => ({
+    sektor: s.sektor ?? OHNE_SEKTOR,
+    akteur: s.akteurId,
+  })),
   // F5 PR B: alle fuenf Bereichsfilter laufen ueber GROESSEN — dieselbe
   // Quelle, aus der auch der Nicht-beruecksichtigt-Bericht zaehlt.
   menge: bereichsPruefer("menge"),
@@ -508,10 +557,16 @@ export function angewandteSchluessel(): string[] {
   return out;
 }
 
-/** Ein Grund, aus dem Stroeme trotz passender uebriger Filter fehlen, samt Anzahl. */
+/**
+ * Ein Grund, aus dem Stroeme trotz passender uebriger Filter fehlen, samt
+ * Anzahl. `art` traegt den Unterschied, der fuer den Nutzer wesentlich ist:
+ * eine `eigenschaft` (Asche hat keinen Heizwert, daran aendert niemand etwas)
+ * oder eine `luecke` (keine Menge erfasst — die kann er schliessen).
+ */
 export interface NichtBeruecksichtigt {
   grund: string;
   anzahl: number;
+  art: "eigenschaft" | "luecke";
 }
 
 export interface FilterErgebnis {
@@ -519,9 +574,11 @@ export interface FilterErgebnis {
   /**
    * Stroeme, die JEDE andere Bedingung erfuellen, aber eine gesetzte
    * Bereichsgroesse nicht besitzen (benannter Zustand, z. B. "ohne
-   * Energieäquivalent"). Die Leiste weist sie sichtbar aus — wer eine
+   * Energieäquivalent") oder nicht erfasst haben (Luecke, z. B. "ohne
+   * erfasste Menge"). Die Leiste weist beides getrennt aus — wer eine
    * energetische Grenze setzt, soll sehen, dass co2/asche nicht
-   * mitverglichen wurden, statt sie fuer weggefiltert zu halten.
+   * mitverglichen wurden, und wer eine Menge vergessen hat, soll es genau
+   * dann erfahren, wenn es ihm nuetzt. Eigenschaften stehen vor Luecken.
    */
   nichtBeruecksichtigt: NichtBeruecksichtigt[];
 }
@@ -540,13 +597,13 @@ export function filterStroemeMitBericht(
 ): FilterErgebnis {
   const q = f.q.trim().toLowerCase();
   const stroeme: Strom[] = [];
-  const zaehler = new Map<string, number>();
+  const zaehler = new Map<string, NichtBeruecksichtigt>();
 
   for (const s of pool) {
     const art = sichtAusArt(s.art);
     // Ein Strom zaehlt je Grund einmal, auch wenn zwei Grenzen (Menge UND
     // Preis) dieselbe fehlende Groesse treffen.
-    const gruende = new Set<string>();
+    const gruende = new Map<string, NichtBeruecksichtigt["art"]>();
     let besteht = true;
     for (const def of FILTER) {
       if (!def.ansichten.includes(ansicht)) continue;
@@ -554,8 +611,12 @@ export function filterStroemeMitBericht(
       const groesse = GROESSEN[def.key];
       if (groesse && bereichAktiv(def.key, f)) {
         const wert = groesse.wert(s);
-        if (wert != null && typeof wert === "object") {
-          gruende.add(wert.ohne);
+        if (wert == null) {
+          gruende.set(groesse.luecke, "luecke");
+          continue;
+        }
+        if (typeof wert === "object") {
+          gruende.set(wert.ohne, "eigenschaft");
           continue;
         }
       }
@@ -571,16 +632,24 @@ export function filterStroemeMitBericht(
     }
     if (!besteht) continue;
     if (gruende.size > 0) {
-      for (const g of gruende) zaehler.set(g, (zaehler.get(g) ?? 0) + 1);
+      for (const [grund, gArt] of gruende) zaehle(zaehler, { grund, anzahl: 1, art: gArt });
       continue;
     }
     stroeme.push(s);
   }
 
-  return {
-    stroeme,
-    nichtBeruecksichtigt: [...zaehler].map(([grund, anzahl]) => ({ grund, anzahl })),
-  };
+  return { stroeme, nichtBeruecksichtigt: sortiertePosten(zaehler) };
+}
+
+function zaehle(zaehler: Map<string, NichtBeruecksichtigt>, n: NichtBeruecksichtigt): void {
+  const bisher = zaehler.get(n.grund);
+  zaehler.set(n.grund, { ...n, anzahl: (bisher?.anzahl ?? 0) + n.anzahl });
+}
+
+/** Eigenschaften vor Luecken, sonst in Reihenfolge des Auftretens (stabil). */
+function sortiertePosten(zaehler: Map<string, NichtBeruecksichtigt>): NichtBeruecksichtigt[] {
+  const rang = (n: NichtBeruecksichtigt) => (n.art === "eigenschaft" ? 0 : 1);
+  return [...zaehler.values()].sort((a, b) => rang(a) - rang(b));
 }
 
 /** Leisten-Wortlaut, an einer Stelle: "3 Ströme ohne Energieäquivalent nicht berücksichtigt". */
@@ -592,10 +661,9 @@ export function nichtBeruecksichtigtText(n: NichtBeruecksichtigt): string {
 export function fasseBerichteZusammen(
   ...berichte: NichtBeruecksichtigt[][]
 ): NichtBeruecksichtigt[] {
-  const zaehler = new Map<string, number>();
-  for (const bericht of berichte)
-    for (const n of bericht) zaehler.set(n.grund, (zaehler.get(n.grund) ?? 0) + n.anzahl);
-  return [...zaehler].map(([grund, anzahl]) => ({ grund, anzahl }));
+  const zaehler = new Map<string, NichtBeruecksichtigt>();
+  for (const bericht of berichte) for (const n of bericht) zaehle(zaehler, n);
+  return sortiertePosten(zaehler);
 }
 
 export function filterStroeme(pool: Strom[], f: StroemeFilter, ansicht: Ansicht): Strom[] {

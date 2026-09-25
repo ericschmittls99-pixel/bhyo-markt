@@ -172,6 +172,22 @@ export const FILTER: readonly FilterDef[] = [
     gruppe: "haupt",
   },
   {
+    // F5 PR B: Sektor (Referenztabelle, Migration 0020) → Akteur. Die
+    // Akteur-Ebene traegt die ID, nicht den Namen — zwei Akteure duerfen
+    // gleich heissen. "ohne Sektor" ist ein eigener Wert (E24).
+    key: "akteur",
+    label: "Sektor / Akteur",
+    typ: "hierarchie",
+    params: ["sektor", "akteur"],
+    ebenen: [
+      { param: "sektor", label: "Sektoren" },
+      { param: "akteur", label: "Akteure" },
+    ],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
     // F5 PR B: "stofflich" heisst, was sich als Masse messen laesst —
     // Feedstock-Rohmenge und Output-Mengen in t/a. Ein Output in MWh/a hat
     // KEINE stoffliche Menge und wird bei gesetzter Grenze nicht

@@ -1,12 +1,13 @@
 /**
- * Verbindet die drei Bäume (lib/hierarchie-baeume.ts) mit den Chips der
+ * Verbindet die vier Bäume (lib/hierarchie-baeume.ts) mit den Chips der
  * Filterleiste. EINE Stelle für alle drei Ansichten — sonst wäre die
  * Verdrahtung genau die Art Doppelung, die E32 abgeschafft hat.
  */
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
-import { filterDef, type FilterDef } from "@/lib/filter-modell";
+import { FILTER, type FilterDef } from "@/lib/filter-modell";
 import { kurzfassung, type Ebene, type Knoten } from "@/lib/hierarchie";
 import {
+  baumAkteur,
   baumMaterialart,
   baumOrt,
   baumProdukt,
@@ -27,6 +28,7 @@ export function baeumeAus(pool: BaumStrom[]): Record<string, Knoten[]> {
     materialart: baumMaterialart(pool, CLUSTER_LABEL),
     produkt: baumProdukt(pool, OUTPUT_LABEL),
     ort: baumOrt(pool),
+    akteur: baumAkteur(pool),
   };
 }
 
@@ -52,16 +54,19 @@ export function chipHierarchie(
   return { baum, ebenen, auswahl, kurz: kurzfassung(baum, ebenen, auswahl), anzahl };
 }
 
-/** Bequemer Zugriff für die Seiten: Chip-Angaben je Filter-Schlüssel. */
+/**
+ * Chip-Angaben für JEDEN Hierarchie-Filter des Modells. Die Schlüssel kommen
+ * aus dem Modell, nicht aus einer Liste je Seite — vorher stand dieselbe
+ * Dreierliste in drei Seiten, und die vierte Hierarchie hätte drei
+ * Ergänzungen gebraucht.
+ */
 export function hierarchienFuer(
-  keys: string[],
   baeume: Record<string, Knoten[]>,
   werte: Record<string, unknown>,
 ): Record<string, ChipHierarchie | undefined> {
   const out: Record<string, ChipHierarchie | undefined> = {};
-  for (const key of keys) {
-    const def = filterDef(key);
-    if (def) out[key] = chipHierarchie(def, baeume, werte);
+  for (const def of FILTER) {
+    if (def.typ === "hierarchie") out[def.key] = chipHierarchie(def, baeume, werte);
   }
   return out;
 }

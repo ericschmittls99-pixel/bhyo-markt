@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  baumAkteur,
   baumMaterialart,
   baumOrt,
   baumProdukt,
@@ -10,6 +11,10 @@ import {
 
 function strom(t: Partial<BaumStrom> = {}): BaumStrom {
   return {
+    akteurId: null,
+    akteurName: null,
+    sektor: null,
+    sektorLabel: null,
     cluster: null,
     materialartCode: null,
     materialartLabel: null,
@@ -169,5 +174,47 @@ describe("Ein Kreis ohne Bundesland", () => {
       }),
     ]);
     expect(baum).toEqual([]);
+  });
+});
+
+describe("Sektor → Akteur", () => {
+  it("gruppiert Akteure unter ihrem Sektor, Sektoren nach Label, 'ohne Sektor' zuletzt", () => {
+    const land = { sektor: "landwirtschaft", sektorLabel: "Landwirtschaft" };
+    const baum = baumAkteur([
+      strom({
+        akteurId: "a2",
+        akteurName: "Sägewerk Nord",
+        sektor: "holzwirtschaft",
+        sektorLabel: "Holzwirtschaft",
+      }),
+      strom({ akteurId: "a1", akteurName: "Hof Müller", ...land }),
+      strom({ akteurId: "a3", akteurName: "Stadtwerke" }),
+      strom({ akteurId: "a0", akteurName: "Agrar GmbH", ...land }),
+    ]);
+    expect(baum.map((k) => [k.wert, k.label])).toEqual([
+      ["holzwirtschaft", "Holzwirtschaft"],
+      ["landwirtschaft", "Landwirtschaft"],
+      ["ohne_sektor", "ohne Sektor"],
+    ]);
+    expect(baum[1]!.kinder!.map((k) => [k.wert, k.label])).toEqual([
+      ["a0", "Agrar GmbH"],
+      ["a1", "Hof Müller"],
+    ]);
+    expect(baum[2]!.kinder!.map((k) => k.wert)).toEqual(["a3"]);
+  });
+
+  it("ein Akteur mit mehreren Stroemen ist EIN Eintrag", () => {
+    const hof = { akteurId: "a1", akteurName: "Hof Müller", sektor: "landwirtschaft" };
+    const baum = baumAkteur([strom(hof), strom(hof)]);
+    expect(baum[0]!.kinder).toHaveLength(1);
+  });
+
+  it("ein Strom ohne Akteur haengt an keinem Ast", () => {
+    expect(baumAkteur([strom({ sektor: "energie", sektorLabel: "Energie" })])).toEqual([]);
+  });
+
+  it("ohne Label faellt der Sektor auf seinen Code zurueck, statt zu verschwinden", () => {
+    const baum = baumAkteur([strom({ akteurId: "a1", akteurName: "X", sektor: "energie" })]);
+    expect(baum.map((k) => k.label)).toEqual(["energie"]);
   });
 });

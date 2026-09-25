@@ -153,11 +153,7 @@ export default async function KartePage({
   // den Bestand, nicht die aktuelle Auswahl; sonst verschwaenden beim
   // Filtern die Aeste, ueber die man zurueckwaehlen wollte.
   const baeume = baeumeAus([...bio, ...out]);
-  const hierarchien = hierarchienFuer(
-    ["materialart", "produkt", "ort"],
-    baeume,
-    filter as unknown as Record<string, unknown>,
-  );
+  const hierarchien = hierarchienFuer(baeume, filter as unknown as Record<string, unknown>);
 
   const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
     .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
