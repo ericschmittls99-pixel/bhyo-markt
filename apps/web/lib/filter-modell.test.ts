@@ -206,3 +206,21 @@ describe("Die Stromart wird mitgetragen", () => {
     expect(sidebar).toMatch(/p\.set\("sicht"/);
   });
 });
+
+describe("Zurückgehaltene Filter werden in ALLEN Ansichten ausgewiesen", () => {
+  it("jede Filterleiste rendert den Hinweis", () => {
+    // Im Preview-Test (25.09.2026) gefunden: Die Prop war ueberall
+    // durchgereicht, aber KarteToolbar rendert sie nicht — der Hinweis fehlte
+    // genau dort still. E32 verlangt ihn in jeder Ansicht.
+    for (const datei of [
+      "components/stroeme/FilterSortZeile.tsx",
+      "components/karte/KarteToolbar.tsx",
+      "components/auswertung/AuswertungToolbar.tsx",
+    ]) {
+      const text = readFileSync(join(process.cwd(), datei), "utf8");
+      expect(text, `${datei} rendert den Hinweis nicht`).toMatch(
+        /zurueckgehalten\.length > 0/,
+      );
+    }
+  });
+});

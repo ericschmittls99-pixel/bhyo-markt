@@ -197,6 +197,17 @@ export function KarteToolbar({
           Filter
           {facettenAnzahl > 0 && <span className="fchip-count">{facettenAnzahl}</span>}
         </button>
+
+        {/* E32: gesetzte Filter, die hier nicht gelten — sichtbar, damit
+            niemand eine Karte fuer ungefiltert haelt, die es anderswo ist. */}
+        {zurueckgehalten.length > 0 && (
+          <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
+            <i className="ph ph-funnel-simple" aria-hidden />
+            {zurueckgehalten.length === 1
+              ? "1 Filter gilt hier nicht"
+              : `${zurueckgehalten.length} Filter gelten hier nicht`}
+          </span>
+        )}
       </div>
 
       {offen && (
