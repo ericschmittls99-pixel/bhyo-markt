@@ -11,11 +11,12 @@ import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
  * zurueck (je Tab eigener Filterzustand wie im Mockup).
  */
 export function Toolbar({
-  tab,
+  sicht,
   q,
   canEdit,
 }: {
-  tab: "biomasse" | "output";
+  /** E32: Stromart heisst ueberall `sicht`. */
+  sicht: "feedstock" | "outputs";
   q: string;
   canEdit: boolean;
 }) {
@@ -38,13 +39,13 @@ export function Toolbar({
     timer.current = setTimeout(() => setze({ q: v }), 300);
   }
 
-  const feed = tab === "biomasse";
+  const feed = sicht === "feedstock";
   return (
     <div className="st-toolbar">
       <div className="seg" role="tablist" aria-label="Feedstock oder Outputs">
         <Link
           role="tab"
-          href="/register?tab=biomasse"
+          href="/register?sicht=feedstock"
           aria-selected={feed}
           className="seg-opt"
         >
@@ -52,7 +53,7 @@ export function Toolbar({
         </Link>
         <Link
           role="tab"
-          href="/register?tab=output"
+          href="/register?sicht=outputs"
           aria-selected={!feed}
           className="seg-opt"
         >

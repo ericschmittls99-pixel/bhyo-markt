@@ -8,9 +8,9 @@ import {
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import type { Sicht } from "@/lib/auswertung-modell";
-import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
+import { FILTER_PARAMS } from "@/lib/filter-modell";
+import { updateUiCookie } from "@/lib/ui-state";
 
-const BEREICH_KEYS = ["vonAb", "erstellt"] as const;
 
 /**
  * Toolbar von auswertung. (AP1i PR 7): sicht-Umschalter Feedstock ODER
@@ -18,35 +18,51 @@ const BEREICH_KEYS = ["vonAb", "erstellt"] as const;
  * + Facetten-Chips (immer sichtbar, wie im Mockup — anders als karte./
  * stroeme. gibt es keinen Filter-Toggle) + Reset-X + CSV-Export als
  * Sekundaer-Button (E9). Die Filter leben im geteilten Querystring
- * (GETEILTE_FILTER_PARAMS); der CSV-Link reicht genau diese Parameter
+ * (FILTER_PARAMS); der CSV-Link reicht genau diese Parameter
  * plus die explizite sicht an die Export-Route weiter.
  */
 export function AuswertungToolbar({
   facetten,
   auswahl,
   bereich,
+  bereichKeys,
+  offenInitial,
+  zurueckgehalten,
   sicht,
   irgendeinFilter,
 }: {
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
+  bereichKeys: readonly string[];
+  /** Gemerkter Auf-/Zuklappzustand der Filterleiste (Cookie bhyo_ui). */
+  offenInitial: boolean;
+  zurueckgehalten: string[];
   sicht: Sicht;
   irgendeinFilter: boolean;
 }) {
   const { setze, searchParams } = useUrlZustand();
   const [schliessSignal, setSchliessSignal] = useState(0);
+  const [offen, setOffen] = useState(offenInitial);
+
+  function toggleLeiste() {
+    const neu = !offen;
+    setOffen(neu);
+    setSchliessSignal((s) => s + 1);
+    const aktuell = updateUiCookie({});
+    updateUiCookie({ filterOffen: { ...aktuell.filterOffen, auswertung: neu } });
+  }
 
   function zuruecksetzen() {
     const leer: Record<string, null> = { q: null };
     for (const f of facetten) leer[f.key] = null;
-    for (const k of BEREICH_KEYS) leer[k] = null;
+    for (const k of bereichKeys) leer[k] = null;
     setze(leer);
     setSchliessSignal((s) => s + 1);
   }
 
   const exportParams = new URLSearchParams();
-  for (const k of GETEILTE_FILTER_PARAMS) {
+  for (const k of FILTER_PARAMS) {
     const v = searchParams.get(k);
     if (v) exportParams.set(k, v);
   }
@@ -78,15 +94,39 @@ export function AuswertungToolbar({
 
       <div className="aw-toolbar-trenner" aria-hidden />
 
+      {/* E32: Filterleiste auf- und zuklappbar wie in stroeme. und karte. —
+          vorher war sie hier als einzige immer offen und der Zustand wurde
+          nicht gemerkt. */}
+      <button
+        type="button"
+        className={`fchip${offen || irgendeinFilter ? " aktiv" : ""}`}
+        aria-expanded={offen}
+        aria-controls="aw-filter"
+        onClick={toggleLeiste}
+      >
+        Filter
+      </button>
+
+      {zurueckgehalten.length > 0 && (
+        <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
+          <i className="ph ph-funnel-simple" aria-hidden />
+          {zurueckgehalten.length === 1
+            ? "1 Filter gilt hier nicht"
+            : `${zurueckgehalten.length} Filter gelten hier nicht`}
+        </span>
+      )}
+
+      {offen && (
       <FacettenChips
         facetten={facetten}
         auswahl={auswahl}
-        bereichKeys={BEREICH_KEYS}
+        bereichKeys={bereichKeys}
         bereich={bereich}
         mitReset={irgendeinFilter}
         onReset={zuruecksetzen}
         schliessSignal={schliessSignal}
       />
+      )}
 
       <a className="btn btn--sm aw-export" href={exportHref} download>
         <i className="ph ph-download-simple" aria-hidden />

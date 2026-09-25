@@ -25,7 +25,6 @@ import {
   ladeStroeme,
 } from "@/lib/stroeme";
 import {
-  FACETTEN,
   facettenOptionen,
   filterAusSearchParams,
   filterStroeme,
@@ -37,6 +36,7 @@ import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { darf } from "@/lib/rollen";
 import { aktuellerZugang } from "@/lib/wache";
+import { artAusSicht, leiste, leseSicht } from "@/lib/filter-modell";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
 
@@ -59,7 +59,16 @@ export async function RegisterInhalt({
   sp: SearchParams;
   zurueckHref?: string;
 }) {
-  const art = ersterWert(sp.tab) === "output" ? ("output" as const) : ("biomasse" as const);
+  // E32: `tab=biomasse|output` ist abgeloest — die Stromart heisst ueberall
+  // `sicht=feedstock|outputs`. stroeme. zeigt immer genau eine Art, "alle"
+  // gibt es hier nicht.
+  const { sicht: sichtRoh } = leseSicht(ersterWert(sp.sicht) || undefined, "feedstock", [
+    "feedstock",
+    "outputs",
+  ]);
+  // stroeme. zeigt immer genau eine Art; "alle" ist hier ausgeschlossen.
+  const sicht = sichtRoh as "feedstock" | "outputs";
+  const art = artAusSicht(sicht) ?? "biomasse";
   const ansicht = ersterWert(sp.ansicht) === "liste" ? ("liste" as const) : ("grid" as const);
 
   const filter = filterAusSearchParams(sp);
@@ -86,17 +95,15 @@ export async function RegisterInhalt({
   const gefiltert = filterStroeme(pool, filter);
   const stroeme = sortiereStroeme(gefiltert, sortKey, richtung);
 
-  const facetten = FACETTEN[art];
+  // E32: Facetten, Bereiche, Auswahl, Ruecksetz-Schluessel und die
+  // zurueckgehaltenen Filter kommen aus dem Filtermodell — hier steht keine
+  // eigene Liste mehr.
   const optionen = facettenOptionen(art, pool, regionen, CLUSTER_LABEL);
-  const auswahl = Object.fromEntries(
-    facetten.map(({ key }) => [key, filter[key] as string[]]),
-  );
-  const irgendeinFilter =
-    filter.q.trim() !== "" ||
-    facetten.some(({ key }) => (filter[key] as string[]).length > 0) ||
-    [filter.mengeMin, filter.mengeMax, filter.preisMin, filter.preisMax, filter.vonAb, filter.erstellt].some(
-      (v) => v !== "",
-    );
+  const lst = leiste("stroeme", sicht, filter as unknown as Record<string, unknown>, optionen);
+  const facetten = [...lst.haupt, ...lst.weitere]
+    .filter((e) => e.def.typ === "facette")
+    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+  const { auswahl, bereich, irgendeinFilter } = lst;
 
   const countText = `${stroeme.length} ${stroeme.length === 1 ? "Strom" : "Ströme"}${irgendeinFilter ? " gefiltert" : ""}`;
 
@@ -152,28 +159,22 @@ export async function RegisterInhalt({
   const vergaben = detailStrom ? (vergabenMap.get(detailStrom.id) ?? []) : [];
   const verfuegbarkeit = detailStrom?.verfuegbarkeit ?? null;
 
-  const resetHref = `/register${art === "output" ? "?tab=output" : ""}`;
+  const resetHref = `/register${sicht === "outputs" ? "?sicht=outputs" : ""}`;
 
   return (
     <div className="st-seite">
-      <Toolbar tab={art} q={filter.q} canEdit={canEdit} />
+      <Toolbar sicht={sicht} q={filter.q} canEdit={canEdit} />
       <FilterSortZeile
         art={art}
         countText={countText}
-        facetten={facetten.map(({ key, label }) => ({
-          key,
-          label,
-          optionen: optionen[key] ?? [],
-        }))}
+        facetten={facetten}
         auswahl={auswahl}
-        bereich={{
-          mengeMin: filter.mengeMin,
-          mengeMax: filter.mengeMax,
-          preisMin: filter.preisMin,
-          preisMax: filter.preisMax,
-          vonAb: filter.vonAb,
-          erstellt: filter.erstellt,
-        }}
+        bereich={bereich}
+        bereichKeys={lst.haupt
+          .concat(lst.weitere)
+          .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+          .flatMap((e) => e.def.params)}
+        zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
         sortKey={sortKey}
         richtung={richtung}
         sortOptionen={sortOptionen}
@@ -207,7 +208,7 @@ export async function RegisterInhalt({
               {canEdit && (
                 <Link
                   className="btn btn--primary btn--sm"
-                  href={`/register?tab=${art}&form=neu`}
+                  href={`/register?sicht=${sicht}&form=neu`}
                 >
                   <i className="ph-bold ph-plus" aria-hidden />
                   {art === "biomasse" ? "Feedstock anlegen" : "Output anlegen"}

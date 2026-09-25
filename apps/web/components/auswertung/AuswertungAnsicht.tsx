@@ -61,6 +61,9 @@ export function AuswertungAnsicht({
   facetten,
   auswahl,
   bereich,
+  bereichKeys,
+  offenInitial,
+  zurueckgehalten,
   sicht,
   zeitmodus,
   agg,
@@ -91,6 +94,9 @@ export function AuswertungAnsicht({
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
+  bereichKeys: readonly string[];
+  offenInitial: boolean;
+  zurueckgehalten: string[];
   sicht: Sicht;
   /** Zeitbezug (AP1j PR 4): Fenster-Zustand aus der URL. */
   zeitmodus: "einzeljahr" | "zeitraum";
@@ -694,6 +700,9 @@ export function AuswertungAnsicht({
         facetten={facetten}
         auswahl={auswahl}
         bereich={bereich}
+        bereichKeys={bereichKeys}
+        offenInitial={offenInitial}
+        zurueckgehalten={zurueckgehalten}
         sicht={sicht}
         irgendeinFilter={irgendeinFilter}
       />

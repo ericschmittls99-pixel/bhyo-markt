@@ -231,6 +231,36 @@ kennen Safari und Firefox gar nicht. Monate werden als `MM/JJJJ` erfasst.
 schreiben alle mit demselben Wert (`lib/eingabe-format.ts`, reine
 Funktionen). Ein Test verbietet `type="number"` in den Formularen.
 
+## 12. Ein Filtermodell (E32, 25.09.2026)
+
+**Filter sind an genau einer Stelle definiert** (`apps/web/lib/filter-modell.ts`):
+Schlüssel, Beschriftung, Werttyp, Wertebereich, Hierarchie und in welchen
+Ansichten und für welche Stromart sie gelten. Alle Ansichten leiten ihre
+Leiste daraus ab; handgeschriebene Listen je Ansicht gibt es nicht.
+
+**Die Zugehörigkeit ist ausdrücklich, nicht zufällig.** Dass ein Filter in
+einer Ansicht fehlt, ist eine Festlegung im Modell — kein Nebeneffekt davon,
+wo ihn jemand zuerst gebraucht hat. Genau dieser Unterschied hatte den
+`landkreis`-Fall erzeugt: für Outputs eingeführt, für Feedstock nie
+angewandt, lautlos.
+
+**Ein Filter, der wirkt, ist sichtbar und rücksetzbar.** Ein Filter, der in
+der aktuellen Ansicht oder Stromart nicht gilt, bleibt gemerkt, wirkt aber
+nicht, und die Leiste zeigt an, dass zurückgehaltene Filter bestehen; beim
+Zurückwechseln greifen sie wieder. **Stillschweigendes Wirken oder
+stillschweigendes Verwerfen gibt es nicht.** Ausnahmen sind im Modell
+benannt (`beiNichtgeltung: "verwerfen"`) — heute genau eine: der Freitext in
+auswertung., weil er dort kein Eingabefeld hat und deshalb nicht korrigierbar
+wäre.
+
+**Stromart heißt überall `sicht=feedstock|outputs|alle`** — `tab=biomasse|output`
+ist abgelöst. „Feedstock" statt „Biomasse", weil der Bestand auch Polymere
+umfasst. Ein unbekannter Wert wird auf den Standard gesetzt **und die URL
+umgeschrieben**, statt still auf etwas anderes auszuweichen. Der interne
+Diskriminator `Strom.art` behält die Werte `biomasse`/`output`, weil sie als
+Literale aus den SQL-Abfragen kommen; umgerechnet wird an einer Stelle
+(`artAusSicht`/`sichtAusArt`).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

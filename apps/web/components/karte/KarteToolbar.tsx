@@ -15,7 +15,6 @@ import {
 } from "@/lib/karte-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
-const BEREICH_KEYS = ["vonAb", "erstellt"] as const;
 
 const TREFFER_META: Record<KarteTreffer["typ"], string> = {
   strom: "Strom",
@@ -35,6 +34,8 @@ export function KarteToolbar({
   facetten,
   auswahl,
   bereich,
+  bereichKeys,
+  zurueckgehalten,
   sicht,
   offenInitial,
   irgendeinFilter,
@@ -45,6 +46,10 @@ export function KarteToolbar({
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
+  /** Bereichs-, Monats- und Datumsparameter dieser Ansicht (aus dem Modell). */
+  bereichKeys: readonly string[];
+  /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
+  zurueckgehalten: string[];
   sicht: "alle" | "feedstock" | "outputs";
   offenInitial: boolean;
   irgendeinFilter: boolean;
@@ -70,7 +75,7 @@ export function KarteToolbar({
 
   const facettenAnzahl =
     facetten.reduce((n, f) => n + (auswahl[f.key]?.length ?? 0), 0) +
-    BEREICH_KEYS.filter((k) => (bereich[k] ?? "") !== "").length;
+    bereichKeys.filter((k) => (bereich[k] ?? "") !== "").length;
 
   function toggleLeiste() {
     const neu = !offen;
@@ -83,7 +88,7 @@ export function KarteToolbar({
   function zuruecksetzen() {
     const leer: Record<string, null> = { q: null };
     for (const f of facetten) leer[f.key] = null;
-    for (const k of BEREICH_KEYS) leer[k] = null;
+    for (const k of bereichKeys) leer[k] = null;
     setze(leer);
     setSchliessSignal((s) => s + 1);
   }
@@ -199,7 +204,7 @@ export function KarteToolbar({
           <FacettenChips
             facetten={facetten}
             auswahl={auswahl}
-            bereichKeys={BEREICH_KEYS}
+            bereichKeys={bereichKeys}
             bereich={bereich}
             mitReset={irgendeinFilter}
             onReset={zuruecksetzen}

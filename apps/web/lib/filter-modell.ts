@@ -1,0 +1,392 @@
+/**
+ * E32 — Ein Filtermodell. Die EINZIGE Stelle, an der ein Filter definiert
+ * wird: Schlüssel, Beschriftung, Werttyp, Zugehörigkeit zu Ansichten und
+ * Stromarten, und ob er zu den Hauptfiltern gehört oder unter „weitere
+ * Filter" liegt.
+ *
+ * Alle Ansichten leiten ihre Leiste hieraus ab. Handgeschriebene Listen je
+ * Ansicht gibt es nicht — vorher standen dieselben Facetten dreimal
+ * nebeneinander (`FACETTEN`, `karte/page.tsx`, `auswertung/page.tsx`) und
+ * `BEREICH_KEYS` sogar dreimal mit zwei verschiedenen Inhalten.
+ *
+ * **Die Zugehörigkeit ist ausdrücklich, nicht zufällig.** Dass ein Filter in
+ * einer Ansicht fehlt, ist eine Festlegung in diesem Modell — kein
+ * Nebeneffekt davon, wo ihn jemand zuerst gebraucht hat. Genau dieser
+ * Unterschied hat den `landkreis`-Fall erzeugt: Der Filter war für Outputs
+ * eingeführt und wurde für Feedstock nie angewandt, ohne dass es auffiel.
+ *
+ * `lib/filter-modell.test.ts` prüft deshalb zweierlei dauerhaft:
+ * Vollständigkeit (jeder geltende Schlüssel wird auch angewendet) und
+ * Einzigkeit (genau eine Definition, genau eine Facettenliste).
+ */
+
+/** Die drei Ansichten mit Filterleiste. */
+export const ANSICHTEN = ["stroeme", "karte", "auswertung"] as const;
+export type Ansicht = (typeof ANSICHTEN)[number];
+
+/**
+ * Stromart in der Adresszeile — durchgehend `feedstock`, nie `biomasse`:
+ * Der Bestand umfasst auch Polymere, „Biomasse" wäre die engere Aussage.
+ * `tab=biomasse|output` ist damit abgelöst.
+ *
+ * Der interne Diskriminator `Strom.art` behält vorerst die Werte
+ * `biomasse`/`output`, weil sie als Literale aus den SQL-Abfragen kommen
+ * (`'biomasse' AS art`) — sie sind Datenseite, nicht Anzeige. Umgerechnet
+ * wird an genau einer Stelle: `artAusSicht` / `sichtAusArt`.
+ */
+export const SICHTEN = ["feedstock", "outputs", "alle"] as const;
+export type Sicht = (typeof SICHTEN)[number];
+
+/** Welche Stromart ein Filter betrifft. */
+export type FilterArt = "feedstock" | "outputs";
+
+export type FilterTyp =
+  /** Freitext, ein Parameter. */
+  | "text"
+  /** Mehrfachauswahl, kommagetrennt in einem Parameter. */
+  | "facette"
+  /** Zwei Parameter (Min/Max). */
+  | "bereich"
+  /** Ein Monat (JJJJ-MM). */
+  | "monat"
+  /** Ein Datum (JJJJ-MM-TT). */
+  | "datum";
+
+export interface FilterDef {
+  /** Logischer Name; bei einfachen Filtern zugleich der URL-Parameter. */
+  key: string;
+  label: string;
+  typ: FilterTyp;
+  /** URL-Parameter dieses Filters — bei `bereich` zwei, sonst einer. */
+  params: readonly string[];
+  /** In welchen Ansichten er gilt. */
+  ansichten: readonly Ansicht[];
+  /** Für welche Stromarten er gilt. */
+  arten: readonly FilterArt[];
+  /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
+  gruppe: "haupt" | "weitere";
+  /**
+   * Was passiert, wenn der Filter in der aktuellen Ansicht nicht gilt.
+   * Voreinstellung `merken` (E32): Er bleibt in der Adresszeile, wirkt
+   * nicht, die Leiste weist ihn aus, und beim Zurückwechseln greift er
+   * wieder. `verwerfen` ist die ausdrückliche Ausnahme.
+   */
+  beiNichtgeltung?: "merken" | "verwerfen";
+}
+
+const BEIDE: readonly FilterArt[] = ["feedstock", "outputs"];
+const ALLE_ANSICHTEN: readonly Ansicht[] = ANSICHTEN;
+
+/**
+ * Der heutige Bestand, zusammengeführt und mit ausdrücklicher Zugehörigkeit.
+ * PR A fügt KEINE Filter hinzu — die neuen Zeilen der Zielmatrix (Sektor,
+ * Ort-Hierarchie, Vollständigkeit, Verifikation, energetische Menge und
+ * Preis, Vergabezeitraum) kommen mit PR B.
+ */
+export const FILTER: readonly FilterDef[] = [
+  {
+    key: "q",
+    label: "Freitext",
+    typ: "text",
+    params: ["q"],
+    // auswertung. hat bewusst kein Suchfeld (Zielmatrix).
+    ansichten: ["stroeme", "karte"],
+    arten: BEIDE,
+    gruppe: "haupt",
+    // Ausdrückliche Ausnahme von E32 (Entscheidung Eric, 25.09.2026): Ein
+    // gemerkter Freitext ohne Eingabefeld wäre in auswertung. nicht
+    // korrigierbar, nur abwählbar — deshalb wird er beim Wechsel entfernt.
+    // Hinweis: Das kostet den Suchtext beim Hin- und Zurückwechseln; die
+    // E32-Regel („merken, nicht anwenden, ausweisen") täte das nicht.
+    beiNichtgeltung: "verwerfen",
+  },
+  {
+    key: "region",
+    label: "Region",
+    typ: "facette",
+    params: ["region"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    key: "cluster",
+    label: "Cluster",
+    typ: "facette",
+    params: ["cluster"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["feedstock"],
+    gruppe: "haupt",
+  },
+  {
+    key: "materialart",
+    label: "Materialart",
+    typ: "facette",
+    params: ["materialart"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["feedstock"],
+    gruppe: "haupt",
+  },
+  {
+    key: "gruppe",
+    label: "Gruppe",
+    typ: "facette",
+    params: ["gruppe"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["outputs"],
+    gruppe: "haupt",
+  },
+  {
+    key: "produkt",
+    label: "Output",
+    typ: "facette",
+    params: ["produkt"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: ["outputs"],
+    gruppe: "haupt",
+  },
+  {
+    key: "landkreis",
+    label: "Landkreis",
+    typ: "facette",
+    params: ["landkreis"],
+    // PR B erweitert das zur Hierarchie Bundesland → Landkreis → Ort in
+    // allen Ansichten; hier wird zunaechst der Befund geschlossen, dass der
+    // Filter fuer Feedstock nie angewandt wurde.
+    ansichten: ["stroeme"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    key: "menge",
+    label: "Menge",
+    typ: "bereich",
+    params: ["mengeMin", "mengeMax"],
+    ansichten: ["stroeme"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    key: "preis",
+    label: "Preis",
+    typ: "bereich",
+    params: ["preisMin", "preisMax"],
+    ansichten: ["stroeme"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    key: "verfuegbarkeit",
+    label: "Verfügbarkeit",
+    typ: "facette",
+    params: ["verfuegbarkeit"],
+    // Entscheidung Eric 25.09.2026: In auswertung. uebernehmen die
+    // anklickbaren Jahrespillen diese Rolle.
+    ansichten: ["stroeme", "karte"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    key: "vonAb",
+    label: "Verfügbar ab",
+    typ: "monat",
+    params: ["vonAb"],
+    ansichten: ["stroeme", "karte"],
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
+    key: "qualitaet",
+    label: "Qualität",
+    typ: "facette",
+    params: ["qualitaet"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
+    key: "status",
+    label: "Status",
+    typ: "facette",
+    params: ["status"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
+    key: "belegtyp",
+    label: "Belegtyp",
+    typ: "facette",
+    params: ["belegtyp"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
+    key: "erstellt",
+    label: "Erstellt am",
+    typ: "datum",
+    params: ["erstellt"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+];
+
+// --- Abgeleitetes ----------------------------------------------------------
+
+/** Alle URL-Parameter der Datenfilter — ersetzt GETEILTE_FILTER_PARAMS. */
+export const FILTER_PARAMS: readonly string[] = FILTER.flatMap((f) => f.params);
+
+const NACH_KEY = new Map(FILTER.map((f) => [f.key, f]));
+const NACH_PARAM = new Map(FILTER.flatMap((f) => f.params.map((p) => [p, f] as const)));
+
+export function filterDef(key: string): FilterDef | undefined {
+  return NACH_KEY.get(key);
+}
+
+export function filterZuParam(param: string): FilterDef | undefined {
+  return NACH_PARAM.get(param);
+}
+
+/** Gilt dieser Filter hier? Beides muss stimmen: Ansicht UND Stromart. */
+export function gilt(f: FilterDef, ansicht: Ansicht, sicht: Sicht): boolean {
+  if (!f.ansichten.includes(ansicht)) return false;
+  // Sicht "alle" zeigt beide Arten — ein Filter gilt dann, wenn er fuer
+  // mindestens eine davon gilt.
+  if (sicht === "alle") return f.arten.length > 0;
+  return f.arten.includes(sicht);
+}
+
+/** Die Filter einer Ansicht, in der Reihenfolge des Modells. */
+export function filterFuer(ansicht: Ansicht, sicht: Sicht): FilterDef[] {
+  return FILTER.filter((f) => gilt(f, ansicht, sicht));
+}
+
+/** Nur die Hauptfilter bzw. nur „weitere Filter" einer Ansicht. */
+export function filterFuerGruppe(
+  ansicht: Ansicht,
+  sicht: Sicht,
+  gruppe: FilterDef["gruppe"],
+): FilterDef[] {
+  return filterFuer(ansicht, sicht).filter((f) => f.gruppe === gruppe);
+}
+
+/** Parameter, die beim Wechsel in diese Ansicht entfernt werden (E32-Ausnahme). */
+export function zuVerwerfen(ansicht: Ansicht, sicht: Sicht): string[] {
+  return FILTER.filter(
+    (f) => f.beiNichtgeltung === "verwerfen" && !gilt(f, ansicht, sicht),
+  ).flatMap((f) => f.params);
+}
+
+// --- Sicht <-> interner Diskriminator --------------------------------------
+
+/** Der interne Diskriminator von `Strom.art` (Datenseite, siehe oben). */
+export type StromArtIntern = "biomasse" | "output";
+
+export function artAusSicht(sicht: Sicht): StromArtIntern | null {
+  if (sicht === "feedstock") return "biomasse";
+  if (sicht === "outputs") return "output";
+  return null; // "alle"
+}
+
+export function sichtAusArt(art: StromArtIntern): FilterArt {
+  return art === "biomasse" ? "feedstock" : "outputs";
+}
+
+/**
+ * Liest `sicht` aus der Adresszeile. Ein unbekannter Wert wird auf den
+ * Standard gesetzt; `umgeschrieben` sagt dem Aufrufer, dass die URL zu
+ * korrigieren ist (E32) — stillschweigend auf etwas anderes auszuweichen
+ * wäre genau die Sorte Verhalten, die das Modell abschafft.
+ */
+export function leseSicht(
+  roh: string | undefined,
+  standard: Sicht,
+  erlaubt: readonly Sicht[] = SICHTEN,
+): { sicht: Sicht; umgeschrieben: boolean } {
+  if (roh && (erlaubt as readonly string[]).includes(roh)) {
+    return { sicht: roh as Sicht, umgeschrieben: false };
+  }
+  return { sicht: standard, umgeschrieben: roh !== undefined && roh !== "" };
+}
+
+// --- Leiste je Ansicht -----------------------------------------------------
+
+export interface FilterOption {
+  wert: string;
+  label: string;
+}
+
+export interface LeisteEintrag {
+  def: FilterDef;
+  optionen: FilterOption[];
+}
+
+export interface Leiste {
+  /** Hauptfilter (immer sichtbar). */
+  haupt: LeisteEintrag[];
+  /** „weitere Filter" (zusammengeklappt). */
+  weitere: LeisteEintrag[];
+  /** Mehrfachauswahl je Facetten-Parameter. */
+  auswahl: Record<string, string[]>;
+  /** Einzelwerte je Bereichs-, Monats- und Datumsparameter. */
+  bereich: Record<string, string>;
+  /** Ist irgendein hier geltender Filter gesetzt? */
+  irgendeinFilter: boolean;
+  /**
+   * E32: Filter, die gesetzt sind, hier aber NICHT gelten. Sie bleiben in der
+   * Adresszeile und wirken nicht; die Leiste weist sie aus, damit niemand
+   * eine Liste für ungefiltert hält, die anderswo gefiltert ist.
+   */
+  zurueckgehalten: FilterDef[];
+  /** Alle Parameter, die „Zurücksetzen" in dieser Ansicht leert. */
+  ruecksetzParams: string[];
+}
+
+function istGesetzt(def: FilterDef, werte: Record<string, unknown>): boolean {
+  return def.params.some((p) => {
+    const v = werte[p];
+    return Array.isArray(v) ? v.length > 0 : typeof v === "string" && v !== "";
+  });
+}
+
+/**
+ * Leitet die komplette Leiste einer Ansicht aus dem Modell ab — Facetten,
+ * Bereiche, Auswahl, Rücksetz-Schlüssel und die zurückgehaltenen Filter.
+ * Jede Ansicht ruft diese eine Funktion; handgeschriebene Listen gibt es
+ * nicht mehr.
+ */
+export function leiste(
+  ansicht: Ansicht,
+  sicht: Sicht,
+  werte: Record<string, unknown>,
+  optionen: Record<string, FilterOption[]> = {},
+): Leiste {
+  const geltend = filterFuer(ansicht, sicht);
+  const eintrag = (def: FilterDef): LeisteEintrag => ({
+    def,
+    optionen: optionen[def.key] ?? [],
+  });
+
+  const auswahl: Record<string, string[]> = {};
+  const bereich: Record<string, string> = {};
+  for (const def of geltend) {
+    for (const p of def.params) {
+      if (def.typ === "facette") auswahl[p] = (werte[p] as string[]) ?? [];
+      else bereich[p] = (werte[p] as string) ?? "";
+    }
+  }
+
+  return {
+    haupt: geltend.filter((f) => f.gruppe === "haupt").map(eintrag),
+    weitere: geltend.filter((f) => f.gruppe === "weitere").map(eintrag),
+    auswahl,
+    bereich,
+    irgendeinFilter: geltend.some((f) => istGesetzt(f, werte)),
+    zurueckgehalten: FILTER.filter(
+      (f) => !gilt(f, ansicht, sicht) && istGesetzt(f, werte),
+    ),
+    ruecksetzParams: geltend.flatMap((f) => f.params),
+  };
+}

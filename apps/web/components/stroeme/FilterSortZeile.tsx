@@ -7,19 +7,10 @@ import {
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
-import { GETEILTE_FILTER_PARAMS } from "@/lib/stroeme-modell";
+import { FILTER_PARAMS } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 export type FacettenChip = FacettenChipDef;
-
-const BEREICH_KEYS = [
-  "mengeMin",
-  "mengeMax",
-  "preisMin",
-  "preisMax",
-  "vonAb",
-  "erstellt",
-] as const;
 
 /**
  * Zeile 2 von stroeme. (V2): links Zaehltext bzw. ausgeklappte Facetten-Chips,
@@ -38,6 +29,8 @@ export function FilterSortZeile({
   sortKey,
   richtung,
   sortOptionen,
+  bereichKeys,
+  zurueckgehalten,
   ansicht,
   offenInitial,
   irgendeinFilter,
@@ -46,7 +39,11 @@ export function FilterSortZeile({
   countText: string;
   facetten: FacettenChip[];
   auswahl: Record<string, string[]>;
-  bereich: Record<(typeof BEREICH_KEYS)[number], string>;
+  bereich: Record<string, string>;
+  /** Bereichs-, Monats- und Datumsparameter dieser Ansicht (aus dem Modell). */
+  bereichKeys: readonly string[];
+  /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
+  zurueckgehalten: string[];
   sortKey: string;
   richtung: "auf" | "ab";
   sortOptionen: [string, string][];
@@ -91,7 +88,7 @@ export function FilterSortZeile({
     return () => ro.disconnect();
   }, []);
 
-  const bereichAnzahl = BEREICH_KEYS.filter((k) => bereich[k] !== "").length;
+  const bereichAnzahl = bereichKeys.filter((k) => (bereich[k] ?? "") !== "").length;
   const facettenAnzahl = facetten.reduce(
     (n, f) => n + (auswahl[f.key]?.length ?? 0),
     0,
@@ -128,7 +125,7 @@ export function FilterSortZeile({
   function zuruecksetzen() {
     const leer: Record<string, null> = { q: null };
     for (const f of facetten) leer[f.key] = null;
-    for (const k of BEREICH_KEYS) leer[k] = null;
+    for (const k of bereichKeys) leer[k] = null;
     setze(leer);
     setSchliessSignal((s) => s + 1);
   }
@@ -145,7 +142,7 @@ export function FilterSortZeile({
   // Derselbe Export wie in auswertung. (eine Route, ein Ursprung): die
   // geteilten Filter-Parameter plus die Art dieses Tabs als sicht.
   const exportParams = new URLSearchParams();
-  for (const k of GETEILTE_FILTER_PARAMS) {
+  for (const k of FILTER_PARAMS) {
     const v = searchParams.get(k);
     if (v) exportParams.set(k, v);
   }
@@ -161,7 +158,7 @@ export function FilterSortZeile({
           <FacettenChips
             facetten={facetten}
             auswahl={auswahl}
-            bereichKeys={BEREICH_KEYS}
+            bereichKeys={bereichKeys}
             bereich={bereich}
             bereichKompakt={bereichKompakt}
             einheit={einheit}
@@ -172,6 +169,18 @@ export function FilterSortZeile({
             onPopoverOffen={() => setSortOffen(false)}
           />
         </div>
+      )}
+
+      {/* E32: Filter, die hier nicht gelten, bleiben gemerkt und wirken
+          nicht — aber sie bleiben sichtbar. Sonst haelt man eine Liste fuer
+          ungefiltert, die anderswo gefiltert ist. */}
+      {zurueckgehalten.length > 0 && (
+        <span className="st-zurueckgehalten" title={zurueckgehalten.join(", ")}>
+          <i className="ph ph-funnel-simple" aria-hidden />
+          {zurueckgehalten.length === 1
+            ? "1 Filter gilt hier nicht"
+            : `${zurueckgehalten.length} Filter gelten hier nicht`}
+        </span>
       )}
 
       <div className="st-filterzeile-rechts">

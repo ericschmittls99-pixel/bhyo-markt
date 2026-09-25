@@ -39,6 +39,9 @@ import {
   type Strom,
 } from "@/lib/stroeme-modell";
 import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { leiste } from "@/lib/filter-modell";
+import { cookies } from "next/headers";
+import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 
 export const dynamic = "force-dynamic";
 
@@ -132,36 +135,32 @@ export default async function AuswertungPage({
     label,
   }));
 
-  const facetten: FacettenChipDef[] = [
-    { key: "region", label: "Region", optionen: opt.region ?? [] },
-    ...(sicht === "feedstock"
-      ? [
-          { key: "cluster", label: "Cluster", optionen: opt.cluster ?? [] },
-          { key: "materialart", label: "Materialart", optionen: opt.materialart ?? [] },
-        ]
-      : [
-          { key: "gruppe", label: "Gruppe", optionen: gruppeOptionen },
-          { key: "produkt", label: "Output", optionen: opt.produkt ?? [] },
-        ]),
-    { key: "qualitaet", label: "Qualität", optionen: opt.qualitaet ?? [] },
-    { key: "status", label: "Status", optionen: opt.status ?? [] },
-    {
-      key: "verfuegbarkeit",
-      label: "Verfügbarkeit",
-      optionen: opt.verfuegbarkeit ?? [],
-    },
-    { key: "belegtyp", label: "Belegtyp", optionen: opt.belegtyp ?? [] },
-  ];
-
-  const auswahl = Object.fromEntries(
-    facetten.map(({ key }) => [key, filter[key as "cluster"] as string[]]),
+  // E32: Leiste aus dem Filtermodell statt einer eigenen Liste.
+  const optionen: Record<string, { wert: string; label: string }[]> = {
+    region: opt.region ?? [],
+    cluster: opt.cluster ?? [],
+    materialart: opt.materialart ?? [],
+    gruppe: gruppeOptionen,
+    produkt: opt.produkt ?? [],
+    qualitaet: opt.qualitaet ?? [],
+    status: opt.status ?? [],
+    belegtyp: opt.belegtyp ?? [],
+  };
+  // Auf-/Zuklappzustand der Filterleiste wie in den anderen Ansichten.
+  const ui = parseUiState((await cookies()).get(UI_COOKIE)?.value);
+  const lst = leiste(
+    "auswertung",
+    sicht,
+    filter as unknown as Record<string, unknown>,
+    optionen,
   );
-  const bereich = { vonAb: filter.vonAb, erstellt: filter.erstellt };
-  const irgendeinFilter =
-    filter.q.trim() !== "" ||
-    facetten.some(({ key }) => (filter[key as "cluster"] as string[]).length > 0) ||
-    filter.vonAb !== "" ||
-    filter.erstellt !== "";
+  const facetten: FacettenChipDef[] = [...lst.haupt, ...lst.weitere]
+    .filter((e) => e.def.typ === "facette")
+    .map((e) => ({ key: e.def.params[0]!, label: e.def.label, optionen: e.optionen }));
+  const { auswahl, bereich, irgendeinFilter } = lst;
+  const bereichKeys = [...lst.haupt, ...lst.weitere]
+    .filter((e) => e.def.typ !== "facette" && e.def.typ !== "text")
+    .flatMap((e) => e.def.params);
 
   // Detail wie karte. (eine Detailansicht, zwei Einstiegspunkte): Strom nicht
   // im Pool (Filter/500er-Limit) -> gezielt nachladen, Art unbekannt.
@@ -214,6 +213,9 @@ export default async function AuswertungPage({
       facetten={facetten}
       auswahl={auswahl}
       bereich={bereich}
+      bereichKeys={bereichKeys}
+      offenInitial={!!ui.filterOffen?.auswertung}
+      zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
       sicht={sicht}
       zeitmodus={zeitmodus}
       agg={agg}

@@ -2444,6 +2444,23 @@ button.leg-toggle.aus {
   letter-spacing: var(--tracking-tight);
 }
 
+/* E32: Hinweis auf zurueckgehaltene Filter. Zurueckgenommen wie die
+   Qualitaets-Pillen — er benennt einen Zustand, er warnt nicht. */
+.st-zurueckgehalten {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-left: auto;
+  padding: 0 10px;
+  height: var(--control-h-sm);
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: var(--type-caption);
+  white-space: nowrap;
+  cursor: default;
+}
+
 /* F8/E30 PR C: Benutzerverwaltung in einstellungen. Ruhige Tabelle im
    bestehenden Stil — keine eigene Designsprache fuer eine Admin-Seite. */
 .einst {
