@@ -141,6 +141,13 @@
       "when": 1790247798094,
       "tag": "0019_f8_benutzer_rollen",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1790343672341,
+      "tag": "0020_f5_sektor_referenz",
+      "breakpoints": true
     }
   ]
 }

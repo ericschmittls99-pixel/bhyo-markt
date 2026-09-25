@@ -260,7 +260,11 @@ export const region = pgTable("region", {
 export const akteur = pgTable("akteur", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
-  sektor: text("sektor"),
+  /**
+   * F5 PR B: Referenz auf `sektor.code` statt Freitext. NULL ist der
+   * benannte Zustand "ohne Sektor" — fehlende Information, nicht "sonstige".
+   */
+  sektor: text("sektor").references(() => sektor.code),
   rollen: text("rollen")
     .array()
     .notNull()
@@ -275,6 +279,26 @@ export const akteur = pgTable("akteur", {
   updatedAt: timestamp("updated_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
+});
+
+/**
+ * Sektor eines Akteurs als Referenzdaten (F5 PR B) — Muster wie `materialart`
+ * und `output_produkt`: Codes liegen in einer Tabelle, nicht als Freitext.
+ * Vorher war `akteur.sektor` ein freies Feld; zwei Schreibweisen ergaben zwei
+ * Filterwerte.
+ *
+ * **Leer heisst „ohne Sektor", nicht „sonstige"** (Entscheidung Eric,
+ * 25.09.2026): Ein Akteur ohne Sektor traegt eine fehlende Information, keine
+ * Restkategorie.
+ *
+ * Ein neuer Sektor braucht kuenftig eine Migration — wie bei Materialarten
+ * und Produkten.
+ */
+export const sektor = pgTable("sektor", {
+  code: text("code").primaryKey(),
+  label: text("label").notNull(),
+  /** Reihenfolge in Auswahllisten; gleiche Werte alphabetisch. */
+  sortierung: integer("sortierung").notNull().default(0),
 });
 
 /**

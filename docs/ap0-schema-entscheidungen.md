@@ -261,6 +261,40 @@ Diskriminator `Strom.art` behält die Werte `biomasse`/`output`, weil sie als
 Literale aus den SQL-Abfragen kommen; umgerechnet wird an einer Stelle
 (`artAusSicht`/`sichtAusArt`).
 
+## 15. Sektor als Referenzdaten (F5 PR B, 25.09.2026)
+
+`akteur.sektor` war ein **Freitextfeld**. Folge: Zwei Schreibweisen ergaben
+zwei Filterwerte — gemessen am 25.09.2026 standen auf der Preview 14
+Schreibweisen für 11 Werte, darunter `Energie`/`energie`,
+`Forstwirtschaft`/`forstwirtschaft`, `Landwirtschaft`/`landwirtschaft`.
+
+**Acht Werte** in der Referenztabelle `sektor`, Muster wie `materialart` und
+`output_produkt`: `abfallwirtschaft`, `energie`, `forstwirtschaft`,
+`holzwirtschaft`, `industrie`, `kommunal`, `landwirtschaft`, `lebensmittel`.
+
+**Leer heißt „ohne Sektor", nicht „sonstige"** — fehlende Information ist
+keine Restkategorie (dieselbe Haltung wie „unbelegt" in E24).
+
+Drei Entscheidungen zur Zuordnung des Bestands:
+
+1. **Schreibweisen zusammengeführt.** Der Vergleich läuft ohne Rücksicht auf
+   Groß- und Kleinschreibung und ohne Randleerraum, damit künftige Varianten
+   gar nicht erst entstehen.
+2. **`abnehmer` ist kein Sektor, sondern eine Rolle** — und war mit 50 von
+   117 Akteuren der häufigste Wert. Ein Wert, der in einer Auswahlliste etwas
+   anderes bedeutet als alle übrigen, verdirbt die ganze Liste. Diese Akteure
+   bekommen „ohne Sektor"; die Rolle wandert vorher nach `akteur.rollen`.
+   **Gemessen:** `rollen` war bei allen 117 Akteuren leer, `sektor` also der
+   einzige Träger dieser Angabe — deshalb wird sie gesichert, nicht gelöscht.
+3. **`Entsorgung` und `Entsorgungswirtschaft` → `abfallwirtschaft`.** Eine
+   fachliche Zusammenlegung, keine Schreibweise: drei Namen für eine Sache.
+
+**Einschränkung, bewusst in Kauf genommen:** Ein neuer Sektor braucht künftig
+eine **Migration**, genau wie Materialarten und Produkte. Das ist mit dem
+bestehenden Muster stimmig, wird aber Reibung erzeugen, sobald echte Daten
+neue Branchen bringen. Wenn es so weit ist, wird eine **Verwaltung der
+Referenzdaten durch Admins** ein eigenes Paket — jetzt nicht.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
