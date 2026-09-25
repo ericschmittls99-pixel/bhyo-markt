@@ -37,7 +37,14 @@ const BAUM: Knoten[] = [
   {
     wert: "07",
     label: "Rheinland-Pfalz",
-    kinder: [{ wert: "07332", label: "Bad Dürkheim", kinder: [{ wert: "Grünstadt", label: "Grünstadt" }] }],
+    kinder: [
+      { wert: "07332", label: "Bad Dürkheim", kinder: [{ wert: "Grünstadt", label: "Grünstadt" }] },
+      // Zweiter Kreis mit Absicht: Mit nur einem waere Rheinland-Pfalz durch
+      // dessen Auswahl sofort vollstaendig und wuerde zusammengefasst — die
+      // Faelle "Elternteil bleibt teilweise" liessen sich dann gar nicht
+      // pruefen.
+      { wert: "07318", label: "Speyer", kinder: [{ wert: "Speyer", label: "Speyer" }] },
+    ],
   },
 ];
 
@@ -173,5 +180,54 @@ describe("Treffer: die Ebenen sind ODER-verknüpft", () => {
   it("ein Strom ohne Wert auf der gewählten Ebene trifft nicht", () => {
     const ohne = { bundesland: null, landkreis: null, ort: null };
     expect(trifft({ ...leer, bundesland: ["08"] }, EBENEN, ohne)).toBe(false);
+  });
+});
+
+describe("Implizit Gewähltes ist einzeln abwählbar (Vorgabe Eric, 25.09.2026)", () => {
+  it("ein Kind unter gewähltem Elternteil abwählen löst den Elternteil auf", () => {
+    // Ohne das müsste, wer „BW außer einem Kreis" will, das Bundesland
+    // abwählen und alle übrigen Kreise einzeln anklicken — dieselbe Auswahl,
+    // nur mühsam.
+    let a: Auswahl = schalte(BAUM, EBENEN, leer, 0, "08");
+    expect(a.bundesland).toEqual(["08"]);
+
+    a = schalte(BAUM, EBENEN, a, 1, "08221");
+    // Gespeichert wird die hoechste VOLLSTAENDIG gewaehlte Ebene: BW ist es
+    // nicht mehr, also stehen die uebrigen Kreise da.
+    expect(a.bundesland).toEqual([]);
+    expect(a.landkreis).toEqual(["08226"]);
+  });
+
+  it("alle Kinder wieder wählen fasst den Elternteil erneut zusammen", () => {
+    let a: Auswahl = { ...leer, landkreis: ["08226"] };
+    a = schalte(BAUM, EBENEN, a, 1, "08221");
+    expect(a.landkreis).toEqual([]);
+    expect(a.bundesland).toEqual(["08"]);
+  });
+
+  it("über zwei Ebenen: einen Ort unter gewähltem Land abwählen löst beide auf", () => {
+    let a: Auswahl = schalte(BAUM, EBENEN, leer, 0, "08");
+    a = schalte(BAUM, EBENEN, a, 2, "Sinsheim");
+    expect(a.bundesland).toEqual([]);
+    // Heidelberg bleibt als ganzer Kreis (sein einziger Ort ist noch drin),
+    // aus dem Rhein-Neckar-Kreis bleibt nur Schwetzingen.
+    expect(a.landkreis).toEqual(["08221"]);
+    expect(a.ort).toEqual(["Schwetzingen"]);
+  });
+
+  it("eine aufgelöste Auswahl ist eine Momentaufnahme", () => {
+    // Kommt spaeter ein Kreis dazu, ist er NICHT enthalten — bei einer
+    // Ausschluss-Auswahl ist das richtig so.
+    let a: Auswahl = schalte(BAUM, EBENEN, leer, 0, "08");
+    a = schalte(BAUM, EBENEN, a, 1, "08221");
+    const spaeter: Knoten[] = [
+      { ...BAUM[0]!, kinder: [...BAUM[0]!.kinder!, { wert: "08999", label: "Neu" }] },
+      BAUM[1]!,
+    ];
+    expect(trifft(a, EBENEN, { bundesland: "08", landkreis: "08999", ort: null })).toBe(
+      false,
+    );
+    // Und die Normalisierung fasst deshalb auch nicht faelschlich zusammen.
+    expect(normalisiere(spaeter, EBENEN, a).bundesland).toEqual([]);
   });
 });

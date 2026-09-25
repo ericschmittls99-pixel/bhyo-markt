@@ -2508,9 +2508,6 @@ button.leg-toggle.aus {
 .hb-waehlen:hover:not(:disabled) {
   background: var(--action-ghost-bg-hover);
 }
-.hb-waehlen:disabled {
-  cursor: default;
-}
 .hb-label {
   overflow: hidden;
   text-overflow: ellipsis;

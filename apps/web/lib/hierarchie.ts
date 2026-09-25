@@ -8,11 +8,21 @@
  * Auswählen getrennt, Mehrfachauswahl über Ebenen hinweg, Teilauswahl am
  * Elternteil sichtbar.
  *
- * **Gespeichert wird die höchste gewählte Ebene**, die unteren sind
- * implizit. Wer Baden-Württemberg wählt, bekommt `bundesland=08`, nicht alle
- * Kreisschlüssel. Das hält die Adresszeile kurz und bleibt richtig, wenn
- * später ein Kreis dazukommt — eine Liste aller heutigen Kreise wäre am Tag
- * danach falsch, ohne dass es jemand merkt.
+ * **Gespeichert wird die höchste Ebene, die VOLLSTÄNDIG gewählt ist**
+ * (Präzisierung Eric, 25.09.2026). Wer Baden-Württemberg wählt, bekommt
+ * `bundesland=08`, nicht alle Kreisschlüssel — das hält die Adresszeile kurz
+ * und bleibt richtig, wenn später ein Kreis dazukommt.
+ *
+ * Wählt jemand darunter einen Kreis ab, ist das Bundesland nicht mehr
+ * vollständig: Es wird **automatisch in seine übrigen Kinder aufgelöst**
+ * (`landkreis=08226`). Die Adresszeile wird in diesem Fall länger, das Modell
+ * bleibt aber ohne Zustand, der sich nicht schreiben lässt. Werden später
+ * wieder alle Kinder gewählt, fasst die Normalisierung sie erneut zum
+ * Elternteil zusammen.
+ *
+ * **Eine aufgelöste Auswahl ist eine Momentaufnahme.** Kommt später ein Kreis
+ * dazu, ist er nicht enthalten — bei einer Ausschluss-Auswahl ist genau das
+ * richtig.
  *
  * Diese Datei ist rein: Eingaben rein, Ergebnis raus. Keine Datenbank, kein
  * React, kein `Date.now()`.
@@ -70,36 +80,93 @@ export function zustand(
 }
 
 /**
- * Entfernt überflüssige Auswahlen: Ist ein Elternteil gewählt, sind seine
- * Nachfahren implizit mitgewählt — sie noch einmal aufzuführen verlängert
- * die Adresszeile, ohne etwas zu ändern, und würde beim nächsten neuen Kreis
- * falsch aussehen.
+ * Bringt eine Auswahl auf ihre kanonische Form: **die höchsten vollständig
+ * gewählten Knoten.**
+ *
+ * Von unten nach oben: Ein Blatt ist vollständig, wenn es gewählt ist; ein
+ * innerer Knoten, wenn er selbst gewählt ist **oder** alle seine Kinder
+ * vollständig sind. Gespeichert wird dann jeder vollständige Knoten, dessen
+ * Elternteil es nicht ist.
+ *
+ * Damit fällt beides zusammen: Überflüssige Nachfahren eines gewählten
+ * Elternteils verschwinden, und vollständig gewählte Geschwister werden zum
+ * Elternteil zusammengefasst.
  */
 export function normalisiere(baum: Knoten[], ebenen: Ebene[], auswahl: Auswahl): Auswahl {
-  // Je Ebene sammeln, was durch einen gewaehlten Vorfahren implizit ist.
-  const implizit: Record<string, Set<string>> = {};
-  for (const e of ebenen) implizit[e.param] = new Set();
+  const neu: Auswahl = {};
+  for (const e of ebenen) neu[e.param] = [];
 
-  /** Alle Nachfahren eines Knotens in `implizit` eintragen — er selbst nicht. */
-  const nachfahren = (knoten: Knoten, tiefe: number) => {
-    for (const kind of knoten.kinder ?? []) {
-      const param = ebenen[tiefe + 1]?.param;
-      if (param) implizit[param]!.add(kind.wert);
-      nachfahren(kind, tiefe + 1);
-    }
+  /** Ist dieser Teilbaum vollständig gewählt? */
+  const vollstaendig = (knoten: Knoten, tiefe: number): boolean => {
+    if (selbstGewaehlt(knoten, tiefe, ebenen, auswahl)) return true;
+    const kinder = knoten.kinder ?? [];
+    if (kinder.length === 0) return false;
+    return kinder.every((k) => vollstaendig(k, tiefe + 1));
   };
 
+  /** Den höchsten vollständigen Knoten je Ast eintragen. */
   const lauf = (knoten: Knoten, tiefe: number) => {
-    if (selbstGewaehlt(knoten, tiefe, ebenen, auswahl)) nachfahren(knoten, tiefe);
+    if (vollstaendig(knoten, tiefe)) {
+      const param = ebenen[tiefe]?.param;
+      if (param) neu[param]!.push(knoten.wert);
+      return; // Nachfahren sind implizit
+    }
     for (const kind of knoten.kinder ?? []) lauf(kind, tiefe + 1);
   };
   for (const wurzel of baum) lauf(wurzel, 0);
 
+  return neu;
+}
+
+/**
+ * Löst gewählte Vorfahren eines Knotens in ihre Kinder auf, damit der Knoten
+ * danach einzeln abwählbar ist. Ohne das müsste, wer „BW außer einem Kreis"
+ * will, das Bundesland abwählen und alle übrigen Kreise einzeln anklicken —
+ * dieselbe Auswahl, nur mühsam.
+ */
+function loeseVorfahrenAuf(
+  baum: Knoten[],
+  ebenen: Ebene[],
+  auswahl: Auswahl,
+  tiefe: number,
+  wert: string,
+): Auswahl {
+  const pfad = findePfad(baum, 0, tiefe, wert);
+  if (!pfad) return auswahl;
+
   const neu: Auswahl = {};
-  for (const e of ebenen) {
-    neu[e.param] = (auswahl[e.param] ?? []).filter((w) => !implizit[e.param]!.has(w));
+  for (const e of ebenen) neu[e.param] = [...(auswahl[e.param] ?? [])];
+
+  // Von oben nach unten: Jeden gewählten Vorfahren durch seine Kinder
+  // ersetzen, bis der Knoten selbst auf seiner Ebene explizit dasteht.
+  for (let t = 0; t < tiefe; t++) {
+    const knoten = pfad[t]!;
+    const param = ebenen[t]!.param;
+    if (!neu[param]!.includes(knoten.wert)) continue;
+    neu[param] = neu[param]!.filter((w) => w !== knoten.wert);
+    const kindParam = ebenen[t + 1]?.param;
+    if (kindParam) {
+      for (const kind of knoten.kinder ?? []) {
+        if (!neu[kindParam]!.includes(kind.wert)) neu[kindParam]!.push(kind.wert);
+      }
+    }
   }
   return neu;
+}
+
+/** Kette der Knoten von der Wurzel bis zum gesuchten Knoten, oder null. */
+function findePfad(
+  knoten: Knoten[],
+  tiefe: number,
+  zielTiefe: number,
+  wert: string,
+): Knoten[] | null {
+  for (const k of knoten) {
+    if (tiefe === zielTiefe && k.wert === wert) return [k];
+    const unten = findePfad(k.kinder ?? [], tiefe + 1, zielTiefe, wert);
+    if (unten) return [k, ...unten];
+  }
+  return null;
 }
 
 /**
@@ -116,14 +183,26 @@ export function schalte(
 ): Auswahl {
   const param = ebenen[tiefe]?.param;
   if (!param) return auswahl;
-  const bisher = auswahl[param] ?? [];
-  const an = !bisher.includes(wert);
 
-  const neu: Auswahl = {};
-  for (const e of ebenen) neu[e.param] = [...(auswahl[e.param] ?? [])];
-  neu[param] = an ? [...bisher, wert] : bisher.filter((w) => w !== wert);
+  // Effektiv gewaehlt heisst: selbst gewaehlt ODER durch einen Vorfahren
+  // mitgewaehlt. Beides muss sich mit einem Klick zuruecknehmen lassen.
+  const pfad = findePfad(baum, 0, tiefe, wert);
+  const effektivGewaehlt =
+    (auswahl[param] ?? []).includes(wert) ||
+    (pfad ?? []).some((k, t) => t < tiefe && (auswahl[ebenen[t]!.param] ?? []).includes(k.wert));
 
-  return an ? normalisiere(baum, ebenen, neu) : neu;
+  if (!effektivGewaehlt) {
+    const neu: Auswahl = {};
+    for (const e of ebenen) neu[e.param] = [...(auswahl[e.param] ?? [])];
+    neu[param] = [...(neu[param] ?? []), wert];
+    return normalisiere(baum, ebenen, neu);
+  }
+
+  // Abwaehlen: erst die gewaehlten Vorfahren aufloesen, dann den Knoten
+  // entfernen, dann neu zusammenfassen, was vollstaendig geblieben ist.
+  const aufgeloest = loeseVorfahrenAuf(baum, ebenen, auswahl, tiefe, wert);
+  aufgeloest[param] = (aufgeloest[param] ?? []).filter((w) => w !== wert);
+  return normalisiere(baum, ebenen, aufgeloest);
 }
 
 /** Leert alle Ebenen dieser Hierarchie — ein Zurücksetzen je Hierarchie. */

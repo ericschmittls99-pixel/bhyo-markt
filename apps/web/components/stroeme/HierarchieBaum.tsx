@@ -26,6 +26,11 @@ import {
  *
  * Beide Ziele sind mindestens 32 px hoch, damit sie sich nicht verwechseln
  * lassen.
+ *
+ * **Implizit Gewähltes ist einzeln abwählbar.** Es ist erkennbar anders
+ * dargestellt (gestricheltes Kästchen, zurückgenommener Name), aber nicht
+ * gesperrt — der gewählte Vorfahre löst sich beim Abwählen automatisch in
+ * seine übrigen Kinder auf.
  */
 export function HierarchieBaum({
   baum,
@@ -137,10 +142,11 @@ export function HierarchieBaum({
               type="button"
               className="hb-waehlen"
               tabIndex={-1}
-              // Implizit Gewähltes lässt sich nicht einzeln abwählen — dazu
-              // wird der Vorfahre abgewählt. Sonst entstünde eine Auswahl,
-              // die sich nicht mehr als höchste Ebene schreiben lässt.
-              disabled={implizit}
+              // Implizit Gewähltes ist einzeln abwählbar (Vorgabe Eric,
+              // 25.09.2026): Der gewählte Vorfahre wird dabei automatisch in
+              // seine übrigen Kinder aufgelöst. Ohne das müsste, wer „BW
+              // außer einem Kreis" will, dieselbe Auswahl mühsam von Hand
+              // zusammenklicken.
               title={implizit ? "Über die übergeordnete Ebene gewählt" : undefined}
               onClick={() => onAuswahl(schalte(baum, ebenen, auswahl, tiefe, k.wert))}
             >
