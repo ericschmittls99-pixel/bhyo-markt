@@ -39,7 +39,7 @@ import {
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
-import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { leiste } from "@/lib/filter-modell";
 import { cookies } from "next/headers";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
@@ -72,7 +72,7 @@ export default async function AuswertungPage({
   const sicht = sichtRoh === "outputs" ? ("outputs" as const) : ("feedstock" as const);
   const art = sicht === "outputs" ? ("output" as const) : ("biomasse" as const);
 
-  const [pool, regionen, vergabenMap] = await Promise.all([
+  const [poolRoh, regionen, vergabenMap] = await Promise.all([
     ladeStroeme(art),
     ladeRegionOptionen(),
     ladeAlleVergaben(art),
@@ -80,6 +80,8 @@ export default async function AuswertungPage({
 
   const jetzt = new Date();
   const heuteIso = jetzt.toISOString().slice(0, 10);
+  // E33: Verifikationsstatus einmal je Request, damit der Filter hier greift.
+  const pool = reichereVerifikationAn(poolRoh, vergabenMap, heuteIso);
   const aktuellesJahr = Number(heuteIso.slice(0, 4));
 
   // Zeitbezug (AP1j PR 4): Einzeljahr (Default aktuelles Jahr) oder

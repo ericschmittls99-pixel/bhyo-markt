@@ -25,6 +25,7 @@ import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type Strom } from "@/lib/stroeme-modell";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
+import { VERIFIKATION_LABEL } from "@/lib/verifizierung";
 import {
   vergabeLabel,
   type VerfuegbarkeitsErgebnis,
@@ -488,7 +489,11 @@ export function Detail({
                   <Kv label="Kernnotiz" wert={s.beleg.kernnotiz} />
                   <Kv
                     label="Nächste Verifizierung"
-                    wert={verifizierung ? fmtDatum(verifizierung) : "–"}
+                    wert={
+                      verifizierung
+                        ? `${fmtDatum(verifizierung)}${s.verifikation ? ` · ${VERIFIKATION_LABEL[s.verifikation.status]}` : ""}`
+                        : "keine Frist"
+                    }
                   />
                 </div>
               ) : (

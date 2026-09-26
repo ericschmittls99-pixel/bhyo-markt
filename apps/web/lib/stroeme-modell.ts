@@ -10,6 +10,7 @@ import {
 } from "./verfuegbarkeit";
 import { FILTER, altwertZuNeu, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
 import { BELEG_LABEL as BELEG_LABEL_E34, BELEG_TYPEN, belegTypRang } from "./qualitaet";
+import { VERIFIKATION_LABEL, type VerifikationsErgebnis } from "./verifizierung";
 import { trifft } from "./hierarchie";
 import { trifftVergabefenster } from "./vergabe-fenster";
 import { OHNE_SEKTOR, ortsSchluessel } from "./hierarchie-baeume";
@@ -142,6 +143,8 @@ export interface Strom {
   verfuegbarkeit?: VerfuegbarkeitsErgebnis;
   /** F5 PR B: Vergabezeilen fuer den Filter "Vergeben ab / bis". */
   vergaben?: VergabeDaten[];
+  /** E33: Gesamtfaelligkeit und Verifikationsstatus — nur gesetzt, wo angereichert. */
+  verifikation?: VerifikationsErgebnis;
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;
@@ -158,6 +161,8 @@ export interface StroemeFilter {
   status: string[];
   /** Abgeleiteter Verfuegbarkeitsstatus (PR 3), Werte = VerfuegbarkeitsStatus. */
   verfuegbarkeit: string[];
+  /** E33: aktiv | ausgelaufen | keine_frist, gemessen an der Gesamtfaelligkeit. */
+  verifikation: string[];
   belegtyp: string[];
   landkreis: string[];
   /** F5 PR B: Ebenen der Ortshierarchie neben landkreis. */
@@ -198,6 +203,7 @@ export const LEERER_FILTER: StroemeFilter = {
   qualitaet: [],
   status: [],
   verfuegbarkeit: [],
+  verifikation: [],
   belegtyp: [],
   landkreis: [],
   bundesland: [],
@@ -297,6 +303,10 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
       return [s.status];
     case "verfuegbarkeit":
       return s.verfuegbarkeit ? [s.verfuegbarkeit.status] : [];
+    case "verifikation":
+      // Nicht angereichert = nicht filterbar (kein stummes Raten); angereichert
+      // hat JEDER Strom einen Zustand, auch "keine_frist".
+      return s.verifikation ? [s.verifikation.status] : [];
     case "belegtyp":
       return s.beleg ? [s.beleg.typ] : [];
     case "landkreis":
@@ -471,6 +481,7 @@ const ANWENDUNG: Record<string, Pruefer> = {
   qualitaet: facette("qualitaet"),
   status: facette("status"),
   verfuegbarkeit: facette("verfuegbarkeit"),
+  verifikation: facette("verifikation"),
   belegtyp: facette("belegtyp"),
   // F5 PR B: drei gruppierte Filter ueber dieselbe reine Funktion `trifft`.
   // Die Ebenen kommen aus dem Modell, nicht aus einer Kopie hier.
@@ -780,6 +791,9 @@ export function facettenOptionen(
       ] as VerfuegbarkeitsStatus[]
     ).map((w) => ({ wert: w, label: verfuegbarkeitLabel(art, w) })),
     belegtyp: fest(BELEG_LABEL),
+    // E33: feste 3er-Liste — der Zustand ist abgeleitet und soll waehlbar
+    // sein, auch wenn er gerade nicht vorkommt.
+    verifikation: fest(VERIFIKATION_LABEL),
   };
 
   if (art === "biomasse") {

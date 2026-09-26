@@ -407,6 +407,14 @@ eine **typabhängige Beschriftung**, die die tatsächliche Bedeutung nennt —
 Die **Gesamtfälligkeit** bleibt das früheste Datum aus dieser Belegfrist, dem
 Verfügbarkeitsende, befristeten Vergabeenden und der Reservierung.
 
+**Verifikations-Filter (26.09.2026):** „aktiv" (Gesamtfälligkeit heute oder
+später), „ausgelaufen" (davor), „keine Frist" (kein Kandidat — ohne Beleg und
+ohne Zeitraum, oder ein oberer Typ ohne Datum vor Schritt 3). Der dritte
+Zustand ist benannt und wählbar (E24-Haltung). Gemessen wird gegen das
+Serverdatum, einmal je Request (`reichereVerifikationAn`), aus derselben
+Funktion, die Detail und Auswertung nutzen. Gilt in allen drei Ansichten unter
+„weitere Filter"; das Detail zeigt den Zustand neben dem Datum.
+
 ## 15. Sektor als Referenzdaten (F5 PR B, 25.09.2026)
 
 `akteur.sektor` war ein **Freitextfeld**. Folge: Zwei Schreibweisen ergaben
