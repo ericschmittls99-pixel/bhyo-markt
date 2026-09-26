@@ -137,7 +137,6 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
 - Limitierungsregel biomasse- vs. outputlimitiert
 - Einheitliche Herleitung der Teilscore-Konfidenz
 - Vergleichslauf-Referenzwerte in Schritt h
-- Vollständige Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ
 - Umrechnungsfaktor Biomasse ↔ Output
 - Teilscore-Mapping der Bereitschaftsstufen
 

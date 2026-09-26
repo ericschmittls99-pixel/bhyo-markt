@@ -148,6 +148,13 @@
       "when": 1790343672341,
       "tag": "0020_f5_sektor_referenz",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1790412082715,
+      "tag": "0021_e34_belegtypen_qualitaet",
+      "breakpoints": true
     }
   ]
 }

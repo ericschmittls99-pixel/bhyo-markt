@@ -358,9 +358,6 @@ export interface DetailBeleg {
   externNachvollziehbar: boolean;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
-  amtlich: boolean | null;
-  gespraechsdatum: string | null;
-  gespraechspartner: string | null;
 }
 
 export interface DetailDaten {
@@ -418,9 +415,6 @@ function belegDetail(r: BelegRow): DetailBeleg | null {
     erhebungsdatum: r.belegErstelltAm
       ? r.belegErstelltAm.toISOString().slice(0, 10)
       : null,
-    amtlich: typeof m.amtlich === "boolean" ? m.amtlich : null,
-    gespraechsdatum: str(m.gespraechsdatum),
-    gespraechspartner: str(m.gespraechspartner),
   };
 }
 

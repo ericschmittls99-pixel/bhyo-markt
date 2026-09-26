@@ -234,9 +234,6 @@ describe("Belegnummer-Suche (E28)", () => {
       externNachvollziehbar: false,
       gueltigBis: null,
       erhebungsdatum: null,
-      amtlich: null,
-      gespraechsdatum: null,
-      gespraechspartner: null,
       kernnotiz: null,
     },
   });
@@ -276,9 +273,6 @@ describe("Beleg-ID-Suche", () => {
         externNachvollziehbar: false,
         gueltigBis: null,
         erhebungsdatum: null,
-        amtlich: null,
-        gespraechsdatum: null,
-        gespraechspartner: null,
         kernnotiz: null,
       },
     });

@@ -7,14 +7,7 @@ import { BASIS_JAHR, baueSeedDaten, type SeedStrom } from "./seed-daten";
 /** Abgeleitete Stufe eines Seed-Stroms — derselbe Weg wie die DB-Funktion. */
 const stufe = (s: SeedStrom) =>
   s.beleg
-    ? deriveQualitaet({
-        typ: s.beleg.typ as never,
-        externNachvollziehbar: s.beleg.extern,
-        erhebungsdatum: s.beleg.erhebungsdatum,
-        linkUrl: s.beleg.linkUrl,
-        gueltigBis: s.beleg.gueltigBis,
-        metadata: { quellenangabe: s.beleg.quellenangabe },
-      })
+    ? deriveQualitaet({ typ: s.beleg.typ as never, linkUrl: s.beleg.linkUrl })
     : null;
 
 /**
@@ -172,6 +165,24 @@ describe("Feedstock §1", () => {
     expect(feedOhne.map((s) => s.anker).sort()).toEqual(["A15a", "A15b"]);
     expect(outOhne.map((s) => s.anker)).toEqual(["A15c"]);
     for (const s of [...feedOhne, ...outOhne]) expect(s.status).toBe("entwurf");
+  });
+
+  // E33/E34: alle sieben Typen im Bestand (Filter, Auswertung, Fristen-Filter
+  // haben etwas zu zeigen); die oberen vier tragen gueltig_bis, die unteren
+  // drei nicht; Webrecherche hat immer einen Link (Formularpflicht).
+  it("E34: alle sieben Belegtypen kommen vor; gueltig_bis nur bei den oberen vier", () => {
+    const belege = alle.flatMap((s) => (s.beleg ? [s.beleg] : []));
+    const typen = new Set(belege.map((b) => b.typ));
+    expect([...typen].sort()).toEqual(
+      ["absichtserklaerung", "angebot", "betriebsdaten", "dokument", "gespraech", "vertrag", "webrecherche"],
+    );
+    const obere = ["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"];
+    for (const b of belege) {
+      if (obere.includes(b.typ)) expect(b.gueltigBis, `${b.typ} ohne gueltig_bis`).toMatch(/^\d{4}-12-31$/);
+      else expect(b.gueltigBis, `${b.typ} mit gueltig_bis`).toBeNull();
+      if (b.typ === "webrecherche") expect(b.linkUrl).toBeTruthy();
+      expect(b.quellenangabe.trim().length).toBeGreaterThan(0);
+    }
   });
 
   it("kein Stufenwert im Seed-Input (E23) — Felder statt Ergebnis", () => {

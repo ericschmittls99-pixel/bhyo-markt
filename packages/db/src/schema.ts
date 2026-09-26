@@ -30,16 +30,21 @@ export const datensatzStatus = pgEnum("datensatz_status", [
 ]);
 
 /**
- * Belegtyp mit steigender Verbindlichkeit. `betriebsdaten` in Migration 0002
- * angehaengt (Postgres-Enums lassen nur Anhaengen zu, kein Umsortieren).
+ * Belegtypen (E34). Die DB-Reihenfolge ist Anhaenge-Historie, KEINE
+ * Rangfolge: Postgres-Enums lassen nur Anhaengen zu (`betriebsdaten` 0002,
+ * `webrecherche` 0021) und Umbenennen (`dokument_link` -> `dokument` 0021).
+ * Die fachliche Reihenfolge (Betriebsdaten > Vertrag > Absichtserklaerung >
+ * Angebot > Gespraech > Dokument > Webrecherche) lebt in
+ * apps/web/lib/qualitaet.ts (BELEG_TYPEN) und gilt ueberall in der Anzeige.
  */
 export const belegTyp = pgEnum("beleg_typ", [
-  "dokument_link",
+  "dokument",
   "gespraech",
   "angebot",
   "absichtserklaerung",
   "vertrag",
   "betriebsdaten",
+  "webrecherche",
 ]);
 
 /** Kommunale Bereitschaftsstufe (Feld an der Region). */
@@ -178,31 +183,49 @@ export const beleg = pgTable("beleg", {
   dateiKey: text("datei_key"),
   linkUrl: text("link_url"),
   notiz: text("notiz"),
+  // E33: Faelligkeit der oberen vier Typen (Betriebsdaten, Vertrag,
+  // Absichtserklaerung, Angebot) — dort Pflicht (Formular seit 0021, CHECK
+  // folgt als eigene Migration in Schritt 3). Die unteren drei Typen tragen
+  // hier nichts; ihre Frist ist die Typ-Frist ab erstellt_am.
   gueltigBis: date("gueltig_bis"),
-  // Bildet den "vollstaendige Pflichtfelder"-Teil der Qualitaetsmatrix ab
-  // (siehe deriveQualitaet). Default false: ohne Zusicherung nicht extern belegt.
+  // E34: FREIGABE ZUR EXTERNEN VERWENDUNG (Kommunen-PDF, CSV — wirksam ab
+  // F6). Seit 0021 KEIN Eingang der Qualitaets-Ableitung mehr; der Name ist
+  // historisch. Default false: ohne ausdrueckliche Freigabe bleibt der Beleg
+  // intern.
   externNachvollziehbar: boolean("extern_nachvollziehbar")
     .notNull()
     .default(false),
-  // Typ-spezifische Zusatzfelder (z. B. gespraech: Datum/Partner/Notiz,
-  // angebot: gueltig_bis-Vorbelegung). Struktur haengt am beleg_typ.
+  // Typ-spezifische Zusatzfelder. Seit 0021 gelesen: quellenangabe (Pflicht,
+  // CHECK beleg_quellenangabe_check) und kernnotiz (gespraech). Nicht mehr
+  // gelesen, aber in Altzeilen vorhanden: amtlich, gespraechsdatum,
+  // gespraechspartner (E34-Durchsicht 25.09.2026). Seed-Marker `seed`.
   metadata: jsonb("metadata"),
   // Fachlicher Erstellungszeitpunkt des Belegs, getrennt vom technischen created_at.
   erstelltAm: timestamp("erstellt_am", { withTimezone: true })
     .notNull()
     .defaultNow(),
-  // E23: Die Stufe existiert nur als Ableitung — GENERATED aus den Spalten
-  // DIESER Zeile ueber die IMMUTABLE SQL-Funktion qualitaetsstufe(...)
-  // (Spiegel von apps/web/lib/qualitaet.ts, Paritaetstest im CI). Ein
-  // Schreibversuch scheitert in Postgres; im TS-Typ ist die Spalte durch
-  // generatedAlwaysAs aus allen Insert-/Update-Typen heraus.
+  // E23/E34: Die Stufe existiert nur als Ableitung — GENERATED aus den
+  // Spalten DIESER Zeile ueber die IMMUTABLE SQL-Funktion
+  // qualitaetsstufe(typ, datei_key, link_url) aus Migration 0021 (Spiegel von
+  // apps/web/lib/qualitaet.ts, Paritaetstest im CI). Ein Schreibversuch
+  // scheitert in Postgres; im TS-Typ ist die Spalte durch generatedAlwaysAs
+  // aus allen Insert-/Update-Typen heraus.
   qualitaet: qualitaetsStufe("qualitaet").generatedAlwaysAs(
-    sql`qualitaetsstufe(typ, extern_nachvollziehbar, datei_key, link_url, gueltig_bis, metadata, erstellt_am)`,
+    sql`qualitaetsstufe(typ, datei_key, link_url)`,
   ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
-});
+}, (t) => [
+  // E34: Ein Formular ist eine Bitte, ein CHECK eine Zusicherung. Die
+  // Quellenangabe ist fuer alle sieben Typen Pflicht; leer und reiner
+  // Leerraum sind keine Quellenangabe. Prueft den JSON-Pfad, bis die
+  // Quellenangabe eine eigene Spalte bekommt (Kandidat, siehe E34).
+  check(
+    "beleg_quellenangabe_check",
+    sql`btrim(coalesce(${t.metadata} ->> 'quellenangabe', '')) <> ''`,
+  ),
+]);
 
 /**
  * F0b/E25: Verwaltungsgebiete aus VG250 (BKG), Ebenen Land und Kreis.

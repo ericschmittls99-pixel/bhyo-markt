@@ -2,7 +2,13 @@ import { aenderung, beleg } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AppDb, getBelegeBucket, getEnvironment } from "@/lib/db";
-import { type BelegTyp, berechneGueltigBis, normalisiereUrl } from "@/lib/qualitaet";
+import {
+  BELEG_TYPEN,
+  type BelegTyp,
+  brauchtGueltigBis,
+  istBelegTyp,
+  normalisiereUrl,
+} from "@/lib/qualitaet";
 
 /**
  * Geteilte Server-Helfer fuer die Erfassungs-Actions (PR 5): FormData-Zugriff,
@@ -10,14 +16,8 @@ import { type BelegTyp, berechneGueltigBis, normalisiereUrl } from "@/lib/qualit
  * "use server" — diese Funktionen sind keine Actions, sondern deren Bausteine.
  */
 
-export const BELEG_TYPEN: BelegTyp[] = [
-  "dokument_link",
-  "gespraech",
-  "angebot",
-  "absichtserklaerung",
-  "vertrag",
-  "betriebsdaten",
-];
+// E34: Reihenfolge und Menge der Typen haben genau einen Ursprung.
+export { BELEG_TYPEN };
 
 export class ValidierungsFehler extends Error {}
 
@@ -46,38 +46,47 @@ interface BelegDaten {
   quellenangabe: string;
   erhebungsdatum: string;
   linkUrl: string | null;
+  /** E34: Freigabe zur externen Verwendung (F6) — kein Eingang der Stufe. */
   externNachvollziehbar: boolean;
   metadata: Record<string, unknown>;
-  angebotGueltigBis: string | null;
+  /** E33: nur bei den oberen vier Typen; die unteren drei tragen null. */
+  gueltigBis: string | null;
 }
 
 function belegDatenAus(formData: FormData): BelegDaten | null {
-  const typ = text(formData, "beleg_typ") as BelegTyp | null;
-  if (!typ || !BELEG_TYPEN.includes(typ)) return null;
+  const typ = text(formData, "beleg_typ");
+  if (!istBelegTyp(typ)) return null;
 
+  // Die Quellenangabe ist Pflicht fuer alle sieben Typen — hier als Bitte,
+  // in der DB als Zusicherung (CHECK beleg_quellenangabe_check, 0021).
   const quellenangabe = pflicht(formData, "beleg_quellenangabe", "Quellenangabe");
   const erhebungsdatum = pflicht(formData, "beleg_erhebungsdatum", "Erhebungsdatum");
+  const linkUrl = normalisiereUrl(text(formData, "beleg_link"));
 
-  // Typ-spezifische Zusatzfelder in beleg.metadata.
+  // E33: Faelligkeit der oberen vier Typen kommt aus dem Formular (Pflicht
+  // in der Oberflaeche; validiereFormular meldet es als Feldfehler, hier die
+  // zweite Wache fuer Aufrufer ohne Formularvalidierung). Untere drei: null.
+  const gueltigBis = brauchtGueltigBis(typ)
+    ? pflicht(formData, "beleg_gueltig_bis", "Gültig bis")
+    : null;
+  // E34: Formularpflicht Link bei Webrecherche — keine Stufenbedingung.
+  if (typ === "webrecherche" && !linkUrl)
+    throw new ValidierungsFehler("Link ist bei Webrecherche ein Pflichtfeld.");
+
+  // Typ-spezifische Zusatzfelder in beleg.metadata. Seit E34 nur noch die
+  // Quellenangabe und beim Gespraech die Kernnotiz; amtlich, Gespraechsdatum
+  // und Gespraechspartner werden nicht mehr geschrieben oder gelesen.
   const metadata: Record<string, unknown> = { quellenangabe };
-  if (typ === "gespraech") {
-    metadata.gespraechsdatum = text(formData, "beleg_gespraechsdatum");
-    metadata.gespraechspartner = text(formData, "beleg_gespraechspartner");
-    metadata.kernnotiz = text(formData, "beleg_kernnotiz");
-  }
-  if (typ === "dokument_link") {
-    metadata.amtlich = formData.get("beleg_amtlich") === "on";
-  }
+  if (typ === "gespraech") metadata.kernnotiz = text(formData, "beleg_kernnotiz");
 
   return {
     typ,
     quellenangabe,
     erhebungsdatum,
-    // F4: "www.beispiel.de" genuegt — das Schema ergaenzt die App.
-    linkUrl: normalisiereUrl(text(formData, "beleg_link")),
+    linkUrl,
     externNachvollziehbar: formData.get("beleg_extern") === "on",
     metadata,
-    angebotGueltigBis: typ === "angebot" ? text(formData, "beleg_gueltig_bis") : null,
+    gueltigBis,
   };
 }
 
@@ -98,12 +107,6 @@ async function ladeDateiHoch(formData: FormData): Promise<string | null> {
   return dateiKey;
 }
 
-function gueltigBisAus(d: BelegDaten): string | null {
-  // E23: die Stufe berechnet die DB selbst (GENERATED-Spalte auf beleg);
-  // hier bleibt nur noch die Gueltigkeitsableitung.
-  return berechneGueltigBis(d.typ, d.erhebungsdatum, d.angebotGueltigBis);
-}
-
 // E23: keine Stufe mehr im Ergebnis — die DB leitet sie als
 // GENERATED-Spalte auf beleg selbst ab; die App schreibt sie nirgends.
 export interface BelegErgebnis {
@@ -118,7 +121,6 @@ export async function erstelleBeleg(
   const d = belegDatenAus(formData);
   if (!d) return null;
   const dateiKey = await ladeDateiHoch(formData);
-  const gueltigBis = gueltigBisAus(d);
 
   const [row] = await db
     .insert(beleg)
@@ -128,7 +130,7 @@ export async function erstelleBeleg(
       linkUrl: d.linkUrl,
       externNachvollziehbar: d.externNachvollziehbar,
       metadata: d.metadata,
-      gueltigBis,
+      gueltigBis: d.gueltigBis,
       erstelltAm: new Date(d.erhebungsdatum),
     })
     .returning({ id: beleg.id });
@@ -159,7 +161,6 @@ export async function aktualisiereBeleg(
 
   const neuerKey = await ladeDateiHoch(formData);
   const dateiKey = neuerKey ?? alt.dateiKey;
-  const gueltigBis = gueltigBisAus(d);
 
   await db
     .update(beleg)
@@ -169,7 +170,7 @@ export async function aktualisiereBeleg(
       linkUrl: d.linkUrl,
       externNachvollziehbar: d.externNachvollziehbar,
       metadata: d.metadata,
-      gueltigBis,
+      gueltigBis: d.gueltigBis,
       erstelltAm: new Date(d.erhebungsdatum),
     })
     .where(eq(beleg.id, belegId));

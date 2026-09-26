@@ -37,20 +37,18 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
-import { deriveQualitaet, stufeObergrenzeOhneDatei, type BelegTyp } from "@/lib/qualitaet";
+import {
+  BELEG_TYPEN,
+  GUELTIG_BIS_BESCHRIFTUNG,
+  brauchtGueltigBis,
+  deriveQualitaet,
+  stufeObergrenzeOhneDatei,
+  type BelegTyp,
+} from "@/lib/qualitaet";
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
 import { naechsteVerifizierung } from "@/lib/verifizierung";
 import { dezimalAnzeige, monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
-
-const BELEG_TYPEN: BelegTyp[] = [
-  "dokument_link",
-  "gespraech",
-  "angebot",
-  "absichtserklaerung",
-  "vertrag",
-  "betriebsdaten",
-];
 
 /**
  * Formular-Panel von stroeme. (AP1i PR 5): Anlegen und Bearbeiten als
@@ -168,10 +166,7 @@ export function FormularPanel({
   const [erhebungsdatum, setErhebungsdatum] = useState(b?.erhebungsdatum ?? "");
   const [link, setLink] = useState(b?.linkUrl ?? "");
   const [gueltigBis, setGueltigBis] = useState(b?.gueltigBis ?? "");
-  const [gespraechsdatum, setGespraechsdatum] = useState(b?.gespraechsdatum ?? "");
-  const [gespraechspartner, setGespraechspartner] = useState(b?.gespraechspartner ?? "");
   const [extern, setExtern] = useState(b?.extern ?? false);
-  const [amtlich, setAmtlich] = useState(b?.amtlich ?? false);
   const [dateiName, setDateiName] = useState("");
   const dateiRef = useRef<HTMLInputElement>(null);
   const bestehendeDatei = !neu && !!b?.dateiKey;
@@ -247,15 +242,12 @@ export function FormularPanel({
         )
       : null;
 
+  // E34: Die Stufe haengt nur noch an Typ und Nachweis (Datei bzw. Link).
   const qualitaet = typ
     ? deriveQualitaet({
         typ,
-        externNachvollziehbar: extern,
-        erhebungsdatum: erhebungsdatum || null,
         dateiKey: dateiName || bestehendeDatei ? "x" : null,
         linkUrl: link || null,
-        gueltigBis: typ === "angebot" ? gueltigBis || null : null,
-        metadata: { amtlich, quellenangabe, gespraechsdatum, gespraechspartner },
       })
     : null;
   // F7: Der Erfasser sieht den Preis der Entscheidung im Moment der
@@ -267,10 +259,12 @@ export function FormularPanel({
   const dateiHinweis =
     ohneDateiUndLink && typ ? stufeObergrenzeOhneDatei(typ) : null;
 
+  // E33: obere vier Typen -> gueltig_bis; untere drei -> Typ-Frist ab Erhebung.
+  const gueltigBisFeld = typ ? brauchtGueltigBis(typ) : false;
   const verifizierung = typ
     ? naechsteVerifizierung({
         typ,
-        gueltigBis: typ === "angebot" ? gueltigBis || null : null,
+        gueltigBis: gueltigBisFeld ? gueltigBis || null : null,
         erhebungsdatum: erhebungsdatum || null,
       })
     : null;
@@ -917,7 +911,11 @@ export function FormularPanel({
                     )}
                   </div>
                   <label className="pf">
-                    <span>Link</span>
+                    <span>
+                      Link
+                      {/* E34: Formularpflicht bei Webrecherche — keine Stufenbedingung. */}
+                      {typ === "webrecherche" && <em className="pf-pflicht" aria-hidden> *</em>}
+                    </span>
                     <span className="pf-feld">
                       <input
                         // type="text": bei type="url" verlangt der Browser
@@ -929,8 +927,10 @@ export function FormularPanel({
                         value={link}
                         onChange={(e) => setLink(e.target.value)}
                         placeholder="www.beispiel.de oder https://…"
+                        aria-invalid={f.beleg_link ? true : undefined}
                       />
                     </span>
+                    {f.beleg_link && <span className="pf-fehler">{f.beleg_link}</span>}
                   </label>
                 </div>
                 <div className="fp-zeile">
@@ -951,56 +951,41 @@ export function FormularPanel({
                       <span className="pf-fehler">{f.beleg_erhebungsdatum}</span>
                     )}
                   </label>
-                  {typ === "angebot" && (
+                  {/* E33: EIN Feld gueltig_bis, typabhaengig beschriftet, Pflicht
+                      bei den oberen vier Typen (CHECK folgt in Schritt 3). Die
+                      unteren drei haben kein Enddatum — fuer sie gilt die
+                      Typ-Frist ab Erhebungsdatum. */}
+                  {gueltigBisFeld && typ && (
                     <label className="pf">
-                      <span>Angebot gültig bis</span>
+                      <span>
+                        {GUELTIG_BIS_BESCHRIFTUNG[typ]}
+                        <em className="pf-pflicht" aria-hidden> *</em>
+                      </span>
                       <span className="pf-feld">
                         <input
                           type="date"
                           name="beleg_gueltig_bis"
                           value={gueltigBis}
                           onChange={(e) => setGueltigBis(e.target.value)}
+                          aria-invalid={f.beleg_gueltig_bis ? true : undefined}
                         />
                       </span>
-                    </label>
-                  )}
-                  {typ === "gespraech" && (
-                    <label className="pf">
-                      <span>Gesprächsdatum</span>
-                      <span className="pf-feld">
-                        <input
-                          type="date"
-                          name="beleg_gespraechsdatum"
-                          value={gespraechsdatum}
-                          onChange={(e) => setGespraechsdatum(e.target.value)}
-                        />
-                      </span>
+                      {f.beleg_gueltig_bis && (
+                        <span className="pf-fehler">{f.beleg_gueltig_bis}</span>
+                      )}
                     </label>
                   )}
                 </div>
                 {typ === "gespraech" && (
-                  <>
-                    <label className="pf">
-                      <span>Gesprächspartner</span>
-                      <span className="pf-feld">
-                        <input
-                          type="text"
-                          name="beleg_gespraechspartner"
-                          value={gespraechspartner}
-                          onChange={(e) => setGespraechspartner(e.target.value)}
-                        />
-                      </span>
-                    </label>
-                    <label className="pf">
-                      <span>Kernnotiz</span>
-                      <span className="pf-feld">
-                        <textarea
-                          name="beleg_kernnotiz"
-                          defaultValue={b?.kernnotiz ?? ""}
-                        />
-                      </span>
-                    </label>
-                  </>
+                  <label className="pf">
+                    <span>Kernnotiz</span>
+                    <span className="pf-feld">
+                      <textarea
+                        name="beleg_kernnotiz"
+                        defaultValue={b?.kernnotiz ?? ""}
+                      />
+                    </span>
+                  </label>
                 )}
                 <label className="fp-toggle">
                   <input
@@ -1010,34 +995,21 @@ export function FormularPanel({
                     onChange={(e) => setExtern(e.target.checked)}
                   />
                   <span className="fp-toggle-text">
-                    <span>Extern nachvollziehbar</span>
-                    {/* Review Eric 24.09.2026: Der alte Text versprach eine
-                        Freigabe fuers Kommunen-PDF. Dieses Feld steuert
-                        NICHTS am PDF — es geht allein in die
-                        Qualitaets-Ableitung ein („vollstaendig" verlangt es,
-                        siehe docs/ap1b Abschnitt 2). Der Text sagt jetzt, was
-                        der Haken bewirkt, damit die springende Stufe keine
-                        Ueberraschung mehr ist. */}
+                    <span>Freigabe zur externen Verwendung</span>
+                    {/* E34 (25.09.2026): Das Feld ist eine FREIGABE, keine
+                        Aussage ueber die Nachweiskraft. Es beeinflusst die
+                        Qualitaetsstufe nicht mehr; wirksam wird es mit F6
+                        (Kommunen-PDF, CSV-Export) — bis dahin beauftragt,
+                        aber ohne Wirkung. Der Text sagt genau das, damit
+                        weder eine springende Stufe noch ein Versprechen
+                        entsteht, das nichts einloest. */}
                     <span className="c">
                       {extern
-                        ? "ja – ein Dritter kann die Quelle prüfen. Zählt als vollständiger Beleg."
-                        : "nein – nur intern nachvollziehbar. Der Beleg gilt als unvollständig, die Qualitätsstufe fällt entsprechend niedriger aus."}
+                        ? "ja – dieser Beleg darf extern verwendet werden (Kommunen-PDF, CSV-Export ab F6). Auf die Qualitätsstufe hat das keinen Einfluss."
+                        : "nein – nur intern verwenden. Auf die Qualitätsstufe hat das keinen Einfluss."}
                     </span>
                   </span>
                 </label>
-                {typ === "dokument_link" && (
-                  <label className="fp-toggle">
-                    <input
-                      type="checkbox"
-                      name="beleg_amtlich"
-                      checked={amtlich}
-                      onChange={(e) => setAmtlich(e.target.checked)}
-                    />
-                    <span className="fp-toggle-text">
-                      <span>Amtliche Quelle oder Betreiberdaten</span>
-                    </span>
-                  </label>
-                )}
               </>
             )}
 
@@ -1054,14 +1026,21 @@ export function FormularPanel({
                 ))}
               </span>
               <span className="c">
-                Aus Belegtyp und Nachvollziehbarkeit berechnet, nicht editierbar.
+                Aus Belegtyp und Nachweis (Datei bzw. Link) berechnet, nicht editierbar.
                 {verifizierung
                   ? ` Nächste Verifizierung: ${fmtDatum(verifizierung)}`
-                  : ""}
+                  : gueltigBisFeld
+                    ? " Nächste Verifizierung: folgt aus dem Datum oben."
+                    : ""}
               </span>
               {dateiHinweis && (
                 <span className="c qual-hinweis">
                   Ohne Datei oder Link erreicht dieser Beleg nur Stufe {dateiHinweis}.
+                </span>
+              )}
+              {typ === "webrecherche" && (
+                <span className="c qual-hinweis">
+                  Webrecherche ist immer Stufe D. Der Link ist Pflicht im Formular, er ändert die Stufe nicht.
                 </span>
               )}
             </div>

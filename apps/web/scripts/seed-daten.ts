@@ -18,14 +18,20 @@
 import { deriveQualitaet } from "../lib/qualitaet";
 
 /**
- * E23: Belegfelder, die die gewuenschte Zielstufe tatsaechlich ERZEUGEN —
+ * E23/E34: Belegfelder, die die gewuenschte Zielstufe tatsaechlich ERZEUGEN —
  * die Stufe selbst wird nirgends gespeichert, sie entsteht als
- * GENERATED-Spalte in der DB. Ohne echte R2-Dateien laufen alle Stufen
- * ueber linkUrl (seed.invalid = klar synthetisch):
- *   A: betriebsdaten vollstaendig (extern + Quelle + Link)
- *   B: vertrag nur mit Link (ohne Dateiablage faellt er von A auf B)
- *   C: angebot vollstaendig (Link + gueltig_bis)
- *   D: gespraech ohne Gespraechsfelder, nicht extern nachvollziehbar
+ * GENERATED-Spalte in der DB. Ohne echte R2-Dateien laufen Nachweise ueber
+ * linkUrl (seed.invalid = klar synthetisch). Damit alle SIEBEN Typen im
+ * Bestand vorkommen (Filter, Auswertung, Fristen-Filter), wechseln die
+ * Typen je Zielstufe deterministisch mit der laufenden Nummer:
+ *   A: betriebsdaten mit Link (vollstaendig)
+ *   B: vertrag nur mit Link (unvollstaendig, B) | angebot mit Link (vollstaendig, B)
+ *   C: gespraech (glatt C) | dokument mit Link (vollstaendig, C)
+ *      | absichtserklaerung nur mit Link (unvollstaendig, C)
+ *   D: webrecherche mit Link (glatt D; Link ist Formularpflicht)
+ *      | dokument ohne Link (unvollstaendig, D)
+ * E33: Die oberen vier Typen tragen gueltig_bis (Pflicht ab Schritt 3) —
+ * gestaffelt ueber drei Jahre, damit "aktiv" und "ausgelaufen" vorkommen.
  * Die Selbstpruefung gegen deriveQualitaet bricht LAUT ab, wenn die Felder
  * die Zielstufe verfehlen — kein stiller Ersatzwert (Handoff-Regel).
  */
@@ -36,22 +42,32 @@ function belegFuerZiel(
   linkNr: number,
 ): SeedBeleg {
   const linkUrl = `https://seed.invalid/beleg/${linkNr}`;
-  const b: SeedBeleg =
-    ziel === "A"
-      ? { typ: "betriebsdaten", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: null }
-      : ziel === "B"
-        ? { typ: "vertrag", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: null }
-        : ziel === "C"
-          ? { typ: "angebot", extern: true, erhebungsdatum, quellenangabe, linkUrl, gueltigBis: `${BASIS_JAHR + 1}-12-31` }
-          : { typ: "gespraech", extern: false, erhebungsdatum, quellenangabe, linkUrl: null, gueltigBis: null };
-  const abgeleitet = deriveQualitaet({
-    typ: b.typ as never,
-    externNachvollziehbar: b.extern,
-    erhebungsdatum: b.erhebungsdatum,
-    linkUrl: b.linkUrl,
-    gueltigBis: b.gueltigBis,
-    metadata: { quellenangabe: b.quellenangabe },
-  });
+  // gueltig_bis der oberen vier: Jahresende von B-1 .. B+1, je nach Nummer.
+  const gueltigBis = `${BASIS_JAHR - 1 + (linkNr % 3)}-12-31`;
+  const basis = { extern: true, erhebungsdatum, quellenangabe };
+  let b: SeedBeleg;
+  if (ziel === "A") {
+    b = { ...basis, typ: "betriebsdaten", linkUrl, gueltigBis };
+  } else if (ziel === "B") {
+    b =
+      linkNr % 2 === 0
+        ? { ...basis, typ: "vertrag", linkUrl, gueltigBis }
+        : { ...basis, typ: "angebot", linkUrl, gueltigBis };
+  } else if (ziel === "C") {
+    const r = linkNr % 3;
+    b =
+      r === 0
+        ? { ...basis, typ: "gespraech", extern: false, linkUrl: null, gueltigBis: null }
+        : r === 1
+          ? { ...basis, typ: "dokument", linkUrl, gueltigBis: null }
+          : { ...basis, typ: "absichtserklaerung", linkUrl, gueltigBis };
+  } else {
+    b =
+      linkNr % 2 === 0
+        ? { ...basis, typ: "webrecherche", linkUrl, gueltigBis: null }
+        : { ...basis, typ: "dokument", extern: false, linkUrl: null, gueltigBis: null };
+  }
+  const abgeleitet = deriveQualitaet({ typ: b.typ as never, linkUrl: b.linkUrl });
   if (abgeleitet !== ziel)
     throw new Error(
       `Seed-Belegfelder verfehlen die Zielstufe: gewollt ${ziel}, abgeleitet ${abgeleitet} (typ ${b.typ}).`,

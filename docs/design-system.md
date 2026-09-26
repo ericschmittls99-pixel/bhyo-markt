@@ -448,21 +448,45 @@ Funktionen), einmal in der Server-Action; danach rechnen und schreiben alle
 mit demselben Wert. `type="number"` ist in den Formularen nicht mehr zulässig
 und wird von einem Test bewacht.
 
-## Beleg-Feld „Extern nachvollziehbar" (Korrektur 24.09.2026)
+## Beleg-Feld „Freigabe zur externen Verwendung" (E34, 25.09.2026)
 
-Der Hilfetext versprach eine **Freigabe fürs Kommunen-PDF** („die Quelle darf
-im Kommunen-PDF erscheinen" / „die Quelle bleibt im Werkzeug"). Das Feld
-steuert nichts am PDF — es ist ausschließlich Eingang der
-**Qualitäts-Ableitung**: „vollständig" verlangt `extern_nachvollziehbar = true`
-zusätzlich zu den Pflichtfeldern des Beleg-Typs (`docs/ap1b`, Abschnitt 2).
-Wer den Haken als Veröffentlichungsentscheidung liest, versteht nicht, warum
-die Stufe springt — genau so ist es im Praxistest passiert.
+Das Feld `extern_nachvollziehbar` ist seit E34 eine **Freigabe**, keine
+Aussage über die Nachweiskraft, und beeinflusst die Qualitätsstufe **nicht**.
+Beschriftung „Freigabe zur externen Verwendung"; Hilfetext gesetzt: „ja –
+dieser Beleg darf extern verwendet werden (Kommunen-PDF, CSV-Export ab F6).
+Auf die Qualitätsstufe hat das keinen Einfluss.", nicht gesetzt: „nein – nur
+intern verwenden. Auf die Qualitätsstufe hat das keinen Einfluss." Im Detail
+„Freigabe extern: ja, für externe Verwendung freigegeben" / „nein, nur intern".
+Bis F6 ist die Freigabe beauftragt, aber ohne Wirkung — der Text sagt das,
+statt eine Wirkung zu versprechen (Regel aus dem Praxistest vom 24.09.2026:
+Beschriftungen beschreiben die tatsächliche Wirkung).
 
-Der Text nennt jetzt die Wirkung: gesetzt „ja – ein Dritter kann die Quelle
-prüfen. Zählt als vollständiger Beleg.", nicht gesetzt „nein – nur intern
-nachvollziehbar. Der Beleg gilt als unvollständig, die Qualitätsstufe fällt
-entsprechend niedriger aus." Im Detail steht „ja, extern prüfbar" bzw.
-„nein, nur intern" statt „ja, freigegeben" / „nein, intern".
+**Historie:** Vor E34 ging der Haken in die Qualitäts-Ableitung ein
+(„vollständig" verlangte ihn), und davor versprach der Hilfetext eine
+PDF-Freigabe, die es nicht gab. Beides ist Altbestand.
+
+## Belegtypen und Qualitätsstufen (E34, 25.09.2026)
+
+Sieben Typen, **überall in dieser Reihenfolge** (Chips im Formular,
+Filteroptionen, Auswertung, Tabellensortierung): Betriebsdaten · Vertrag ·
+Absichtserklärung · Angebot · Gespräch · Dokument · Webrecherche. Die
+Reihenfolge ist die Rangfolge der Beweiskraft, sie kommt aus
+`lib/qualitaet.ts` (`BELEG_TYPEN`) und wird nirgends zweitgepflegt.
+
+Die Stufe hängt nur an Typ und Nachweis (Datei bzw. Link). Die Qualitäts-Box
+sagt deshalb „Aus Belegtyp und Nachweis (Datei bzw. Link) berechnet". **D
+heißt nicht „lückenhaft"**: Ein vollständiger Webrecherche-Beleg ist D — D ist
+die niedrigste *belegte* Stufe, „unbelegt" bleibt dem Strom ohne Beleg. Bei
+Webrecherche zeigt die Box das ausdrücklich („immer Stufe D; der Link ist
+Pflicht im Formular, er ändert die Stufe nicht") — Formularpflicht und
+Stufenbedingung sind für den Erfasser unterscheidbar.
+
+**Ein Feld `gueltig_bis`, typabhängig beschriftet** (E33): „Daten
+repräsentativ bis" (Betriebsdaten), „Vertrag läuft bis", „Absichtserklärung
+gültig bis", „Angebot gültig bis" — Pflicht mit Stern, nur bei diesen vier
+Typen sichtbar. Gespräch, Dokument und Webrecherche zeigen kein Datumsfeld;
+ihre Frist (3 / 6 / 3 Monate ab Erhebungsdatum) erscheint als „Nächste
+Verifizierung" in der Qualitäts-Box und im Detail.
 
 ## Zugang und Rollen (F8/E30, 24.09.2026)
 
@@ -516,13 +540,14 @@ blieb stehen, wenn man den Pin von Hand setzte. Das Link-Feld des Belegs ist
 — mit einem Fünferraster wies der Browser jeden Zwischenwert ab; die
 Fünferschritte bleiben auf den Pfeiltasten des Balkens. „Vergeben an" ist
 ausgegraut und leer, sobald „an bhyo" gesetzt ist.
-## Beleg-Erfassung (F7, 23.09.2026)
+## Beleg-Erfassung (F7, 23.09.2026; E33/E34 26.09.2026)
 
-Pflicht am Beleg sind Quellenangabe und Erhebungsdatum; Datei und Link
-sind optional. Die Qualitäts-Box zeigt im Moment der Entscheidung den
-Preis: „Ohne Datei oder Link erreicht dieser Beleg nur Stufe X" (nur
-wenn eine Datei die Stufe tatsächlich höbe — beim Gespräch nicht). Der
-Erfassungsgrad zählt „Datei oder Link vorhanden" als Prüfpunkt.
+Pflicht am Beleg sind Quellenangabe und Erhebungsdatum, dazu `gueltig_bis`
+bei den oberen vier Typen und der Link bei Webrecherche; Datei und Link sind
+sonst optional. Die Qualitäts-Box zeigt im Moment der Entscheidung den
+Preis: „Ohne Datei oder Link erreicht dieser Beleg nur Stufe X" (nur wenn
+eine Datei die Stufe tatsächlich höbe — bei Gespräch und Webrecherche
+nicht). Der Erfassungsgrad zählt „Datei oder Link vorhanden" als Prüfpunkt.
 
 ## Mini-Switch (Modul-Umschalter)
 

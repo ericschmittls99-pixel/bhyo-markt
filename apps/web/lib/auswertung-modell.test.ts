@@ -28,9 +28,6 @@ const beleg = (patch: Partial<StromBeleg>): StromBeleg => ({
   externNachvollziehbar: false,
   gueltigBis: null,
   erhebungsdatum: null,
-  amtlich: null,
-  gespraechsdatum: null,
-  gespraechspartner: null,
   kernnotiz: null,
   ...patch,
 });

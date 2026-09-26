@@ -88,7 +88,10 @@ describe("formularZeileZuWerte", () => {
     expect(w.kontaktperson).toBe("");
     expect(w.saisonalitaet).toHaveLength(12);
     expect(w.beleg?.typ).toBe("gespraech");
-    expect(w.beleg?.gespraechspartner).toBe("T. Müller");
+    // E34: Gespraechsdatum/-partner werden nicht mehr gelesen — Altwerte in
+    // metadata bleiben liegen, tauchen im Formular aber nicht mehr auf.
+    expect(w.beleg).not.toHaveProperty("gespraechspartner");
+    expect(w.beleg?.kernnotiz).toBe("mündlich bestätigt");
     expect(w.beleg?.erhebungsdatum).toBe("2026-08-01");
     expect(w.beleg?.quellenangabe).toBe("Tel. 2026-08-01");
   });
@@ -153,6 +156,7 @@ const eingabenOk: FormularEingaben = {
   belegErhebungsdatum: "",
   belegHatDatei: false,
   belegLink: "",
+  belegGueltigBis: "",
   lat: "",
   lng: "",
   saison: Array(12).fill(100),
@@ -211,7 +215,7 @@ describe("validiereFormular biomasse", () => {
     expect(f.menge_roh_fm).toBe("Muss eine Zahl sein");
   });
   it("Beleg gewählt → Quellenangabe/Erhebungsdatum Pflicht; Datei/Link optional (F7)", () => {
-    const f = validiereFormular("biomasse", { ...eingabenOk, belegTyp: "dokument_link" });
+    const f = validiereFormular("biomasse", { ...eingabenOk, belegTyp: "dokument" });
     expect(f.beleg_quellenangabe).toBe("Pflichtfeld");
     expect(f.beleg_erhebungsdatum).toBe("Pflichtfeld");
     // F7: ohne Datei/Link speicherbar — die Stufe faellt niedriger aus
@@ -221,13 +225,43 @@ describe("validiereFormular biomasse", () => {
   it("Beleg mit Link statt Datei → kein Datei-Fehler", () => {
     const f = validiereFormular("biomasse", {
       ...eingabenOk,
-      belegTyp: "dokument_link",
+      belegTyp: "dokument",
       belegQuellenangabe: "Bericht 2026",
       belegErhebungsdatum: "2026-05-01",
       belegLink: "https://example.org/x",
     });
     expect(f).toEqual({});
   });
+  // E33: gueltig_bis ist bei den oberen vier Typen Pflicht in der Oberflaeche.
+  it("E33: obere vier Typen verlangen gueltig_bis, untere drei nicht", () => {
+    const basis = {
+      ...eingabenOk,
+      belegQuellenangabe: "Quelle",
+      belegErhebungsdatum: "2026-05-01",
+      belegLink: "https://example.org/x",
+    };
+    for (const typ of ["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"]) {
+      expect(validiereFormular("biomasse", { ...basis, belegTyp: typ }).beleg_gueltig_bis).toBe("Pflichtfeld");
+      expect(
+        validiereFormular("biomasse", { ...basis, belegTyp: typ, belegGueltigBis: "2027-12-31" }).beleg_gueltig_bis,
+      ).toBeUndefined();
+    }
+    for (const typ of ["gespraech", "dokument", "webrecherche"]) {
+      expect(validiereFormular("biomasse", { ...basis, belegTyp: typ }).beleg_gueltig_bis).toBeUndefined();
+    }
+  });
+
+  // E34: Der Link ist bei Webrecherche Formularpflicht — die Stufe bleibt D.
+  it("E34: Webrecherche verlangt den Link (Formularpflicht, keine Stufenbedingung)", () => {
+    const basis = { ...eingabenOk, belegQuellenangabe: "Quelle", belegErhebungsdatum: "2026-05-01" };
+    expect(validiereFormular("biomasse", { ...basis, belegTyp: "webrecherche" }).beleg_link).toBe("Pflichtfeld");
+    expect(
+      validiereFormular("biomasse", { ...basis, belegTyp: "webrecherche", belegLink: "www.beispiel.de" }).beleg_link,
+    ).toBeUndefined();
+    // Bei Dokument bleibt der Link optional.
+    expect(validiereFormular("biomasse", { ...basis, belegTyp: "dokument" }).beleg_link).toBeUndefined();
+  });
+
   it("bis vor von → Fehler am Bis-Feld", () => {
     const f = validiereFormular("biomasse", { ...eingabenOk, vonMonat: "2027-01", bisMonat: "2026-01" });
     expect(f.zeitraum_bis).toBe("Bis-Monat liegt vor dem Ab-Monat");

@@ -17,6 +17,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  altwertZuNeu,
   ANSICHTEN,
   FILTER,
   FILTER_PARAMS,
@@ -27,7 +28,8 @@ import {
   type Ansicht,
   type Sicht,
 } from "./filter-modell";
-import { angewandteSchluessel } from "./stroeme-modell";
+import {
+  filterAusSearchParams, angewandteSchluessel } from "./stroeme-modell";
 
 describe("Vollständigkeit: jeder geltende Filter wird auch angewendet", () => {
   it("für jede Kombination aus Ansicht und Sicht ist die Zugehörigkeit festgelegt", () => {
@@ -245,5 +247,21 @@ describe("Zurückgehaltene Filter werden in ALLEN Ansichten ausgewiesen", () => 
     );
     expect(bauteil).toMatch(/zurueckgehalten\.length > 0/);
     expect(bauteil).toMatch(/hinweise\.map/);
+  });
+});
+
+// E34: Migration 0021 hat `dokument_link` in `dokument` umbenannt. Alte
+// Adressen (Lesezeichen, geteilte Links) filtern weiter richtig, statt still
+// eine leere Liste zu zeigen.
+describe("Altwert-Mapping (E34)", () => {
+  it("bildet belegtyp=dokument_link auf dokument ab, andere Werte unverändert", () => {
+    expect(altwertZuNeu("belegtyp", "dokument_link")).toBe("dokument");
+    expect(altwertZuNeu("belegtyp", "vertrag")).toBe("vertrag");
+    expect(altwertZuNeu("cluster", "dokument_link")).toBe("dokument_link");
+  });
+
+  it("greift beim Einlesen der Adresszeile — gemischt und mit Duplikat", () => {
+    const f = filterAusSearchParams({ belegtyp: "dokument_link,vertrag" });
+    expect(f.belegtyp).toEqual(["dokument", "vertrag"]);
   });
 });

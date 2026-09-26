@@ -24,6 +24,7 @@ import {
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type Strom } from "@/lib/stroeme-modell";
+import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
 import {
   vergabeLabel,
   type VerfuegbarkeitsErgebnis,
@@ -471,20 +472,19 @@ export function Detail({
                     }
                   />
                   <Kv label="Erhebungsdatum" wert={fmtDatum(s.beleg.erhebungsdatum)} />
-                  <Kv
-                    label="Extern nachvollziehbar"
-                    wert={s.beleg.externNachvollziehbar ? "ja, extern prüfbar" : "nein, nur intern"}
-                  />
-                  {s.beleg.amtlich != null && (
-                    <Kv label="Amtliche Quelle" wert={s.beleg.amtlich ? "ja" : "nein"} />
+                  {/* E33: typabhaengige Beschriftung des einen Feldes gueltig_bis;
+                      nur die oberen vier Typen tragen es. */}
+                  {istBelegTyp(s.beleg.typ) && GUELTIG_BIS_BESCHRIFTUNG[s.beleg.typ] && (
+                    <Kv
+                      label={GUELTIG_BIS_BESCHRIFTUNG[s.beleg.typ]!}
+                      wert={s.beleg.gueltigBis ? fmtDatum(s.beleg.gueltigBis) : "nicht gesetzt"}
+                    />
                   )}
+                  {/* E34: Freigabe, keine Nachweiskraft — wirkt ab F6 (PDF, CSV). */}
                   <Kv
-                    label="Gesprächsdatum"
-                    wert={
-                      s.beleg.gespraechsdatum ? fmtDatum(s.beleg.gespraechsdatum) : null
-                    }
+                    label="Freigabe extern"
+                    wert={s.beleg.externNachvollziehbar ? "ja, für externe Verwendung freigegeben" : "nein, nur intern"}
                   />
-                  <Kv label="Gesprächspartner" wert={s.beleg.gespraechspartner} />
                   <Kv label="Kernnotiz" wert={s.beleg.kernnotiz} />
                   <Kv
                     label="Nächste Verifizierung"

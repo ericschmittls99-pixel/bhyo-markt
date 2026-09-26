@@ -65,6 +65,11 @@ async function main() {
            count(*) filter (where metadata->>'seed' is null)::int as von_hand
       from beleg`;
   console.log("HERKUNFT " + JSON.stringify(herkunft));
+  // Welche Marker stehen in metadata.seed? (v2-Seed loescht nur seinen eigenen.)
+  const marker = await sql`
+    select coalesce(metadata->>'seed', '(kein Marker)') as marker, count(*)::int as n
+      from beleg group by 1 order by 2 desc`;
+  console.log("SEED_MARKER " + marker.map((m) => `${JSON.stringify(m.marker)}=${m.n}`).join(" "));
 
   // Grundlage: je Beleg die Merkmale, die die neue Matrix braucht.
   const zeilen = await sql`

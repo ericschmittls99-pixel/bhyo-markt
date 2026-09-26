@@ -30,6 +30,12 @@ Rückmeldung (01.09.2026):
 
 ## 2. Qualitäts-Ableitung (Server, read-only im Formular)
 
+> **Überholt durch E34 (25.09.2026, `docs/ap0-schema-entscheidungen.md`
+> Abschnitt 13, umgesetzt mit Migration 0021).** Die Matrix unten ist
+> Altbestand: sieben Typen statt sechs, `dokument_link` heißt `dokument`,
+> `webrecherche` ist neu, `amtlich` und `extern_nachvollziehbar` sind keine
+> Bedingungen mehr, die Stufe hängt nur noch an Typ und Datei/Link.
+
 ```
 betriebsdaten      → A (vollständig) / B (unvollständig)
 vertrag             → A (vollständig) / B (unvollständig)
@@ -73,12 +79,11 @@ Toggle „Amtliche Quelle oder Betreiberdaten" (ja/nein, bestimmt B vs. C bei
 vollständigen Feldern — manuell gesetzt, keine automatische Domain-Erkennung).
 „Nächste Verifizierung" = `beleg.gueltig_bis`, read-only berechnet.
 
-**Pflichtfelder je Typ zum Speichern** (reine Formularvalidierung,
-unabhängig von der Qualitätsableitung): Quellenangabe + Erhebungsdatum immer
-Pflicht, dazu `betriebsdaten`/`dokument_link` → Datei oder Link,
-`vertrag`/`absichtserklaerung` → Datei, `angebot` → Datei oder Link +
-„gültig bis", `gespraech` → Gesprächsdatum + Gesprächspartner (Kernnotiz
-empfohlen, nicht Pflicht). `betriebsdaten`-Gültigkeitsdauer: 12 Monate.
+**Pflichtfelder je Typ zum Speichern** — *überholt durch F7 und E33/E34*:
+heute Quellenangabe + Erhebungsdatum immer, `gueltig_bis` bei den oberen vier
+Typen (E33), Link bei `webrecherche` (Formularpflicht); Datei/Link sonst
+optional (F7). Gesprächsdatum/-partner und die 12-Monats-Frist für
+Betriebsdaten sind entfallen (siehe Entscheidungslog, Abschnitte 13 und 14).
 
 ## 5. Akteur-Verknüpfung
 

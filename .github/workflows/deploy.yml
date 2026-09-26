@@ -240,6 +240,25 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db sektor-check
 
+      # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
+      # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,
+      # Seed-Insert) geht fuer alle Typen durch, mit der Stufe der Matrix.
+      # Zurueckgerollt, nichts bleibt liegen.
+      - name: Beleg-Check (beleg)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db beleg-check
+
+      # E34: Zielnachweis auf der Preview nach der Migration — WECHSEL muss
+      # 0 sein (gespeicherte Stufe folgt der Matrix); GUELTIG_BIS_FEHLT zeigt
+      # den Rueckstand fuer Schritt 3. Nur lesen, informativ.
+      - name: Abweichungsliste Belege (Preview, nur lesen)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db beleg-abweichung
+
       - name: Build (OpenNext)
         working-directory: apps/web
         env:

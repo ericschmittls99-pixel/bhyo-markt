@@ -327,6 +327,34 @@ Bestehende Werte von `amtlich`, Gesprächsdatum und Gesprächspartner bleiben
 in der Datenbank unangetastet, werden aber nicht mehr gelesen. **Kein
 Datenverlust**, nur ein stillgelegter Lesepfad.
 
+### Umsetzung Schritt 1 (Migration 0021, 26.09.2026)
+
+- **Enum:** `ALTER TYPE … RENAME VALUE 'dokument_link' TO 'dokument'` plus
+  `ADD VALUE 'webrecherche'`, mit Zählbeweis vor und nach dem Umbenennen.
+  Die DB-Reihenfolge des Enums ist Anhänge-Historie; die fachliche
+  Reihenfolge lebt in `lib/qualitaet.ts` (`BELEG_TYPEN`).
+- **Transaktionsgrenze:** drizzle wendet alle ausstehenden Migrationen in
+  *einer* Transaktion an, und Postgres verbietet die Verwendung eines per
+  `ADD VALUE` angehängten Enum-Werts in derselben Transaktion. Die
+  SQL-Funktion vergleicht deshalb über `p_typ::text`, und 0021 schreibt
+  nirgends `webrecherche`. Folge: **Die Umwidmung von B-000009 auf
+  Webrecherche geschieht in der Anwendung**, nicht in der Migration —
+  ohnehin schreibt keine Migration dieses Pakets einen Fachwert.
+- **Messung vor der Migration** (`beleg-abweichung`, nur lesen):
+  Production 1 Beleg, 0 Wechsel, 0 ohne Quellenangabe, B-000001
+  (Absichtserklärung) ohne `gueltig_bis`. Preview 126 Belege, 53 Wechsel
+  (35 × Angebot C→B, 15 × Gespräch D→C, 1 × Angebot D→C, 1 × Betriebsdaten
+  B→A, 1 × Dokument B→C = B-000007 mit `amtlich`), 0 ohne Quellenangabe,
+  69 obere Typen ohne `gueltig_bis` (65 Seed, 4 von Hand: B-000006,
+  B-000123, B-000125, B-000127). B-000007, B-000009, B-000124 liegen auf
+  der Preview; B-000009 („Blog-Beitrag Hof") ist ein Seed-Beleg älterer
+  Herkunft.
+- **Altwert-Mapping:** `belegtyp=dokument_link` in gespeicherten Adressen
+  wird beim Einlesen auf `dokument` abgebildet (`ALTWERTE` im Filtermodell).
+- **Formular:** `gueltig_bis` Pflicht in der Oberfläche für die oberen vier
+  Typen; der CHECK dafür folgt als eigene Migration in Schritt 3, nachdem
+  die Daten nachgetragen sind.
+
 ### Kandidat für eine spätere Migration
 
 **Die Quellenangabe gehört in eine eigene Spalte, nicht in `metadata`.** Ein

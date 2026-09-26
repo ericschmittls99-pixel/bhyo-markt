@@ -100,9 +100,6 @@ function belegAus(r: BelegZeile): StromBeleg | null {
     erhebungsdatum: r.belegErstelltAm
       ? r.belegErstelltAm.toISOString().slice(0, 10)
       : null,
-    amtlich: typeof m.amtlich === "boolean" ? m.amtlich : null,
-    gespraechsdatum: str(m.gespraechsdatum),
-    gespraechspartner: str(m.gespraechspartner),
     kernnotiz: str(m.kernnotiz),
   };
 }

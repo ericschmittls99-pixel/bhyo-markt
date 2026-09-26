@@ -87,6 +87,7 @@ function eingabenAus(formData: FormData): FormularEingaben {
       (datei instanceof File && datei.size > 0) ||
       formData.get("beleg_datei_vorhanden") === "1",
     belegLink: s(text(formData, "beleg_link")),
+    belegGueltigBis: s(text(formData, "beleg_gueltig_bis")),
   };
 }
 
