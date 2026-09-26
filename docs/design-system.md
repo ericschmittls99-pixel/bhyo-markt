@@ -626,3 +626,16 @@ bei „intern" ein sunken Hinweiskasten „Interne Datei: enthält nicht
 freigegebene Belegangaben und Abnehmernamen. Nicht weitergeben.", darunter
 die Ausgaben als `menu-item` mit dem gewählten Modus als `kurz`-Label. Kein
 Rang durch Farbe; der Modus steht in Worten.
+
+## Druck-Abzug (F6 PR B, 26.09.2026)
+
+Eigenes Print-Layout ohne Glaseffekte: Papierbreite 900 px am Bildschirm
+als Vorschau, im Druck A4 mit fixierter Fußzeile. Sidebar, Kopfleiste und der
+Aktionsknopf sind im Druck ausgeblendet. Kopf: Titel „bhyo · Marktdaten",
+darunter der Modus-Satz als Rahmenzeile (intern invertiert, damit er auf
+jeder Kopie ins Auge fällt), dann die Metazeilen als zweispaltige
+Definitionsliste. Je Strom ein Datenblatt mit Trennlinie, Titel = Akteur,
+rechts Art und Materialart/Produkt, darunter die neun Gruppen des
+Exportmodells dreispaltig. Benannte Zustände („entfällt", „nicht erfasst",
+„nicht zur externen Verwendung freigegeben") stehen kursiv in Sekundärfarbe,
+Zahlen tabular mit Einheit am Wert. Keine Karte, keine Farbe als Rang.
