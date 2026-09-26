@@ -34,7 +34,7 @@ import {
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
-import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { darf } from "@/lib/rollen";
 import { aktuellerZugang } from "@/lib/wache";
 import { artAusSicht, leiste, leseSicht } from "@/lib/filter-modell";
@@ -92,7 +92,12 @@ export async function RegisterInhalt({
   // (stichtag = Serverdatum) — Grid, Tabelle, Detail und die neue Facette
   // lesen alle dasselbe Feld.
   const stichtag = new Date().toISOString().slice(0, 10);
-  const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
+  // E33: Faelligkeit und Verifikationsstatus ebenso einmal je Request.
+  const pool = reichereVerifikationAn(
+    reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag),
+    vergabenMap,
+    stichtag,
+  );
 
   const { stroeme: gefiltert, nichtBeruecksichtigt } = filterStroemeMitBericht(
     pool,
@@ -157,7 +162,11 @@ export async function RegisterInhalt({
   if (detailId && !detailStrom) {
     const nachgeladen = (await ladeStroeme(art, detailId))[0] ?? null;
     detailStrom = nachgeladen
-      ? reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag)[0]!
+      ? reichereVerifikationAn(
+          reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag),
+          vergabenMap,
+          stichtag,
+        )[0]!
       : null;
   }
   const [historie, ersteAenderung] = detailStrom

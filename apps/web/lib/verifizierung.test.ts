@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import { BELEG_MONATE, naechsteVerifizierung, verifikationsFaelligkeit } from "./verifizierung";
+import {
+  BELEG_MONATE,
+  VERIFIKATION_LABEL,
+  naechsteVerifizierung,
+  reichereVerifikationAn,
+  verifikationsFaelligkeit,
+  verifikationsStatus,
+} from "./verifizierung";
 
 // E33: Vertrag gehoert zu den oberen vier — seine Faelligkeit ist das
 // gespeicherte gueltig_bis, keine Typ-Frist.
@@ -98,5 +105,35 @@ describe("verifikationsFaelligkeit (AP1j PR 5: Kopplung an Ablaufdaten)", () => 
 
   it("ohne jeden Kandidaten null", () => {
     expect(verifikationsFaelligkeit(null, strom, [])).toBeNull();
+  });
+});
+
+// E33: Verifikations-Filter — Zustand gegen den Stichtag.
+describe("verifikationsStatus / reichereVerifikationAn", () => {
+  it("aktiv ab heute, ausgelaufen davor, keine_frist ohne Datum", () => {
+    expect(verifikationsStatus("2026-09-26", "2026-09-26")).toBe("aktiv");
+    expect(verifikationsStatus("2026-09-27", "2026-09-26")).toBe("aktiv");
+    expect(verifikationsStatus("2026-09-25", "2026-09-26")).toBe("ausgelaufen");
+    expect(verifikationsStatus(null, "2026-09-26")).toBe("keine_frist");
+    expect(Object.keys(VERIFIKATION_LABEL)).toEqual(["aktiv", "ausgelaufen", "keine_frist"]);
+  });
+
+  it("reichert jeden Strom an — Gesamtfaelligkeit aus Beleg, Zeitraum, Vergaben, Reservierung", () => {
+    const basis = { zeitraumBis: null as string | null, reserviertSeit: null as string | null };
+    const [a, b, c, d] = reichereVerifikationAn(
+      [
+        { id: "a", ...basis, beleg },
+        { id: "b", ...basis, beleg: { ...beleg, gueltigBis: "2026-01-01" } },
+        { id: "c", ...basis, beleg: null },
+        // Ohne Belegfrist, aber mit befristeter Vergabe: die Vergabe macht faellig.
+        { id: "d", ...basis, zeitraumBis: "2030-12-31", beleg: null },
+      ],
+      new Map([["d", [{ vergebenBis: "2026-03-31" }]]]),
+      "2026-09-26",
+    );
+    expect(a!.verifikation).toEqual({ faelligkeit: "2029-01-15", status: "aktiv" });
+    expect(b!.verifikation).toEqual({ faelligkeit: "2026-01-01", status: "ausgelaufen" });
+    expect(c!.verifikation).toEqual({ faelligkeit: null, status: "keine_frist" });
+    expect(d!.verifikation).toEqual({ faelligkeit: "2026-03-31", status: "ausgelaufen" });
   });
 });

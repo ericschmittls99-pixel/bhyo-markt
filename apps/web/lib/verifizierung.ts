@@ -65,3 +65,61 @@ export function verifikationsFaelligkeit(
     kandidaten.push(plusMonate(strom.reserviertSeit, BELEG_MONATE.reservierung!));
   return kandidaten.length ? kandidaten.sort()[0]! : null;
 }
+
+// --- Verifikations-Filter (E33, 26.09.2026) ---------------------------------
+
+/**
+ * Zustand eines Stroms gemessen an seiner Gesamtfaelligkeit gegen den
+ * Stichtag: "aktiv" (Faelligkeit heute oder spaeter), "ausgelaufen"
+ * (Faelligkeit liegt zurueck), "keine_frist" (kein Kandidat — z. B. ohne
+ * Beleg, ohne Zeitraum, oder ein oberer Typ ohne Datum vor Schritt 3).
+ * Der dritte Zustand ist benannt und filterbar (E24-Haltung), sonst fielen
+ * fristlose Stroeme aus jedem Filter still heraus.
+ */
+export type VerifikationsStatus = "aktiv" | "ausgelaufen" | "keine_frist";
+
+/** Reihenfolge = Anzeige-Reihenfolge der Filteroptionen. */
+export const VERIFIKATION_LABEL: Record<VerifikationsStatus, string> = {
+  aktiv: "aktiv",
+  ausgelaufen: "ausgelaufen",
+  keine_frist: "keine Frist",
+};
+
+export interface VerifikationsErgebnis {
+  faelligkeit: string | null;
+  status: VerifikationsStatus;
+}
+
+export function verifikationsStatus(
+  faelligkeit: string | null,
+  stichtag: string,
+): VerifikationsStatus {
+  if (!faelligkeit) return "keine_frist";
+  // ISO-Datumsstrings vergleichen lexikographisch korrekt.
+  return faelligkeit >= stichtag ? "aktiv" : "ausgelaufen";
+}
+
+/**
+ * Reichert Stroeme um Faelligkeit und Verifikationsstatus an — serverseitig,
+ * EIN Stichtag je Request (wie reichereVerfuegbarkeitAn). Dieselbe Funktion
+ * verifikationsFaelligkeit, die auch das Detail und die Auswertung nutzen:
+ * eine Groesse, ein Ursprung.
+ */
+export function reichereVerifikationAn<
+  T extends {
+    id: string;
+    zeitraumBis: string | null;
+    reserviertSeit: string | null;
+    beleg: { typ: string; gueltigBis: string | null; erhebungsdatum: string | null } | null;
+    verifikation?: VerifikationsErgebnis;
+  },
+>(
+  stroeme: T[],
+  vergabenJeStrom: Map<string, { vergebenBis: string | null }[]>,
+  stichtag: string,
+): (T & { verifikation: VerifikationsErgebnis })[] {
+  return stroeme.map((s) => {
+    const faelligkeit = verifikationsFaelligkeit(s.beleg, s, vergabenJeStrom.get(s.id) ?? []);
+    return { ...s, verifikation: { faelligkeit, status: verifikationsStatus(faelligkeit, stichtag) } };
+  });
+}

@@ -204,6 +204,22 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
     expect(erg.map((s) => s.id)).toEqual(["f"]);
   });
 
+  // E33: Verifikations-Filter ueber das angereicherte Feld.
+  it("verifikation filtert ueber den angereicherten Zustand; nicht angereichert = nicht filterbar", () => {
+    const aktiv = strom({ id: "a", verifikation: { faelligkeit: "2027-01-01", status: "aktiv" } });
+    const alt = strom({ id: "x", verifikation: { faelligkeit: "2025-01-01", status: "ausgelaufen" } });
+    const frei = strom({ id: "k", verifikation: { faelligkeit: null, status: "keine_frist" } });
+    const roh = strom({ id: "r" });
+    const ids = (werte: string[]) =>
+      filterStroeme([aktiv, alt, frei, roh], { ...LEERER_FILTER, verifikation: werte }, "stroeme").map((s) => s.id);
+    expect(ids(["ausgelaufen"])).toEqual(["x"]);
+    expect(ids(["keine_frist"])).toEqual(["k"]);
+    expect(ids(["aktiv", "ausgelaufen"])).toEqual(["a", "x"]);
+    expect(ids([])).toEqual(["a", "x", "k", "r"]);
+    const opt = facettenOptionen("biomasse", [], [], {});
+    expect(opt.verifikation!.map((o) => o.wert)).toEqual(["aktiv", "ausgelaufen", "keine_frist"]);
+  });
+
   it("facettenOptionen liefert die feste 6er-Liste mit Art-Labels", () => {
     const opt = facettenOptionen("output", [], [], {});
     expect(opt.verfuegbarkeit!.map((o) => o.wert)).toEqual([

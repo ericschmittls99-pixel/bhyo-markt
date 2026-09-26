@@ -28,7 +28,7 @@ import {
   type VergabeDaten,
 } from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
-import { verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
@@ -73,8 +73,16 @@ export default async function KartePage({
   // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
   // Sidebar und die neue Facette lesen dasselbe Feld.
   const stichtag = new Date().toISOString().slice(0, 10);
-  const bio = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
-  const out = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
+  const bio = reichereVerifikationAn(
+    reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag),
+    vergabenBio,
+    stichtag,
+  );
+  const out = reichereVerifikationAn(
+    reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag),
+    vergabenOut,
+    stichtag,
+  );
 
   // Exklusiv filtern (Beschluss 22.09.2026): cluster blendet Outputs aus,
   // gruppe blendet Feedstock aus — sonst bleibt die fremde Art ungefiltert
@@ -181,8 +189,12 @@ export default async function KartePage({
       (await ladeStroeme("output", detailId))[0] ??
       null;
     detailStrom = nachgeladen
-      ? reichereVerfuegbarkeitAn(
-          [nachgeladen],
+      ? reichereVerifikationAn(
+          reichereVerfuegbarkeitAn(
+            [nachgeladen],
+            nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut,
+            stichtag,
+          ),
           nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut,
           stichtag,
         )[0]!

@@ -290,6 +290,20 @@ export const FILTER: readonly FilterDef[] = [
     gruppe: "weitere",
   },
   {
+    // E33 (26.09.2026): aktiv / ausgelaufen / keine Frist, gemessen an der
+    // Gesamtfaelligkeit (Belegfrist, Verfuegbarkeitsende, befristete
+    // Vergaben, Reservierung) gegen das heutige Datum. Anders als die
+    // Verfuegbarkeit gilt er auch in auswertung.: dort spielt niemand sonst
+    // diese Rolle, das Verifizierungs-Modul zeigt nur die drei naechsten.
+    key: "verifikation",
+    label: "Verifizierung",
+    typ: "facette",
+    params: ["verifikation"],
+    ansichten: ALLE_ANSICHTEN,
+    arten: BEIDE,
+    gruppe: "weitere",
+  },
+  {
     // F5 PR B: Erfassungsgrad 0-100 aus lib/vollstaendigkeit.ts, als
     // Min/Max-Bereich in Prozent (Entscheidung Eric, 25.09.2026): Eine
     // Untergrenze allein deckt den haeufigen Fall "mindestens 80 %" ab,
