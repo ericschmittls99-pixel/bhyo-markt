@@ -616,3 +616,13 @@ behalten die erfasste Genauigkeit.
 - Kacheln gruppieren Inhalte; nicht jede Zeile wird eingerahmt.
 - Freiflächen zulassen: Text und Diagramme dürfen ohne Kasten stehen.
 - Navigation: benannte, selbsterklärende Ziele, kein Icon ohne Label.
+
+## Export-Menü (E36, 26.09.2026)
+
+Ein Export-Knopf (Download-Icon; in auswertung. mit Text „Export", in der
+Filterzeile von ströme. nur Icon) öffnet ein Glas-Popover: oben die Wahl
+**extern / intern** als zwei Zeilen mit Kurzsatz (voreingestellt extern),
+bei „intern" ein sunken Hinweiskasten „Interne Datei: enthält nicht
+freigegebene Belegangaben und Abnehmernamen. Nicht weitergeben.", darunter
+die Ausgaben als `menu-item` mit dem gewählten Modus als `kurz`-Label. Kein
+Rang durch Farbe; der Modus steht in Worten.
