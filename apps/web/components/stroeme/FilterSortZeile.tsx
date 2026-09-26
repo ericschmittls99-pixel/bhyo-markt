@@ -153,6 +153,9 @@ export function FilterSortZeile({
     if (v) exportParams.set(k, v);
   }
   exportParams.set("sicht", art === "biomasse" ? "feedstock" : "outputs");
+  // Scope der Ansicht mitgeben: In stroeme. gelten Freitext, Verfuegbarkeit
+  // und "Verfuegbar ab" — der Export muss sie genauso anwenden.
+  exportParams.set("ansicht", "stroeme");
   const exportHref = `/api/auswertung/export?${exportParams}`;
 
   return (

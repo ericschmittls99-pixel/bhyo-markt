@@ -1,11 +1,7 @@
 import { ladeAlleVergaben, ladeStroeme } from "@/lib/stroeme";
 import { wacheFuerRoute } from "@/lib/wache";
-import {
-  filterAusSearchParams,
-  filterStroeme,
-  type Strom,
-  kreisAnzeige,
-} from "@/lib/stroeme-modell";
+import { exportZeilen } from "@/lib/export-zeilen";
+import { type Strom, kreisAnzeige } from "@/lib/stroeme-modell";
 import {
   reichereVerfuegbarkeitAn,
   vergabeLabel,
@@ -35,7 +31,6 @@ export async function GET(req: Request) {
   const p = new URL(req.url).searchParams;
   const roh: Record<string, string> = {};
   for (const [k, v] of p.entries()) roh[k] = v;
-  const filter = filterAusSearchParams(roh);
   const sicht = p.get("sicht") ?? "alle";
 
   const leereMap = new Map<string, VergabeDaten[]>();
@@ -49,12 +44,11 @@ export async function GET(req: Request) {
   const stichtag = new Date().toISOString().slice(0, 10);
   const bio = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
   const out = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
-  // Der Export gehoert zur Auswertung — derselbe Ansichts-Scope, sonst
-  // exportiert er anders gefiltert, als die Seite anzeigt (E32).
-  const rows = [
-    ...filterStroeme(bio, filter, "auswertung"),
-    ...filterStroeme(out, filter, "auswertung"),
-  ];
+  // E32: derselbe Ansichts-Scope wie die aufrufende Seite (`ansicht=`),
+  // sonst exportiert die Datei anders gefiltert, als die Liste zeigt —
+  // genau das war der Produktionsfehler vom 26.09.2026 (Scope immer
+  // "auswertung", Verfuegbarkeit aus stroeme. fiel still weg).
+  const rows = [...exportZeilen(bio, roh), ...exportZeilen(out, roh)];
   const vergabenVon = (s: Strom) =>
     ((s.art === "biomasse" ? vergabenBio : vergabenOut).get(s.id) ?? [])
       .map(

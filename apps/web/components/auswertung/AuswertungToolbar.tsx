@@ -73,6 +73,7 @@ export function AuswertungToolbar({
   // sicht immer explizit mitgeben: ohne den Parameter exportiert die Route
   // beide Arten, das Dashboard zeigt aber immer genau eine.
   exportParams.set("sicht", sicht);
+  exportParams.set("ansicht", "auswertung");
   const exportHref = `/api/auswertung/export?${exportParams}`;
 
   return (
