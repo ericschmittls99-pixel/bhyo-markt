@@ -29,7 +29,14 @@ if (!url) {
 const sql = postgres(url, { max: 1, fetch_types: false });
 
 const OBERE_VIER = ["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"];
-const GENANNT = ["B-000001", "B-000007", "B-000009", "B-000124"];
+// Namentlich genannte Belege: die vier aus dem Paket plus die vier
+// Preview-Belege ohne gueltig_bis (Entscheidung Eric 26.09.2026: Datum
+// 31.12.2027 ueber die Anwendung) — mit Referenz, damit sichtbar ist,
+// woran ein Beleg haengt (Strom, Region oder gar nichts).
+const GENANNT = [
+  "B-000001", "B-000006", "B-000007", "B-000009",
+  "B-000123", "B-000124", "B-000125", "B-000127",
+];
 
 /** Neue Matrix (E34) als SQL-Ausdruck — Spiegel von deriveQualitaet nach 0021. */
 const NEUE_STUFE = sql`
