@@ -84,8 +84,10 @@ async function main() {
     ["leer", { quellenangabe: "" }],
     ["Leerraum", { quellenangabe: "   " }],
   ] as const) {
+    // Typ gespraech: braucht kein gueltig_bis (E33, 0022) — so trifft die
+    // Probe garantiert den Quellenangabe-CHECK und nicht den Fristen-CHECK.
     const grund = await probe(async (tx) => {
-      await tx`insert into beleg (typ, metadata) values ('vertrag', ${tx.json(metadata as never)})`;
+      await tx`insert into beleg (typ, metadata) values ('gespraech', ${tx.json(metadata as never)})`;
     });
     const abgewiesen = grund !== null && grund.includes("beleg_quellenangabe_check");
     console.log(`CHECK_QUELLE ${fall} abgewiesen=${abgewiesen}${grund ? ` grund="${grund}"` : ""}`);
