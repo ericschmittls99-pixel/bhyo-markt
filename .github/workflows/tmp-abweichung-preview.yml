@@ -1,0 +1,27 @@
+name: TMP Abweichungsliste Preview (E34, nur lesen)
+
+# TEMPORAER — vor dem Merge loeschen. Push-getriggert, weil ein
+# workflow_dispatch die Definition vom Default-Branch liest. Kennt nur das
+# Preview-Secret; liest ausschliesslich.
+on:
+  push:
+    branches: [e34-qualitaet-fristen-schritt-1]
+
+jobs:
+  lesen:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Abweichungsliste Belege (Preview)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db beleg-abweichung
