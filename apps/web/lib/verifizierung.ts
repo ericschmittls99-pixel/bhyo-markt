@@ -1,16 +1,19 @@
-// Verifizierungs-Fristen je Beleg-Typ (AP1i, Entscheidung E3): die Mockup-Werte
-// sind von Eric als VORLAEUFIGE reine Anzeige-Regel freigegeben — keine
-// Fachfreigabe, kein Schema-Feld. Ein gespeichertes beleg.gueltig_bis (Angebot,
-// Betriebsdaten) hat Vorrang; fuer alle anderen Typen wird die Frist nur zur
-// Anzeige aus dem Erhebungsdatum gerechnet.
+// Faelligkeit je Belegtyp nach E33 (docs/ap0-schema-entscheidungen.md,
+// Abschnitt 14): Jeder Beleg hat GENAU EINE Quelle fuer seine Faelligkeit.
+//   - Obere vier Typen (Betriebsdaten, Vertrag, Absichtserklaerung, Angebot):
+//     das gespeicherte `gueltig_bis` — Pflichtfeld, keine Typ-Frist.
+//   - Untere drei Typen: Typ-Frist ab Erhebungsdatum, weil das Dokument kein
+//     Enddatum traegt.
+// Die alten Zahlen (Vertrag 36, Betriebsdaten 12, Absichtserklaerung 12,
+// Angebot 3, Dokument/Link 12, Gespraech 6) gelten NICHT mehr — wer sie
+// irgendwo findet, findet Altbestand.
+
+import { brauchtGueltigBis, istBelegTyp } from "./qualitaet";
 
 export const BELEG_MONATE: Record<string, number> = {
-  vertrag: 36,
-  betriebsdaten: 12,
-  absichtserklaerung: 12,
-  angebot: 3,
-  dokument_link: 12,
-  gespraech: 6,
+  gespraech: 3,
+  dokument: 6,
+  webrecherche: 3,
   // AP1j PR 5 (Beschluss 22.09.2026): Reservierungen laufen ueber DENSELBEN
   // Mechanismus — 12 Monate Gueltigkeit ab reserviert_seit, kein Sonderweg.
   reservierung: 12,
@@ -22,13 +25,18 @@ function plusMonate(iso: string, monate: number): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Anzeigedatum der naechsten Verifizierung (ISO) oder null. */
+/**
+ * Faelligkeit des Belegs (ISO) oder null, wenn ein oberer Typ (noch) kein
+ * `gueltig_bis` traegt — das ist der Zustand "keine Frist", der bis zum
+ * CHECK aus Schritt 3 vorkommen kann. Ein `gueltig_bis` an einem unteren
+ * Typ wird bewusst ignoriert: eine Quelle, nicht zwei.
+ */
 export function naechsteVerifizierung(beleg: {
   typ: string;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
 }): string | null {
-  if (beleg.gueltigBis) return beleg.gueltigBis;
+  if (istBelegTyp(beleg.typ) && brauchtGueltigBis(beleg.typ)) return beleg.gueltigBis;
   if (!beleg.erhebungsdatum) return null;
   const monate = BELEG_MONATE[beleg.typ];
   if (!monate) return null;
@@ -37,8 +45,8 @@ export function naechsteVerifizierung(beleg: {
 
 /**
  * Verifikations-Kopplung (AP1j PR 5, Handoff): Faelligkeit = das frueheste
- * von bisheriger Verifikationsfrist und den Ablaufdaten — verfuegbar-bis,
- * jedes befristete vergeben-bis (Zweck: beim Freiwerden nachfassen) und dem
+ * von Belegfrist und den Ablaufdaten — verfuegbar-bis, jedes befristete
+ * vergeben-bis (Zweck: beim Freiwerden nachfassen) und dem
  * Reservierungs-Ende (reserviert_seit + Typ-Gueltigkeit). Offene
  * Vergabe-Enden zaehlen nicht: sie laufen bis zum Verfuegbarkeitsende, das
  * bereits Kandidat ist. Funktioniert auch ohne Beleg.

@@ -1,5 +1,5 @@
-// E23: Paritaetstest DB-Funktion qualitaetsstufe() (Migration 0013) gegen
-// deriveQualitaet — ueber alle Ankerfaelle, gegen die ECHTE Datenbank
+// E23/E34: Paritaetstest DB-Funktion qualitaetsstufe() (Migration 0021)
+// gegen deriveQualitaet — ueber alle Ankerfaelle, gegen die ECHTE Datenbank
 // (DATABASE_URL), nicht gegen einen Mock. Laeuft im Deploy-CI direkt nach
 // "Migrate Preview-DB"; eine Abweichung bricht den Deploy laut ab.
 import { createSql } from "@bhyo/db/client";
@@ -9,11 +9,10 @@ import { deriveQualitaet } from "../lib/qualitaet";
 
 const sql = createSql(process.env.DATABASE_URL!);
 
-// Achtung Treiber-Falle: metadata MUSS ueber sql.json() gebunden werden.
-// Ein String-Parameter, den Postgres als jsonb inferiert, wird von
-// postgres.js als JSON-SKALAR serialisiert ("{\"a\":1}" statt Objekt) —
-// ->> liefert dann NULL und jeder "vollstaendig"-Fall kippt still auf
-// unvollstaendig (gefunden 23.09.2026 ueber die Flag-Instrumentierung).
+// Seit E34 hat die Funktion nur noch (typ, datei_key, link_url) — metadata
+// und erstellt_am sind keine Stufenbedingungen mehr. Die Treiber-Falle mit
+// jsonb-Parametern (sql.json, 23.09.2026) betrifft diesen Aufruf damit
+// nicht mehr; sie bleibt in seed-preview.ts dokumentiert.
 
 async function main() {
   const fehler: string[] = [];
@@ -22,12 +21,8 @@ async function main() {
     const [row] = await sql`
       select qualitaetsstufe(
         ${b.typ}::beleg_typ,
-        ${b.externNachvollziehbar},
         ${b.dateiKey ?? null},
-        ${b.linkUrl ?? null},
-        ${b.gueltigBis ?? null}::date,
-        ${sql.json(b.metadata as never)},
-        ${b.erhebungsdatum ?? null}::timestamptz
+        ${b.linkUrl ?? null}
       )::text as stufe`;
     const db = row!.stufe as string;
     const ts = deriveQualitaet(b);

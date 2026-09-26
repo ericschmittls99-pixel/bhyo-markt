@@ -125,7 +125,7 @@ async function main() {
              (select 'output: ' || o.bezeichnung from output_bedarf o where o.beleg_id = b.id limit 1),
              (select 'region: ' || r.name from region r where r.bereitschaft_beleg_id = b.id limit 1),
              'kein Strom') as referenz
-      from beleg b where b.beleg_nr = any(${sql.array(GENANNT)}::text[]) order by b.beleg_nr`;
+      from beleg b where b.beleg_nr in ${sql(GENANNT)} order by b.beleg_nr`;
   console.log(`GENANNT ${genannt.length} von ${GENANNT.length} vorhanden`);
   for (const g of genannt)
     console.log(

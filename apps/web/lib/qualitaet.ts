@@ -1,41 +1,92 @@
-// Serverseitige Qualitaets-Ableitung nach docs/ap1b-handoff-erfassung.md
-// Abschnitt 2. Reine Funktion ohne DB-/Netzzugriff: Eingabe rein, Stufe raus.
-// Wird bei jedem Speichern neu berechnet und ist im Formular read-only – die
-// Stufe wird nie manuell gesetzt (CLAUDE.md: "Qualitaet A-D wird abgeleitet").
+// Qualitaets-Ableitung nach E34 (docs/ap0-schema-entscheidungen.md,
+// Abschnitt 13). Reine Funktion ohne DB-/Netzzugriff: Eingabe rein, Stufe
+// raus. Die Stufe wird nie manuell gesetzt (CLAUDE.md: "Qualitaet A-D wird
+// abgeleitet") — in der DB ist sie eine GENERATED-Spalte ueber die
+// SQL-Funktion qualitaetsstufe(typ, datei_key, link_url) aus Migration 0021;
+// der Paritaetstest (scripts/qualitaet-paritaet.ts) haelt beide deckungsgleich.
 
-export type BelegTyp =
-  | "dokument_link"
-  | "gespraech"
-  | "angebot"
-  | "absichtserklaerung"
-  | "vertrag"
-  | "betriebsdaten";
+/**
+ * E34: Die sieben Belegtypen in ihrer verbindlichen Reihenfolge — sie ist
+ * zugleich die Rangfolge der Beweiskraft und gilt ueberall: Formular-Chips,
+ * Filteroptionen, Auswertung, Sortierung. Wer hier umsortiert, sortiert
+ * ueberall um.
+ */
+export const BELEG_TYPEN = [
+  "betriebsdaten",
+  "vertrag",
+  "absichtserklaerung",
+  "angebot",
+  "gespraech",
+  "dokument",
+  "webrecherche",
+] as const;
+
+export type BelegTyp = (typeof BELEG_TYPEN)[number];
 
 export type Qualitaet = "A" | "B" | "C" | "D";
 
-/** Typ-spezifische Zusatzfelder aus beleg.metadata (jsonb). */
-export interface BelegMetadata {
-  /** dokument_link: manuell gesetztes Toggle "Amtliche Quelle oder Betreiberdaten". */
-  amtlich?: boolean | null;
-  quellenangabe?: string | null;
-  gespraechsdatum?: string | null;
-  gespraechspartner?: string | null;
-  kernnotiz?: string | null;
+/** Anzeige-Label je Typ (Domaenenbegriffe deutsch, Reihenfolge aus BELEG_TYPEN). */
+export const BELEG_LABEL: Record<BelegTyp, string> = {
+  betriebsdaten: "Betriebsdaten",
+  vertrag: "Vertrag",
+  absichtserklaerung: "Absichtserklärung",
+  angebot: "Angebot",
+  gespraech: "Gespräch",
+  dokument: "Dokument",
+  webrecherche: "Webrecherche",
+};
+
+export function istBelegTyp(wert: unknown): wert is BelegTyp {
+  return typeof wert === "string" && (BELEG_TYPEN as readonly string[]).includes(wert);
+}
+
+/** Rang eines Typs in der E34-Reihenfolge (0 = hoechste Beweiskraft); unbekannt sortiert hinten. */
+export function belegTypRang(typ: string): number {
+  const i = (BELEG_TYPEN as readonly string[]).indexOf(typ);
+  return i === -1 ? BELEG_TYPEN.length : i;
 }
 
 /**
- * Normalisierte Sicht auf einen Beleg, unabhaengig von der DB-Ablage. Der
- * Aufrufer mappt Formular bzw. Datenbankzeile auf diese Form.
+ * E33: Die oberen vier Typen tragen ihre Faelligkeit selbst — `gueltig_bis`
+ * ist bei ihnen Pflicht (Formular ab Schritt 1, CHECK ab Schritt 3). Die
+ * unteren drei haben kein Enddatum im Dokument und bekommen eine Typ-Frist
+ * ab Erhebungsdatum (siehe lib/verifizierung.ts).
+ */
+export const GUELTIG_BIS_PFLICHT: readonly BelegTyp[] = [
+  "betriebsdaten",
+  "vertrag",
+  "absichtserklaerung",
+  "angebot",
+];
+
+export function brauchtGueltigBis(typ: BelegTyp): boolean {
+  return GUELTIG_BIS_PFLICHT.includes(typ);
+}
+
+/**
+ * E33: Ein Feld, typabhaengig beschriftet — die Beschriftung nennt, was das
+ * Datum fachlich bedeutet. Fuer die unteren drei Typen gibt es kein Feld.
+ */
+export const GUELTIG_BIS_BESCHRIFTUNG: Record<BelegTyp, string | null> = {
+  betriebsdaten: "Daten repräsentativ bis",
+  vertrag: "Vertrag läuft bis",
+  absichtserklaerung: "Absichtserklärung gültig bis",
+  angebot: "Angebot gültig bis",
+  gespraech: null,
+  dokument: null,
+  webrecherche: null,
+};
+
+/**
+ * Normalisierte Sicht auf einen Beleg fuer die Ableitung. Seit E34 zaehlen
+ * nur noch Typ und der typspezifische Nachweis (Datei bzw. Datei oder Link).
+ * Quellenangabe, Erhebungsdatum, gueltig_bis und Freigabe sind Pflichten
+ * bzw. Felder mit eigener Bedeutung, aber keine Stufenbedingungen mehr.
  */
 export interface BelegBewertung {
   typ: BelegTyp;
-  externNachvollziehbar: boolean;
-  erhebungsdatum?: string | null;
   dateiKey?: string | null;
   linkUrl?: string | null;
-  /** Nur relevant fuer `angebot` (dort Pflicht fuer "vollstaendig"). */
-  gueltigBis?: string | null;
-  metadata?: BelegMetadata | null;
 }
 
 function gesetzt(wert?: string | null): boolean {
@@ -43,63 +94,53 @@ function gesetzt(wert?: string | null): boolean {
 }
 
 /**
- * "vollstaendig" = alle Pflichtfelder des Beleg-Typs gesetzt (Doku Abschnitt 4).
- * Bewusst getrennt von `externNachvollziehbar` – beide zusammen ergeben erst die
- * hohe Stufe (siehe deriveQualitaet). Quellenangabe + Erhebungsdatum sind immer
- * Pflicht, der Rest haengt am Typ.
+ * E34: Liegt der typspezifische Nachweis vor? Betriebsdaten, Angebot und
+ * Dokument genuegt Datei ODER Link; Vertrag und Absichtserklaerung verlangen
+ * die Datei. Gespraech und Webrecherche sind "glatt" — fuer sie ist die
+ * Frage ohne Wirkung auf die Stufe (der Link bei Webrecherche ist eine
+ * Formularpflicht, keine Stufenbedingung).
  */
-export function pflichtfelderVollstaendig(beleg: BelegBewertung): boolean {
-  const m = beleg.metadata ?? {};
-  const quelle = gesetzt(m.quellenangabe);
-  const erhebung = gesetzt(beleg.erhebungsdatum);
-  const dateiOderLink = gesetzt(beleg.dateiKey) || gesetzt(beleg.linkUrl);
-
-  if (!quelle || !erhebung) return false;
-
+export function nachweisVollstaendig(beleg: BelegBewertung): boolean {
+  const datei = gesetzt(beleg.dateiKey);
+  const dateiOderLink = datei || gesetzt(beleg.linkUrl);
   switch (beleg.typ) {
     case "betriebsdaten":
-    case "dokument_link":
+    case "angebot":
+    case "dokument":
       return dateiOderLink;
     case "vertrag":
     case "absichtserklaerung":
-      return gesetzt(beleg.dateiKey);
-    case "angebot":
-      return dateiOderLink && gesetzt(beleg.gueltigBis);
+      return datei;
     case "gespraech":
-      // Kernnotiz ist empfohlen, aber nicht Pflicht.
-      return gesetzt(m.gespraechsdatum) && gesetzt(m.gespraechspartner);
+    case "webrecherche":
+      return true;
   }
 }
 
 /**
- * Leitet die Qualitaetsstufe A-D aus Beleg-Typ und Vollstaendigkeit ab.
- * "vollstaendig" verlangt zusaetzlich `externNachvollziehbar = true`.
+ * E34-Matrix. Vollstaendig / unvollstaendig:
+ *   betriebsdaten A/B · vertrag A/B · absichtserklaerung B/C · angebot B/C ·
+ *   gespraech C/C · dokument C/D · webrecherche D/D.
+ * D ist die Untergrenze; "unbelegt" bleibt dem Strom ohne Beleg vorbehalten (E24).
  */
 export function deriveQualitaet(beleg: BelegBewertung): Qualitaet {
-  const vollstaendig =
-    beleg.externNachvollziehbar && pflichtfelderVollstaendig(beleg);
-
+  const voll = nachweisVollstaendig(beleg);
   switch (beleg.typ) {
     case "betriebsdaten":
     case "vertrag":
-      return vollstaendig ? "A" : "B";
+      return voll ? "A" : "B";
     case "absichtserklaerung":
-      return vollstaendig ? "B" : "C";
     case "angebot":
+      return voll ? "B" : "C";
     case "gespraech":
-      return vollstaendig ? "C" : "D";
-    case "dokument_link":
-      if (!vollstaendig) return "D";
-      return beleg.metadata?.amtlich ? "B" : "C";
+      return "C";
+    case "dokument":
+      return voll ? "C" : "D";
+    case "webrecherche":
+      return "D";
   }
 }
 
-/**
- * Gueltigkeitsdauer je Beleg-Typ (Doku Abschnitt 4). Aktuell nur `betriebsdaten`
- * verbindlich festgelegt: 12 Monate ab Erhebungsdatum. `angebot` traegt sein
- * "gueltig bis" als Nutzereingabe (Pflichtfeld), wird also nicht hier berechnet.
- * Andere Typen haben (noch) keine Verfallsdauer – dann kein `gueltig_bis`.
- */
 /**
  * F4: Eine Eingabe wie "www.beispiel.de" oder "beispiel.de/pfad" ist als
  * Beleg-Link gemeint — die App ergaenzt das Schema, statt die Eingabe
@@ -116,42 +157,14 @@ export function normalisiereUrl(roh: string | null): string | null {
   return `https://${t}`;
 }
 
-export function berechneGueltigBis(
-  typ: BelegTyp,
-  erhebungsdatum: string | null | undefined,
-  angebotGueltigBis?: string | null,
-): string | null {
-  if (typ === "angebot") return gesetzt(angebotGueltigBis) ? angebotGueltigBis! : null;
-  if (typ === "betriebsdaten" && gesetzt(erhebungsdatum)) {
-    const d = new Date(erhebungsdatum!);
-    d.setMonth(d.getMonth() + 12);
-    return d.toISOString().slice(0, 10);
-  }
-  return null;
-}
-
 /**
- * F7: Stufen-Obergrenze eines Belegtyps OHNE Datei/Link (uebrige
- * Pflichtfelder hypothetisch vollstaendig) — null, wenn eine Datei die
- * Stufe gar nicht hoebe (gespraech). Speist den Live-Hinweis im Formular:
- * "Ohne Datei oder Link erreicht dieser Beleg nur Stufe X".
+ * F7: Stufen-Obergrenze eines Belegtyps OHNE Datei/Link — null, wenn eine
+ * Datei die Stufe gar nicht hoebe (gespraech, webrecherche). Speist den
+ * Live-Hinweis im Formular: "Ohne Datei oder Link erreicht dieser Beleg nur
+ * Stufe X".
  */
 export function stufeObergrenzeOhneDatei(typ: BelegTyp): Qualitaet | null {
-  const beste = (mitDatei: boolean) =>
-    deriveQualitaet({
-      typ,
-      externNachvollziehbar: true,
-      erhebungsdatum: "2026-01-01",
-      dateiKey: mitDatei ? "x" : null,
-      linkUrl: null,
-      gueltigBis: "2026-12-31",
-      metadata: {
-        amtlich: true,
-        quellenangabe: "x",
-        gespraechsdatum: "x",
-        gespraechspartner: "x",
-      },
-    });
-  const ohne = beste(false);
-  return beste(true) === ohne ? null : ohne;
+  const ohne = deriveQualitaet({ typ, dateiKey: null, linkUrl: null });
+  const mit = deriveQualitaet({ typ, dateiKey: "x", linkUrl: null });
+  return mit === ohne ? null : ohne;
 }
