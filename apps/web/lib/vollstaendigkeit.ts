@@ -31,7 +31,11 @@ export interface VollstaendigkeitEingabe {
     typ: string;
     quellenangabe: string | null;
     erhebungsdatum: string | null;
-    externNachvollziehbar: boolean;
+    // E34 (Eric, 26.09.2026): Die Freigabe zur externen Verwendung ist KEIN
+    // Pruefpunkt mehr. Sie ist eine Entscheidung, keine Erfassung — zaehlte
+    // sie mit, hoebe das Setzen einer Freigabe die Vollstaendigkeit eines
+    // Stroms; genau diese Kopplung wurde gerade aus der Qualitaetsstufe
+    // entfernt. Das Feld kommt hier deshalb gar nicht mehr an.
     /** F7: Datei oder Link vorhanden — fehlende Datei ist fehlende Vollstaendigkeit. */
     dateiOderLink: boolean;
     /** Nur gespraech: Kernnotiz aus beleg.metadata. */
@@ -74,7 +78,6 @@ export function vollstaendigkeit(e: VollstaendigkeitEingabe): number {
     // Kernnotiz ist nur beim Gespraech ein Pruefpunkt; sonst zaehlt er als erfuellt.
     b ? (b.typ === "gespraech" ? b.kernnotiz : true) : false,
     b?.erhebungsdatum,
-    b?.externNachvollziehbar,
     b?.dateiOderLink,
     e.status !== "entwurf",
   ];

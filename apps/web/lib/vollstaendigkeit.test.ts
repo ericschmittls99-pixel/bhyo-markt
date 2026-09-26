@@ -24,7 +24,6 @@ const vollerFeed: VollstaendigkeitEingabe = {
     typ: "vertrag",
     quellenangabe: "Liefervertrag Nr. 2026-014",
     erhebungsdatum: "2026-03-10",
-    externNachvollziehbar: true,
     dateiOderLink: true,
     kernnotiz: null,
   },
@@ -34,6 +33,21 @@ const vollerFeed: VollstaendigkeitEingabe = {
 describe("vollstaendigkeit", () => {
   it("voll gepflegter Biomassestrom erreicht 100 %", () => {
     expect(vollstaendigkeit(vollerFeed)).toBe(100);
+  });
+
+  // E34: Die Freigabe zur externen Verwendung ist eine Entscheidung, keine
+  // Erfassung — sie darf den Erfassungsgrad nicht bewegen. Der Eingabetyp
+  // kennt das Feld nicht mehr; hier wird ausserdem gezeigt, dass ein
+  // mitgegebener Wert ohne Wirkung bleibt.
+  it("Freigabe zur externen Verwendung veraendert den Erfassungsgrad nicht", () => {
+    // Der Eingabetyp kennt das Feld nicht mehr; ein trotzdem mitgegebener
+    // Wert (Altaufrufer) bleibt ohne Wirkung.
+    const mitFlag = (e: VollstaendigkeitEingabe, flag: boolean) =>
+      ({ ...e, beleg: { ...e.beleg!, externNachvollziehbar: flag } }) as unknown as VollstaendigkeitEingabe;
+    expect(vollstaendigkeit(mitFlag(vollerFeed, true))).toBe(vollstaendigkeit(mitFlag(vollerFeed, false)));
+    const teil = { ...vollerFeed, kontaktperson: null, preis: null };
+    expect(vollstaendigkeit(mitFlag(teil, true))).toBe(vollstaendigkeit(mitFlag(teil, false)));
+    expect(vollstaendigkeit(mitFlag(teil, true))).toBeLessThan(100);
   });
 
   it("Gleichverteilung zaehlt nicht als gepflegte Saisonalitaet", () => {
@@ -73,8 +87,10 @@ describe("vollstaendigkeit", () => {
       beleg: null,
       status: "entwurf",
     };
-    // gefuellt: bezeichnung, ort, von, bis, menge, einheit = 6 von 17 (F7)
-    expect(vollstaendigkeit(output)).toBe(35);
+    // gefuellt: bezeichnung, ort, von, bis, menge, einheit = 6 von 16
+    // (F7: Datei/Link ist Pruefpunkt; E34: die Freigabe ist keiner mehr —
+    // 17 -> 16 Pruefpunkte, deshalb 38 statt 35 %).
+    expect(vollstaendigkeit(output)).toBe(38);
   });
 
   it("fehlende Datei/Link senkt den Erfassungsgrad (F7)", () => {
