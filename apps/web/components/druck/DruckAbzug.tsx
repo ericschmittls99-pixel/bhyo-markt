@@ -4,6 +4,7 @@ import {
   EXPORT_SPALTEN,
   GRUPPE_LABEL,
   MODUS_SATZ,
+  ZUSTAENDE,
   type ExportGruppe,
   type ExportKontext,
   metazeilen,
@@ -137,7 +138,7 @@ export function DruckAbzug({ rows, kontext }: { rows: Strom[]; kontext: ExportKo
                         const text = zelleDruck(zelle);
                         const mitEinheit = typeof zelle !== "string" && einheit ? `${text} ${einheit}` : text;
                         return (
-                          <div key={sp.key} className={typeof zelle === "string" ? "zustand" : undefined}>
+                          <div key={sp.key} className={typeof zelle === "string" && ZUSTAENDE.has(zelle) ? "zustand" : undefined}>
                             <dt>
                               {label}
                               {hinweis && <span className="c"> ({hinweis})</span>}

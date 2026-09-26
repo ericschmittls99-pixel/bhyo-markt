@@ -62,6 +62,28 @@ export const KEIN_BELEG = "kein Beleg";
 export const ZURUECKGEHALTEN = "nicht zur externen Verwendung freigegeben";
 
 /**
+ * Alle benannten Zustände, die statt eines Werts in einer Zelle stehen
+ * können — der Druck setzt sie kursiv ab, damit sie sich von Werten
+ * unterscheiden. Wer einen neuen Zustand einführt, trägt ihn hier ein.
+ */
+export const ZUSTAENDE: ReadonlySet<string> = new Set([
+  ENTFAELLT,
+  NICHT_ERFASST,
+  KEIN_ENERGIEAEQUIVALENT,
+  KEIN_BELEG,
+  ZURUECKGEHALTEN,
+  "keine stoffliche Menge",
+  "ohne Sektor",
+  "unbelegt",
+  "keine Datei",
+  "kein Link",
+  "keine Frist",
+  "ohne Zeitraum",
+  "nicht reserviert",
+  "keine",
+]);
+
+/**
  * Zellenwert: Text (benannter Zustand, Label) oder Zahl mit Größenart. Die
  * Zahl wird erst am Ausgabeziel formatiert — CSV ohne Tausenderpunkte mit
  * Komma (E31), Druck über dieselben Funktionen wie die Anzeige (E20,
