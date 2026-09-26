@@ -119,6 +119,16 @@ jobs:
           name: altfelder-archiv-production
           path: packages/db/altfelder-archiv.json
 
+      # E33 Schritt 3 (0022): Vorpruefung — bricht mit der Liste der
+      # Belegnummern ab, wenn ein Beleg der oberen vier Typen kein
+      # gueltig_bis traegt; die Migration schreibt keinen Fachwert, das
+      # Nachtragen geschieht in der Anwendung. Nach 0022 Nachweis, dass der
+      # CHECK greift. Nur lesend bzw. zurueckgerollt; bleibt dauerhaft stehen.
+      - name: Fristen-Vorpruefung (gueltig_bis, E33)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db beleg-frist-check
+
       - name: Migrate Production-DB
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}

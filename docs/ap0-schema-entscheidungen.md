@@ -355,6 +355,24 @@ Datenverlust**, nur ein stillgelegter Lesepfad.
   Typen; der CHECK dafür folgt als eigene Migration in Schritt 3, nachdem
   die Daten nachgetragen sind.
 
+### Umsetzung Schritt 3 (Migration 0022, 26.09.2026)
+
+- `CHECK beleg_gueltig_bis_check`: `typ NOT IN (obere vier) OR gueltig_bis IS NOT NULL`.
+  Die Migration schreibt keinen Fachwert; ein DO-Block bricht vorher mit der
+  Liste der Belegnummern ab. Zusätzlich läuft `beleg-frist-check` als
+  Vorprüfung vor jeder Migration (Preview im PR-Deploy, Production in
+  `migrate-production`) und weist danach nach, dass der CHECK greift.
+- Nachgetragen vor 0022: Production B-000001 (Eric, Anwendung, 31.12.2027);
+  Preview per Re-Seed (Lauf 36233116223) und in der Anwendung B-000006,
+  B-000127 (31.12.2027), B-000009 → Webrecherche.
+- **Weg 1 (Eric, 26.09.2026):** B-000123 und B-000125 („E23-KOMPAT
+  (temporaer)", an keinem Strom, keiner Region) sind Testreste einer
+  früheren Kompatibilitätsprüfung und werden auf der Preview entfernt —
+  Ausnahme von „keine Daten löschen", weil keine Fachdaten. Solange sie
+  stehen, weist die Vorprüfung sie namentlich aus.
+- Vorgemerkt: zehn Preview-Belege des v1-Seeds (Marker `true`) überleben
+  jeden Re-Seed; spätere Bereinigung, damit Preview und Seed übereinstimmen.
+
 ### Kandidat für eine spätere Migration
 
 **Die Quellenangabe gehört in eine eigene Spalte, nicht in `metadata`.** Ein

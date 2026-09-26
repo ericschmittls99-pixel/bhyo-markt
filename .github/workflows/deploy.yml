@@ -188,6 +188,17 @@ jobs:
           name: altfelder-archiv-preview
           path: packages/db/altfelder-archiv.json
 
+      # E33 Schritt 3: Vorpruefung VOR der Migration — ein Beleg der oberen
+      # vier Typen ohne gueltig_bis bricht hier mit Belegnummern ab, statt
+      # 0022 in einen Constraint-Fehler laufen zu lassen (die Migration
+      # schreibt keinen Fachwert). Nach 0022 weist derselbe Schritt nach,
+      # dass der CHECK greift.
+      - name: Fristen-Vorpruefung (gueltig_bis, E33)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db beleg-frist-check
+
       - name: Migrate Preview-DB
         if: github.event_name == 'pull_request'
         working-directory: packages/db

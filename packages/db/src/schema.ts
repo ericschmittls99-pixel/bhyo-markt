@@ -225,6 +225,14 @@ export const beleg = pgTable("beleg", {
     "beleg_quellenangabe_check",
     sql`btrim(coalesce(${t.metadata} ->> 'quellenangabe', '')) <> ''`,
   ),
+  // E33 (Schritt 3, Migration 0022): Die oberen vier Typen tragen ihre
+  // Faelligkeit selbst — gueltig_bis ist bei ihnen Pflicht. Die unteren drei
+  // (gespraech, dokument, webrecherche) haben kein Enddatum im Dokument;
+  // fuer sie gilt die Typ-Frist ab erstellt_am (lib/verifizierung.ts).
+  check(
+    "beleg_gueltig_bis_check",
+    sql`${t.typ} NOT IN ('betriebsdaten', 'vertrag', 'absichtserklaerung', 'angebot') OR ${t.gueltigBis} IS NOT NULL`,
+  ),
 ]);
 
 /**
