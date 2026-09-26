@@ -9,6 +9,7 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import type { Sicht } from "@/lib/auswertung-modell";
+import { ExportMenue } from "@/components/ExportMenue";
 import { FILTER_PARAMS } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
@@ -74,7 +75,6 @@ export function AuswertungToolbar({
   // beide Arten, das Dashboard zeigt aber immer genau eine.
   exportParams.set("sicht", sicht);
   exportParams.set("ansicht", "auswertung");
-  const exportHref = `/api/auswertung/export?${exportParams}`;
 
   return (
     <div className="aw-toolbar">
@@ -126,10 +126,8 @@ export function AuswertungToolbar({
       />
       )}
 
-      <a className="btn btn--sm aw-export" href={exportHref} download>
-        <i className="ph ph-download-simple" aria-hidden />
-        CSV-Export
-      </a>
+      {/* E36: ein Export-Knopf mit Menü (Modus extern/intern, Ausgaben). */}
+      <ExportMenue exportParams={exportParams} />
     </div>
   );
 }

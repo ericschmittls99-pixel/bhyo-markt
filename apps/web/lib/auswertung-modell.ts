@@ -14,6 +14,7 @@ import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
 import { verifikationsFaelligkeit } from "./verifizierung";
+import { potenzialEuroOutput } from "./potenzial";
 
 export type Sicht = "feedstock" | "outputs";
 
@@ -909,20 +910,9 @@ export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[
   );
 }
 
-/**
- * Euro-Potenzial eines Output-Belegs: energetisch ueber €/MWh x MWh,
- * stofflich (CO2/Asche) ueber €/t x t/a. Null ohne umrechenbaren Preis.
- */
-function potenzialEuro(s: Strom): number | null {
-  if (istStofflich(s)) {
-    const eurT = preisEuroT(s.preis, s.preisEinheit);
-    if (eurT == null || s.mengeWert == null || s.mengeEinheit !== "t/a") return null;
-    return eurT * s.mengeWert;
-  }
-  const eurMwh = preisEuroMwh(s.produktCode, s.preis, s.preisEinheit);
-  const kwh = energieKwh(s.produktCode, s.mengeWert, s.mengeEinheit);
-  return eurMwh != null && kwh != null ? (eurMwh * kwh) / 1000 : null;
-}
+// E36: Euro-Potenzial je Output liegt in lib/potenzial.ts — ein Ursprung für
+// Auswertung und Export.
+const potenzialEuro = potenzialEuroOutput;
 
 /** Zeilengerueste der Output-Module: energetisch (Gruppen + Waerme) und stofflich (CO2, Asche). */
 interface OutputRowDef {

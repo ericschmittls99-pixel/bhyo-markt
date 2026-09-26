@@ -458,6 +458,23 @@ bestehenden Muster stimmig, wird aber Reibung erzeugen, sobald echte Daten
 neue Branchen bringen. Wenn es so weit ist, wird eine **Verwaltung der
 Referenzdaten durch Admins** ein eigenes Paket — jetzt nicht.
 
+## 16. Freigabe und Export (E36, 26.09.2026)
+
+Die Freigabe `extern_nachvollziehbar` schützt nur den Beleg: Ohne Freigabe
+erscheinen Quellenangabe, Datei, Link und Belegnummer in externen Ausgaben
+nicht, an ihrer Stelle steht benannt „nicht zur externen Verwendung
+freigegeben" (E24). Mengen und Preise dürfen hinaus, einzeln wie in Summen.
+Bei Vergaben wird extern der Abnehmername zurückgehalten (Zeitraum und
+„bhyo"/„extern vergeben" bleiben) — als eigene Einstufung „gekürzt" im
+Exportmodell, nicht als Sonderfall im Code. Der Modus (extern/intern) wird
+beim Export gewählt, voreingestellt extern; keine Rollenbeschränkung für
+intern. Jede Ausgabe nennt ihren Modus selbst (CSV-Metazeile, PDF-Fußzeile).
+Umsetzung und Spaltenmodell: `docs/f6-handoff-pdf-export.md`.
+
+**Produktionsfehler vorweg (26.09.2026, #90):** Der Export filterte immer im
+Scope „auswertung"; aus ströme. fielen Freitext, Verfügbarkeit und
+„Verfügbar ab" still weg. Der Scope kommt jetzt vom Aufrufer (`ansicht=`).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

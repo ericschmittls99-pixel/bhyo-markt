@@ -4588,3 +4588,47 @@ table.st-tabelle tbody tr:focus-visible {
   cursor: help;
   vertical-align: -1px;
 }
+
+/* E36: Export-Menü (Modus extern/intern + Ausgaben) */
+.exp-pop {
+  width: 300px;
+}
+.exp-modus {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 4px 4px 8px;
+  border-bottom: 1px solid var(--border-default);
+  margin-bottom: 6px;
+}
+.exp-modus-opt {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+.exp-modus-opt.aktiv {
+  background: var(--surface-sunken);
+}
+.exp-modus-opt input {
+  margin-top: 3px;
+}
+.exp-modus-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 13px;
+}
+.exp-modus-text .c {
+  font-size: 12px;
+}
+.exp-hinweis {
+  margin: 0 4px 8px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: var(--surface-sunken);
+  border: 1px solid var(--border-default);
+}
