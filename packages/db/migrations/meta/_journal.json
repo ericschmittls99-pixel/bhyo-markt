@@ -155,6 +155,13 @@
       "when": 1790412082715,
       "tag": "0021_e34_belegtypen_qualitaet",
       "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1790415741979,
+      "tag": "0022_e33_gueltig_bis_check",
+      "breakpoints": true
     }
   ]
 }
