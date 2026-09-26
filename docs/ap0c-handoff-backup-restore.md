@@ -78,3 +78,26 @@ Werten wiederhergestellt. DoD erfüllt, AP0 damit insgesamt abgeschlossen.
 
 Automatisierter Restore-Test, Wiederherstellung einzelner Tabellen/Zeilen, Backup
 der Preview-Datenbank.
+
+## Go-live-Nachweis (26.09.2026)
+
+**Was der Backup-Workflow tatsächlich sichert:** täglich 02:00 UTC ein
+`pg_dump --format=custom --no-owner --no-privileges` der **gesamten
+Production-Datenbank** (alle Schemata, also auch `drizzle.__drizzle_migrations`,
+PostGIS-Geometrien inklusive) nach `s3://bhyogenics-backups/bhyogenics-<JJJJ-MM-TT>.dump`.
+Zusätzlich manuell per `workflow_dispatch`. **Nicht gesichert:** der R2-Bucket
+`bhyogenics-belege` mit den hochgeladenen Beleg-Dateien — die Datenbank kennt
+nur die Schlüssel. Ob die Lifecycle-Regel (30 Tage) am Bucket gesetzt ist,
+lässt sich aus dem Repo nicht ablesen; der Restore-Workflow listet den
+Bucket-Inhalt, daran sieht man die Aufbewahrung.
+
+**Restore-Nachweis als Workflow** (`.github/workflows/restore-test.yml`,
+manuell): holt den neuesten Dump aus R2, spielt ihn mit `scripts/restore-test.sh`
+in einen Neon-Scratch-Branch (Secret `RESTORE_DATABASE_URL` im Environment
+`production-lesend`; Production und Preview als Ziel werden abgewiesen) und
+zählt mit `packages/db/src/restore-zaehlung.ts` **jede Tabelle** aus
+`information_schema` gegen Production über die Leserolle, dazu
+Migrationsstand, PostGIS und Enum-Werte. Fehlende Tabellen oder abweichender
+Migrationsstand brechen ab; abweichende Zeilenzahlen werden ausgewiesen (der
+Dump ist von 02:00 UTC). Vorbedingung: Eric legt den Branch an und setzt das
+Secret. Ergebnis kommt hierher.
