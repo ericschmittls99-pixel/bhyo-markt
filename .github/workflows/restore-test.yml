@@ -1,0 +1,92 @@
+name: Restore-Test (Backup zurueckspielen, nur lesen auf Production)
+
+# Go-live: Nachweis, dass sich das taegliche Backup wiederherstellen laesst.
+# Laedt den NEUESTEN Dump aus R2, spielt ihn in einen von Eric angelegten
+# Neon-Scratch-Branch (Secret RESTORE_DATABASE_URL, Environment
+# production-lesend) und zaehlt jede Tabelle gegen Production — Production
+# ausschliesslich ueber die Leserolle. Das Skript bricht ab, wenn das Ziel
+# Production oder Preview ist.
+#
+# Vorbedingung (Eric, einmalig): Neon-Branch aus Production anlegen
+# (z. B. "restore-test", Auto-Delete nach 1 Tag), Connection-String als
+# Secret RESTORE_DATABASE_URL im Environment production-lesend setzen.
+on:
+  workflow_dispatch:
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    environment: production-lesend
+    permissions:
+      contents: read
+    env:
+      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.eu.r2.cloudflarestorage.com
+      R2_BUCKET: bhyogenics-backups
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      AWS_DEFAULT_REGION: auto
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: PostgreSQL-18-Client installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates lsb-release
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
+            https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" \
+            | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Ziel pruefen (nie Production, nie Preview)
+        env:
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "$RESTORE_DATABASE_URL" ]; then
+            echo "::error::Secret RESTORE_DATABASE_URL fehlt (Environment production-lesend). Neon-Scratch-Branch anlegen und Connection-String eintragen."
+            exit 1
+          fi
+          host=$(node -e 'console.log(new URL(process.env.RESTORE_DATABASE_URL).hostname)')
+          case "$host" in
+            ep-purple-glade-*|ep-rough-term-*)
+              echo "::error::RESTORE_DATABASE_URL zeigt auf $host — Production oder Preview. Abbruch."; exit 1 ;;
+          esac
+          echo "RESTORE_ZIEL host=$host"
+
+      - name: Neuesten Dump aus R2 holen
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          echo "--- Bucket-Inhalt ---"
+          aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT"
+          NEUESTER=$(aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT" | awk '{print $4}' | grep '\.dump$' | sort | tail -1)
+          test -n "$NEUESTER" || { echo "::error::Kein Dump im Bucket."; exit 1; }
+          echo "DUMP $NEUESTER"
+          aws s3 cp "s3://$R2_BUCKET/$NEUESTER" ./backup.dump --endpoint-url "$R2_ENDPOINT"
+          ls -lh backup.dump
+          pg_restore --list backup.dump | head -5
+
+      - name: Restore in den Scratch-Branch
+        env:
+          TARGET_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+        run: ./scripts/restore-test.sh ./backup.dump
+
+      - name: Zaehlung je Tabelle gegen Production (lesend)
+        env:
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db restore-zaehlung
