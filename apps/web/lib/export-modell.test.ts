@@ -15,6 +15,8 @@ import {
   metazeilen,
   parseCsv,
   type ExportKontext,
+  exportZellen,
+  zelleDruck,
 } from "./export-modell";
 import type { Strom } from "./stroeme-modell";
 
@@ -252,5 +254,26 @@ describe("Format für deutsches Excel", () => {
     expect(z[idx("menge_energetisch")]).toBe("kein Energieäquivalent");
     expect(z[idx("preis_energetisch")]).toBe("kein Energieäquivalent");
     expect(z[idx("potenzial")]).toBe("20000");
+  });
+});
+
+// F6 PR B: Der Druck liest dieselben Zellen — nur die Zahl wird anders formatiert.
+describe("Druck: dieselben Zellen, Formatierung aus lib/format.ts", () => {
+  it("hält extern dieselben Angaben zurück wie die CSV", () => {
+    const zellen = exportZellen(nichtFreigegeben, "extern").map(zelleDruck);
+    const idx = (key: string) => EXPORT_SPALTEN.findIndex((sp) => sp.key === key);
+    for (const key of ["belegnummer", "quellenangabe", "datei", "link"]) expect(zellen[idx(key)]).toBe(ZURUECKGEHALTEN);
+    expect(zellen[idx("vergaben")]).not.toContain("Biogas Nachbar GmbH");
+    expect(exportZellen(nichtFreigegeben, "intern").map(zelleDruck)[idx("quellenangabe")]).toBe(GEHEIM.quelle);
+  });
+
+  it("Zahlen im Druck mit Tausenderpunkt (E20), in der CSV ohne — dieselbe Zelle", () => {
+    const gross = strom({ id: "g", mengeAtro: 12345.6, preisMittel: -1234.4 });
+    const idx = (key: string) => EXPORT_SPALTEN.findIndex((sp) => sp.key === key);
+    const zellen = exportZellen(gross, "intern");
+    expect(zelleDruck(zellen[idx("menge_atro")]!)).toBe("12.346");
+    expect(exportZeile(gross, "intern")[idx("menge_atro")]).toBe("12346");
+    expect(zelleDruck(zellen[idx("preis_mittel")]!)).toBe("-1.234");
+    expect(zelleDruck("entfällt")).toBe("entfällt");
   });
 });

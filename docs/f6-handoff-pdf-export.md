@@ -87,7 +87,15 @@ Bedienung: ein Export-Knopf in Toolbar und Filterzeile öffnet ein Menü —
 oben extern/intern (voreingestellt extern, intern mit sichtbarem Hinweis),
 darunter die Ausgaben (CSV; „Drucken" kommt mit PR B).
 
-### Druck-Route statt Server-PDF (PR B, Entscheidung Eric, 26.09.2026)
+### Druck-Route statt Server-PDF (PR B, Entscheidung Eric, 26.09.2026 — umgesetzt)
+
+Umsetzung: `app/auswertung/druck/page.tsx` lädt über `lib/export-server.ts`
+(derselbe Ladepfad wie die CSV-Route) und rendert `DruckAbzug`: Kopf mit
+Modus-Satz und Metazeilen, Zusammenfassung (Anzahl, Σ Menge Feedstock,
+Σ Potenzial je Art über `fmtGeldGross`), je Strom ein Datenblatt in den neun
+Gruppen des Exportmodells (dieselben Spalten, dieselbe Einstufung, Zahlen
+über `fmtMenge`/`fmtPreis`), Fußzeile mit Modus, Stand, Ansicht und
+BKG-Vermerk (im Druck fixiert). Im Export-Menü als „Drucken / PDF".
 
 Kein Browser-Rendering-Binding und keine neue Token-Berechtigung. Eine Route
 `/auswertung/druck` mit eigenem Druck-Stylesheet ohne Glaseffekte rendert

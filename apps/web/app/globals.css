@@ -4632,3 +4632,177 @@ table.st-tabelle tbody tr:focus-visible {
   background: var(--surface-sunken);
   border: 1px solid var(--border-default);
 }
+
+/* F6 PR B: Druck-Abzug — Papierlayout ohne Glaseffekte, am Bildschirm als Vorschau */
+.druck {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px var(--gutter) 48px;
+  color: var(--text-primary);
+  font-size: 12px;
+  line-height: 1.4;
+}
+.druck-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+}
+.druck-kopf h1 {
+  font-size: 22px;
+  margin: 0 0 4px;
+}
+.druck-modus {
+  margin: 0 0 12px;
+  padding: 6px 10px;
+  border: 1px solid var(--text-primary);
+  border-radius: 6px;
+  font-weight: 600;
+}
+.druck--intern .druck-modus {
+  background: var(--text-primary);
+  color: var(--surface-page, #fff);
+}
+.druck-meta,
+.druck-summen {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 4px 24px;
+  margin: 0 0 16px;
+  padding: 0;
+}
+.druck-meta div,
+.druck-summen div {
+  display: grid;
+  grid-template-columns: 180px 1fr;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-default);
+  padding: 3px 0;
+}
+.druck-meta dt,
+.druck-summen dt,
+.druck-gruppe dt {
+  color: var(--text-secondary);
+  margin: 0;
+}
+.druck-meta dd,
+.druck-summen dd,
+.druck-gruppe dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+.druck-summen {
+  border-top: 2px solid var(--text-primary);
+  padding-top: 8px;
+}
+.druck-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.druck-blatt {
+  border-top: 2px solid var(--text-primary);
+  padding: 10px 0 14px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+}
+.druck-blatt h2 {
+  font-size: 15px;
+  margin: 0 0 8px;
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+}
+.druck-blatt-sub {
+  font-weight: 400;
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+.druck-gruppen {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px 20px;
+}
+.druck-gruppe h3 {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  margin: 0 0 4px;
+  color: var(--text-secondary);
+}
+.druck-gruppe dl {
+  margin: 0;
+}
+.druck-gruppe dl > div {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px dotted var(--border-default);
+}
+.druck-gruppe dl > div.zustand dd {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.druck-leer {
+  padding: 24px 0;
+  color: var(--text-secondary);
+}
+.druck-fuss {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 24px;
+  padding-top: 8px;
+  border-top: 1px solid var(--text-primary);
+  font-size: 10px;
+  color: var(--text-secondary);
+}
+@media print {
+  @page {
+    size: A4;
+    margin: 14mm 12mm 16mm;
+  }
+  html,
+  body {
+    background: #fff !important;
+    color: #000 !important;
+  }
+  .shell .sidebar,
+  .shell .hdr,
+  .druck-aktionen {
+    display: none !important;
+  }
+  .shell,
+  .shell-main,
+  .shell-content {
+    display: block !important;
+    height: auto !important;
+    overflow: visible !important;
+    background: #fff !important;
+    backdrop-filter: none !important;
+  }
+  .druck {
+    max-width: none;
+    padding: 0;
+    color: #000;
+    font-size: 10.5px;
+  }
+  .druck-modus {
+    border-color: #000;
+  }
+  .druck--intern .druck-modus {
+    background: #000;
+    color: #fff;
+  }
+  .druck-fuss {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: #fff;
+    border-top-color: #000;
+    color: #000;
+  }
+}

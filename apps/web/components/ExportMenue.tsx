@@ -9,7 +9,7 @@ import { type ExportModus, MODUS_SATZ } from "@/lib/export-modell";
  * der ein kleines Menü öffnet: oben die Wahl extern/intern (voreingestellt
  * extern — wer alles sehen will, muss es bewusst wählen), darunter die
  * Ausgaben. Der interne Modus trägt einen sichtbaren Hinweis. „Drucken"
- * kommt mit der Druck-Route (F6 PR B) hinzu.
+ * führt zur Druck-Route (F6 PR B).
  */
 export function ExportMenue({
   exportParams,
@@ -43,6 +43,7 @@ export function ExportMenue({
   const params = new URLSearchParams(exportParams);
   params.set("modus", modus);
   const csvHref = `/api/auswertung/export?${params}`;
+  const druckHref = `/auswertung/druck?${params}`;
 
   return (
     <div className="pop-anchor" ref={ref}>
@@ -86,6 +87,19 @@ export function ExportMenue({
             <a className="menu-item" role="menuitem" href={csvHref} download onClick={() => setOffen(false)}>
               <i className="ph ph-file-csv" aria-hidden />
               <span className="lbl">CSV herunterladen</span>
+              <span className="kurz">{modus}</span>
+            </a>
+            {/* F6 PR B: Druck-Route, gedruckt wird aus dem Browser als PDF. */}
+            <a
+              className="menu-item"
+              role="menuitem"
+              href={druckHref}
+              target="_blank"
+              rel="noopener"
+              onClick={() => setOffen(false)}
+            >
+              <i className="ph ph-printer" aria-hidden />
+              <span className="lbl">Drucken / PDF</span>
               <span className="kurz">{modus}</span>
             </a>
           </div>
