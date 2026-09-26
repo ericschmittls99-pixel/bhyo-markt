@@ -32,15 +32,16 @@ describe("Enum datensatz_status", () => {
 });
 
 describe("Enum beleg_typ", () => {
-  it("hat den festgelegten Namen und die sechs Belegtypen in Reihenfolge", () => {
+  it("hat den festgelegten Namen und die sieben Belegtypen in DB-Reihenfolge (Anhaenge-Historie, E34-Rang lebt in lib/qualitaet.ts)", () => {
     expect(belegTyp.enumName).toBe("beleg_typ");
     expect(belegTyp.enumValues).toEqual([
-      "dokument_link",
+      "dokument",
       "gespraech",
       "angebot",
       "absichtserklaerung",
       "vertrag",
       "betriebsdaten",
+      "webrecherche",
     ]);
   });
 });

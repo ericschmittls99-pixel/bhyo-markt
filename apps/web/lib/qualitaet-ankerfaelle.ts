@@ -1,12 +1,15 @@
-import type { BelegBewertung } from "./qualitaet";
+import { BELEG_TYPEN, type BelegBewertung, type BelegTyp } from "./qualitaet";
 
 /**
- * E23: Ankerfaelle der Qualitaets-Matrix — die eine Referenzliste, gegen die
- * BEIDE Implementierungen laufen: deriveQualitaet (TS, qualitaet.test.ts) und
- * die DB-Funktion qualitaetsstufe() aus Migration 0013
+ * E23/E34: Ankerfaelle der Qualitaets-Matrix — die eine Referenzliste, gegen
+ * die BEIDE Implementierungen laufen: deriveQualitaet (TS, qualitaet.test.ts)
+ * und die DB-Funktion qualitaetsstufe() aus Migration 0021
  * (scripts/qualitaet-paritaet.ts im Deploy-CI). Wer die Matrix aendert,
  * aendert Funktion, DB-Migration und diese Liste gemeinsam — sonst schlaegt
  * die Paritaet laut fehl.
+ *
+ * Fuer jeden der sieben Typen ein vollstaendiger und ein unvollstaendiger
+ * Fall, dazu die Randfaelle, an denen die Matrix kippen koennte.
  */
 export interface Ankerfall {
   name: string;
@@ -14,66 +17,43 @@ export interface Ankerfall {
   erwartet: "A" | "B" | "C" | "D";
 }
 
-const voll = (overrides: Partial<BelegBewertung> = {}): BelegBewertung => ({
-  typ: "vertrag",
-  externNachvollziehbar: true,
-  erhebungsdatum: "2026-01-15",
-  dateiKey: "belege/preview/abc.pdf",
-  metadata: { quellenangabe: "Vertrag 2026" },
-  ...overrides,
-});
+const DATEI = "belege/preview/abc.pdf";
+const LINK = "https://quelle.example/dokument";
+
+/** E34-Matrix: [vollstaendig, unvollstaendig] je Typ. */
+const MATRIX: Record<BelegTyp, ["A" | "B" | "C" | "D", "A" | "B" | "C" | "D"]> = {
+  betriebsdaten: ["A", "B"],
+  vertrag: ["A", "B"],
+  absichtserklaerung: ["B", "C"],
+  angebot: ["B", "C"],
+  gespraech: ["C", "C"],
+  dokument: ["C", "D"],
+  webrecherche: ["D", "D"],
+};
 
 export const ANKERFAELLE: Ankerfall[] = [
-  { name: "betriebsdaten vollstaendig", bewertung: voll({ typ: "betriebsdaten" }), erwartet: "A" },
-  { name: "vertrag vollstaendig", bewertung: voll(), erwartet: "A" },
-  { name: "absichtserklaerung vollstaendig", bewertung: voll({ typ: "absichtserklaerung" }), erwartet: "B" },
-  { name: "angebot vollstaendig", bewertung: voll({ typ: "angebot", gueltigBis: "2026-06-30" }), erwartet: "C" },
-  {
-    name: "gespraech vollstaendig",
-    bewertung: voll({
-      typ: "gespraech",
-      dateiKey: null,
-      metadata: { quellenangabe: "Telefonat", gespraechsdatum: "2026-01-10", gespraechspartner: "Frau Muster" },
-    }),
-    erwartet: "C",
-  },
-  {
-    name: "dokument_link amtlich",
-    bewertung: voll({
-      typ: "dokument_link",
-      dateiKey: null,
-      linkUrl: "https://amt.example/quelle",
-      metadata: { quellenangabe: "Amtliche Statistik", amtlich: true },
-    }),
-    erwartet: "B",
-  },
-  {
-    name: "dokument_link nicht amtlich",
-    bewertung: voll({
-      typ: "dokument_link",
-      dateiKey: null,
-      linkUrl: "https://amt.example/quelle",
-      metadata: { quellenangabe: "Amtliche Statistik" },
-    }),
-    erwartet: "C",
-  },
-  {
-    name: "dokument_link ohne Link/Datei trotz amtlich",
-    bewertung: voll({
-      typ: "dokument_link",
-      dateiKey: null,
-      metadata: { quellenangabe: "x", amtlich: true },
-    }),
-    erwartet: "D",
-  },
-  { name: "vertrag nicht extern nachvollziehbar", bewertung: voll({ externNachvollziehbar: false }), erwartet: "B" },
-  { name: "betriebsdaten ohne Quellenangabe", bewertung: voll({ typ: "betriebsdaten", metadata: {} }), erwartet: "B" },
-  { name: "angebot ohne gueltig_bis", bewertung: voll({ typ: "angebot" }), erwartet: "D" },
-  { name: "vertrag nur mit Link", bewertung: voll({ dateiKey: null, linkUrl: "https://x" }), erwartet: "B" },
-  {
-    name: "gespraech ohne Gespraechsfelder",
-    bewertung: voll({ typ: "gespraech", dateiKey: null, metadata: { quellenangabe: "Telefonat" } }),
-    erwartet: "D",
-  },
-  { name: "vertrag ohne Erhebungsdatum", bewertung: voll({ erhebungsdatum: null }), erwartet: "B" },
+  // Vollstaendig: Datei liegt vor (genuegt jedem Typ).
+  ...BELEG_TYPEN.map<Ankerfall>((typ) => ({
+    name: `${typ} vollstaendig (Datei)`,
+    bewertung: { typ, dateiKey: DATEI, linkUrl: null },
+    erwartet: MATRIX[typ][0],
+  })),
+  // Unvollstaendig: weder Datei noch Link.
+  ...BELEG_TYPEN.map<Ankerfall>((typ) => ({
+    name: `${typ} unvollstaendig (ohne Datei und Link)`,
+    bewertung: { typ, dateiKey: null, linkUrl: null },
+    erwartet: MATRIX[typ][1],
+  })),
+  // Randfaelle: Der Link genuegt nur, wo "Datei oder Link" gilt.
+  { name: "betriebsdaten nur mit Link", bewertung: { typ: "betriebsdaten", linkUrl: LINK }, erwartet: "A" },
+  { name: "angebot nur mit Link", bewertung: { typ: "angebot", linkUrl: LINK }, erwartet: "B" },
+  { name: "dokument nur mit Link", bewertung: { typ: "dokument", linkUrl: LINK }, erwartet: "C" },
+  { name: "vertrag nur mit Link", bewertung: { typ: "vertrag", linkUrl: LINK }, erwartet: "B" },
+  { name: "absichtserklaerung nur mit Link", bewertung: { typ: "absichtserklaerung", linkUrl: LINK }, erwartet: "C" },
+  // Glatte Typen: auch mit Link keine andere Stufe.
+  { name: "gespraech mit Link bleibt C", bewertung: { typ: "gespraech", linkUrl: LINK }, erwartet: "C" },
+  { name: "webrecherche mit Link bleibt D", bewertung: { typ: "webrecherche", linkUrl: LINK }, erwartet: "D" },
+  // Leerraum ist kein Nachweis.
+  { name: "vertrag mit Leerraum als Datei-Key", bewertung: { typ: "vertrag", dateiKey: "   " }, erwartet: "B" },
+  { name: "dokument mit Leerraum als Link", bewertung: { typ: "dokument", linkUrl: "  " }, erwartet: "D" },
 ];

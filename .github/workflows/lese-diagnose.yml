@@ -37,3 +37,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
         run: pnpm --filter @bhyo/db lese-diagnose
+      # E33/E34: Abweichungsliste der Qualitaetsstufen (vor 0021: was sich
+      # aendern wird; danach: Zielnachweis mit WECHSEL 0). Nur SELECT.
+      - name: Abweichungsliste Belege (E34, nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db beleg-abweichung

@@ -180,14 +180,8 @@ async function main() {
       if (stufeJeStrom.has(s.id)) fehler.push(`${s.bezeichnung}: Stufe ohne Seed-Beleg`);
       continue;
     }
-    const erwartet = deriveQualitaet({
-      typ: s.beleg.typ as never,
-      externNachvollziehbar: s.beleg.extern,
-      erhebungsdatum: s.beleg.erhebungsdatum,
-      linkUrl: s.beleg.linkUrl,
-      gueltigBis: s.beleg.gueltigBis,
-      metadata: { quellenangabe: s.beleg.quellenangabe },
-    });
+    // E34: nur Typ und Nachweis (hier immer Link) bestimmen die Stufe.
+    const erwartet = deriveQualitaet({ typ: s.beleg.typ as never, linkUrl: s.beleg.linkUrl });
     const db = stufeJeStrom.get(s.id);
     if (db !== erwartet)
       fehler.push(`${s.bezeichnung}: DB-Stufe ${db ?? "fehlt"} statt ${erwartet}`);

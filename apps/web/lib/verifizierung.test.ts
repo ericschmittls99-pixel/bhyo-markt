@@ -1,26 +1,59 @@
 import { describe, expect, it } from "vitest";
 
-import { naechsteVerifizierung, verifikationsFaelligkeit } from "./verifizierung";
+import { BELEG_MONATE, naechsteVerifizierung, verifikationsFaelligkeit } from "./verifizierung";
 
+// E33: Vertrag gehoert zu den oberen vier — seine Faelligkeit ist das
+// gespeicherte gueltig_bis, keine Typ-Frist.
 const beleg = {
   typ: "vertrag",
-  gueltigBis: null,
+  gueltigBis: "2029-01-15",
   erhebungsdatum: "2026-01-15",
-}; // Frist: +36 Monate = 2029-01-15
+};
 
 const strom = {
   zeitraumBis: null as string | null,
   reserviertSeit: null as string | null,
 };
 
-describe("naechsteVerifizierung (Bestand)", () => {
-  it("rechnet die Typ-Frist aus dem Erhebungsdatum", () => {
+describe("naechsteVerifizierung (E33: eine Quelle je Beleg)", () => {
+  it("obere vier Typen: gueltig_bis ist die Faelligkeit", () => {
     expect(naechsteVerifizierung(beleg)).toBe("2029-01-15");
+    expect(
+      naechsteVerifizierung({ typ: "angebot", gueltigBis: "2026-11-30", erhebungsdatum: "2026-01-15" }),
+    ).toBe("2026-11-30");
+  });
+
+  it("obere vier ohne gueltig_bis: keine Frist (null) — keine Typ-Frist als Ersatz", () => {
+    expect(naechsteVerifizierung({ ...beleg, gueltigBis: null })).toBeNull();
+    expect(
+      naechsteVerifizierung({ typ: "betriebsdaten", gueltigBis: null, erhebungsdatum: "2026-01-15" }),
+    ).toBeNull();
+  });
+
+  it("untere drei: Typ-Frist ab Erhebungsdatum — Gespraech 3, Dokument 6, Webrecherche 3 Monate", () => {
+    const am = "2026-01-15";
+    expect(naechsteVerifizierung({ typ: "gespraech", gueltigBis: null, erhebungsdatum: am })).toBe("2026-04-15");
+    expect(naechsteVerifizierung({ typ: "dokument", gueltigBis: null, erhebungsdatum: am })).toBe("2026-07-15");
+    expect(naechsteVerifizierung({ typ: "webrecherche", gueltigBis: null, erhebungsdatum: am })).toBe("2026-04-15");
+  });
+
+  it("untere drei ignorieren ein gueltig_bis — eine Quelle, nicht zwei", () => {
+    expect(
+      naechsteVerifizierung({ typ: "gespraech", gueltigBis: "2030-01-01", erhebungsdatum: "2026-01-15" }),
+    ).toBe("2026-04-15");
+  });
+
+  it("BELEG_MONATE kennt nur noch die unteren drei Typen und die Reservierung", () => {
+    expect(Object.keys(BELEG_MONATE).sort()).toEqual(["dokument", "gespraech", "reservierung", "webrecherche"]);
+    // Die alten Zahlen sind ungueltig (Angebot 3/6, Dokument/Link 12/24, Gespraech 6/12).
+    expect(BELEG_MONATE.dokument_link).toBeUndefined();
+    expect(BELEG_MONATE.angebot).toBeUndefined();
+    expect(BELEG_MONATE.vertrag).toBeUndefined();
   });
 });
 
 describe("verifikationsFaelligkeit (AP1j PR 5: Kopplung an Ablaufdaten)", () => {
-  it("ohne Ablaufdaten gilt die bisherige Frist", () => {
+  it("ohne Ablaufdaten gilt die Belegfrist", () => {
     expect(verifikationsFaelligkeit(beleg, strom, [])).toBe("2029-01-15");
   });
 

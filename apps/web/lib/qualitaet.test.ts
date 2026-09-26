@@ -1,139 +1,103 @@
 import { describe, expect, it } from "vitest";
 
+import { ANKERFAELLE } from "./qualitaet-ankerfaelle";
 import {
+  BELEG_LABEL,
+  BELEG_TYPEN,
+  GUELTIG_BIS_BESCHRIFTUNG,
+  belegTypRang,
+  brauchtGueltigBis,
+  deriveQualitaet,
   normalisiereUrl,
   stufeObergrenzeOhneDatei,
-  type BelegBewertung,
-  berechneGueltigBis,
-  deriveQualitaet,
 } from "./qualitaet";
 
-// Ein vollstaendiger Beleg je Typ als Ausgangspunkt; einzelne Tests entfernen
-// gezielt Felder, um "unvollstaendig" zu erzeugen.
-function vollstaendig(overrides: Partial<BelegBewertung> = {}): BelegBewertung {
-  return {
-    typ: "vertrag",
-    externNachvollziehbar: true,
-    erhebungsdatum: "2026-01-15",
-    dateiKey: "belege/preview/abc.pdf",
-    metadata: { quellenangabe: "Vertrag 2026" },
-    ...overrides,
-  };
-}
+// E34: Die Ankerfaelle sind die eine Referenz — dieselbe Liste laeuft im
+// Deploy-CI gegen die DB-Funktion (scripts/qualitaet-paritaet.ts).
+describe("deriveQualitaet – E34-Ankerfaelle", () => {
+  for (const a of ANKERFAELLE) {
+    it(`${a.name} -> ${a.erwartet}`, () => {
+      expect(deriveQualitaet(a.bewertung)).toBe(a.erwartet);
+    });
+  }
 
-describe("deriveQualitaet – Matrix vollstaendig", () => {
-  it("betriebsdaten vollstaendig -> A", () => {
-    expect(deriveQualitaet(vollstaendig({ typ: "betriebsdaten" }))).toBe("A");
-  });
-  it("vertrag vollstaendig -> A", () => {
-    expect(deriveQualitaet(vollstaendig({ typ: "vertrag" }))).toBe("A");
-  });
-  it("absichtserklaerung vollstaendig -> B", () => {
-    expect(deriveQualitaet(vollstaendig({ typ: "absichtserklaerung" }))).toBe(
-      "B",
-    );
-  });
-  it("angebot vollstaendig -> C", () => {
-    expect(
-      deriveQualitaet(
-        vollstaendig({ typ: "angebot", gueltigBis: "2026-06-30" }),
-      ),
-    ).toBe("C");
-  });
-  it("gespraech vollstaendig -> C", () => {
-    expect(
-      deriveQualitaet(
-        vollstaendig({
-          typ: "gespraech",
-          dateiKey: null,
-          metadata: {
-            quellenangabe: "Telefonat",
-            gespraechsdatum: "2026-01-10",
-            gespraechspartner: "Frau Muster",
-          },
-        }),
-      ),
-    ).toBe("C");
+  it("deckt jeden der sieben Typen vollstaendig UND unvollstaendig ab", () => {
+    for (const typ of BELEG_TYPEN) {
+      expect(ANKERFAELLE.some((a) => a.name === `${typ} vollstaendig (Datei)`)).toBe(true);
+      expect(
+        ANKERFAELLE.some((a) => a.name === `${typ} unvollstaendig (ohne Datei und Link)`),
+      ).toBe(true);
+    }
   });
 });
 
-describe("deriveQualitaet – dokument_link amtlich-Toggle", () => {
-  const basis = (): BelegBewertung => ({
-    typ: "dokument_link",
-    externNachvollziehbar: true,
-    erhebungsdatum: "2026-01-15",
-    linkUrl: "https://amt.example/quelle",
-    metadata: { quellenangabe: "Amtliche Statistik" },
+describe("deriveQualitaet – Matrix in Worten", () => {
+  it("A nur ueber Betriebsdaten und Vertrag", () => {
+    const aTypen = BELEG_TYPEN.filter(
+      (typ) => deriveQualitaet({ typ, dateiKey: "x" }) === "A",
+    );
+    expect(aTypen).toEqual(["betriebsdaten", "vertrag"]);
   });
 
-  it("amtlich=true -> B", () => {
-    expect(deriveQualitaet({ ...basis(), metadata: { ...basis().metadata, amtlich: true } })).toBe(
-      "B",
-    );
+  it("D ist die Untergrenze — kein Typ faellt darunter, unvollstaendig oder nicht", () => {
+    for (const typ of BELEG_TYPEN) {
+      expect(["A", "B", "C", "D"]).toContain(deriveQualitaet({ typ }));
+    }
   });
-  it("amtlich=false -> C", () => {
-    expect(deriveQualitaet(basis())).toBe("C");
-  });
-  it("unvollstaendig (kein Link/Datei) -> D, unabhaengig von amtlich", () => {
-    expect(
-      deriveQualitaet({
-        ...basis(),
-        linkUrl: null,
-        metadata: { quellenangabe: "x", amtlich: true },
-      }),
-    ).toBe("D");
+
+  it("Gespraech und Webrecherche sind glatt: Datei aendert nichts", () => {
+    expect(deriveQualitaet({ typ: "gespraech" })).toBe("C");
+    expect(deriveQualitaet({ typ: "gespraech", dateiKey: "x" })).toBe("C");
+    expect(deriveQualitaet({ typ: "webrecherche" })).toBe("D");
+    expect(deriveQualitaet({ typ: "webrecherche", dateiKey: "x", linkUrl: "https://x" })).toBe("D");
   });
 });
 
-describe("deriveQualitaet – unvollstaendig faellt eine Stufe", () => {
-  it("extern_nachvollziehbar=false zieht vertrag von A auf B", () => {
-    expect(
-      deriveQualitaet(vollstaendig({ externNachvollziehbar: false })),
-    ).toBe("B");
+describe("E34-Reihenfolge und Beschriftungen", () => {
+  it("sieben Typen in der verbindlichen Reihenfolge", () => {
+    expect([...BELEG_TYPEN]).toEqual([
+      "betriebsdaten",
+      "vertrag",
+      "absichtserklaerung",
+      "angebot",
+      "gespraech",
+      "dokument",
+      "webrecherche",
+    ]);
+    expect(Object.keys(BELEG_LABEL)).toEqual([...BELEG_TYPEN]);
   });
-  it("fehlende Quellenangabe zieht betriebsdaten von A auf B", () => {
-    expect(
-      deriveQualitaet(vollstaendig({ typ: "betriebsdaten", metadata: {} })),
-    ).toBe("B");
-  });
-  it("angebot ohne gueltig_bis -> D", () => {
-    expect(deriveQualitaet(vollstaendig({ typ: "angebot" }))).toBe("D");
-  });
-  it("vertrag nur mit Link (ohne Datei) -> B", () => {
-    expect(
-      deriveQualitaet(vollstaendig({ dateiKey: null, linkUrl: "https://x" })),
-    ).toBe("B");
-  });
-});
 
-describe("berechneGueltigBis", () => {
-  it("betriebsdaten -> Erhebungsdatum + 12 Monate", () => {
-    expect(berechneGueltigBis("betriebsdaten", "2026-01-15")).toBe(
-      "2027-01-15",
-    );
+  it("Rang folgt der Reihenfolge, Unbekanntes sortiert hinten", () => {
+    expect(belegTypRang("betriebsdaten")).toBe(0);
+    expect(belegTypRang("webrecherche")).toBe(6);
+    expect(belegTypRang("dokument_link")).toBe(7);
   });
-  it("angebot -> uebernimmt Nutzereingabe", () => {
-    expect(berechneGueltigBis("angebot", "2026-01-15", "2026-06-30")).toBe(
-      "2026-06-30",
-    );
-  });
-  it("vertrag -> kein automatisches gueltig_bis", () => {
-    expect(berechneGueltigBis("vertrag", "2026-01-15")).toBeNull();
+
+  it("gueltig_bis: Pflicht und typabhaengige Beschriftung nur bei den oberen vier", () => {
+    const mit = BELEG_TYPEN.filter(brauchtGueltigBis);
+    expect(mit).toEqual(["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"]);
+    expect(GUELTIG_BIS_BESCHRIFTUNG.betriebsdaten).toBe("Daten repräsentativ bis");
+    expect(GUELTIG_BIS_BESCHRIFTUNG.vertrag).toBe("Vertrag läuft bis");
+    expect(GUELTIG_BIS_BESCHRIFTUNG.absichtserklaerung).toBe("Absichtserklärung gültig bis");
+    expect(GUELTIG_BIS_BESCHRIFTUNG.angebot).toBe("Angebot gültig bis");
+    for (const typ of ["gespraech", "dokument", "webrecherche"] as const)
+      expect(GUELTIG_BIS_BESCHRIFTUNG[typ]).toBeNull();
   });
 });
 
 // F7: Live-Hinweis im Formular — Obergrenze je Typ ohne Datei/Link.
 describe("stufeObergrenzeOhneDatei", () => {
   it("nennt je Typ die Stufe, die ohne Datei/Link maximal erreichbar ist", () => {
-    expect(stufeObergrenzeOhneDatei("vertrag")).toBe("B");
     expect(stufeObergrenzeOhneDatei("betriebsdaten")).toBe("B");
+    expect(stufeObergrenzeOhneDatei("vertrag")).toBe("B");
     expect(stufeObergrenzeOhneDatei("absichtserklaerung")).toBe("C");
-    expect(stufeObergrenzeOhneDatei("angebot")).toBe("D");
-    expect(stufeObergrenzeOhneDatei("dokument_link")).toBe("D");
+    expect(stufeObergrenzeOhneDatei("angebot")).toBe("C");
+    expect(stufeObergrenzeOhneDatei("dokument")).toBe("D");
   });
 
-  it("liefert null, wenn eine Datei die Stufe nicht hoebe (Gespraech)", () => {
+  it("liefert null, wenn eine Datei die Stufe nicht hoebe (Gespraech, Webrecherche)", () => {
     expect(stufeObergrenzeOhneDatei("gespraech")).toBeNull();
+    expect(stufeObergrenzeOhneDatei("webrecherche")).toBeNull();
   });
 });
 

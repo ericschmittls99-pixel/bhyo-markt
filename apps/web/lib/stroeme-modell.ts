@@ -8,7 +8,8 @@ import {
   type VerfuegbarkeitsStatus,
   type VergabeDaten,
 } from "./verfuegbarkeit";
-import { FILTER, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
+import { FILTER, altwertZuNeu, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
+import { BELEG_LABEL as BELEG_LABEL_E34, BELEG_TYPEN, belegTypRang } from "./qualitaet";
 import { trifft } from "./hierarchie";
 import { trifftVergabefenster } from "./vergabe-fenster";
 import { OHNE_SEKTOR, ortsSchluessel } from "./hierarchie-baeume";
@@ -73,12 +74,10 @@ export interface StromBeleg {
   typ: string;
   quellenangabe: string | null;
   href: string | null;
+  /** E34: Freigabe zur externen Verwendung (F6) — kein Eingang der Stufe. */
   externNachvollziehbar: boolean;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
-  amtlich: boolean | null;
-  gespraechsdatum: string | null;
-  gespraechspartner: string | null;
   kernnotiz: string | null;
 }
 
@@ -263,14 +262,10 @@ export const SORTIERUNGEN: Record<StromArt, [string, string][]> = {
 
 export const STATUS_REIHENFOLGE = ["entwurf", "in_pruefung", "geprueft", "verworfen"];
 
-export const BELEG_LABEL: Record<string, string> = {
-  dokument_link: "Dokument/Link",
-  gespraech: "Gespräch",
-  angebot: "Angebot",
-  absichtserklaerung: "Absichtserklärung",
-  vertrag: "Vertrag",
-  betriebsdaten: "Betriebsdaten",
-};
+// E34: Labels und Reihenfolge der Belegtypen haben genau einen Ursprung
+// (lib/qualitaet.ts). Hier nur weitergereicht, damit bestehende Importe
+// stehen bleiben.
+export const BELEG_LABEL: Record<string, string> = BELEG_LABEL_E34;
 
 // --- Filtern & Sortieren (reine Funktionen, Mockup-Logik) -------------------
 
@@ -693,7 +688,9 @@ function sortWert(s: Strom, key: string): string | number {
     case "status":
       return STATUS_REIHENFOLGE.indexOf(s.status);
     case "belegtyp":
-      return s.beleg ? (BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ) : "";
+      // E34: sortiert nach Rangfolge der Beweiskraft, nicht alphabetisch;
+      // ohne Beleg hinter allen Typen.
+      return s.beleg ? belegTypRang(s.beleg.typ) : BELEG_TYPEN.length + 1;
     case "menge":
       // Sortiert wird weiter ueber den ROHEN Erfassungswert (bewusst nicht
       // Teil der stofflich/energetisch-Trennung der Filter, F5 PR B).
@@ -835,7 +832,9 @@ export function filterAusSearchParams(sp: SearchParamsRoh): StroemeFilter {
     for (const param of def.params) {
       const roh = sp[param];
       if (def.typ === "facette" || def.typ === "hierarchie") {
-        (f as unknown as Record<string, unknown>)[param] = liste(roh);
+        (f as unknown as Record<string, unknown>)[param] = liste(roh).map((w) =>
+          altwertZuNeu(param, w),
+        );
       } else {
         (f as unknown as Record<string, unknown>)[param] = ersterWert(roh);
       }

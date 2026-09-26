@@ -1,4 +1,5 @@
 import type { StromArt } from "./stroeme-modell";
+import { brauchtGueltigBis, istBelegTyp } from "./qualitaet";
 // Nur Typ-Import: verfuegbarkeit.ts importiert zur Laufzeit aus dieser Datei,
 // die Gegenrichtung bleibt typenreiner Import ohne Zykluswirkung.
 import type { VergabeFormZeile } from "./verfuegbarkeit";
@@ -152,6 +153,8 @@ export interface FormularEingaben {
   belegErhebungsdatum: string;
   belegHatDatei: boolean;
   belegLink: string;
+  /** E33: gueltig_bis der oberen vier Typen (Pflicht in der Oberflaeche). */
+  belegGueltigBis: string;
   /** F0a: Pin-Koordinate als Rohstrings der Hidden-Inputs ("" = kein Pin). */
   lat: string;
   lng: string;
@@ -260,11 +263,19 @@ export function validiereFormular(
 
   if (e.belegTyp) {
     // F7 (23.09.2026): Quellenangabe und Erhebungsdatum bleiben Pflicht;
-    // Datei/Link sind optional. Die Qualitaets-Matrix (qualitaet.ts) ist
-    // bewusst unveraendert — ein Beleg ohne Datei/Link ist speicherbar,
-    // erreicht aber nur die niedrigere Stufe.
+    // Datei/Link sind optional — ein Beleg ohne Datei/Link ist speicherbar,
+    // erreicht aber nur die niedrigere Stufe (E34-Matrix in qualitaet.ts).
     pflicht("beleg_quellenangabe", e.belegQuellenangabe);
     pflicht("beleg_erhebungsdatum", e.belegErhebungsdatum);
+    if (istBelegTyp(e.belegTyp)) {
+      // E33: Die oberen vier Typen tragen ihre Faelligkeit selbst — Pflicht
+      // in der Oberflaeche ab Schritt 1, CHECK folgt in Schritt 3.
+      if (brauchtGueltigBis(e.belegTyp)) pflicht("beleg_gueltig_bis", e.belegGueltigBis);
+      // E34: Webrecherche verlangt den Link — FORMULARPFLICHT, keine
+      // Stufenbedingung (die Stufe ist glatt D). Eine Recherche ohne Fundstelle
+      // waere kein Beleg, nur eine Behauptung.
+      if (e.belegTyp === "webrecherche") pflicht("beleg_link", e.belegLink);
+    }
   }
 
   return f;
@@ -287,10 +298,8 @@ export interface FormularBeleg {
   dateiKey: string | null;
   erhebungsdatum: string;
   gueltigBis: string;
+  /** E34: Freigabe zur externen Verwendung — kein Eingang der Stufe. */
   extern: boolean;
-  amtlich: boolean;
-  gespraechsdatum: string;
-  gespraechspartner: string;
   kernnotiz: string;
 }
 
@@ -393,9 +402,6 @@ function belegAusZeile(r: FormularZeile): FormularBeleg | null {
       : "",
     gueltigBis: s(r.belegGueltigBis),
     extern: r.belegExtern ?? false,
-    amtlich: m.amtlich === true,
-    gespraechsdatum: mStr("gespraechsdatum"),
-    gespraechspartner: mStr("gespraechspartner"),
     kernnotiz: mStr("kernnotiz"),
   };
 }

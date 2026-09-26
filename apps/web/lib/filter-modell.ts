@@ -330,6 +330,20 @@ export const FILTER_PARAMS: readonly string[] = FILTER.flatMap((f) => f.params);
 const NACH_KEY = new Map(FILTER.map((f) => [f.key, f]));
 const NACH_PARAM = new Map(FILTER.flatMap((f) => f.params.map((p) => [p, f] as const)));
 
+/**
+ * E34: Alte Filterwerte in gespeicherten Adressen (Lesezeichen, geteilte
+ * Links) werden auf den heutigen Wert abgebildet, statt still ins Leere zu
+ * filtern. `belegtyp=dokument_link` hiess mit Migration 0021 `dokument`.
+ * Genau eine Stelle; die Facettenwerte laufen beim Einlesen hindurch.
+ */
+export const ALTWERTE: Record<string, Record<string, string>> = {
+  belegtyp: { dokument_link: "dokument" },
+};
+
+export function altwertZuNeu(param: string, wert: string): string {
+  return ALTWERTE[param]?.[wert] ?? wert;
+}
+
 export function filterDef(key: string): FilterDef | undefined {
   return NACH_KEY.get(key);
 }
