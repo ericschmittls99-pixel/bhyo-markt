@@ -475,6 +475,31 @@ Umsetzung und Spaltenmodell: `docs/f6-handoff-pdf-export.md`.
 Scope „auswertung"; aus ströme. fielen Freitext, Verfügbarkeit und
 „Verfügbar ab" still weg. Der Scope kommt jetzt vom Aufrufer (`ansicht=`).
 
+## 17. Backup und Restore (E37, 28.09.2026)
+
+**Ein Backup gilt erst als Backup, wenn es regelmäßig zurückgespielt wird.**
+Der erste Restore-Nachweis (28.09.2026) deckte auf, dass die täglichen Dumps
+seit Migration 0013 (23.09.) nicht ohne Handarbeit zurückspielbar waren:
+`pg_restore` setzt den Suchpfad leer, die Funktion `qualitaetsstufe()` nannte
+den Typ `qualitaets_stufe` unqualifiziert, das Anlegen von `beleg` scheiterte
+und alles daran Hängende fehlte. Migration 0023 gibt der Funktion einen festen
+`search_path`; der Beleg-Check prüft das dauerhaft.
+
+**Festgehalten:** Die Backups vom 24.09. bis zur Migration 0023 (28.09.,
+09:20 UTC) sind nur mit Handarbeit (`pg_restore --use-list`, Funktion vorab
+anlegen) zurückspielbar. **Hinnehmbar**, weil Production in dieser Zeit fast
+leer war (ein Strom, ein Beleg, ein Akteur) und Neon zusätzlich
+Point-in-Time-Recovery hält. Ab dem Dump vom 28.09. ist der Restore
+nachgewiesen: 17 Tabellen, 0 Abweichungen, Migrationsstand 24 beidseitig
+(Lauf 36403513802).
+
+**Dauerhaft:** `restore-woechentlich.yml` spielt jeden Montag 03:00 UTC den
+jüngsten Dump in einen eigens angelegten Neon-Branch, zählt jede Tabelle
+gegen Production (streng: jede Abweichung rot) und löscht den Branch immer
+wieder, auch bei Fehlern — der Free-Plan erlaubt höchstens 10 Branches je
+Projekt. Nicht gesichert bleiben die Beleg-Dateien im R2-Bucket
+`bhyogenics-belege`; das ist ein offener Punkt für später.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

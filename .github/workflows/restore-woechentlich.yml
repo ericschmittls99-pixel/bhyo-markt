@@ -1,0 +1,134 @@
+name: Restore-Test woechentlich (Neon-Branch je Lauf)
+
+# Go-live (Entscheidung Eric, 28.09.2026): Ein Backup gilt erst als Backup,
+# wenn es regelmaessig zurueckgespielt wird. Jeden Montag 03:00 UTC (nach
+# dem Backup um 02:00) und manuell:
+#   1. Neon-Branch aus Production anlegen (Neon-API, Name restore-<run>),
+#   2. darin eine leere Datenbank, neuesten Dump aus R2 zurueckspielen,
+#   3. jede Tabelle gegen Production zaehlen (Leserolle) — STRENG: jede
+#      Abweichung ist rot,
+#   4. den Branch wieder loeschen — auch wenn ein Schritt scheitert
+#      (Free-Plan: hoechstens 10 Branches je Projekt).
+#
+# Secrets (Environment production-lesend): NEON_API_KEY, NEON_PROJECT_ID,
+# NEON_PARENT_BRANCH_ID (Production-Branch), DATABASE_URL_PRODUCTION_LESEND,
+# dazu Repo-Secrets R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY.
+on:
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: restore-woechentlich
+  cancel-in-progress: false
+
+jobs:
+  restore:
+    runs-on: ubuntu-24.04
+    environment: production-lesend
+    permissions:
+      contents: read
+    env:
+      R2_ENDPOINT: https://652b1c744dcd86d565a45ba46590f9b1.eu.r2.cloudflarestorage.com
+      R2_BUCKET: bhyogenics-backups
+      AWS_REQUEST_CHECKSUM_CALCULATION: when_required
+      AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
+      AWS_DEFAULT_REGION: auto
+      NEON_API: https://console.neon.tech/api/v2
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: PostgreSQL-18-Client installieren
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y curl ca-certificates lsb-release jq
+          sudo install -d /usr/share/postgresql-common/pgdg
+          sudo curl -fsSL -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc https://www.postgresql.org/media/keys/ACCC4CF8.asc
+          echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" | sudo tee /etc/apt/sources.list.d/pgdg.list
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-18
+          echo "/usr/lib/postgresql/18/bin" >> "$GITHUB_PATH"
+
+      - name: Neon-Branch anlegen
+        id: branch
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          NEON_PARENT_BRANCH_ID: ${{ secrets.NEON_PARENT_BRANCH_ID }}
+        run: |
+          set -euo pipefail
+          for v in NEON_API_KEY NEON_PROJECT_ID NEON_PARENT_BRANCH_ID; do
+            [ -n "${!v}" ] || { echo "::error::Secret $v fehlt (Environment production-lesend)."; exit 1; }
+          done
+          NAME="restore-${GITHUB_RUN_ID}"
+          ANTWORT=$(curl -sS -X POST "$NEON_API/projects/$NEON_PROJECT_ID/branches" \
+            -H "Authorization: Bearer $NEON_API_KEY" -H "Content-Type: application/json" \
+            -d "{\"branch\":{\"name\":\"$NAME\",\"parent_id\":\"$NEON_PARENT_BRANCH_ID\"},\"endpoints\":[{\"type\":\"read_write\"}]}")
+          BRANCH_ID=$(echo "$ANTWORT" | jq -r '.branch.id // empty')
+          [ -n "$BRANCH_ID" ] || { echo "::error::Branch nicht angelegt: $(echo "$ANTWORT" | head -c 400)"; exit 1; }
+          echo "branch_id=$BRANCH_ID" >> "$GITHUB_OUTPUT"
+          echo "NEON_BRANCH $NAME ($BRANCH_ID)"
+          # Endpoint bereit? (kurz warten)
+          for i in $(seq 1 30); do
+            STATE=$(curl -sS "$NEON_API/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID/endpoints" -H "Authorization: Bearer $NEON_API_KEY" | jq -r '.endpoints[0].current_state // "unbekannt"')
+            [ "$STATE" = "active" ] || [ "$STATE" = "idle" ] && break
+            sleep 4
+          done
+          ROLLE=$(curl -sS "$NEON_API/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID/roles" -H "Authorization: Bearer $NEON_API_KEY" | jq -r '.roles[0].name')
+          URI=$(curl -sS "$NEON_API/projects/$NEON_PROJECT_ID/connection_uri?branch_id=$BRANCH_ID&database_name=neondb&role_name=$ROLLE&pooled=false" -H "Authorization: Bearer $NEON_API_KEY" | jq -r '.uri // empty')
+          [ -n "$URI" ] || { echo "::error::Connection-URI nicht erhalten."; exit 1; }
+          echo "::add-mask::$URI"
+          echo "BRANCH_DATABASE_URL=$URI" >> "$GITHUB_ENV"
+          host=$(node -e 'console.log(new URL(process.argv[1]).hostname)' "$URI")
+          case "$host" in ep-purple-glade-*|ep-rough-term-*) echo "::error::Neuer Branch zeigt auf $host — abgebrochen."; exit 1;; esac
+          echo "BRANCH_HOST $host"
+
+      - name: Neuesten Dump aus R2 holen
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.R2_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.R2_SECRET_ACCESS_KEY }}
+        run: |
+          set -euo pipefail
+          aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT"
+          NEUESTER=$(aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT" | awk '{print $4}' | grep '\.dump$' | sort | tail -1)
+          test -n "$NEUESTER" || { echo "::error::Kein Dump im Bucket."; exit 1; }
+          echo "DUMP $NEUESTER"
+          aws s3 cp "s3://$R2_BUCKET/$NEUESTER" ./backup.dump --endpoint-url "$R2_ENDPOINT"
+          ls -lh backup.dump
+
+      - name: Leere Zieldatenbank + Restore
+        run: |
+          set -euo pipefail
+          DBNAME="restore_${GITHUB_RUN_ID}"
+          psql "$BRANCH_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$DBNAME\";"
+          ZIEL=$(node -e 'const u=new URL(process.env.BRANCH_DATABASE_URL); u.pathname="/"+process.argv[1]; console.log(u.toString())' "$DBNAME")
+          echo "::add-mask::$ZIEL"
+          echo "ZIEL_DATABASE_URL=$ZIEL" >> "$GITHUB_ENV"
+          TARGET_DATABASE_URL="$ZIEL" ./scripts/restore-test.sh ./backup.dump
+
+      - name: Zaehlung je Tabelle gegen Production (lesend, streng)
+        env:
+          RESTORE_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+          STRENG: "1"
+        run: pnpm --filter @bhyo/db restore-zaehlung
+
+      - name: Neon-Branch loeschen (immer)
+        if: always() && steps.branch.outputs.branch_id != ''
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          BRANCH_ID: ${{ steps.branch.outputs.branch_id }}
+        run: |
+          set -euo pipefail
+          CODE=$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "$NEON_API/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID" -H "Authorization: Bearer $NEON_API_KEY")
+          echo "BRANCH_GELOESCHT http=$CODE"
+          [ "$CODE" = "200" ] || { echo "::error::Branch $BRANCH_ID nicht geloescht (HTTP $CODE) — von Hand in der Neon-Konsole entfernen (Free-Plan: max. 10 Branches)."; exit 1; }

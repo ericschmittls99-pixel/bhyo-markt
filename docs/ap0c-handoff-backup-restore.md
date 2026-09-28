@@ -101,3 +101,9 @@ Migrationsstand, PostGIS und Enum-Werte. Fehlende Tabellen oder abweichender
 Migrationsstand brechen ab; abweichende Zeilenzahlen werden ausgewiesen (der
 Dump ist von 02:00 UTC). Vorbedingung: Eric legt den Branch an und setzt das
 Secret. Ergebnis kommt hierher.
+
+**Ergebnis 28.09.2026:** Lauf 36403513802 — Dump `bhyogenics-2026-09-28.dump`
+in eine frische Datenbank auf dem Scratch-Branch, 17 Tabellen, 0
+Abweichungen, Migrationsstand 24, PostGIS und Enums gleich. Vorher
+notwendig: Migration 0023 (`search_path` der Funktion), siehe E37 im
+Entscheidungslog. Wöchentlich ab jetzt über `restore-woechentlich.yml`.
