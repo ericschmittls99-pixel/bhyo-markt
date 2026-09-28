@@ -35,6 +35,7 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { darf } from "@/lib/rollen";
 import { aktuellerZugang } from "@/lib/wache";
 import { artAusSicht, leiste, leseSicht } from "@/lib/filter-modell";
@@ -280,6 +281,7 @@ export async function RegisterInhalt({
             canEdit={canEdit}
             verfuegbarkeit={verfuegbarkeit}
             vergaben={vergaben}
+            preisKorridor={preisKorridorEinzel(detailStrom, pool, { cluster: CLUSTER_LABEL })}
           />
         )
       )}

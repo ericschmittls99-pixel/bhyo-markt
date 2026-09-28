@@ -1,6 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 import { useEffect, useRef, useState } from "react";
 
 import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
@@ -59,6 +60,7 @@ export function KarteAnsicht({
   historie,
   begruendung,
   verifizierung,
+  preisKorridor = null,
   filterOffenInitial,
   legendeInitial,
   umrisseInitial,
@@ -84,6 +86,8 @@ export function KarteAnsicht({
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   verifizierung: string | null;
+  /** E38 */
+  preisKorridor?: PreisKorridorEinzelDaten | null;
   filterOffenInitial: boolean;
   legendeInitial: { offen: boolean; hoehe?: number };
   umrisseInitial: boolean;
@@ -222,6 +226,7 @@ export function KarteAnsicht({
           historie={historie}
           begruendung={begruendung}
           verifizierung={verifizierung}
+          preisKorridor={preisKorridor}
           verfuegbarkeit={detailVerfuegbarkeit}
           vergaben={detailVergaben}
           modal={false}

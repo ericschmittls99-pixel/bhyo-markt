@@ -40,6 +40,7 @@ import {
   type Strom,
 } from "@/lib/stroeme-modell";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { leiste } from "@/lib/filter-modell";
 import { cookies } from "next/headers";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
@@ -255,6 +256,7 @@ export default async function AuswertungPage({
             )
           : null
       }
+      preisKorridor={detailStrom ? preisKorridorEinzel(detailStrom, pool, { cluster: CLUSTER_LABEL }) : null}
     />
   );
 }

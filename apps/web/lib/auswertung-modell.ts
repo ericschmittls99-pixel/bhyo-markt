@@ -785,7 +785,7 @@ export function outputJahre(
  * gefilterte Zeilen sichtbar bleiben und nur dimmen.
  */
 /** Ergebnis je Zeile: eine Spanne mit optionaler Kennzeichnung — oder bewusst leer (Fall C / keine Preise). */
-type SpannenErgebnis =
+export type SpannenErgebnis =
   | { leer: false; min: number; mittel: number; max: number; zusatz: string | null; hinweis: string | null }
   | { leer: true; hinweis: string | null };
 
@@ -889,25 +889,28 @@ export function potenzialZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
  * Gewichtungsbasis (gewichtet / ungewichtet / keine Menge im Bezugsjahr)
  * kommen aus preisBasis — identisch zur KPI-Kachel.
  */
+/**
+ * Roher Feedstock-Preiskorridor einer Menge von Stroemen MIT Preis: Min /
+ * Mittel / Max je Position atro-gewichtet (E14), drei Faelle der
+ * Gewichtungsbasis. EIN Ursprung fuer das Cluster-Modul der Auswertung und
+ * das Vergleichsband am Einzelstrom (E38, lib/preiskorridor-einzel.ts).
+ */
+export function preisKorridorRoh(mitPreis: Strom[]): SpannenErgebnis {
+  const basis = preisBasis(mitPreis);
+  if (basis.fall === "keine_menge")
+    return { leer: true, hinweis: hinweisKeineMenge(basis.n) };
+  return {
+    leer: false,
+    min: basis.oe((s) => s.preisMin ?? s.preisMittel!),
+    mittel: basis.oe((s) => s.preisMittel!),
+    max: basis.oe((s) => s.preisMax ?? s.preisMittel!),
+    zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : null,
+    hinweis: basis.fall === "ungewichtet" ? HINWEIS_OHNE_ATRO : null,
+  };
+}
+
 export function preisKorridorZeilen(pool: Strom[], recs: Strom[]): SpannenZeile[] {
-  return clusterSpannen(
-    pool,
-    recs,
-    (mitPreis) => {
-      const basis = preisBasis(mitPreis);
-      if (basis.fall === "keine_menge")
-        return { leer: true, hinweis: hinweisKeineMenge(basis.n) };
-      return {
-        leer: false,
-        min: basis.oe((s) => s.preisMin ?? s.preisMittel!),
-        mittel: basis.oe((s) => s.preisMittel!),
-        max: basis.oe((s) => s.preisMax ?? s.preisMittel!),
-        zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : null,
-        hinweis: basis.fall === "ungewichtet" ? HINWEIS_OHNE_ATRO : null,
-      };
-    },
-    fmtPreis,
-  );
+  return clusterSpannen(pool, recs, preisKorridorRoh, fmtPreis);
 }
 
 // E36: Euro-Potenzial je Output liegt in lib/potenzial.ts — ein Ursprung für
