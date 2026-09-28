@@ -30,7 +30,7 @@ import {
   vergabenZuWerten,
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
-import { schreibrechtFuerAction } from "@/lib/wache";
+import { rechtFuerAction } from "@/lib/rechte/wache";
 import { dezimalKanonisch, monatKanonisch } from "@/lib/eingabe-format";
 
 export interface SpeichernErgebnis {
@@ -103,8 +103,9 @@ export async function stromSpeichern(
   _prev: SpeichernErgebnis,
   formData: FormData,
 ): Promise<SpeichernErgebnis> {
-  // F8/E30: Rechtepruefung VOR jeder Wirkung, ueber die zentrale Wache.
-  const wache = await schreibrechtFuerAction();
+  // F8/E30, E42: Rechtepruefung VOR jeder Wirkung, ueber die zentrale Wache —
+  // Anlegen und Bearbeiten sind getrennte Aktionen der Matrix.
+  const wache = await rechtFuerAction(id == null ? "strom.anlegen" : "strom.bearbeiten");
   if ("fehler" in wache) return { fehler: wache.fehler };
   const email = wache.email;
 

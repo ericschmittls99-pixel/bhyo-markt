@@ -36,8 +36,8 @@ import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { darf } from "@/lib/rollen";
-import { aktuellerZugang } from "@/lib/wache";
+import { darf } from "@/lib/rechte";
+import { aktuellerZugang } from "@/lib/rechte/wache";
 import { artAusSicht, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
@@ -134,7 +134,8 @@ export async function RegisterInhalt({
   // Das blendet nur aus — die tragende Pruefung sitzt in der Wache, die jede
   // Server-Action und jede schreibende Route aufruft.
   const zugang = await aktuellerZugang();
-  const canEdit = zugang.art === "erlaubt" && darf(zugang.rolle, "schreiben");
+  // E42: dieselbe Matrix wie die Wache — hier nur zum Ausblenden.
+  const canEdit = darf(zugang, "strom.bearbeiten");
 
   // Formular-Panel (PR 5): ?form=neu oder ?form=<id>; gewinnt gegen ?detail=.
   const formParam = ersterWert(sp.form);

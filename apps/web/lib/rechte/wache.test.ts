@@ -55,9 +55,10 @@ vi.mock("@/lib/db", () => ({
 
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { statusSetzen, stromVerwerfen } = await import("./stroeme-actions");
-const { verlangeVerwaltungsrecht, verlangeSchreibrecht, KeinRecht, adminKontakt } =
-  await import("./wache");
+const { statusSetzen, stromVerwerfen } = await import("../stroeme-actions");
+const { verlange, KeinRecht, adminKontakt } = await import("./wache");
+const verlangeSchreibrecht = () => verlange("strom.status_setzen");
+const verlangeVerwaltungsrecht = () => verlange("benutzer.rolle_setzen");
 
 function alsBenutzer(email: string, rolle: Rolle, aktiv = true) {
   angemeldet = email;

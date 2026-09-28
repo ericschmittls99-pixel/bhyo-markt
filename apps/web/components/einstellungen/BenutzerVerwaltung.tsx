@@ -4,7 +4,7 @@ import { useActionState, useState, useTransition } from "react";
 
 import { aktivSetzen, benutzerAnlegen, rolleSetzen } from "@/lib/benutzer-actions";
 import { aktiveAdmins, type BenutzerZeile } from "@/lib/benutzer-regeln";
-import { ROLLEN, ROLLE_LABEL, type Rolle } from "@/lib/rollen";
+import { ROLLEN, ROLLE_LABEL, type Rolle } from "@/lib/rechte";
 
 export interface BenutzerAnzeige extends BenutzerZeile {
   name: string | null;

@@ -8,10 +8,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { findeLuecken } from "../scripts/wache-abdeckung";
+import { findeLuecken } from "../scripts/rechte-check";
 
-describe("Wache-Abdeckung", () => {
-  it("jede Server-Action und jede schreibende Route ruft die Wache auf", () => {
+describe("rechte-check", () => {
+  it("jede Server-Action und jede schreibende Route ruft die Wache mit einer Aktion der Matrix auf", () => {
     const luecken = findeLuecken();
     // Aussagekräftige Meldung statt "expected 1 to be 0": Wer den Test rot
     // sieht, soll sofort wissen, welcher Pfad gemeint ist.

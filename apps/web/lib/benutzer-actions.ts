@@ -11,8 +11,8 @@ import {
   pruefeRollenwechsel,
   type BenutzerZeile,
 } from "@/lib/benutzer-regeln";
-import { normalisiereEmail, ROLLEN, type Rolle } from "@/lib/rollen";
-import { verwaltungsrechtFuerAction } from "@/lib/wache";
+import { normalisiereEmail, ROLLEN, type Rolle } from "@/lib/rechte";
+import { rechtFuerAction } from "@/lib/rechte/wache";
 
 export interface BenutzerErgebnis {
   ok: boolean;
@@ -36,9 +36,9 @@ export async function benutzerAnlegen(
 ): Promise<BenutzerErgebnis> {
   // Verwaltungsrecht am Eingang, sichtbar in der Aktion selbst — ein
   // Aufruf eine Ebene tiefer ist zur Laufzeit wirksam und beim Lesen
-  // unsichtbar (Befund aus PR B, gemeldet von wache-abdeckung.ts).
-  const abgewiesen = await verwaltungsrechtFuerAction();
-  if (abgewiesen) return abgewiesen;
+  // unsichtbar (Befund aus PR B, gemeldet von rechte-check.ts).
+  const wache = await rechtFuerAction("benutzer.anlegen");
+  if ("fehler" in wache) return wache;
 
   const email = normalisiereEmail(String(formData.get("email") ?? ""));
   const rolle = String(formData.get("rolle") ?? "");
@@ -61,9 +61,9 @@ export async function benutzerAnlegen(
 export async function rolleSetzen(email: string, rolle: string): Promise<BenutzerErgebnis> {
   // Verwaltungsrecht am Eingang, sichtbar in der Aktion selbst — ein
   // Aufruf eine Ebene tiefer ist zur Laufzeit wirksam und beim Lesen
-  // unsichtbar (Befund aus PR B, gemeldet von wache-abdeckung.ts).
-  const abgewiesen = await verwaltungsrechtFuerAction();
-  if (abgewiesen) return abgewiesen;
+  // unsichtbar (Befund aus PR B, gemeldet von rechte-check.ts).
+  const wache = await rechtFuerAction("benutzer.rolle_setzen");
+  if ("fehler" in wache) return wache;
   if (!istRolle(rolle)) return { ok: false, fehler: "Unbekannte Rolle." };
   const ziel = normalisiereEmail(email);
 
@@ -91,9 +91,9 @@ export async function rolleSetzen(email: string, rolle: string): Promise<Benutze
 export async function aktivSetzen(email: string, aktiv: boolean): Promise<BenutzerErgebnis> {
   // Verwaltungsrecht am Eingang, sichtbar in der Aktion selbst — ein
   // Aufruf eine Ebene tiefer ist zur Laufzeit wirksam und beim Lesen
-  // unsichtbar (Befund aus PR B, gemeldet von wache-abdeckung.ts).
-  const abgewiesen = await verwaltungsrechtFuerAction();
-  if (abgewiesen) return abgewiesen;
+  // unsichtbar (Befund aus PR B, gemeldet von rechte-check.ts).
+  const wache = await rechtFuerAction("benutzer.aktiv_setzen");
+  if ("fehler" in wache) return wache;
   const ziel = normalisiereEmail(email);
 
   const fehler = await withDb(async (db) =>

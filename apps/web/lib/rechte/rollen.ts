@@ -4,8 +4,9 @@
  * stehen nur die Entscheidungen, damit sie ohne Infrastruktur testbar sind.
  *
  * Drei Rollen, aufsteigende Rechte: `betrachter` liest, `bearbeiter` erfasst
- * und bearbeitet, `admin` verwaltet zusaetzlich die Benutzer. "Bewerten" ist
- * bewusst KEINE eigene Rolle — die Frage wird erst mit AP3 geprueft.
+ * und bearbeitet, `admin` verwaltet zusaetzlich die Benutzer. Was eine Rolle
+ * konkret darf, steht als Daten in `matrix.ts` (E42) — hier nur, welche
+ * Rollen es gibt und wie ein Zugang zustande kommt.
  */
 
 export const ROLLEN = ["betrachter", "bearbeiter", "admin"] as const;
@@ -17,22 +18,6 @@ export const ROLLE_LABEL: Record<Rolle, string> = {
   bearbeiter: "bearbeiter.",
   admin: "admin.",
 };
-
-/**
- * Was eine Aktion mindestens verlangt. Bewusst nur zwei Stufen statt einer
- * Rechte-Matrix: Schreiben (erfassen, bearbeiten, Status setzen, verwerfen)
- * und Verwalten (Benutzer). Mehr Stufen waeren heute erfunden, nicht
- * entschieden.
- */
-export type Anforderung = "lesen" | "schreiben" | "verwalten";
-
-const RANG: Record<Rolle, number> = { betrachter: 1, bearbeiter: 2, admin: 3 };
-const MINDESTRANG: Record<Anforderung, number> = { lesen: 1, schreiben: 2, verwalten: 3 };
-
-/** Reine Entscheidung: Reicht diese Rolle fuer diese Anforderung? */
-export function darf(rolle: Rolle, was: Anforderung): boolean {
-  return RANG[rolle] >= MINDESTRANG[was];
-}
 
 /**
  * E-Mails werden ausschliesslich in Kleinschreibung verglichen und

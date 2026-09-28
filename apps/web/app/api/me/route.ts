@@ -1,4 +1,4 @@
-import { aktuellerZugang } from "@/lib/wache";
+import { aktuellerZugang } from "@/lib/rechte/wache";
 
 // Liest die von der Middleware verifizierte Identität; nie aus dem Cache.
 export const dynamic = "force-dynamic";
