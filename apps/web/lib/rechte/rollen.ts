@@ -3,19 +3,23 @@
  * ohne Umgebung. Die Wache selbst (mit DB-Zugriff) sitzt in `wache.ts`; hier
  * stehen nur die Entscheidungen, damit sie ohne Infrastruktur testbar sind.
  *
- * Drei Rollen, aufsteigende Rechte: `betrachter` liest, `bearbeiter` erfasst
- * und bearbeitet, `admin` verwaltet zusaetzlich die Benutzer. Was eine Rolle
+ * Vier Rollen (E42): `betrachter` liest, `bearbeiter` erfasst und bearbeitet,
+ * `pruefer` sperrt und weist zu (E44), `admin` verwaltet zusaetzlich die
+ * Benutzer. Was eine Rolle
  * konkret darf, steht als Daten in `matrix.ts` (E42) — hier nur, welche
  * Rollen es gibt und wie ein Zugang zustande kommt.
  */
 
-export const ROLLEN = ["betrachter", "bearbeiter", "admin"] as const;
+// E42: vier Rollen, Hierarchie admin ⊇ pruefer ⊇ bearbeiter ⊇ betrachter —
+// ausgeschrieben in matrix.ts, nicht als Rang gerechnet.
+export const ROLLEN = ["betrachter", "bearbeiter", "pruefer", "admin"] as const;
 export type Rolle = (typeof ROLLEN)[number];
 
 /** Anzeige-Labels: lowercase mit Punkt, wie im Designsystem. */
 export const ROLLE_LABEL: Record<Rolle, string> = {
   betrachter: "betrachter.",
   bearbeiter: "bearbeiter.",
+  pruefer: "prüfer.",
   admin: "admin.",
 };
 

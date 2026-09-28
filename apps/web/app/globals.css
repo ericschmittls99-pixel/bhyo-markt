@@ -5038,3 +5038,116 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-secondary);
   font-style: italic;
 }
+
+/* --- E44 (AP2.1 PR b): Avatare und Sperre ------------------------------ */
+:root {
+  --av-1: var(--bhyo-navy-700, #2d4250);
+  --av-2: var(--bhyo-forest-700, #4f6f21);
+  --av-3: var(--bhyo-lime-600, #6da12c);
+  --av-4: #3aa0a0;
+  --av-5: #8a6d3b;
+  --av-6: #6b4423;
+  --av-7: var(--bhyo-navy-400, #8a959b);
+  --av-8: var(--bhyo-forest-900, #3a5412);
+  --av-fg: #ffffff;
+}
+[data-theme="dark"] {
+  --av-1: #a3acb1;
+  --av-2: #a3d150;
+  --av-3: #7db535;
+  --av-4: #5fc2c2;
+  --av-5: #d8c6a0;
+  --av-6: #c9a27e;
+  --av-7: #7f8f97;
+  --av-8: #e9efdf;
+  --av-fg: #16222a;
+}
+.av {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--av-fg);
+  font: 600 10px/1 var(--font-sans);
+  letter-spacing: 0.02em;
+  flex: 0 0 auto;
+  user-select: none;
+  box-shadow: 0 0 0 2px var(--surface-card);
+}
+.av--s { width: 24px; height: 24px; }
+.av--m { width: 32px; height: 32px; font-size: 12px; }
+.av-c1 { background: var(--av-1); }
+.av-c2 { background: var(--av-2); }
+.av-c3 { background: var(--av-3); }
+.av-c4 { background: var(--av-4); }
+.av-c5 { background: var(--av-5); }
+.av-c6 { background: var(--av-6); }
+.av-c7 { background: var(--av-7); }
+.av-c8 { background: var(--av-8); }
+.av-badge {
+  position: absolute;
+  right: -3px;
+  bottom: -3px;
+  display: grid;
+  place-items: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font-size: 9px;
+}
+.av-stapel { display: inline-flex; align-items: center; }
+.av-stapel .av + .av { margin-left: -6px; }
+/* Sperr-Zeile im Beleg-Kopf: Schloss, Avatar-Stapel, Hinweis */
+.ov-sperre {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  height: 28px;
+  padding: 0 10px 0 8px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+  color: var(--text-secondary);
+  font: var(--type-caption);
+  white-space: nowrap;
+}
+.ov-sperre > .ph-lock, .ov-sperre > .ph-fill { font-size: 14px; color: var(--text-primary); }
+.ov-sperre-hinweis { color: var(--text-secondary); }
+/* Zuweisen-Popover */
+.zw-liste { display: flex; flex-direction: column; gap: 2px; min-width: 240px; }
+.zw-eintrag {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+  text-align: left;
+  cursor: pointer;
+}
+.zw-eintrag:hover { background: var(--surface-hover); }
+.zw-eintrag .zw-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.zw-eintrag .zw-x { color: var(--text-tertiary); }
+.zw-leer { padding: 8px; color: var(--text-tertiary); font: var(--type-caption); }
+/* Schloss in Liste und Grid */
+.st-sperre { color: var(--text-secondary); font-size: 13px; margin-left: 6px; vertical-align: -1px; }
+.st-card-sperre {
+  position: absolute;
+  left: 10px;
+  bottom: 10px;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--glass-fill-strong);
+  border: 1px solid var(--glass-edge);
+  color: var(--text-primary);
+  font-size: 13px;
+}
+.einst-avatar { display: inline-flex; align-items: center; gap: 8px; }

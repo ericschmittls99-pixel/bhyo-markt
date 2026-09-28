@@ -12,7 +12,7 @@ import { benutzer } from "@bhyo/db/schema";
 import { and, asc, eq } from "drizzle-orm";
 
 import { currentUserEmail, withDb } from "@/lib/db";
-import { type Aktion, darf, nurAdmin } from "./matrix";
+import { type Aktion, darfRolle, nurAdmin } from "./matrix";
 import { bestimmeZugang, normalisiereEmail, type Rolle, type Zugang } from "./rollen";
 
 /** Was verlangt wurde: eine Aktion der Matrix oder nur der Zugang (Lesen). */
@@ -79,11 +79,15 @@ export async function verlangeZugang(): Promise<Erlaubt> {
   return zugang;
 }
 
-/** Schreiben: wirft `KeinRecht`, wenn die Matrix die Aktion fuer diese Rolle nicht erlaubt. */
+/**
+ * Schreiben: wirft `KeinRecht`, wenn die Rollenstufe der Matrix die Aktion
+ * nicht erlaubt. Objektregeln (E44, Sperre) prueft der Schreibpfad danach in
+ * seiner Transaktion ueber lib/rechte/sperre-server.ts.
+ */
 export async function verlange(aktion: Aktion): Promise<Erlaubt> {
   const zugang = await aktuellerZugang();
   if (zugang.art !== "erlaubt") throw new KeinRecht(zugang, aktion);
-  if (!darf(zugang, aktion)) throw new KeinRecht(zugang, aktion);
+  if (!darfRolle(zugang, aktion)) throw new KeinRecht(zugang, aktion);
   return zugang;
 }
 
@@ -125,10 +129,10 @@ export async function zugangFuerRoute(): Promise<RoutenErgebnis> {
  */
 export async function rechtFuerAction(
   aktion: Aktion,
-): Promise<{ email: string } | { ok: false; fehler: string }> {
+): Promise<{ email: string; zugang: Erlaubt } | { ok: false; fehler: string }> {
   try {
-    const { email } = await verlange(aktion);
-    return { email };
+    const zugang = await verlange(aktion);
+    return { email: zugang.email, zugang };
   } catch (e) {
     return { ok: false, fehler: fehlertext(e) ?? "Kein Recht für diese Aktion." };
   }

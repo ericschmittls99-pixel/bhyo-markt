@@ -38,6 +38,8 @@ import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizi
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { darf } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
+import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
+import { withDb } from "@/lib/db";
 import { artAusSicht, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
@@ -183,6 +185,19 @@ export async function RegisterInhalt({
       ? ersteAenderung.slice(ersteAenderung.indexOf(": ") + 2)
       : null;
 
+  // E44: Sperr-Rechte am Detail aus derselben Matrix wie die Wache — nur zum
+  // Ausblenden; die Objektstufe prueft jeder Schreibpfad in seiner Transaktion.
+  const sperre = detailStrom ? sperrObjekt(detailStrom) : null;
+  const sperrRechte = detailStrom
+    ? {
+        bearbeiten: darf(zugang, "strom.bearbeiten", sperre),
+        sperren: darf(zugang, "strom.sperren", sperre),
+        entsperren: darf(zugang, "strom.entsperren", sperre),
+        zuweisen: darf(zugang, "strom.zuweisen", sperre),
+      }
+    : null;
+  const zuweisbare = sperrRechte?.zuweisen ? await withDb((db) => ladeZuweisbare(db)) : [];
+
   // Detail liest denselben angereicherten Status wie Grid/Tabelle/Facette.
   const vergaben = detailStrom ? (vergabenMap.get(detailStrom.id) ?? []) : [];
   const verfuegbarkeit = detailStrom?.verfuegbarkeit ?? null;
@@ -278,6 +293,8 @@ export async function RegisterInhalt({
             )}
             modal={ansicht === "grid"}
             canEdit={canEdit}
+            sperrRechte={sperrRechte}
+            zuweisbare={zuweisbare}
             verfuegbarkeit={verfuegbarkeit}
             vergaben={vergaben}
             preisKorridor={preisKorridorEinzel(detailStrom, pool, { cluster: CLUSTER_LABEL })}

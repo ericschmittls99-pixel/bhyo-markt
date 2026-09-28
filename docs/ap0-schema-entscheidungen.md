@@ -622,7 +622,8 @@ Jahrespillen diese Rolle in auswertung. übernehmen, ist damit aufgehoben.
 
 ## 22. Rechte-Matrix als Daten (E42, AP2.1 PR a, 28.09.2026)
 
-Rollen, Rechte und Durchsetzung leben in **einem Modul** `apps/web/lib/rechte/`:
+Rollen, Rechte und Durchsetzung leben in **einem Modul** `apps/web/lib/rechte/`
+(seit PR b mit der vierten Rolle pruefer und objektbezogenen Regeln, Abschnitt 23):
 `rollen.ts` (Rollen, Zugang, fail closed), `matrix.ts` (Typ `Aktion`, die
 Matrix `MATRIX` als Daten, `darf(nutzer, aktion, objekt?)`), `wache.ts`
 (serverseitige Durchsetzung: `verlange(aktion)`, `wacheFuerRoute(aktion)`,
@@ -639,6 +640,51 @@ erfasst, admin verwaltet zusätzlich); der Test hält jede Kombination Rolle ×
 Aktion ausdrücklich fest. Der CI-Wächter `scripts/rechte-check.ts`
 (vormals wache-abdeckung) verlangt in jedem Schreibpfad einen Wache-Aufruf
 mit einer Aktion, die die Matrix kennt — als Literal, sonst rot.
+
+## 23. Prüfer-Rolle, Sperren und Zuweisung (E42/E44, AP2.1 PR b, 28.09.2026)
+
+**Vier Rollen** (E42): betrachter, bearbeiter, **pruefer**, admin — Hierarchie
+admin ⊇ pruefer ⊇ bearbeiter ⊇ betrachter, in `lib/rechte/matrix.ts`
+ausgeschrieben. Niemand wird automatisch Prüfer; die Vergabe läuft über die
+Admin-Seite. Migration 0025 (Expand): Enum-Wert `pruefer`,
+`biomassestrom.gesperrt_von`/`gesperrt_am` und dasselbe an `output_bedarf`
+(FK auf `benutzer(id)`, CHECK „beide NULL oder beide gesetzt"), Tabelle
+`strom_zuweisung` (genau ein Elternbezug per CHECK, typisierte FKs auf
+`benutzer(id)`, partielle Unique-Indizes je Strom-Typ).
+
+**Die Sperre sitzt am Strom** (E44, Präzisierung Eric 28.09.2026): Was die
+Nutzer „Beleg" nennen, ist der Strom-Eintrag; dort liegt auch der Status.
+Gesperrtes bleibt für alle lesbar, Export unverändert. Aktionen in der
+Matrix, nicht verstreut: `strom.sperren` (pruefer, admin; nur ungesperrt),
+`strom.entsperren`, `strom.zuweisen`, `strom.zuweisung_entfernen` (der
+Sperrinhaber, solange er pruefer ist, oder admin). Zuweisen nur an aktive
+Nutzer mit Rolle ≥ bearbeiter (Prüfung am Eingang). Entsperren löscht alle
+Zuweisungen. Verliert der Inhaber die Rolle pruefer, bleibt die Sperre;
+lösen kann sie dann nur admin.
+
+**Objektstufe der Wache:** `darf(nutzer, aktion, sperre)` entscheidet
+objektbezogen; die Wache am Eingang prüft die Rollenstufe (`darfRolle`),
+der Schreibpfad liest die Sperre **in seiner Transaktion mit Zeilensperre**
+(`pruefeStromSperre`, FOR UPDATE) und bricht mit „Gesperrt von <Name>" ab —
+so kollidieren Sperren und gleichzeitiges Bearbeiten nicht. Betroffen sind
+alle Pfade, die einen Strom fachlich ändern: `stromSpeichern` (inklusive
+Beleg- und Vergabezeitraum-Schreibvorgängen und der Akteur-Zuordnung),
+`statusSetzen`, `stromVerwerfen`. **Geteilte Belege** (fachlich möglich,
+kein UNIQUE auf `beleg_id`): Ein Beleg darf nur geändert werden, wenn
+keiner der referenzierenden Ströme für den Handelnden gesperrt ist
+(`pruefeBelegSperre`, alle Referenzen gehalten). Der einzige Pfad, der in
+`beleg` schreibt, ist `stromSpeichern` über `beleg-server.ts`; der
+Regionspfad schreibt keine Beleg-Zeilen. Der CI-Wächter `rechte-check`
+verlangt für jede Aktion mit Objektregel den Aufruf der Objektstufe im
+Schreibpfad; `sperre-check` prüft in der CI, dass beide CHECKs greifen.
+
+**UI:** Beleg-Kopf mit Schloss und Avatar-Stapel (Inhaber zuerst,
+Tooltip mit Namen und „gesperrt seit"), Sperren/Entsperren/Zuweisen nur für
+Berechtigte, Nicht-Berechtigte sehen „Gesperrt von <Name>" statt Bearbeiten;
+Schloss-Indikator in Liste und Grid; Avatar (Initialen, Farbe deterministisch
+aus der Nutzer-ID über Tokens, Größen s/m, kein Foto) auch in der
+Benutzerliste. Kein „Zugriff anfragen" (AP2.2). Screenshots:
+`docs/screenshots/e44/`.
 
 ## Noch offen – nicht raten
 

@@ -39,7 +39,18 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       label: feed ? "Quelle" : "Abnehmer",
       render: (s) =>
         zweizeilig(
-          s.akteurName ?? s.bezeichnung ?? "–",
+          <>
+            {s.akteurName ?? s.bezeichnung ?? "–"}
+            {/* E44: Schloss-Indikator in der Zeile gesperrter Belege. */}
+            {s.sperre && (
+              <i
+                className="ph-fill ph-lock st-sperre"
+                role="img"
+                aria-label={`Gesperrt von ${s.sperre.von.name ?? s.sperre.von.email}`}
+                title={`Gesperrt von ${s.sperre.von.name ?? s.sperre.von.email}`}
+              />
+            )}
+          </>,
           [s.ort, kreisAnzeige(s)].filter(Boolean).join(", "),
         ),
     },

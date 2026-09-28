@@ -33,6 +33,7 @@ export default async function EinstellungenPage() {
   const liste = await withDb((db) =>
     db
       .select({
+        id: benutzer.id,
         email: benutzer.email,
         name: benutzer.name,
         rolle: benutzer.rolle,
@@ -47,6 +48,7 @@ export default async function EinstellungenPage() {
     <main className="einst">
       <BenutzerVerwaltung
         benutzer={liste.map((b) => ({
+          id: b.id,
           email: b.email,
           name: b.name,
           rolle: b.rolle,

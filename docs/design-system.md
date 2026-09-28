@@ -119,6 +119,19 @@ Hinweis: Die Cluster- und Output-Farben werden mit **AP1f-a** in
 `apps/web/lib/farben.ts` wirksam. Bis dahin beschreibt dieser Abschnitt den
 Zielzustand, nicht den Code-Stand.
 
+### Avatare und Sperre (E44, AP2.1 PR b)
+
+`components/Avatar.tsx`: Initialen (Vor- und Nachname, sonst E-Mail), Farbe
+**deterministisch aus der Nutzer-ID** (FNV-Hash auf acht Tokens `--av-1…8`,
+eigene Rampe für Dark), Größen s (24 px) und m (32 px), kein Foto-Upload.
+Der **Avatar-Stapel** zeigt den Sperrinhaber zuerst (mit Schloss-Badge),
+dann die Zugewiesenen, Tooltip mit Namen und „gesperrt seit". Im Beleg-Kopf
+sitzt die Sperre als sunken-Pille (`.ov-sperre`) unter den Status-Pillen;
+Nicht-Berechtigte sehen dort „Gesperrt von <Name>" statt der
+Bearbeiten-Knöpfe. Liste und Grid tragen ein ausgefülltes Schloss
+(`ph-fill ph-lock`) bei gesperrten Belegen. Keine Ampelfarbe: die Sperre ist
+Zustand, kein Alarm.
+
 ## Verlauf oder Flachfarbe
 
 - Verlauf ab **20 px** Durchmesser, darunter die Flachfarbe des Clusters bzw.

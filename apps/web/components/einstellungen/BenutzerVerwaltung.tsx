@@ -4,9 +4,12 @@ import { useActionState, useState, useTransition } from "react";
 
 import { aktivSetzen, benutzerAnlegen, rolleSetzen } from "@/lib/benutzer-actions";
 import { aktiveAdmins, type BenutzerZeile } from "@/lib/benutzer-regeln";
+import { Avatar } from "@/components/Avatar";
 import { ROLLEN, ROLLE_LABEL, type Rolle } from "@/lib/rechte";
 
 export interface BenutzerAnzeige extends BenutzerZeile {
+  /** E44: benutzer.id fuer den Avatar (Farbe aus der ID). */
+  id: string;
   name: string | null;
   erstelltAm: string;
 }
@@ -110,7 +113,10 @@ export function BenutzerVerwaltung({
             return (
               <tr key={b.email} className={b.aktiv ? undefined : "einst-inaktiv"}>
                 <td>
-                  {b.email}
+                  <span className="einst-avatar">
+                    <Avatar nutzer={{ id: b.id, name: b.name, email: b.email }} groesse="s" />
+                    {b.email}
+                  </span>
                   {b.email === ichSelbst && <span className="einst-du">du</span>}
                 </td>
                 <td>{b.name ?? "—"}</td>

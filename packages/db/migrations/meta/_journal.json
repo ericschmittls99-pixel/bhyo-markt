@@ -176,6 +176,13 @@
       "when": 1790610989350,
       "tag": "0024_ap2_benutzer_id",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1790616074697,
+      "tag": "0025_ap2_sperren_pruefer",
+      "breakpoints": true
     }
   ]
 }

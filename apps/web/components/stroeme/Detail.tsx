@@ -24,7 +24,10 @@ import {
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
-import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type Strom } from "@/lib/stroeme-modell";
+import { stromEntsperren, stromSperren, stromZuweisen, zuweisungEntfernen } from "@/lib/sperre-actions";
+import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
+import { fmtDatumZeit } from "@/lib/format";
+import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutzer, type Strom } from "@/lib/stroeme-modell";
 import { PreisKorridorEinzel } from "@/components/stroeme/PreisKorridorEinzel";
 import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
@@ -73,6 +76,8 @@ export function Detail({
   verfuegbarkeit,
   vergaben,
   preisKorridor = null,
+  sperrRechte = null,
+  zuweisbare = [],
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -87,8 +92,25 @@ export function Detail({
   /** AP1j, optional: karte./auswertung. reichen noch nichts durch (PR 3/4). */
   verfuegbarkeit?: VerfuegbarkeitsErgebnis | null;
   vergaben?: VergabeDaten[];
+  /**
+   * E44: serverseitig aus der Matrix berechnet (darf(zugang, aktion, sperre)) —
+   * nur zum Ausblenden. null (karte./auswertung.): keine Sperr-Aktionen, nur Anzeige.
+   */
+  sperrRechte?: {
+    bearbeiten: boolean;
+    sperren: boolean;
+    entsperren: boolean;
+    zuweisen: boolean;
+  } | null;
+  /** E44: aktive Nutzer mit Rolle >= bearbeiter, an die zugewiesen werden kann. */
+  zuweisbare?: SperrNutzer[];
 }) {
   const s = strom;
+  const [zuweisenOffen, setZuweisenOffen] = useState(false);
+  // E44: Bearbeiten nur, wenn Rolle UND Sperre es erlauben (die Wache prueft es serverseitig erneut).
+  const darfBearbeiten = canEdit && (sperrRechte?.bearbeiten ?? true);
+  const sperre = s.sperre ?? null;
+  const zuweisungen = s.zuweisungen ?? [];
   const { setze } = useUrlZustand();
   const router = useRouter();
   const [statusMenu, setStatusMenu] = useState(false);
@@ -104,6 +126,7 @@ export function Detail({
       if (ev.key !== "Escape") return;
       if (confirm) return setConfirm(false);
       if (statusMenu) return setStatusMenu(false);
+      if (zuweisenOffen) return setZuweisenOffen(false);
       schliessen();
     }
     document.addEventListener("keydown", onKey);
@@ -126,6 +149,17 @@ export function Detail({
         zeigeToast(`Status auf ${STATUS_LABEL[neu] ?? neu} gesetzt`);
         router.refresh();
       } else zeigeToast(erg.fehler ?? "Speichern fehlgeschlagen.");
+    });
+  }
+
+  function sperrAktion(lauf: () => Promise<{ ok: boolean; fehler?: string }>, erfolg: string) {
+    setZuweisenOffen(false);
+    startTransition(async () => {
+      const erg = await lauf();
+      if (erg.ok) {
+        zeigeToast(erfolg);
+        router.refresh();
+      } else zeigeToast(erg.fehler ?? "Aktion fehlgeschlagen.");
     });
   }
 
@@ -220,15 +254,15 @@ export function Detail({
                   <span data-pop className="pop-anchor">
                     <button
                       type="button"
-                      className={`spill spill--${pill.tone}${canEdit ? " klickbar" : ""}`}
-                      aria-haspopup={canEdit ? "menu" : undefined}
-                      aria-expanded={canEdit ? statusMenu : undefined}
+                      className={`spill spill--${pill.tone}${darfBearbeiten ? " klickbar" : ""}`}
+                      aria-haspopup={darfBearbeiten ? "menu" : undefined}
+                      aria-expanded={darfBearbeiten ? statusMenu : undefined}
                       disabled={pending}
-                      onClick={() => canEdit && setStatusMenu((v) => !v)}
-                      title={canEdit ? "Status ändern" : undefined}
+                      onClick={() => darfBearbeiten && setStatusMenu((v) => !v)}
+                      title={darfBearbeiten ? "Status ändern" : undefined}
                     >
                       {pill.text}
-                      {canEdit && <i className="ph-bold ph-caret-down" aria-hidden />}
+                      {darfBearbeiten && <i className="ph-bold ph-caret-down" aria-hidden />}
                     </button>
                     {statusMenu && (
                       <span role="menu" aria-label="Status ändern" className="pop pop--links">
@@ -263,16 +297,112 @@ export function Detail({
                   )}
                   <span className="pill pill--num">{s.vollstaendigkeit} % vollständig.</span>
                 </div>
+                {/* E44: Sperre — Schloss, Avatar-Stapel (Inhaber zuerst), Hinweis fuer Nicht-Berechtigte. */}
+                {sperre && (
+                  <div className="ov-pillen">
+                    <span className="ov-sperre">
+                      <i className="ph-fill ph-lock" aria-hidden />
+                      <AvatarStapel
+                        inhaber={sperre.von}
+                        zugewiesene={zuweisungen}
+                        gesperrtSeit={fmtDatumZeit(sperre.am)}
+                      />
+                      {!darfBearbeiten && (
+                        <span className="ov-sperre-hinweis">Gesperrt von {anzeigeName(sperre.von)}</span>
+                      )}
+                      {sperrRechte?.zuweisen &&
+                        zuweisungen.map((z) => (
+                          <button
+                            key={z.id}
+                            type="button"
+                            className="icon-btn"
+                            style={{ width: 24, height: 24 }}
+                            aria-label={`Zuweisung von ${anzeigeName(z)} entfernen`}
+                            title={`Zuweisung von ${anzeigeName(z)} entfernen`}
+                            disabled={pending}
+                            onClick={() =>
+                              sperrAktion(() => zuweisungEntfernen(s.art, s.id, z.id), `Zuweisung von ${anzeigeName(z)} entfernt`)
+                            }
+                          >
+                            <i className="ph-bold ph-x" aria-hidden />
+                          </button>
+                        ))}
+                    </span>
+                  </div>
+                )}
               </div>
             </div>
             <div className="ov-kopf-aktionen">
+              {/* E44: Sperren / Entsperren / Zuweisen — nur fuer Berechtigte (Matrix), serverseitig erneut geprueft. */}
+              {sperrRechte?.sperren && (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  disabled={pending}
+                  onClick={() => sperrAktion(() => stromSperren(s.art, s.id), "Strom gesperrt")}
+                >
+                  <i className="ph ph-lock" aria-hidden />
+                  Sperren
+                </button>
+              )}
+              {sperrRechte?.entsperren && (
+                <button
+                  type="button"
+                  className="btn btn--sm"
+                  disabled={pending}
+                  onClick={() => sperrAktion(() => stromEntsperren(s.art, s.id), "Strom entsperrt, Zuweisungen entfernt")}
+                >
+                  <i className="ph ph-lock-open" aria-hidden />
+                  Entsperren
+                </button>
+              )}
+              {sperrRechte?.zuweisen && (
+                <span data-pop className="pop-anchor">
+                  <button
+                    type="button"
+                    className="btn btn--sm"
+                    aria-haspopup="menu"
+                    aria-expanded={zuweisenOffen}
+                    disabled={pending}
+                    onClick={() => setZuweisenOffen((v) => !v)}
+                  >
+                    <i className="ph ph-user-plus" aria-hidden />
+                    Zuweisen …
+                  </button>
+                  {zuweisenOffen && (
+                    <span role="menu" aria-label="Zuweisen an" className="pop">
+                      <span className="zw-liste">
+                        {zuweisbare
+                          .filter((n) => n.id !== sperre?.von.id && !zuweisungen.some((z) => z.id === n.id))
+                          .map((n) => (
+                            <button
+                              key={n.id}
+                              type="button"
+                              role="menuitem"
+                              className="zw-eintrag"
+                              onClick={() =>
+                                sperrAktion(() => stromZuweisen(s.art, s.id, n.id), `${anzeigeName(n)} zugewiesen`)
+                              }
+                            >
+                              <Avatar nutzer={n} groesse="s" />
+                              <span className="zw-name">{anzeigeName(n)}</span>
+                            </button>
+                          ))}
+                        {zuweisbare.filter((n) => n.id !== sperre?.von.id && !zuweisungen.some((z) => z.id === n.id)).length === 0 && (
+                          <span className="zw-leer">Niemand mehr zuzuweisen.</span>
+                        )}
+                      </span>
+                    </span>
+                  )}
+                </span>
+              )}
               {stroemeHref && (
                 <Link className="btn btn--sm" href={stroemeHref}>
                   <i className="ph ph-arrow-square-out" aria-hidden />
                   In ströme. öffnen
                 </Link>
               )}
-              {!stroemeHref && canEdit && (
+              {!stroemeHref && darfBearbeiten && (
                 <button
                   type="button"
                   className="btn btn--sm"
@@ -282,7 +412,7 @@ export function Detail({
                   Bearbeiten
                 </button>
               )}
-              {!stroemeHref && canEdit && s.status !== "verworfen" && (
+              {!stroemeHref && darfBearbeiten && s.status !== "verworfen" && (
                 <button
                   type="button"
                   className="icon-btn"

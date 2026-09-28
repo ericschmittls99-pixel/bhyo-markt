@@ -40,6 +40,19 @@ function aktionen(wurzel: string): Set<string> {
   return new Set(werte);
 }
 
+/**
+ * E44: Aktionen mit Objektregel (Sperre), aus matrix.ts SELBST gelesen. Ein
+ * Schreibpfad, der eine solche Aktion nennt, muss die Objektstufe in seiner
+ * Transaktion pruefen (`pruefeStromSperre(`) — die Wache am Eingang prueft
+ * nur die Rollenstufe.
+ */
+function objektAktionen(wurzel: string): Set<string> {
+  const quelle = readFileSync(join(wurzel, "lib", "rechte", "matrix.ts"), "utf8");
+  const start = quelle.indexOf("const OBJEKT_REGELN");
+  const block = quelle.slice(start, quelle.indexOf("};", start));
+  return new Set([...block.matchAll(/"([a-z_]+\.[a-z_]+)":/g)].map((m) => m[1]!));
+}
+
 const SCHREIB_METHODEN = ["POST", "PUT", "PATCH", "DELETE"] as const;
 
 export interface Lücke {
@@ -65,13 +78,14 @@ function dateien(verzeichnis: string, treffer: string[] = []): string[] {
  */
 function rumpf(quelle: string, ab: number): string {
   const rest = quelle.slice(ab);
-  const naechster = rest.slice(1).search(/^export /m);
+  const naechster = rest.slice(1).search(/^(?:export |async function |function )/m);
   return naechster === -1 ? rest : rest.slice(0, naechster + 1);
 }
 
 export function findeLuecken(wurzel = WURZEL): Lücke[] {
   const luecken: Lücke[] = [];
   const bekannt = aktionen(wurzel);
+  const mitObjekt = objektAktionen(wurzel);
   // Nur Funktionen, die eine AKTION verlangen, zaehlen als Durchsetzung eines
   // Schreibpfads — `zugangFuerRoute()` (Lesen) reicht fuer Schreiben nicht.
   // Wortgrenze, damit `verlange` nicht auf `verlangeZugang` matcht.
@@ -88,7 +102,29 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     if (literale.length === 0) return "Aktion nicht als Literal angegeben (nicht pruefbar)";
     const fremd = literale.filter((l) => !bekannt.has(l));
     if (fremd.length) return `unbekannte Aktion „${fremd.join('", „')}" (nicht in der Matrix)`;
+    // E44: Objektstufe — wer eine Aktion mit Sperrregel nennt, muss sie in der
+    // Transaktion pruefen (direkt oder ueber einen Rumpf mit demselben Literal).
+    if (literale.some((l) => mitObjekt.has(l)) && !/\bpruefeStromSperre\s*\(/.test(text)) {
+      return `Aktion mit Sperrregel ohne Objektstufe (pruefeStromSperre) im Schreibpfad`;
+    }
     return null;
+  };
+
+  /**
+   * Rumpf samt aufgerufener LOKALER Helfer (eine Ebene): Die Objektstufe darf
+   * in einem gemeinsamen Rumpf der Datei sitzen (z. B. wechsleStatus in
+   * stroeme-actions.ts), solange die exportierte Aktion ihn aufruft.
+   */
+  const mitHelfern = (quelle: string, text: string): string => {
+    const lokale = new Map<string, string>();
+    for (const m of quelle.matchAll(/^(?:async )?function (\w+)\(/gm)) {
+      lokale.set(m[1]!, rumpf(quelle, m.index!));
+    }
+    let erweitert = text;
+    for (const [name, body] of lokale) {
+      if (new RegExp(`\\b${name}\\s*\\(`).test(text)) erweitert += "\n" + body;
+    }
+    return erweitert;
   };
 
   // 1. Server-Actions: jede exportierte async-Funktion in einer "use server"-
@@ -104,7 +140,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
       // ausschliesslich INNERHALB bereits geprueffter Aktionen aufgerufen und
       // bekommt die geprueffte E-Mail uebergeben.
       if (name === "logAenderung") continue;
-      const grund = pruefe(rumpf(quelle, m.index!));
+      const grund = pruefe(mitHelfern(quelle, rumpf(quelle, m.index!)));
       if (grund) luecken.push({ datei: relative(wurzel, datei), pfad: `${name}()`, grund: `Server-Action: ${grund}` });
     }
   }

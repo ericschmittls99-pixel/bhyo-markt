@@ -100,6 +100,11 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           reserviertBhyo: biomassestrom.reserviertBhyo,
           reserviertSeit: biomassestrom.reserviertSeit,
           createdAt: biomassestrom.createdAt,
+          // E44: Sperre und Zuweisungen — Inhaber/Zugewiesene als JSON (json_build_object,
+          // nicht array_agg: der Worker-Treiber liefert Arrays als Text).
+          gesperrtAm: biomassestrom.gesperrtAm,
+          sperrInhaber: sql<unknown>`(select json_build_object('id', b.id, 'name', b.name, 'email', b.email) from benutzer b where b.id = ${biomassestrom.gesperrtVon})`,
+          zuweisungen: sql<unknown>`coalesce((select json_agg(json_build_object('id', b.id, 'name', b.name, 'email', b.email) order by b.name, b.email) from strom_zuweisung z join benutzer b on b.id = z.nutzer_id where z.biomassestrom_id = ${biomassestrom.id}), '[]'::json)`,
           ...belegSelect,
         })
         .from(biomassestrom)
@@ -146,6 +151,11 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         reserviertBhyo: outputBedarf.reserviertBhyo,
         reserviertSeit: outputBedarf.reserviertSeit,
         createdAt: outputBedarf.createdAt,
+        // E44: Sperre und Zuweisungen — Inhaber/Zugewiesene als JSON (json_build_object,
+        // nicht array_agg: der Worker-Treiber liefert Arrays als Text).
+        gesperrtAm: outputBedarf.gesperrtAm,
+        sperrInhaber: sql<unknown>`(select json_build_object('id', b.id, 'name', b.name, 'email', b.email) from benutzer b where b.id = ${outputBedarf.gesperrtVon})`,
+        zuweisungen: sql<unknown>`coalesce((select json_agg(json_build_object('id', b.id, 'name', b.name, 'email', b.email) order by b.name, b.email) from strom_zuweisung z join benutzer b on b.id = z.nutzer_id where z.output_bedarf_id = ${outputBedarf.id}), '[]'::json)`,
         ...belegSelect,
       })
       .from(outputBedarf)

@@ -3,6 +3,8 @@ import {
   type Strom,
   type StromBeleg,
   type StromVerwaltung,
+  type SperrNutzer,
+  type StromSperreAnzeige,
 } from "./stroeme-modell";
 import { vollstaendigkeit } from "./vollstaendigkeit";
 
@@ -126,7 +128,28 @@ type GemeinsameZeile = BelegZeile & {
   reserviertBhyo: boolean;
   reserviertSeit: string | null;
   createdAt: Date;
+  /** E44 */
+  gesperrtAm: Date | null;
+  sperrInhaber: unknown;
+  zuweisungen: unknown;
 };
+
+/** JSON kommt je nach Treiber als Objekt oder als Text an (siehe stringListe). */
+function jsonWert(v: unknown): unknown {
+  return typeof v === "string" ? JSON.parse(v) : v;
+}
+function nutzerAus(v: unknown): SperrNutzer | null {
+  const o = jsonWert(v) as { id?: string; name?: string | null; email?: string } | null;
+  return o && typeof o.id === "string" ? { id: o.id, name: o.name ?? null, email: o.email ?? "" } : null;
+}
+function sperreAus(r: Pick<GemeinsameZeile, "gesperrtAm" | "sperrInhaber">): StromSperreAnzeige | null {
+  const von = nutzerAus(r.sperrInhaber);
+  return von && r.gesperrtAm ? { von, am: r.gesperrtAm.toISOString() } : null;
+}
+function zuweisungenAus(v: unknown): SperrNutzer[] {
+  const liste = jsonWert(v);
+  return Array.isArray(liste) ? liste.map(nutzerAus).filter((n): n is SperrNutzer => n != null) : [];
+}
 
 export type BiomasseZeile = GemeinsameZeile & {
   cluster: string | null;
@@ -199,6 +222,8 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     reserviertSeit: r.reserviertSeit,
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
+    sperre: sperreAus(r),
+    zuweisungen: zuweisungenAus(r.zuweisungen),
   };
   return {
     ...basis,
@@ -275,6 +300,8 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     reserviertSeit: r.reserviertSeit,
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
+    sperre: sperreAus(r),
+    zuweisungen: zuweisungenAus(r.zuweisungen),
   };
   return {
     ...basis,

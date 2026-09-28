@@ -63,6 +63,18 @@ export function landAnzeige(s: Pick<Strom, "verwaltung" | "lng" | "lat">): strin
   return verwaltungsZustand(s) === "ausserhalb" ? "außerhalb" : "ohne Koordinate";
 }
 
+/** E44: Person an einer Sperre/Zuweisung — benutzer.id, Name, E-Mail (Anzeige, Avatar). */
+export interface SperrNutzer {
+  id: string;
+  name: string | null;
+  email: string;
+}
+export interface StromSperreAnzeige {
+  von: SperrNutzer;
+  /** ISO-Zeitstempel (gesperrt_am). */
+  am: string;
+}
+
 export interface StromBeleg {
   /**
    * Beleg-UUID — seit E28 nicht mehr sichtbar (die kurze Nummer steht an
@@ -145,6 +157,9 @@ export interface Strom {
   vergaben?: VergabeDaten[];
   /** E33: Gesamtfaelligkeit und Verifikationsstatus — nur gesetzt, wo angereichert. */
   verifikation?: VerifikationsErgebnis;
+  /** E44: Sperre am Strom (null = frei) und Zugewiesene — aus dem Loader. */
+  sperre?: StromSperreAnzeige | null;
+  zuweisungen?: SperrNutzer[];
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;
