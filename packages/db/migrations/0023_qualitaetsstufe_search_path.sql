@@ -1,0 +1,14 @@
+-- Restore-Befund (28.09.2026, Laeufe 36396739283 und 36397046739): Der
+-- taegliche pg_dump liess sich NICHT zurueckspielen — auch nicht in eine leere
+-- Datenbank. pg_restore setzt search_path leer; die SQL-Funktion
+-- qualitaetsstufe() nennt den Typ qualitaets_stufe unqualifiziert, und beim
+-- Anlegen der Generated-Spalte auf beleg wird der Ausdruck (mit der
+-- Funktion) aufgeloest: "type qualitaets_stufe does not exist" — danach
+-- fehlt beleg, und alles, was daran haengt, scheitert.
+--
+-- Abhilfe ohne Neuanlage der Spalte: Die Funktion bekommt ihren search_path
+-- fest an die Hand. Damit loest sie ihre Namen unabhaengig von der Sitzung
+-- auf, auch unter pg_restore. Fachlich aendert sich nichts; der Paritaetstest
+-- und beleg-check pruefen weiter jede Stufe, beleg-check zusaetzlich, dass
+-- die Einstellung steht.
+ALTER FUNCTION public.qualitaetsstufe(beleg_typ, text, text) SET search_path = public, pg_temp;
