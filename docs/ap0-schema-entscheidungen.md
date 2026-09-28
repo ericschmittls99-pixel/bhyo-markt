@@ -500,6 +500,17 @@ wieder, auch bei Fehlern — der Free-Plan erlaubt höchstens 10 Branches je
 Projekt. Nicht gesichert bleiben die Beleg-Dateien im R2-Bucket
 `bhyogenics-belege`; das ist ein offener Punkt für später.
 
+**Nachtrag 28.09.2026 — Zählprotokoll:** Der Vergleich „alter Dump gegen
+heutige Production" würde mit echten Nutzern regelmäßig rot, ohne dass etwas
+defekt ist. Deshalb schreibt `backup.yml` beim Erstellen des Dumps ein
+Zählprotokoll (Zeilenzahlen je Tabelle, Migrationsstand) **aus demselben
+Snapshot** (`REPEATABLE READ`, `pg_export_snapshot`, `pg_dump --snapshot`)
+neben den Dump nach R2. Der Restore vergleicht gegen dieses Protokoll, nicht
+gegen Production; fehlt es, ist der Lauf rot mit „kein Zählprotokoll".
+Nachweis 28.09.2026: Probe mit um eine Zeile verfälschtem Protokoll rot
+(Lauf 36415243312, „beleg: Protokoll 1, Restore 0"), unverfälscht grün
+(Lauf 36415455431, 18 Tabellen, Migrationsstand 24).
+
 **Nachtrag 28.09.2026 — `archiv_testdaten`:** Block B des Go-live-Skripts
 hat diese Tabelle außerhalb der Migrationen angelegt (Archiv der
 entfernten Testzeilen). Geprüft: Paritätstest, Beleg-Check, Fristen-Check
