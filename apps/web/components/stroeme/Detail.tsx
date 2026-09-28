@@ -24,6 +24,8 @@ import {
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type Strom } from "@/lib/stroeme-modell";
+import { PreisKorridorEinzel } from "@/components/stroeme/PreisKorridorEinzel";
+import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
 import { VERIFIKATION_LABEL } from "@/lib/verifizierung";
 import {
@@ -69,11 +71,14 @@ export function Detail({
   stroemeHref,
   verfuegbarkeit,
   vergaben,
+  preisKorridor = null,
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   verifizierung: string | null;
+  /** E38: Korridor des Stroms im Verhaeltnis zu seiner Vergleichsgruppe (serverseitig aus dem Pool). */
+  preisKorridor?: PreisKorridorEinzelDaten | null;
   modal: boolean;
   canEdit: boolean;
   /** Gesetzt im karte.-Kontext: Ziel fuer "In ströme. öffnen". */
@@ -453,6 +458,8 @@ export function Detail({
                   }
                 />
               </div>
+              {/* E38: Korridor des Stroms gegen das Band seiner Vergleichsgruppe. */}
+              {preisKorridor && <PreisKorridorEinzel k={preisKorridor} />}
             </section>
 
             <section className="ov-sec">
