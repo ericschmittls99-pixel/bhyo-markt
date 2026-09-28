@@ -78,7 +78,8 @@ jobs:
           echo "DUMP $NEUESTER"
           aws s3 cp "s3://$R2_BUCKET/$NEUESTER" ./backup.dump --endpoint-url "$R2_ENDPOINT"
           ls -lh backup.dump
-          pg_restore --list backup.dump | head -5
+          # Kein "| head": unter pipefail bricht das SIGPIPE den Schritt ab (Lauf 36396504811).
+          pg_restore --list backup.dump | sed -n 1,5p
 
       - name: Restore in den Scratch-Branch
         env:
