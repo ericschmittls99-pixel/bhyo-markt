@@ -1,4 +1,4 @@
-import { fmtMonat } from "./format";
+import { fmtMonat, formatZeitspanne } from "./format";
 import {
   datumZuMonat,
   monatZuBis,
@@ -88,19 +88,33 @@ export function verfuegbarkeitLabel(
 }
 
 /**
+ * Bezug der Ableitung: ein Stichtag (stroeme./karte.: das Serverdatum) oder
+ * ein Fenster aus ISO-Daten (auswertung., E41: gewaehltes Jahr bzw.
+ * Zeitraum aus E39). Ein Stichtag IST das Fenster [Tag, Tag] — eine Logik.
+ */
+export type VerfuegbarkeitsBezug = string | { von: string; bis: string };
+
+function bezugFenster(b: VerfuegbarkeitsBezug): { von: string; bis: string } {
+  return typeof b === "string" ? { von: b, bis: b } : b;
+}
+
+/**
  * Erste zutreffende Regel gewinnt (Handoff-Hierarchie 1-5). Offene Enden
  * werden fuer die Pruefung durch Verfuegbarkeitsbeginn/-ende ersetzt.
  * ISO-Strings vergleichen lexikographisch korrekt — kein Date-Parsing noetig.
  *
- * `stichtag` statt "heute" (Review 22.09.2026): stroeme./karte. uebergeben
- * das Serverdatum; auswertung. rechnet fensterbezogen ueber die
- * Monatszerlegung (PR 4) und ruft diese Funktion NICHT mit einem Jahr auf.
+ * E41 (28.09.2026): gegen ein Fenster gilt die Ueberschneidungsregel aus
+ * E32 — „vergeben" heisst, ein Vergabezeitraum ueberschneidet das Fenster;
+ * abgelaufen = Verfuegbarkeit endet vor dem Fenster, noch nicht verfuegbar =
+ * sie beginnt erst danach. Fuer den Stichtag ergibt das exakt die alte
+ * Heute-Semantik.
  */
 export function leiteVerfuegbarkeitAb(
-  stichtag: string,
+  bezug: VerfuegbarkeitsBezug,
   strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean },
   vergaben: VergabeDaten[],
 ): VerfuegbarkeitsErgebnis {
+  const fenster = bezugFenster(bezug);
   // Beschluss 22.09.2026: Die Reservierung erscheint IMMER als Nebentag,
   // sobald sie nicht selbst der Haupttag ist — Regeln 1-3 bestimmen den
   // Haupttag, die Zusatz-Pille macht die Zusage trotzdem sichtbar.
@@ -116,13 +130,13 @@ export function leiteVerfuegbarkeitAb(
       status !== "reserviert_bhyo",
   });
 
-  if (stichtag > strom.zeitraumBis) return mit("abgelaufen");
-  if (stichtag < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
+  if (fenster.von > strom.zeitraumBis) return mit("abgelaufen");
+  if (fenster.bis < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
 
   const aktiv = vergaben.find(
     (v) =>
-      stichtag >= (v.vergebenVon ?? strom.zeitraumVon) &&
-      stichtag <= (v.vergebenBis ?? strom.zeitraumBis),
+      (v.vergebenVon ?? strom.zeitraumVon) <= fenster.bis &&
+      (v.vergebenBis ?? strom.zeitraumBis) >= fenster.von,
   );
   if (aktiv) return mit(aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern");
   if (strom.reserviertBhyo) return mit("reserviert_bhyo");
@@ -130,9 +144,9 @@ export function leiteVerfuegbarkeitAb(
 }
 
 /**
- * Reichert Stroeme um den abgeleiteten Status an (serverseitig, EIN stichtag
- * je Request, PR 3). Stroeme ohne vollstaendigen Verfuegbarkeitszeitraum
- * bleiben unangereichert — kein stummes Raten.
+ * Reichert Stroeme um den abgeleiteten Status an (serverseitig, EIN Bezug
+ * je Request, PR 3; seit E41 auch ein Fenster). Stroeme ohne vollstaendigen
+ * Verfuegbarkeitszeitraum bleiben unangereichert — kein stummes Raten.
  */
 export function reichereVerfuegbarkeitAn<
   T extends {
@@ -147,7 +161,7 @@ export function reichereVerfuegbarkeitAn<
 >(
   stroeme: T[],
   vergabenJeStrom: Map<string, VergabeDaten[]>,
-  stichtag: string,
+  bezug: VerfuegbarkeitsBezug,
 ): T[] {
   return stroeme.map((s) => {
     // Die Vergaben haengen wir IMMER an — auch bei unvollstaendigem
@@ -158,7 +172,7 @@ export function reichereVerfuegbarkeitAn<
       ? {
           ...mitVergaben,
           verfuegbarkeit: leiteVerfuegbarkeitAb(
-            stichtag,
+            bezug,
             {
               zeitraumVon: s.zeitraumVon,
               zeitraumBis: s.zeitraumBis,
@@ -171,11 +185,10 @@ export function reichereVerfuegbarkeitAn<
   });
 }
 
-/** Anzeige eines Vergabezeitraums; offene Enden nach Handoff-Konvention. */
+/** Anzeige eines Vergabezeitraums (E40: „bis"); offene Enden nach Handoff-Konvention. */
 export function vergabeLabel(von: string | null, bis: string | null): string {
-  if (von && bis) return `${fmtMonat(von)} – ${fmtMonat(bis)}`;
-  if (bis) return `bis ${fmtMonat(bis)}`;
-  return `ab ${fmtMonat(von)} (unbefristet)`;
+  if (von && !bis) return `ab ${fmtMonat(von)} (unbefristet)`;
+  return formatZeitspanne(von, bis);
 }
 
 /**

@@ -30,7 +30,7 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { leiste } from "@/lib/filter-modell";
+import { filterLabel, leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export const dynamic = "force-dynamic";
@@ -168,7 +168,7 @@ export default async function KartePage({
     .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
     .map((e) => ({
       key: e.def.params[0]!,
-      label: e.def.label,
+      label: filterLabel(e.def, "karte"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));

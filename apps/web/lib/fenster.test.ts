@@ -132,7 +132,9 @@ describe("fensterFaktor", () => {
 });
 
 describe("wendeFensterAn", () => {
-  it("skaliert die Mengenfelder und filtert nach Fensterkategorien", () => {
+  // E41: Stroeme filtert das Filtermodell (Status im Fenster), nicht mehr
+  // diese Funktion — sie skaliert nur noch nach den gewaehlten Kategorien.
+  it("skaliert die Mengenfelder nach den gewaehlten Fensterkategorien, filtert aber keine Stroeme", () => {
     const s1 = { ...basis, id: "a", art: "biomasse", mengeAtro: 100, mengeFm: 200 } as Strom;
     const s2 = {
       ...basis,
@@ -145,9 +147,10 @@ describe("wendeFensterAn", () => {
     } as Strom;
     const map = new Map([["a", [v({ vergebenBis: "2027-06-30" })]]]);
     const erg = wendeFensterAn([s1, s2], map, [2027], ["verfuegbar"], "oe");
-    expect(erg.map((s) => s.id)).toEqual(["a"]);
+    expect(erg.map((s) => s.id)).toEqual(["a", "b"]);
     expect(erg[0]!.mengeAtro).toBeCloseTo(50, 10);
     expect(erg[0]!.mengeFm).toBeCloseTo(100, 10);
+    expect(erg[1]!.mengeAtro).toBe(0);
   });
 
   it("ohne Status-Auswahl zaehlen alle vier Mengen-Kategorien; abgelaufene bleiben mit Menge 0", () => {

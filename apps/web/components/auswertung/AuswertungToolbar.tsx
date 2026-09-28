@@ -90,6 +90,11 @@ export function AuswertungToolbar({
   // beide Arten, das Dashboard zeigt aber immer genau eine.
   exportParams.set("sicht", sicht);
   exportParams.set("ansicht", "auswertung");
+  // E41: der Export rechnet den Verfuegbarkeitsstatus gegen dasselbe Fenster.
+  for (const k of ["zeitmodus", "jahre"]) {
+    const v = searchParams.get(k);
+    if (v) exportParams.set(k, v);
+  }
 
   return (
     <>

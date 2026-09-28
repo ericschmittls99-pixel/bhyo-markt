@@ -121,6 +121,7 @@ const kontext: ExportKontext = {
   stand: "26.09.2026, 12:00 Uhr",
   ansicht: "ströme. · Feedstock",
   bezugsjahr: 2026,
+  verfuegbarkeitBezug: "heute (26.09.2026)",
   aktiveFilter: ["Verfügbarkeit: verfügbar"],
   nichtAngewandt: [],
 };
@@ -137,7 +138,7 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
   it("die vier Belegangaben sind als solche eingestuft, die Vergaben als gekürzt", () => {
     const nach = (e: string) => EXPORT_SPALTEN.filter((sp) => sp.einstufung === e).map((sp) => sp.key);
     expect(nach("belegangabe")).toEqual(["belegnummer", "quellenangabe", "datei", "link"]);
-    expect(nach("gekuerzt")).toEqual(["vergaben"]);
+    expect(nach("gekuerzt")).toEqual(["vergeben_an"]);
     for (const sp of EXPORT_SPALTEN) if (sp.einstufung === "gekuerzt") expect(sp.wertExtern).toBeTypeOf("function");
   });
 
@@ -151,7 +152,7 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
       "preis_min", "preis_mittel", "preis_max", "preis_stofflich", "preis_energetisch",
       "potenzial",
       "qualitaet", "belegtyp", "quellenangabe", "datei", "link", "verifikation", "faelligkeit",
-      "status", "verfuegbarkeit", "reserviert", "reserviert_seit", "vergaben",
+      "status", "verfuegbarkeit", "reserviert", "reserviert_seit", "vergeben_ab", "vergeben_bis", "vergeben_an",
     ]);
   });
 
@@ -178,7 +179,10 @@ describe("Externe Datei: nichts Zurückgehaltenes kommt vor", () => {
     for (const name of ["Belegnummer", "Quellenangabe", "Datei", "Link"]) {
       expect(geheimZeile[spalte(name)]).toBe(ZURUECKGEHALTEN);
     }
-    expect(geheimZeile[spalte("Vergaben")]).toBe("01/2026 – 06/2027 extern vergeben | ab 07/2027 (unbefristet) an bhyo");
+    // E40: drei Spalten, Abnehmername extern zurueckgehalten.
+    expect(geheimZeile[spalte("Vergeben ab")]).toBe("2026-01 | 2027-07");
+    expect(geheimZeile[spalte("Vergeben bis")]).toBe("2027-06 | unbefristet");
+    expect(geheimZeile[spalte("Vergeben an")]).toBe("extern | bhyo");
     // Mengen und Preise gehen hinaus — einzeln wie in Summen.
     expect(geheimZeile[spalte("Menge [t atro/a]")]).toBe("87");
     expect(geheimZeile[spalte("Preis mittel [€/t atro] (positiv = Kosten für bhyo)")]).toBe("-5");
@@ -232,7 +236,7 @@ describe("Format für deutsches Excel", () => {
 
   it("Metazeilen: Modus, Stand, Ansicht, Bezugsjahr, aktive und nicht angewandte Filter, BKG-Vermerk", () => {
     const m = metazeilen({ ...kontext, nichtAngewandt: ["Freitext: Speyer"] }).map((z) => z[0]);
-    expect(m).toEqual(["Modus", "Stand", "Ansicht", "Bezugsjahr", "Aktive Filter", "Nicht angewandte Filter", "Quellenvermerk"]);
+    expect(m).toEqual(["Modus", "Stand", "Ansicht", "Bezugsjahr", "Verfügbarkeit bezogen auf", "Aktive Filter", "Nicht angewandte Filter", "Quellenvermerk"]);
     const csv = erzeugeCsv([], kontext);
     expect(csv).toContain("extern: nicht freigegebene Belegangaben und Abnehmernamen zurückgehalten");
     expect(csv).toContain("© GeoBasis-DE / BKG (2026), dl-de/by-2-0");
@@ -263,7 +267,7 @@ describe("Druck: dieselben Zellen, Formatierung aus lib/format.ts", () => {
     const zellen = exportZellen(nichtFreigegeben, "extern").map(zelleDruck);
     const idx = (key: string) => EXPORT_SPALTEN.findIndex((sp) => sp.key === key);
     for (const key of ["belegnummer", "quellenangabe", "datei", "link"]) expect(zellen[idx(key)]).toBe(ZURUECKGEHALTEN);
-    expect(zellen[idx("vergaben")]).not.toContain("Biogas Nachbar GmbH");
+    expect(zellen[idx("vergeben_an")]).not.toContain("Biogas Nachbar GmbH");
     expect(exportZellen(nichtFreigegeben, "intern").map(zelleDruck)[idx("quellenangabe")]).toBe(GEHEIM.quelle);
   });
 
@@ -275,5 +279,30 @@ describe("Druck: dieselben Zellen, Formatierung aus lib/format.ts", () => {
     expect(exportZeile(gross, "intern")[idx("menge_atro")]).toBe("12346");
     expect(zelleDruck(zellen[idx("preis_mittel")]!)).toBe("-1.234");
     expect(zelleDruck("entfällt")).toBe("entfällt");
+  });
+});
+
+// E40: Vergabespalten je JJJJ-MM — beide Grenzen, offenes Ende, Beginn = Ende.
+describe("E40: Vergeben ab / bis / an", () => {
+  const spalte = (key: string) => EXPORT_SPALTEN.find((sp) => sp.key === key)!;
+  const mit = (vergaben: Strom["vergaben"]) => ({ ...nichtFreigegeben, vergaben }) as Strom;
+  it("beide Grenzen", () => {
+    const s = mit([{ vergebenVon: "2026-01-01", vergebenBis: "2027-06-30", vergebenAn: "Biogas Nachbar GmbH", anBhyo: false }]);
+    expect(spalte("vergeben_ab").wert(s)).toBe("2026-01");
+    expect(spalte("vergeben_bis").wert(s)).toBe("2027-06");
+    expect(spalte("vergeben_an").wert(s)).toBe("Biogas Nachbar GmbH");
+    expect(spalte("vergeben_an").wertExtern!(s)).toBe("extern");
+  });
+  it("ohne Ende: benannter Zustand, keine leere Zelle", () => {
+    const s = mit([{ vergebenVon: "2027-07-01", vergebenBis: null, vergebenAn: null, anBhyo: true }]);
+    expect(spalte("vergeben_ab").wert(s)).toBe("2027-07");
+    expect(spalte("vergeben_bis").wert(s)).toBe("unbefristet");
+    expect(spalte("vergeben_an").wert(s)).toBe("bhyo");
+  });
+  it("Beginn = Ende: derselbe Monat in beiden Spalten; ohne Vergabe „keine\"", () => {
+    const s = mit([{ vergebenVon: "2026-03-01", vergebenBis: "2026-03-31", vergebenAn: null, anBhyo: false }]);
+    expect(spalte("vergeben_ab").wert(s)).toBe("2026-03");
+    expect(spalte("vergeben_bis").wert(s)).toBe("2026-03");
+    expect(spalte("vergeben_ab").wert(mit([]))).toBe("keine");
   });
 });

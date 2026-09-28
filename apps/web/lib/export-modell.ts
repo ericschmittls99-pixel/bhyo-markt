@@ -40,7 +40,7 @@ import {
   stofflicherPreis,
 } from "./stroeme-modell";
 import { VERIFIKATION_LABEL, type VerifikationsStatus } from "./verifizierung";
-import { type VergabeDaten, vergabeLabel, verfuegbarkeitPill } from "./verfuegbarkeit";
+import { type VergabeDaten, verfuegbarkeitPill } from "./verfuegbarkeit";
 
 export type ExportModus = "extern" | "intern";
 export const EXPORT_MODI: readonly ExportModus[] = ["extern", "intern"];
@@ -190,17 +190,26 @@ function belegLink(s: Strom): string | null {
   return href;
 }
 
-function vergabeText(v: VergabeDaten, mitName: boolean): string {
-  const zeitraum = vergabeLabel(v.vergebenVon, v.vergebenBis);
-  if (v.anBhyo) return `${zeitraum} an bhyo`;
-  return mitName ? `${zeitraum} an ${v.vergebenAn ?? NICHT_ERFASST}` : `${zeitraum} extern vergeben`;
+/**
+ * E40 (28.09.2026): Vergaben in drei Spalten statt eines Satzes — „Vergeben
+ * ab" und „Vergeben bis" je JJJJ-MM, „Vergeben an" mit Einstufung
+ * (extern: nur bhyo/extern, der Abnehmername bleibt zurueckgehalten).
+ * Mehrere Vergaben eines Stroms stehen in derselben Reihenfolge, getrennt
+ * mit „ | ". Offene Enden sind BENANNT (E24), nie leer: kein Beginn heisst
+ * „ab Verfügbarkeitsbeginn", kein Ende „unbefristet"; ohne Vergabe „keine".
+ */
+export function csvMonat(iso: string | null | undefined): string | null {
+  return iso ? iso.slice(0, 7) : null;
 }
-
-function vergaben(s: Strom, mitName: boolean): string {
+const OHNE_VERGABE = "keine";
+function vergabeSpalte(s: Strom, wert: (v: VergabeDaten) => string): string {
   const liste = s.vergaben ?? [];
-  if (!liste.length) return "keine";
-  return liste.map((v) => vergabeText(v, mitName)).join(" | ");
+  return liste.length ? liste.map(wert).join(" | ") : OHNE_VERGABE;
 }
+const vergebenAb = (s: Strom) => vergabeSpalte(s, (v) => csvMonat(v.vergebenVon) ?? "ab Verfügbarkeitsbeginn");
+const vergebenBis = (s: Strom) => vergabeSpalte(s, (v) => csvMonat(v.vergebenBis) ?? "unbefristet");
+const vergebenAn = (s: Strom, mitName: boolean) =>
+  vergabeSpalte(s, (v) => (v.anBhyo ? "bhyo" : mitName ? (v.vergebenAn ?? NICHT_ERFASST) : "extern"));
 
 const KEINE_BELEGANGABE = "keine_belegangabe" as const;
 
@@ -285,18 +294,21 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
   { key: "status", gruppe: "markt", kopf: "Status", einstufung: KEINE_BELEGANGABE, wert: (s) => STATUS_LABEL[s.status] ?? s.status },
   {
     key: "verfuegbarkeit", gruppe: "markt",
-    kopf: "Verfügbarkeit (heute)",
+    // E41: der Bezug (heute bzw. Fenster der auswertung.) steht in der Metazeile.
+    kopf: "Verfügbarkeit",
     einstufung: KEINE_BELEGANGABE,
     wert: (s) => (s.verfuegbarkeit ? verfuegbarkeitPill(s.art, s.verfuegbarkeit.status).text.replace(/\.$/, "") : "ohne Zeitraum"),
   },
   { key: "reserviert", gruppe: "markt", kopf: "Reserviert (bhyo)", einstufung: KEINE_BELEGANGABE, wert: (s) => (s.reserviertBhyo ? "ja" : "nein") },
   { key: "reserviert_seit", gruppe: "markt", kopf: "Reserviert seit", einstufung: KEINE_BELEGANGABE, wert: (s) => csvDatum(s.reserviertSeit) ?? "nicht reserviert" },
+  { key: "vergeben_ab", gruppe: "markt", kopf: "Vergeben ab", einstufung: KEINE_BELEGANGABE, wert: vergebenAb },
+  { key: "vergeben_bis", gruppe: "markt", kopf: "Vergeben bis", einstufung: KEINE_BELEGANGABE, wert: vergebenBis },
   {
-    key: "vergaben", gruppe: "markt",
-    kopf: "Vergaben",
+    key: "vergeben_an", gruppe: "markt",
+    kopf: "Vergeben an",
     einstufung: "gekuerzt",
-    wert: (s) => vergaben(s, true),
-    wertExtern: (s) => vergaben(s, false),
+    wert: (s) => vergebenAn(s, true),
+    wertExtern: (s) => vergebenAn(s, false),
   },
 ];
 
@@ -341,6 +353,8 @@ export interface ExportKontext {
   /** Ansicht und Sicht im Klartext, z. B. „ströme. · Feedstock". */
   ansicht: string;
   bezugsjahr: number;
+  /** E41: worauf sich die Spalte „Verfügbarkeit" bezieht — „heute (TT.MM.JJJJ)" oder „Zeitraum 2022 bis 2026". */
+  verfuegbarkeitBezug: string;
   /** Aktive Filter im Klartext, je Eintrag „Label: Werte". */
   aktiveFilter: string[];
   /** Gesetzte, in dieser Ansicht aber nicht angewandte Filter (E32). */
@@ -354,6 +368,7 @@ export function metazeilen(k: ExportKontext): string[][] {
     ["Stand", k.stand],
     ["Ansicht", k.ansicht],
     ["Bezugsjahr", String(k.bezugsjahr)],
+    ["Verfügbarkeit bezogen auf", k.verfuegbarkeitBezug],
     ["Aktive Filter", k.aktiveFilter.length ? k.aktiveFilter.join(" · ") : "keine"],
     ["Nicht angewandte Filter", k.nichtAngewandt.length ? k.nichtAngewandt.join(" · ") : "keine"],
     // Landkreis und Bundesland sind immer enthalten — der Vermerk also auch.

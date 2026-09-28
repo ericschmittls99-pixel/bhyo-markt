@@ -566,13 +566,59 @@ dies nichts ändern"): Achse, Rückfälle, Fensterrechnung und der Parameter
 `jahre` (Kommaliste) bleiben; der Regler schreibt eine lückenlose Liste, alte
 Adressen mit Lücken rechnen weiter wie bisher und zeigen min–max.
 
-**Bewusst nicht geändert:** Der Verfügbarkeitsstatus wirkt in auswertung.
-weiterhin fensterbezogen über `wendeFensterAn` und steht nicht im Filtermodell
-dieser Ansicht (die Leiste weist ihn als „gilt hier nicht" aus, obwohl er
-fensterbezogen wirkt). Das ist ein bekannter E32-Widerspruch aus AP1j und eine
-eigene Entscheidung (Weg A: sichtbar machen, Semantik fensterbezogen; Weg B:
-Heute-Semantik wie ströme.), nicht Teil von E39. Screenshots:
-`docs/screenshots/e39/`.
+**Nachtrag:** Der damals offene E32-Widerspruch beim Verfügbarkeitsstatus
+in auswertung. ist mit E41 (Weg A, Fenster-Semantik) entschieden.
+Screenshots: `docs/screenshots/e39/`.
+
+## 20. Zeiträume mit „bis" und Vergabespalten im Export (E40, 28.09.2026)
+
+Zeiträume werden in der Anzeige wie Wertspannen mit „bis" geschrieben:
+„01/2026 bis 12/2031" (`formatZeitspanne` in `lib/format.ts`, Schwester von
+`formatSpanne`; `fmtZeitraum` und `vergabeLabel` bauen darauf auf). Ein
+offenes Ende ist benannt („ab 01/2026", „bis 12/2031", bei Vergaben
+„ab 07/2027 (unbefristet)"), fehlen beide Grenzen steht „nicht erfasst" (E24);
+Beginn = Ende ergibt einen Monat. Kein Halbgeviertstrich mehr zwischen zwei
+Werten — auch nicht in der Metazeile „aktive Filter" des Exports.
+
+Im Export ersetzt „Vergeben ab" / „Vergeben bis" (je JJJJ-MM) die Satzspalte
+„Vergaben"; mehrere Vergaben eines Stroms stehen mit „ | " getrennt in
+derselben Reihenfolge. Offene Enden sind benannt („ab Verfügbarkeitsbeginn",
+„unbefristet"), ohne Vergabe „keine" — nie eine leere Zelle. Beide Spalten
+tragen die Einstufung „keine Belegangabe" (E36). Damit der Abnehmer intern
+nicht verloren geht, gibt es zusätzlich „Vergeben an" mit Einstufung
+„gekürzt": intern Name bzw. „bhyo", extern nur „bhyo" oder „extern" — der
+Abnehmername bleibt extern zurückgehalten. Die Pflichtprüfung der
+Einstufung je Spalte bleibt grün.
+
+## 21. Verfügbarkeitsstatus in auswertung. gegen das Fenster (E41, 28.09.2026)
+
+Weg A: Der Filter „Verfügbarkeit" gilt jetzt auch in auswertung. — dort als
+**„Status im gewählten Zeitraum"** — und wird gegen das gewählte Jahr bzw.
+den Zeitraum aus E39 ausgewertet, nicht gegen heute. Es gelten dieselben
+Statuswerte und dieselbe Hierarchie wie in ströme./karte. und die
+Überschneidungsregel aus E32: „vergeben" heißt, ein Vergabezeitraum
+überschneidet das Fenster; „abgelaufen" heißt, die Verfügbarkeit endet vor dem
+Fenster, „noch nicht verfügbar", sie beginnt erst danach.
+
+**Eine Logik:** `leiteVerfuegbarkeitAb` nimmt einen Bezug entgegen — einen
+Stichtag (ströme./karte.: Serverdatum) oder ein Fenster aus ISO-Daten; der
+Stichtag ist das Fenster [Tag, Tag], die Heute-Semantik ist damit exakt die
+alte. Die Seite reichert den Pool mit dem Fenster an und filtert über das
+gemeinsame Modell (`filterStroemeMitBericht`); `wendeFensterAn` filtert keine
+Ströme mehr, sondern skaliert nur noch die Mengen nach den gewählten
+Monatskategorien. Der Hinweis „1 Filter gilt hier nicht" entfällt. Der Export
+aus auswertung. rechnet gegen dasselbe Fenster (`lib/zeitbezug.ts`, dieselbe
+Ableitung wie die Seite; die Toolbar reicht `zeitmodus` und `jahre` mit) und
+nennt den Bezug in der Metazeile „Verfügbarkeit bezogen auf"; die Spalte
+heißt nur noch „Verfügbarkeit". Tests: Vergabe vollständig im Fenster, nur
+angeschnitten, außerhalb, Einzeljahr gegen Zeitraum, Stichtag = [Tag, Tag];
+gegen die Heute-Semantik einmal rot gezeigt. Screenshots:
+`docs/screenshots/e41/`.
+
+**E32-Ergänzung:** Die Filtermatrix ändert sich: „Verfügbarkeit" gilt in allen
+drei Ansichten; die Beschriftung darf je Ansicht abweichen
+(`labelJeAnsicht`, `filterLabel`). Der Eintrag vom 25.09.2026, wonach die
+Jahrespillen diese Rolle in auswertung. übernehmen, ist damit aufgehoben.
 
 ## Noch offen – nicht raten
 

@@ -71,11 +71,11 @@ describe("Export-Scope kommt von der aufrufenden Ansicht (Produktionsfehler 26.0
     expect(datei.map((s) => s.id)).toEqual(["frei"]);
   });
 
-  it("Export aus auswertung. laesst die Verfuegbarkeit wie die Ansicht selbst unangewendet (E32)", () => {
+  it("Export aus auswertung. wendet die Verfuegbarkeit an wie die Ansicht (E41; vorher E32-Ausnahme)", () => {
     const liste = filterStroeme(pool, { ...LEERER_FILTER, verfuegbarkeit: ["verfuegbar"] }, "auswertung");
     const datei = exportZeilen(pool, { verfuegbarkeit: "verfuegbar", ansicht: "auswertung" });
     expect(datei.map((s) => s.id)).toEqual(liste.map((s) => s.id));
-    expect(datei).toHaveLength(2);
+    expect(datei).toHaveLength(1);
   });
 
   it("ohne oder mit unbekannter Ansicht gilt auswertung (alte Adressen bleiben gueltig)", () => {
