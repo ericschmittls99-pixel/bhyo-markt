@@ -143,6 +143,9 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
 ## Arbeitsweise
 
 - Kleine, abgeschlossene Pull Requests statt großer Sammel-Änderungen
+- Gemergt wird ausschließlich über `scripts/merge-sicher.sh <pr> <head-sha> "<betreff>"`:
+  wartet auf MERGEABLE/CLEAN, prüft Head-SHA und grüne Läufe, merged mit
+  `--match-head-commit`. Kein Ergebnis ist kein Ergebnis.
 - Jeder PR deployt automatisch eine Preview; `/api/health` muss dort grün sein
 - Migrationen und Schemaänderungen bekommen einen eigenen PR, nie zusammen mit
   Feature-Code
