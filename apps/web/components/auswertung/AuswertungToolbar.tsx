@@ -10,7 +10,7 @@ import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import type { Sicht } from "@/lib/auswertung-modell";
 import { ExportMenue } from "@/components/ExportMenue";
-import { FILTER_PARAMS } from "@/lib/filter-modell";
+import { FILTER_PARAMS, ruecksetzPatchAus } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 
@@ -28,6 +28,7 @@ export function AuswertungToolbar({
   auswahl,
   bereich,
   bereichKeys,
+  ruecksetzParams,
   offenInitial,
   zurueckgehalten,
   hinweise,
@@ -38,6 +39,8 @@ export function AuswertungToolbar({
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
   bereichKeys: readonly string[];
+  /** Alle Parameter, die „Zurücksetzen" leert (lib/filter-modell.ts, leiste().ruecksetzParams). */
+  ruecksetzParams: readonly string[];
   /** Gemerkter Auf-/Zuklappzustand der Filterleiste (Cookie bhyo_ui). */
   offenInitial: boolean;
   zurueckgehalten: string[];
@@ -59,10 +62,7 @@ export function AuswertungToolbar({
   }
 
   function zuruecksetzen() {
-    const leer: Record<string, null> = { q: null };
-    for (const f of facetten) leer[f.key] = null;
-    for (const k of bereichKeys) leer[k] = null;
-    setze(leer);
+    setze(ruecksetzPatchAus(ruecksetzParams));
     setSchliessSignal((s) => s + 1);
   }
 

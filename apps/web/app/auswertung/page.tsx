@@ -235,6 +235,7 @@ export default async function AuswertungPage({
       auswahl={auswahl}
       bereich={bereich}
       bereichKeys={bereichKeys}
+      ruecksetzParams={lst.ruecksetzParams}
       offenInitial={!!ui.filterOffen?.auswertung}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
       hinweise={nichtBeruecksichtigt.map(nichtBeruecksichtigtText)}

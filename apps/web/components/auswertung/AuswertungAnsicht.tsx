@@ -63,6 +63,7 @@ export function AuswertungAnsicht({
   auswahl,
   bereich,
   bereichKeys,
+  ruecksetzParams,
   offenInitial,
   zurueckgehalten,
   hinweise,
@@ -98,6 +99,7 @@ export function AuswertungAnsicht({
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
   bereichKeys: readonly string[];
+  ruecksetzParams: readonly string[];
   offenInitial: boolean;
   zurueckgehalten: string[];
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
@@ -708,6 +710,7 @@ export function AuswertungAnsicht({
         auswahl={auswahl}
         bereich={bereich}
         bereichKeys={bereichKeys}
+        ruecksetzParams={ruecksetzParams}
         offenInitial={offenInitial}
         zurueckgehalten={zurueckgehalten}
         hinweise={hinweise}

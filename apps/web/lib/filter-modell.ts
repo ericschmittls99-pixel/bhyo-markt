@@ -461,6 +461,25 @@ export interface Leiste {
   ruecksetzParams: string[];
 }
 
+/**
+ * Patch fuer „Filter zuruecksetzen" — EIN Ursprung fuer stroeme., karte. und
+ * auswertung. (Produktionsfehler 28.09.2026: drei Kopien in den Toolbars
+ * leerten je Baum nur den obersten Parameter, `materialart`, `landkreis`,
+ * `ort`, `produkt`, `akteur` blieben stehen).
+ */
+/** Dasselbe aus der reinen Parameterliste — fuer Client-Komponenten, die nur die Liste als Prop bekommen. */
+export function ruecksetzPatchAus(ruecksetzParams: readonly string[]): Record<string, null> {
+  const patch: Record<string, null> = { q: null };
+  for (const p of ruecksetzParams) patch[p] = null;
+  return patch;
+}
+
+export function ruecksetzPatch(l: Leiste): Record<string, null> {
+  // JEDER Parameter jedes geltenden Filters (ruecksetzParams kommt aus dem
+  // Modell) plus der Freitext. null loescht den Parameter in useUrlZustand.
+  return ruecksetzPatchAus(l.ruecksetzParams);
+}
+
 function istGesetzt(def: FilterDef, werte: Record<string, unknown>): boolean {
   return def.params.some((p) => {
     const v = werte[p];

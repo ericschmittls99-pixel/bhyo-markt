@@ -230,6 +230,7 @@ export default async function KartePage({
       auswahl={auswahl}
       bereich={bereich}
       bereichKeys={bereichKeys}
+      ruecksetzParams={lst.ruecksetzParams}
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
       hinweise={hinweise}
       sicht={sicht}
