@@ -5,8 +5,9 @@ name: Restore-Test woechentlich (Neon-Branch je Lauf)
 # dem Backup um 02:00) und manuell:
 #   1. Neon-Branch aus Production anlegen (Neon-API, Name restore-<run>),
 #   2. darin eine leere Datenbank, neuesten Dump aus R2 zurueckspielen,
-#   3. jede Tabelle gegen Production zaehlen (Leserolle) — STRENG: jede
-#      Abweichung ist rot,
+#   3. jede Tabelle gegen das ZAEHLPROTOKOLL des Dumps vergleichen (gleicher
+#      Snapshot wie der Dump, backup.yml) — jede Abweichung ist rot, ein
+#      fehlendes Protokoll ebenfalls,
 #   4. den Branch wieder loeschen — auch wenn ein Schritt scheitert
 #      (Free-Plan: hoechstens 10 Branches je Projekt).
 #
@@ -17,6 +18,13 @@ on:
   schedule:
     - cron: "0 3 * * 1"
   workflow_dispatch:
+    inputs:
+      # Nachweis, dass der Vergleich wirklich rot wird: verfaelscht das
+      # geladene Zaehlprotokoll um eine Zeile (beleg +1). Nur fuer die Probe.
+      probe_verfaelschen:
+        description: 'PROBE: Zaehlprotokoll um eine Zeile verfaelschen (woertlich "ja")'
+        required: false
+        default: ""
 
 concurrency:
   group: restore-woechentlich
@@ -103,6 +111,18 @@ jobs:
           echo "DUMP $NEUESTER"
           aws s3 cp "s3://$R2_BUCKET/$NEUESTER" ./backup.dump --endpoint-url "$R2_ENDPOINT"
           ls -lh backup.dump
+          # Zaehlprotokoll desselben Backups — fehlt es, bleibt die Datei weg
+          # und der Nachweis ist rot ("kein Zaehlprotokoll"), nicht gruen.
+          PROTOKOLL="${NEUESTER%.dump}.zaehlung.json"
+          aws s3 cp "s3://$R2_BUCKET/$PROTOKOLL" ./zaehlung.json --endpoint-url "$R2_ENDPOINT" || echo "::warning::Kein Zaehlprotokoll $PROTOKOLL im Bucket."
+          if [ "${{ inputs.probe_verfaelschen }}" = "ja" ] && [ -f zaehlung.json ]; then
+            python3 - <<'PY'
+          import json
+          p=json.load(open("zaehlung.json")); p["tabellen"]["beleg"]=p["tabellen"].get("beleg",0)+1
+          json.dump(p,open("zaehlung.json","w"))
+          print("PROBE: Zaehlprotokoll verfaelscht (beleg +1)")
+          PY
+          fi
 
       - name: Leere Zieldatenbank + Restore
         run: |
@@ -114,11 +134,10 @@ jobs:
           echo "ZIEL_DATABASE_URL=$ZIEL" >> "$GITHUB_ENV"
           TARGET_DATABASE_URL="$ZIEL" ./scripts/restore-test.sh ./backup.dump
 
-      - name: Zaehlung je Tabelle gegen Production (lesend, streng)
+      - name: Zaehlung je Tabelle gegen das Zaehlprotokoll des Dumps
         env:
           RESTORE_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
-          STRENG: "1"
+          ZAEHLPROTOKOLL: ${{ github.workspace }}/zaehlung.json
         run: pnpm --filter @bhyo/db restore-zaehlung
 
       - name: Neon-Branch loeschen (immer)

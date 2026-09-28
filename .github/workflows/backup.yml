@@ -27,6 +27,15 @@ jobs:
       AWS_RESPONSE_CHECKSUM_VALIDATION: when_required
       AWS_DEFAULT_REGION: auto
     steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
       - name: PostgreSQL-18-Client installieren
         # Neon-Server laeuft auf Postgres 18; pg_dump muss >= Server-Version sein.
         # Nicht auf die Runner-Default-Version (16) verlassen — PGDG liefert 18.
@@ -50,18 +59,20 @@ jobs:
           pg_dump --version
           aws --version
 
-      - name: Dump erstellen
+      # E37-Nachtrag (28.09.2026): Dump UND Zaehlprotokoll aus demselben
+      # Snapshot (repeatable read, pg_dump --snapshot) — der Restore-Test
+      # vergleicht gegen das Protokoll, nicht gegen die laufende Production.
+      - name: Dump mit Zaehlprotokoll erstellen
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: |
           set -euo pipefail
           FILE="bhyogenics-$(date -u +%Y-%m-%d).dump"
           echo "BACKUP_FILE=$FILE" >> "$GITHUB_ENV"
-          # Custom-Format (komprimiert), portabel restorebar; ohne Owner/Rechte,
-          # damit sich der Dump gegen einen frischen Neon-Branch zurueckspielen laesst.
-          pg_dump --format=custom --no-owner --no-privileges \
-            --dbname "$DATABASE_URL" --file "$FILE"
-          ls -lh "$FILE"
+          echo "ZAEHL_FILE=${FILE%.dump}.zaehlung.json" >> "$GITHUB_ENV"
+          pnpm --filter @bhyo/db backup-zaehlung "$PWD/$FILE"
+          mv "packages/db/$FILE" . 2>/dev/null || true
+          ls -lh "$FILE" "${FILE%.dump}.zaehlung.json"
 
       - name: Upload nach R2
         env:
@@ -71,6 +82,8 @@ jobs:
           set -euo pipefail
           aws s3 cp "$BACKUP_FILE" "s3://$R2_BUCKET/$BACKUP_FILE" \
             --endpoint-url "$R2_ENDPOINT"
-          echo "Hochgeladen nach s3://$R2_BUCKET/$BACKUP_FILE"
+          aws s3 cp "$ZAEHL_FILE" "s3://$R2_BUCKET/$ZAEHL_FILE" \
+            --endpoint-url "$R2_ENDPOINT"
+          echo "Hochgeladen nach s3://$R2_BUCKET/$BACKUP_FILE und $ZAEHL_FILE"
           echo "--- Bucket-Inhalt ---"
           aws s3 ls "s3://$R2_BUCKET/" --endpoint-url "$R2_ENDPOINT"
