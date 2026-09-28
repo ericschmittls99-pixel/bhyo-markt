@@ -57,7 +57,16 @@ function summe(rows: Strom[], fn: (s: Strom) => number | null): { wert: number; 
   return { wert, n };
 }
 
-export function DruckAbzug({ rows, kontext }: { rows: Strom[]; kontext: ExportKontext }) {
+export function DruckAbzug({
+  rows,
+  kontext,
+  ohneGrenze = false,
+}: {
+  rows: Strom[];
+  kontext: ExportKontext;
+  /** Nur Preview-Lasttest (lib/druck-grenze.ts). */
+  ohneGrenze?: boolean;
+}) {
   const feed = rows.filter((s) => s.art === "biomasse");
   const out = rows.filter((s) => s.art === "output");
   const atro = summe(feed, (s) => s.mengeAtro);
@@ -118,7 +127,7 @@ export function DruckAbzug({ rows, kontext }: { rows: Strom[]; kontext: ExportKo
 
       {rows.length === 0 ? (
         <p className="druck-leer">Kein Strom entspricht Suche und Filtern.</p>
-      ) : !druckErlaubt(rows.length) ? (
+      ) : !ohneGrenze && !druckErlaubt(rows.length) ? (
         // Obergrenze (lib/druck-grenze.ts): kein Absturz des Workers, sondern
         // ein Hinweis mit Zahl, Grenze und Ausweg. Kopf und Zusammenfassung
         // oben bleiben, damit man sieht, was die Auswahl enthält.

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { DRUCK_OBERGRENZE, druckErlaubt, druckHinweis } from "./druck-grenze";
+import { DRUCK_OBERGRENZE, druckErlaubt, druckHinweis, grenzeAusgesetzt } from "./druck-grenze";
 
 describe("Druck-Obergrenze", () => {
   it("erlaubt bis zur Grenze, darüber nicht", () => {
@@ -15,5 +15,12 @@ describe("Druck-Obergrenze", () => {
     expect(h).toContain(String(DRUCK_OBERGRENZE));
     expect(h).toMatch(/Filter setzen/);
     expect(h).toMatch(/CSV/);
+  });
+  it("Testschalter gilt nur auf der Preview", () => {
+    expect(grenzeAusgesetzt("aus", "preview")).toBe(true);
+    expect(grenzeAusgesetzt("aus", "production")).toBe(false);
+    expect(grenzeAusgesetzt("aus", "development")).toBe(false);
+    expect(grenzeAusgesetzt(null, "preview")).toBe(false);
+    expect(grenzeAusgesetzt("an", "preview")).toBe(false);
   });
 });

@@ -1,4 +1,6 @@
 import { DruckAbzug } from "@/components/druck/DruckAbzug";
+import { getEnvironment } from "@/lib/db";
+import { grenzeAusgesetzt } from "@/lib/druck-grenze";
 import { ladeExport } from "@/lib/export-server";
 import type { SearchParamsRoh } from "@/lib/stroeme-modell";
 
@@ -24,5 +26,7 @@ export default async function DruckPage({
     if (w != null) roh[k] = w;
   }
   const daten = await ladeExport(roh);
-  return <DruckAbzug rows={daten.rows} kontext={daten.kontext} />;
+  // Lasttest-Schalter, nur Preview (lib/druck-grenze.ts).
+  const ohneGrenze = grenzeAusgesetzt(roh.grenze, await getEnvironment());
+  return <DruckAbzug rows={daten.rows} kontext={daten.kontext} ohneGrenze={ohneGrenze} />;
 }

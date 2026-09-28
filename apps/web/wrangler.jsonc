@@ -11,6 +11,17 @@
   "observability": {
     "enabled": true
   },
+  // Workers Paid (28.09.2026). Ausdrueckliches CPU-Budget je Anfrage statt
+  // des Maximalwerts (30 s): Die schwerste gemessene Anfrage waren 673 ms
+  // (Druck mit 128 Datenblaettern, seit der Obergrenze 50 ~250 ms), normale
+  // Seiten liegen bei 5-550 ms. 5 s ist das Siebenfache des Schwersten und
+  // ein Sechstel des Maximums — eine Endlosschleife stirbt nach 5 s, statt
+  // Minuten zu laufen. Gilt fuer Production und (vererbt) Preview. Ein
+  // Haenger OHNE CPU-Last (verlorene DB-Verbindung) faengt das nicht; dafuer
+  // das Zeitbudget im Postgres-Client (eigener PR).
+  "limits": {
+    "cpu_ms": 5000
+  },
   // Neon (Production-Branch) ueber Hyperdrive. Die ID ist kein Zugriffsgeheimnis;
   // der echte Connection-String liegt in der Hyperdrive-Config, nie im Repo.
   // localConnectionString ist ein reines localhost-Ziel (kein Secret): lokal
