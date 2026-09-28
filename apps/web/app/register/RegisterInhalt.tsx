@@ -36,7 +36,7 @@ import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { darf } from "@/lib/rechte";
+import { darf, darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
 import { withDb } from "@/lib/db";
@@ -136,8 +136,10 @@ export async function RegisterInhalt({
   // Das blendet nur aus — die tragende Pruefung sitzt in der Wache, die jede
   // Server-Action und jede schreibende Route aufruft.
   const zugang = await aktuellerZugang();
-  // E42: dieselbe Matrix wie die Wache — hier nur zum Ausblenden.
-  const canEdit = darf(zugang, "strom.bearbeiten");
+  // E42: dieselbe Matrix wie die Wache — hier nur zum Ausblenden. Rollenstufe
+  // (Anlegen-Knopf, Bearbeiten-Knoepfe); die Objektstufe (Sperre) kommt unten
+  // je Detail dazu — darf() ohne Objekt waere fuer strom.bearbeiten bewusst false.
+  const canEdit = darfRolle(zugang, "strom.bearbeiten");
 
   // Formular-Panel (PR 5): ?form=neu oder ?form=<id>; gewinnt gegen ?detail=.
   const formParam = ersterWert(sp.form);
