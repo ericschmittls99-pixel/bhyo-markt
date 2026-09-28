@@ -213,6 +213,9 @@ export function KarteToolbar({
             auswahl={auswahl}
             bereichKeys={bereichKeys}
             bereich={bereich}
+            // Rückmeldung 2 (28.09.2026): in karte. immer „+", damit die
+            // Filterleiste nicht in eine zweite Zeile umbricht.
+            bereichKompakt
             mitReset={irgendeinFilter}
             onReset={zuruecksetzen}
             schliessSignal={schliessSignal}
