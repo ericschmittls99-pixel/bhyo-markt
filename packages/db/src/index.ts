@@ -1,2 +1,2 @@
 export * from "./schema";
-export { createDb, createSql } from "./client";
+export { DB_ZEITBUDGET, createDb, createSql, dbFehlerMeldung } from "./client";
