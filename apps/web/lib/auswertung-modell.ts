@@ -10,6 +10,7 @@ import { jahresAnteil, type FensterKategorie } from "./fenster";
 import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
 import { anteileProzent, fmtDatum, fmtGeldGross, fmtMenge, fmtPreis, formatSpanne } from "./format";
+import { SORTIERUNG_STANDARD, type Sortierung, sortiereZeilen } from "./auswertung-sortierung";
 import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
@@ -450,6 +451,8 @@ export function clusterZeilen(
   pool: Strom[],
   recs: Strom[],
   sicht: Sicht,
+  // E39: Reihenfolge der Akkordeon-Eintraege; menge_ab = unveraendert.
+  sortierung: Sortierung = SORTIERUNG_STANDARD,
 ): Zusammensetzung<ClusterZeile> {
   const feedMode = sicht !== "outputs";
   const alleKeys = feedMode ? Object.keys(CLUSTER_LABEL) : Object.keys(OUTPUT_LABEL);
@@ -469,7 +472,7 @@ export function clusterZeilen(
     basisText: feedMode
       ? `Anteil an ${fmtMenge(summe)} t atro/a`
       : `Anteil an ${nBelege(summe)}`,
-    zeilen: werte.map(({ k, rs, v }, i) => ({
+    zeilen: sortiereZeilen(werte.map(({ k, rs, v }, i) => ({
       key: k,
       label: feedMode ? (CLUSTER_LABEL[k] ?? k) : (OUTPUT_LABEL[k] ?? k),
       orb: feedMode
@@ -501,7 +504,7 @@ export function clusterZeilen(
               null0: gv === 0,
             }))
         : [],
-    })),
+    })).map((z) => ({ ...z, unter: sortiereZeilen(z.unter, sortierung) })), sortierung),
   };
 }
 
@@ -981,7 +984,12 @@ function produktGruppen(
  * bedarf je gruppe. (E13): energetische Zeilen in MWh/a (Targets nach Hu +
  * Waerme), stoffliche in t/a (CO2, Asche). Produkt-Akkordeon je Gruppe.
  */
-export function outputMengen(pool: Strom[], recs: Strom[]): OutputListen {
+export function outputMengen(
+  pool: Strom[],
+  recs: Strom[],
+  // E39: Reihenfolge der Akkordeon-Eintraege; menge_ab = unveraendert.
+  sortierung: Sortierung = SORTIERUNG_STANDARD,
+): OutputListen {
   const defs = outputRowDefs(pool);
   const outPool = pool.filter((s) => s.art === "output");
   const outRecs = recs.filter((s) => s.art === "output");
@@ -1029,9 +1037,11 @@ export function outputMengen(pool: Strom[], recs: Strom[]): OutputListen {
 
   const e = baue(defs.energetisch, (s) => kwhVon(s) / 1000, "MWh/a");
   const st = baue(defs.stofflich, (s) => (s.mengeEinheit === "t/a" ? (s.mengeWert ?? 0) : 0), "t/a");
+  const sortiert = (zs: OutputZeile[]) =>
+    sortiereZeilen(zs, sortierung).map((z) => ({ ...z, unter: sortiereZeilen(z.unter, sortierung) }));
   return {
-    energetisch: e.zeilen,
-    stofflich: st.zeilen,
+    energetisch: sortiert(e.zeilen),
+    stofflich: sortiert(st.zeilen),
     basisEnergetisch: e.basisText,
     basisStofflich: st.basisText,
   };

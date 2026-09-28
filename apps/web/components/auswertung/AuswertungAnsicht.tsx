@@ -4,6 +4,9 @@ import { useState } from "react";
 import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 
 import { AuswertungToolbar } from "@/components/auswertung/AuswertungToolbar";
+import { JahrRegler } from "@/components/auswertung/JahrRegler";
+import type { Sortierung } from "@/lib/auswertung-sortierung";
+import { beimWechselZuEinzeljahr, beimWechselZuZeitraum, jahreParam } from "@/lib/jahr-regler";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { Detail } from "@/components/stroeme/Detail";
 import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
@@ -72,6 +75,7 @@ export function AuswertungAnsicht({
   agg,
   jahreAuswahl,
   poolAchse,
+  sortierung,
   irgendeinFilter,
   detailStrom,
   historie,
@@ -110,6 +114,8 @@ export function AuswertungAnsicht({
   agg: "oe" | "summe";
   jahreAuswahl: number[];
   poolAchse: number[];
+  /** E39: Sortierung der Akkordeon-Eintraege. */
+  sortierung: Sortierung;
   irgendeinFilter: boolean;
   detailStrom: Strom | null;
   historie: { zeitpunkt: string; text: string }[];
@@ -716,50 +722,55 @@ export function AuswertungAnsicht({
         hinweise={hinweise}
         sicht={sicht}
         irgendeinFilter={irgendeinFilter}
+        countText={`${anzahl} ${anzahl === 1 ? "Beleg" : "Belege"}`}
+        sortierung={sortierung}
       />
 
-      {/* Zeitbezug (AP1j PR 4): Einzeljahr <-> Zeitraum, Jahr-Pillen aus der
-          gedeckelten Pool-Achse, oe <-> Summe nur im Zeitraum-Modus. */}
+      {/* Zeitbezug (AP1j PR 4, Bedienung E39): Schalter Einzeljahr/Zeitraum in
+          der Groesse des Feedstock/Outputs-Schalters, daneben die Uhr mit der
+          Auswahl — Klick oeffnet den Jahres-Regler (ersetzt die Jahr-Pillen).
+          Die Jahres-Logik (Achse, Rueckfaelle, Fenster) ist unveraendert;
+          Wechsel Zeitraum -> Einzeljahr nimmt das Endjahr, zurueck [Jahr, Jahr]. */}
       <div className="aw-zeit" role="group" aria-label="Zeitbezug">
-        <span className="aw-mini-switch">
+        <div className="seg" role="group" aria-label="Einzeljahr oder Zeitraum">
           <button
             type="button"
-            className={zeitmodus === "einzeljahr" ? "aktiv" : ""}
+            className="seg-opt"
             aria-pressed={zeitmodus === "einzeljahr"}
-            onClick={() => setze({ zeitmodus: null, jahre: null, agg: null })}
+            onClick={() =>
+              setze({
+                zeitmodus: null,
+                jahre: String(beimWechselZuEinzeljahr(jahreAuswahl)),
+                agg: null,
+              })
+            }
           >
             Einzeljahr
           </button>
           <button
             type="button"
-            className={zeitmodus === "zeitraum" ? "aktiv" : ""}
+            className="seg-opt"
             aria-pressed={zeitmodus === "zeitraum"}
             onClick={() =>
-              setze({ zeitmodus: "zeitraum", jahre: jahreAuswahl.join(",") })
+              setze({
+                zeitmodus: "zeitraum",
+                jahre: jahreParam(
+                  zeitmodus === "einzeljahr"
+                    ? beimWechselZuZeitraum(jahreAuswahl[0]!)
+                    : jahreAuswahl,
+                ),
+              })
             }
           >
             Zeitraum
           </button>
-        </span>
-        <span className="aw-jahr-pillen" role="group" aria-label="Jahre">
-          {poolAchse.map((j) => (
-            <button
-              key={j}
-              type="button"
-              className={`fchip${jahreAuswahl.includes(j) ? " aktiv" : ""}`}
-              aria-pressed={jahreAuswahl.includes(j)}
-              onClick={() => {
-                if (zeitmodus === "einzeljahr") return setze({ jahre: String(j) });
-                const neu = jahreAuswahl.includes(j)
-                  ? jahreAuswahl.filter((x) => x !== j)
-                  : [...jahreAuswahl, j].sort();
-                setze({ jahre: neu.length ? neu.join(",") : null });
-              }}
-            >
-              {j}
-            </button>
-          ))}
-        </span>
+        </div>
+        <JahrRegler
+          zeitmodus={zeitmodus}
+          jahre={jahreAuswahl}
+          achse={poolAchse}
+          onJahre={(param) => setze({ jahre: param })}
+        />
         {zeitmodus === "zeitraum" && (
           <span className="aw-mini-switch">
             <button

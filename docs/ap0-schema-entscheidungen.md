@@ -537,6 +537,43 @@ Outputs — höherer Erlös ist „besser für bhyo". Beide Richtungen wurden
 einmal rot gezeigt. Production ist leer, „zu wenig Vergleichswerte" ist dort
 bis zu echten Daten der Normalfall. Screenshots: `docs/screenshots/e38/`.
 
+## 19. Navigationsleiste auswertung. (E39, 28.09.2026)
+
+auswertung. bekommt dieselbe Bedienlogik wie ströme. **Zeile 1** trägt links
+den Schalter Feedstock/Outputs und rechts Filter-Pille (mit Zähler),
+Sortier-Pille und Export-Icon; ihre Höhe ist fest (`--toolbar-h`, kein
+Umbruch) und ändert sich nie — vorher wuchs sie mit offenen Chips von 52 auf
+88 px und verschob alles darunter (Produktionstest Eric, gemessen auf der
+Preview). **Filter stehen ausschließlich in der Zeile darunter** (zu:
+Zähltext, offen: Chips, „Weitere Filter" als „+"). Filter-Pille, Sortier-Pille
+(`components/SortMenue.tsx`), Chips und Export sind dieselben Komponenten wie
+in ströme., keine Kopien.
+
+**Sortierung** (`awsort`): Menge absteigend (Standard = heutige
+Modellreihenfolge, unverändert), Menge aufsteigend, Name A–Z — für die
+Akkordeon-Einträge der Mengen-Module samt Unterzeilen
+(`lib/auswertung-sortierung.ts`).
+
+**Zeitbezug**: Der Schalter Einzeljahr/Zeitraum hat die Größe des
+Feedstock/Outputs-Schalters; daneben eine Uhr-Pille mit der Auswahl („2026"
+bzw. „2023–2026"). Klick öffnet einen Regler — ein Griff im Einzeljahr, zwei
+im Zeitraum, Jahreszahl über jedem Griff, Schrittweite 1, Grenzen = frühestes
+bis spätestes Jahr der gedeckelten Pool-Achse (mindestens das aktuelle Jahr),
+per Tastatur bedienbar (native `range`, ARIA-Slider). Wechsel Zeitraum →
+Einzeljahr nimmt das Endjahr, zurück wird es zum Zeitraum [Jahr, Jahr]. **Die
+Jahres-Logik selbst ist unverändert** (Eric, 28.09.2026: „An der Logik darf
+dies nichts ändern"): Achse, Rückfälle, Fensterrechnung und der Parameter
+`jahre` (Kommaliste) bleiben; der Regler schreibt eine lückenlose Liste, alte
+Adressen mit Lücken rechnen weiter wie bisher und zeigen min–max.
+
+**Bewusst nicht geändert:** Der Verfügbarkeitsstatus wirkt in auswertung.
+weiterhin fensterbezogen über `wendeFensterAn` und steht nicht im Filtermodell
+dieser Ansicht (die Leiste weist ihn als „gilt hier nicht" aus, obwohl er
+fensterbezogen wirkt). Das ist ein bekannter E32-Widerspruch aus AP1j und eine
+eigene Entscheidung (Weg A: sichtbar machen, Semantik fensterbezogen; Weg B:
+Heute-Semantik wie ströme.), nicht Teil von E39. Screenshots:
+`docs/screenshots/e39/`.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

@@ -9,7 +9,7 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { ExportMenue } from "@/components/ExportMenue";
-import { usePopoverLage } from "@/components/usePopoverLage";
+import { SortMenue } from "@/components/SortMenue";
 import { FILTER_PARAMS, ruecksetzPatchAus } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
@@ -62,29 +62,11 @@ export function FilterSortZeile({
 }) {
   const { setze, searchParams } = useUrlZustand();
   const [offen, setOffen] = useState(offenInitial);
-  const [sortOffen, setSortOffen] = useState(false);
   const [schliessSignal, setSchliessSignal] = useState(0);
+  // Signal nur an das Sortiermenue (Facetten-Popover geoeffnet -> Menue zu).
+  const [sortSchliessen, setSortSchliessen] = useState(0);
   const [zeilenBreite, setZeilenBreite] = useState(0);
   const zeileRef = useRef<HTMLDivElement>(null);
-  const sortLage = usePopoverLage(sortOffen);
-
-  // Sortmenue schliessen bei Klick ausserhalb / Escape.
-  useEffect(() => {
-    function onDown(ev: MouseEvent) {
-      const t = ev.target as HTMLElement | null;
-      if (t?.closest?.("[data-pop]")) return;
-      setSortOffen(false);
-    }
-    function onKey(ev: KeyboardEvent) {
-      if (ev.key === "Escape") setSortOffen(false);
-    }
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, []);
 
   // Breite der Zeile beobachten (responsive Verdichtung).
   useEffect(() => {
@@ -143,7 +125,6 @@ export function FilterSortZeile({
     const neueRichtung =
       key === sortKey ? (richtung === "auf" ? "ab" : "auf") : "auf";
     setze({ sort: key, richtung: neueRichtung });
-    setSortOffen(false);
   }
 
   // F5 PR B: Die stoffliche Menge ist immer eine Masse — Feedstock als
@@ -179,7 +160,7 @@ export function FilterSortZeile({
             mitReset={irgendeinFilter}
             onReset={zuruecksetzen}
             schliessSignal={schliessSignal}
-            onPopoverOffen={() => setSortOffen(false)}
+            onPopoverOffen={() => setSortSchliessen((s) => s + 1)}
           />
         </div>
       )}
@@ -198,59 +179,19 @@ export function FilterSortZeile({
           {filterAnzahl > 0 && <span className="fchip-count">{filterAnzahl}</span>}
         </button>
 
-        <div data-pop className="pop-anchor">
-          <button
-            type="button"
-            className="btn btn--sm st-sort"
-            aria-haspopup="menu"
-            aria-expanded={sortOffen}
-            aria-label={sortKompakt ? `Sortieren: ${sortLabel}` : undefined}
-            onClick={() => {
-              setSortOffen((v) => !v);
-              setSchliessSignal((s) => s + 1);
-            }}
-          >
-            <i className="ph ph-arrows-down-up" aria-hidden />
-            {!sortKompakt && (
-              <>
-                {sortLabel}
-                <i className="ph-bold ph-caret-down" aria-hidden />
-              </>
-            )}
-          </button>
-          {sortOffen && (
-            <div
-              role="menu"
-              aria-label="Sortieren"
-              className="pop"
-              ref={sortLage.popRef}
-              style={{ width: 240, ...sortLage.popStil }}
-            >
-              <div className="menu">
-                {sortOptionen.map(([k, label]) => (
-                  <button
-                    key={k}
-                    type="button"
-                    role="menuitemradio"
-                    aria-checked={k === sortKey}
-                    className="menu-item"
-                    onClick={() => sortiere(k)}
-                  >
-                    <span className="lbl">{label}</span>
-                    {k === sortKey && (
-                      <>
-                        <span className="kurz">
-                          {richtung === "auf" ? "aufsteigend" : "absteigend"}
-                        </span>
-                        <i className="ph-bold ph-check" aria-hidden />
-                      </>
-                    )}
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
+        {/* E39: dieselbe Sortier-Pille wie in auswertung. (components/SortMenue). */}
+        <SortMenue
+          optionen={sortOptionen.map(([key, label]) => ({
+            key,
+            label,
+            kurz: richtung === "auf" ? "aufsteigend" : "absteigend",
+          }))}
+          aktiv={sortKey}
+          onWahl={sortiere}
+          kompakt={sortKompakt}
+          schliessSignal={sortSchliessen}
+          onOffen={() => setSchliessSignal((s) => s + 1)}
+        />
 
         <div className="seg" role="group" aria-label="Ansicht">
           <button
