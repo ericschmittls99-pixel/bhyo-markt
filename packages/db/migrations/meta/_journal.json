@@ -162,6 +162,13 @@
       "when": 1790415741979,
       "tag": "0022_e33_gueltig_bis_check",
       "breakpoints": true
+    },
+    {
+      "idx": 23,
+      "version": "7",
+      "when": 1790584053924,
+      "tag": "0023_qualitaetsstufe_search_path",
+      "breakpoints": true
     }
   ]
 }

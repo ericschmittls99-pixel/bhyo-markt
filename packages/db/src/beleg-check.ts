@@ -141,6 +141,17 @@ async function main() {
   }
   console.log(`SCHREIBPFADE ${TYPEN.length} Typen × (Formular-Insert, Formular-Update, Seed-Insert) × (mit/ohne Nachweis) geprueft`);
 
+  // (3b) Restore-Faehigkeit (Migration 0023): qualitaetsstufe() traegt einen
+  // festen search_path — sonst scheitert pg_restore beim Anlegen der
+  // Generated-Spalte an "type qualitaets_stufe does not exist" (28.09.2026).
+  const [fn] = await sql`
+    select array_to_string(p.proconfig, ' ') as config
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'qualitaetsstufe'`;
+  const config = (fn?.config as string | null) ?? "";
+  console.log(`FUNKTION_SEARCH_PATH ${JSON.stringify(config)}`);
+  if (!/search_path=public/.test(config)) fehler.push("qualitaetsstufe() hat keinen festen search_path — Backup waere nicht zurueckspielbar");
+
   // (4) Bestand
   const [z] = await sql`
     select count(*)::int as belege,
