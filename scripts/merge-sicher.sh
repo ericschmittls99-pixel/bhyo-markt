@@ -29,6 +29,9 @@ while :; do
   echo "    mergeable=$mergeable status=$status head=${head:0:7}"
   case "$mergeable/$status" in
     MERGEABLE/CLEAN) break ;;
+    # UNSTABLE = mindestens ein Check rot: sofort zur Check-Pruefung, die
+    # den roten Lauf beim Namen nennt und abbricht.
+    MERGEABLE/UNSTABLE) echo "    Checks nicht gruen (UNSTABLE) — pruefe die Laeufe"; break ;;
     CONFLICTING/*|*/BLOCKED|*/DIRTY)
       echo "ABBRUCH: PR #$PR ist $mergeable/$status — nicht gemergt." >&2; exit 1 ;;
   esac
