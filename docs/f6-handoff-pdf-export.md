@@ -97,6 +97,17 @@ Gruppen des Exportmodells (dieselben Spalten, dieselbe Einstufung, Zahlen
 über `fmtMenge`/`fmtPreis`), Fußzeile mit Modus, Stand, Ansicht und
 BKG-Vermerk (im Druck fixiert). Im Export-Menü als „Drucken / PDF".
 
+**Obergrenze (28.09.2026):** Lasttest auf der Preview mit 128 Datenblättern:
+673 ms CPU je Aufruf; nach zwei Aufrufen stand der Preview-Worker mit 1102
+„exceeded resource limits" (Log: `outcome=exceededCpu`, CPU-Budget 10 ms im
+Workers-Free-Plan), auch `/api/health`. Der Druck zeigt deshalb ab 51
+Datenblättern (`lib/druck-grenze.ts`) Kopf, Zusammenfassung und den Hinweis
+„Zu viele Ströme für den Druck … bitte Filter setzen oder die CSV nutzen"
+statt Datenblätter. Die CSV (95 ms CPU bei 128 Zeilen) hat keine Grenze.
+Der 1101 vom 26.09. war laut Log ein Hänger nach „Network connection lost"
+beim Worker-Austausch — der Postgres-Client hat kein Zeitbudget; eigener
+Punkt.
+
 Kein Browser-Rendering-Binding und keine neue Token-Berechtigung. Eine Route
 `/auswertung/druck` mit eigenem Druck-Stylesheet ohne Glaseffekte rendert
 über dieselben Funktionen aus `lib/format.ts` (E20), übernimmt Filter und
