@@ -243,6 +243,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db benutzer-check
 
+      # E44 (AP2.1 PR b): Rolle pruefer im Enum, Sperrspalten mit CHECK
+      # "beide NULL oder beide gesetzt" (muss greifen), strom_zuweisung mit
+      # CHECK "genau ein Strom" (muss greifen) und partiellen Unique-Indizes.
+      - name: Sperre-Check (Sperren, Zuweisungen)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db sperre-check
+
       # F5 PR B: Sektor-Referenzdaten — die acht Werte stehen, kein Akteur
       # traegt einen unbekannten Sektor, "abnehmer" ist keiner mehr, und der
       # Fremdschluessel greift wirklich.
