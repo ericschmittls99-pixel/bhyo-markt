@@ -81,13 +81,29 @@ jobs:
           # Kein "| head": unter pipefail bricht das SIGPIPE den Schritt ab (Lauf 36396504811).
           pg_restore --list backup.dump | sed -n 1,5p
 
-      - name: Restore in den Scratch-Branch
+      # Ein Neon-Branch ist eine KOPIE von Production — ein Restore hinein
+      # beweist nichts (Lauf 36396739283: --clean stolperte ueber die schon
+      # vorhandenen Typen). Deshalb je Lauf eine NEUE, LEERE Datenbank auf dem
+      # Scratch-Branch; nur dort wird zurueckgespielt. Nichts wird geloescht.
+      - name: Leere Zieldatenbank auf dem Scratch-Branch anlegen
         env:
-          TARGET_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+        run: |
+          set -euo pipefail
+          DBNAME="restore_${GITHUB_RUN_ID}"
+          psql "$RESTORE_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"$DBNAME\";"
+          ZIEL=$(node -e 'const u=new URL(process.env.RESTORE_DATABASE_URL); u.pathname="/"+process.argv[1]; console.log(u.toString())' "$DBNAME")
+          echo "::add-mask::$ZIEL"
+          echo "ZIEL_DATABASE_URL=$ZIEL" >> "$GITHUB_ENV"
+          echo "ZIEL_DB $DBNAME (leer, frisch angelegt)"
+
+      - name: Restore in die leere Zieldatenbank
+        env:
+          TARGET_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
         run: ./scripts/restore-test.sh ./backup.dump
 
       - name: Zaehlung je Tabelle gegen Production (lesend)
         env:
-          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+          RESTORE_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
         run: pnpm --filter @bhyo/db restore-zaehlung
