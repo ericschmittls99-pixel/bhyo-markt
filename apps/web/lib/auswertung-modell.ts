@@ -75,8 +75,6 @@ export interface ClusterZeile {
 export interface QualitaetsDaten {
   segmente: { stufe: string; anteil: number }[];
   abProzent: number;
-  /** E26: Basis der A+B-Quote und des Donuts, z. B. "von 69 bewerteten". */
-  basisText: string;
   zeilen: { stufe: string; label: string; anzahl: number; pct: number; null0?: boolean }[];
 }
 
@@ -558,7 +556,6 @@ export function qualitaetsDaten(recs: Strom[]): QualitaetsDaten {
       anteil: bewertet.length ? anzahl(stufe) / bewertet.length : 0,
     })),
     abProzent: pct(anzahl("A") + anzahl("B"), bewertet.length),
-    basisText: `von ${bewertet.length} bewerteten`,
     zeilen: [
       ...stufen.map((stufe) => ({
         stufe,

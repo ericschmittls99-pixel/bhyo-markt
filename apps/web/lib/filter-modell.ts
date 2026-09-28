@@ -142,12 +142,14 @@ export const FILTER: readonly FilterDef[] = [
   },
   {
     key: "produkt",
-    label: "Gruppe / Output",
+    // Rückmeldung 2 (Eric, 28.09.2026): „Outputart", nicht „Output" — der
+    // Filter meint die Art, nicht den einzelnen Strom.
+    label: "Gruppe / Outputart",
     typ: "hierarchie",
     params: ["gruppe", "produkt"],
     ebenen: [
       { param: "gruppe", label: "Gruppen" },
-      { param: "produkt", label: "Outputs" },
+      { param: "produkt", label: "Outputarten" },
     ],
     ansichten: ALLE_ANSICHTEN,
     arten: ["outputs"],

@@ -92,7 +92,11 @@ function machePopover(titel: string, zeilen: string[]): HTMLSpanElement {
 }
 
 const AGG_RADIUS = 80;
-const LIME = "#7DB535";
+/** Regionsumrisse: graues Token (Rückmeldung 2, 28.09.2026), Fallback ohne CSS. */
+const UMRISS_GRAU = "#8a959b";
+function umrissFarbe(): string {
+  return getComputedStyle(document.documentElement).getPropertyValue("--text-tertiary").trim() || UMRISS_GRAU;
+}
 
 export interface KarteSteuerung {
   flyTo(lng: number, lat: number, zoom?: number): void;
@@ -217,6 +221,11 @@ export function KarteMap({
         const m = mapRef.current;
         if (!m || !m.getLayer("osm")) return;
         for (const [k, v] of Object.entries(rasterPaint(istDunkel()))) m.setPaintProperty("osm", k, v);
+        if (m.getLayer("km-regionen-line")) {
+          const grau = umrissFarbe();
+          m.setPaintProperty("km-regionen-line", "line-color", grau);
+          m.setPaintProperty("km-regionen-fill", "fill-color", grau);
+        }
       });
       themeBeobachter.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
       themeBeobachterRef.current = themeBeobachter;
@@ -517,15 +526,16 @@ export function KarteMap({
       map.addSource(src, { type: "geojson", data: data as never });
       // Karten-Review 22.09.2026: Umrisse waren zu schwach — Fuellung und
       // Linie moderat angehoben (Region ist Datenmarkierung, kein Marker).
-      // Farbe aus den Tokens (--bhyo-lime-500), damit Karte und Oberflaeche
-      // dieselbe Quelle haben; LIME ist nur der Fallback ohne CSS.
-      const lime =
-        getComputedStyle(document.documentElement).getPropertyValue("--bhyo-lime-500").trim() || LIME;
+      // Rueckmeldung 2 (Eric, 28.09.2026): wieder GRAU und in der frueheren
+      // Staerke — so sahen die Umrisse unter dem alten Canvas-Filter aus.
+      // Farbe aus dem Token --text-tertiary (hell wie dunkel lesbar), per
+      // Themenwechsel nachgezogen.
+      const grau = umrissFarbe();
       map.addLayer({
         id: "km-regionen-fill",
         type: "fill",
         source: src,
-        paint: { "fill-color": lime, "fill-opacity": 0.09 },
+        paint: { "fill-color": grau, "fill-opacity": 0.08 },
       });
       map.addLayer({
         id: "km-regionen-line",
@@ -533,10 +543,8 @@ export function KarteMap({
         source: src,
         // F2: rundere Regionen (weiche Ecken statt spitzer Zacken); die
         // Geometrie selbst bleibt exakt (region.gebiet, keine Vereinfachung).
-        // Rueckmeldung 1 (28.09.2026): Linie 1,5-fach (3 -> 4,5 px), damit
-        // die Umrisse die Flaeche fuehren, ohne mit den Markern zu konkurrieren.
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": lime, "line-width": 4.5, "line-opacity": 1 },
+        paint: { "line-color": grau, "line-width": 3, "line-opacity": 1 },
       });
 
       // Rueckmeldung 1: kein Dauer-Label mehr. Der Regionsname erscheint als

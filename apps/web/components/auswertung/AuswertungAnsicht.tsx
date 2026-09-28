@@ -496,9 +496,9 @@ export function AuswertungAnsicht({
             {qualitaet.abProzent}
             <span> %</span>
           </strong>
+          {/* Rückmeldung 2 (Eric, 28.09.2026): nur „x % A + B", ohne
+              Basiszeile — bewusste Ausnahme von E26 für den Donut. */}
           <span className="aw-caption">A + B</span>
-          {/* E26: die Quote nennt ihre Basis. */}
-          <span className="aw-caption">{qualitaet.basisText}</span>
         </div>
       </div>
       <div className="aw-zeilen">
