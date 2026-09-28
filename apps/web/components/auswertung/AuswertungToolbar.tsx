@@ -58,6 +58,10 @@ export function AuswertungToolbar({
 }) {
   const { setze, searchParams } = useUrlZustand();
   const [schliessSignal, setSchliessSignal] = useState(0);
+  // Eigenes Signal nur fuer das Sortiermenue: oeffnet sich ein Filter-Popover,
+  // geht das Menue zu — und umgekehrt. Ein gemeinsames Signal wuerde das
+  // Menue beim eigenen Oeffnen sofort wieder schliessen.
+  const [sortSchliessen, setSortSchliessen] = useState(0);
   const [offen, setOffen] = useState(offenInitial);
 
   function toggleLeiste() {
@@ -124,7 +128,7 @@ export function AuswertungToolbar({
             optionen={SORTIERUNGEN.map(([key, label]) => ({ key, label }))}
             aktiv={sortierung}
             onWahl={(key) => setze({ awsort: key === SORTIERUNG_STANDARD ? null : key })}
-            schliessSignal={schliessSignal}
+            schliessSignal={sortSchliessen}
             onOffen={() => setSchliessSignal((s) => s + 1)}
           />
           {/* E36: ein Export-Knopf mit Menü (Modus extern/intern, Ausgaben). */}
@@ -146,7 +150,7 @@ export function AuswertungToolbar({
               mitReset={irgendeinFilter}
               onReset={zuruecksetzen}
               schliessSignal={schliessSignal}
-              onPopoverOffen={() => setSchliessSignal((s) => s + 1)}
+              onPopoverOffen={() => setSortSchliessen((s) => s + 1)}
             />
           </div>
         )}
