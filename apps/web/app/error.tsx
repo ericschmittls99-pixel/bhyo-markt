@@ -1,6 +1,6 @@
 "use client";
 
-import { dbFehlerMeldung } from "@bhyo/db";
+import { dbFehlerMeldung } from "@bhyo/db/fehler";
 
 /**
  * Fehlerseite der Anwendung: Ein Datenbank-Timeout oder ein Verbindungsabriss
