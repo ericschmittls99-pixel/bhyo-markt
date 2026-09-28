@@ -639,3 +639,15 @@ rechts Art und Materialart/Produkt, darunter die neun Gruppen des
 Exportmodells dreispaltig. Benannte Zustände („entfällt", „nicht erfasst",
 „nicht zur externen Verwendung freigegeben") stehen kursiv in Sekundärfarbe,
 Zahlen tabular mit Einheit am Wert. Keine Karte, keine Farbe als Rang.
+
+## Preiskorridor am Einzelstrom (E38, 28.09.2026)
+
+Im Detail unter „preis.": eine Skala (sunken Track) mit zwei Stufen — das
+Band der Vergleichsgruppe in Navy-200 (Dark: Weiß 16 %) mit Strich am
+Mittel, darüber der Strom als Navy-900-Balken min–max mit Lime-Punkt am
+Mittel (Output: nur der Punkt). Achse mit kleinstem und größtem Wert und der
+Einheit; gestrichelte Nulllinie, wenn Annahmeentgelte die Skala unter 0
+ziehen. Darunter die Legende (Gruppe mit n Vergleichswerten, dieser Strom)
+und die Wertung als fetter Satz aus der Sicht bhyo. Ohne Band steht kursiv
+der benannte Zustand („zu wenig Vergleichswerte"). Keine Ampelfarben; die
+Richtung steht in Worten.

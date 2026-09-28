@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 
 import { AuswertungToolbar } from "@/components/auswertung/AuswertungToolbar";
 import { EmptyState } from "@/components/shell/EmptyState";
@@ -75,6 +76,7 @@ export function AuswertungAnsicht({
   historie,
   begruendung,
   verifizierung,
+  preisKorridor = null,
 }: {
   kpis: KpiKarte[];
   auswahlText: string | null;
@@ -111,6 +113,8 @@ export function AuswertungAnsicht({
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   verifizierung: string | null;
+  /** E38 */
+  preisKorridor?: PreisKorridorEinzelDaten | null;
 }) {
   const { setze } = useUrlZustand();
   const feedMode = sicht === "feedstock";
@@ -871,6 +875,7 @@ export function AuswertungAnsicht({
           historie={historie}
           begruendung={begruendung}
           verifizierung={verifizierung}
+          preisKorridor={preisKorridor}
           modal={false}
           canEdit={false}
           stroemeHref={`/register?tab=${detailStrom.art === "biomasse" ? "biomasse" : "output"}&detail=${detailStrom.id}`}

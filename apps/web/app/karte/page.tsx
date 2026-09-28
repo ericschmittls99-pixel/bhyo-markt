@@ -29,6 +29,7 @@ import {
 } from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
+import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
@@ -241,6 +242,11 @@ export default async function KartePage({
       verifizierung={
         detailStrom
           ? verifikationsFaelligkeit(detailStrom.beleg, detailStrom, detailVergaben)
+          : null
+      }
+      preisKorridor={
+        detailStrom
+          ? preisKorridorEinzel(detailStrom, detailStrom.art === "biomasse" ? bio : out, { cluster: CLUSTER_LABEL })
           : null
       }
       filterOffenInitial={!!ui.filterOffen?.karte}

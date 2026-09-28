@@ -500,6 +500,32 @@ wieder, auch bei Fehlern — der Free-Plan erlaubt höchstens 10 Branches je
 Projekt. Nicht gesichert bleiben die Beleg-Dateien im R2-Bucket
 `bhyogenics-belege`; das ist ein offener Punkt für später.
 
+**Nachtrag 28.09.2026 — `archiv_testdaten`:** Block B des Go-live-Skripts
+hat diese Tabelle außerhalb der Migrationen angelegt (Archiv der
+entfernten Testzeilen). Geprüft: Paritätstest, Beleg-Check, Fristen-Check
+und schema-gate sehen sie nicht; `drizzle-kit generate` vergleicht Schema
+gegen Snapshot, nicht gegen die Datenbank, und würde sie nicht anrühren.
+Der Restore-Nachweis nimmt sie aus `information_schema` mit (18 Tabellen,
+0 Abweichungen, Lauf 36411106035). **Ablaufdatum 28.10.2026:** dann per
+Migration entfernen — vorgemerkt, nicht jetzt.
+
+## 18. Preiskorridor am Einzelstrom (E38, 28.09.2026)
+
+Das Detail zeigt unter „preis." den Korridor des Stroms im Verhältnis zum
+Band seiner Vergleichsgruppe: Feedstock gegen den Cluster (atro-gewichtet,
+derselbe Ursprung `preisKorridorRoh` wie „preiskorridor je cluster."),
+Outputs als Punkt gegen Min/Mittel/Max der Produktgruppe in der Einheit des
+Stroms (€/t stofflich, €/MWh energetisch, Heizwert nach E23, ungewichtet).
+Drei Vorgaben, jede mit Test: **(1)** Der Strom rechnet nicht in sein
+eigenes Band (`vergleichsStroeme` schließt ihn aus). **(2)** Mindestens zwei
+Vergleichsströme mit Preis, sonst der benannte Zustand „zu wenig
+Vergleichswerte" (E24); wer keinen Preis hat, zählt nicht als 0. **(3)**
+Wertungsrichtung je Sicht, zwei getrennte Funktionen: Feedstock — niedriger
+Preis ist „günstiger für bhyo" (E14, im Negativen „höheres Annahmeentgelt");
+Outputs — höherer Erlös ist „besser für bhyo". Beide Richtungen wurden
+einmal rot gezeigt. Production ist leer, „zu wenig Vergleichswerte" ist dort
+bis zu echten Daten der Normalfall. Screenshots: `docs/screenshots/e38/`.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
