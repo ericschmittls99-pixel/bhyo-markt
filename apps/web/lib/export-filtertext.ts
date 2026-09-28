@@ -26,7 +26,10 @@ export function filterKlartext(
       }
     } else if (def.typ === "bereich" || def.typ === "zeitfenster") {
       const [von, bis, zustand] = def.params.map((p) => ((werte[p] as string | undefined) ?? "").trim());
-      if (von || bis) teile.push(`${von || "…"} – ${bis || "…"}`);
+      // E40: „bis" statt Strich, offene Seite benannt.
+      if (von && bis) teile.push(`${von} bis ${bis}`);
+      else if (von) teile.push(`ab ${von}`);
+      else if (bis) teile.push(`bis ${bis}`);
       if (zustand) teile.push(zustand);
     } else {
       const v = ((werte[def.params[0]!] as string | undefined) ?? "").trim();

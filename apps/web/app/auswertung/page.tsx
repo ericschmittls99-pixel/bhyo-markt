@@ -10,7 +10,6 @@ import {
   outputMengen,
   outputPotenzialZeilen,
   outputPreisZeilen,
-  poolJahresAchse,
   potenzialZeilen,
   preisKorridorZeilen,
   qualitaetsDaten,
@@ -42,7 +41,9 @@ import {
 } from "@/lib/stroeme-modell";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { leiste } from "@/lib/filter-modell";
+import { filterLabel, leiste } from "@/lib/filter-modell";
+import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
+import { fensterAusJahren, leseZeitbezug } from "@/lib/zeitbezug";
 import { cookies } from "next/headers";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
@@ -88,39 +89,18 @@ export default async function AuswertungPage({
   // E39: Sortierung der Akkordeon-Eintraege (Standard = Modellreihenfolge).
   const sortierung = leseSortierung(ersterWert(sp.awsort) || undefined);
 
-  // Zeitbezug (AP1j PR 4): Einzeljahr (Default aktuelles Jahr) oder
-  // Zeitraum; oe pro Jahr oder Summe (beim Einzeljahr identisch).
-  const zeitmodus =
-    ersterWert(sp.zeitmodus) === "zeitraum"
-      ? ("zeitraum" as const)
-      : ("einzeljahr" as const);
-  const agg =
-    zeitmodus === "zeitraum" && ersterWert(sp.agg) === "summe"
-      ? ("summe" as const)
-      : ("oe" as const);
-  const jahreRoh = ersterWert(sp.jahre)
-    .split(",")
-    .map(Number)
-    .filter((n) => Number.isInteger(n));
-  const poolAchse = poolJahresAchse(pool, aktuellesJahr);
-  const jahre =
-    zeitmodus === "einzeljahr"
-      ? [
-          jahreRoh.find((j) => poolAchse.includes(j)) ??
-            (poolAchse.includes(aktuellesJahr)
-              ? aktuellesJahr
-              : poolAchse[poolAchse.length - 1]!),
-        ]
-      : jahreRoh.filter((j) => poolAchse.includes(j)).length
-        ? jahreRoh.filter((j) => poolAchse.includes(j)).sort()
-        : poolAchse;
+  // Zeitbezug (AP1j PR 4), seit E41 aus lib/zeitbezug.ts — dieselbe
+  // Ableitung nutzt der Export aus auswertung.
+  const { zeitmodus, agg, jahre, poolAchse } = leseZeitbezug(sp, pool, aktuellesJahr);
 
-  // verfuegbarkeit wirkt hier FENSTERBEZOGEN (Handoff), nicht auf heute —
-  // sie gilt in dieser Ansicht laut Modell nicht (der Scope haelt sie
-  // heraus) und wird stattdessen ueber wendeFensterAn angewendet; alle
-  // Module rechnen mit den fensterbezogen skalierten Kopien.
+  // E41: Der Verfuegbarkeitsstatus wird gegen das FENSTER abgeleitet (Jahr
+  // bzw. Zeitraum aus E39), nicht gegen heute — dieselbe Ableitung wie in
+  // stroeme./karte. (dort ist der Bezug der Stichtag), derselbe Filter aus
+  // dem Modell. Danach skaliert wendeFensterAn die Mengen monatsscharf; die
+  // Status-Auswahl bestimmt dort nur noch, welche Monatskategorien zaehlen.
+  const poolImFenster = reichereVerfuegbarkeitAn(pool, vergabenMap, fensterAusJahren(jahre));
   const { stroeme: recsHeute, nichtBeruecksichtigt } = filterStroemeMitBericht(
-    pool,
+    poolImFenster,
     filter,
     "auswertung",
   );
@@ -157,6 +137,7 @@ export default async function AuswertungPage({
     produkt: opt.produkt ?? [],
     qualitaet: opt.qualitaet ?? [],
     status: opt.status ?? [],
+    verfuegbarkeit: opt.verfuegbarkeit ?? [],
     belegtyp: opt.belegtyp ?? [],
   };
   // Auf-/Zuklappzustand der Filterleiste wie in den anderen Ansichten.
@@ -177,7 +158,7 @@ export default async function AuswertungPage({
     .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
     .map((e) => ({
       key: e.def.params[0]!,
-      label: e.def.label,
+      label: filterLabel(e.def, "auswertung"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));

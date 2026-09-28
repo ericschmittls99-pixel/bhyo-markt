@@ -38,7 +38,7 @@ import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizi
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { darf } from "@/lib/rollen";
 import { aktuellerZugang } from "@/lib/wache";
-import { artAusSicht, leiste, leseSicht } from "@/lib/filter-modell";
+import { artAusSicht, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -122,7 +122,7 @@ export async function RegisterInhalt({
     .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
     .map((e) => ({
       key: e.def.params[0]!,
-      label: e.def.label,
+      label: filterLabel(e.def, "stroeme"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));

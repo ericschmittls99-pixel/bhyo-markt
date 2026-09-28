@@ -70,6 +70,8 @@ export interface FilterDef {
   params: readonly string[];
   /** In welchen Ansichten er gilt. */
   ansichten: readonly Ansicht[];
+  /** Abweichende Beschriftung in einzelnen Ansichten (E41: auswertung.). */
+  labelJeAnsicht?: Partial<Record<Ansicht, string>>;
   /** Für welche Stromarten er gilt. */
   arten: readonly FilterArt[];
   /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
@@ -242,11 +244,14 @@ export const FILTER: readonly FilterDef[] = [
   {
     key: "verfuegbarkeit",
     label: "Verfügbarkeit",
+    // E41 (28.09.2026): gilt auch in auswertung. — dort gegen das gewaehlte
+    // Jahr bzw. den Zeitraum (E39) statt gegen heute; die Beschriftung sagt
+    // das. Vorher wirkte der Parameter dort still und fensterbezogen, die
+    // Leiste meldete zugleich „gilt hier nicht" (E32-Widerspruch aus AP1j).
+    labelJeAnsicht: { auswertung: "Status im gewählten Zeitraum" },
     typ: "facette",
     params: ["verfuegbarkeit"],
-    // Entscheidung Eric 25.09.2026: In auswertung. uebernehmen die
-    // anklickbaren Jahrespillen diese Rolle.
-    ansichten: ["stroeme", "karte"],
+    ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "haupt",
   },
@@ -375,6 +380,11 @@ export function gilt(f: FilterDef, ansicht: Ansicht, sicht: Sicht): boolean {
   // mindestens eine davon gilt.
   if (sicht === "alle") return f.arten.length > 0;
   return f.arten.includes(sicht);
+}
+
+/** Beschriftung eines Filters in einer Ansicht (E41: je Ansicht abweichend moeglich). */
+export function filterLabel(def: FilterDef, ansicht: Ansicht): string {
+  return def.labelJeAnsicht?.[ansicht] ?? def.label;
 }
 
 /** Die Filter einer Ansicht, in der Reihenfolge des Modells. */

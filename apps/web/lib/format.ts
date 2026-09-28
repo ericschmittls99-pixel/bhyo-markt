@@ -154,7 +154,22 @@ export function formatSpanne(
   return einheit ? `${zahl} ${einheit}` : zahl;
 }
 
-/** Verfuegbarkeitszeitraum MM/JJJJ – MM/JJJJ. */
+/**
+ * Zeitspanne in Monaten (E40, 28.09.2026), Schwester von formatSpanne:
+ * „01/2026 bis 12/2031"; ein offenes Ende wird benannt („ab 01/2026",
+ * „bis 12/2031"), fehlen beide Grenzen „nicht erfasst" (E24) — nie ein
+ * Strich, der neben Zahlen wie ein Minus liest. Beginn = Ende: ein Monat.
+ */
+export function formatZeitspanne(von: string | null, bis: string | null): string {
+  const a = von ? fmtMonat(von) : null;
+  const b = bis ? fmtMonat(bis) : null;
+  if (a && b) return a === b ? a : `${a} bis ${b}`;
+  if (a) return `ab ${a}`;
+  if (b) return `bis ${b}`;
+  return "nicht erfasst";
+}
+
+/** Verfuegbarkeitszeitraum — derselbe Ursprung wie formatZeitspanne. */
 export function fmtZeitraum(von: string | null, bis: string | null): string {
-  return `${fmtMonat(von)} – ${fmtMonat(bis)}`;
+  return formatZeitspanne(von, bis);
 }

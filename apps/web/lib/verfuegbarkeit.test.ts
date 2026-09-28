@@ -217,7 +217,7 @@ describe("verfuegbarkeitPill — Label-Saetze je Stromart (Beschluss 22.09.2026)
 
 describe("vergabeLabel", () => {
   it("beide Enden gesetzt", () => {
-    expect(vergabeLabel("2027-01-01", "2028-06-30")).toBe("01/2027 – 06/2028");
+    expect(vergabeLabel("2027-01-01", "2028-06-30")).toBe("01/2027 bis 06/2028");
   });
   it("offenes von", () => {
     expect(vergabeLabel(null, "2028-06-30")).toBe("bis 06/2028");
@@ -346,5 +346,72 @@ describe("istLeereVergabe", () => {
   it("beide Monate leer = Leerzeile, auch mit Text", () => {
     expect(istLeereVergabe(z({ an: "jemand" }))).toBe(true);
     expect(istLeereVergabe(z({ vonMonat: "2027-01" }))).toBe(false);
+  });
+});
+
+// E41 (28.09.2026): Status gegen ein FENSTER (gewaehltes Jahr / Zeitraum aus
+// E39) statt gegen heute — dieselbe Hierarchie, dieselbe Ueberschneidungs-
+// regel wie in stroeme./karte. (E32): „vergeben" heisst, ein Vergabezeitraum
+// ueberschneidet das Fenster. Ein Stichtag ist das Fenster [Tag, Tag].
+describe("E41: Verfuegbarkeitsstatus im Fenster", () => {
+  const jahr2027 = { von: "2027-01-01", bis: "2027-12-31" };
+  const zeitraum = { von: "2026-01-01", bis: "2028-12-31" };
+
+  it("Vergabe vollstaendig im Fenster: vergeben", () => {
+    expect(
+      leiteVerfuegbarkeitAb(jahr2027, strom, [v({ vergebenVon: "2027-03-01", vergebenBis: "2027-06-30" })]).status,
+    ).toBe("vergeben_extern");
+  });
+  it("Vergabe schneidet das Fenster nur an: trotzdem vergeben (Ueberschneidung)", () => {
+    expect(
+      leiteVerfuegbarkeitAb(jahr2027, strom, [v({ vergebenVon: "2026-06-01", vergebenBis: "2027-02-28" })]).status,
+    ).toBe("vergeben_extern");
+  });
+  it("Vergabe ausserhalb des Fensters: verfuegbar", () => {
+    expect(
+      leiteVerfuegbarkeitAb(jahr2027, strom, [v({ vergebenVon: "2028-01-01", vergebenBis: "2028-06-30" })]).status,
+    ).toBe("verfuegbar");
+  });
+  it("Einzeljahr gegen Zeitraum: dieselbe Vergabe (2028) zaehlt nur im Zeitraum", () => {
+    const vg = [v({ vergebenVon: "2028-01-01", vergebenBis: "2028-06-30", anBhyo: true })];
+    expect(leiteVerfuegbarkeitAb(jahr2027, strom, vg).status).toBe("verfuegbar");
+    expect(leiteVerfuegbarkeitAb(zeitraum, strom, vg).status).toBe("vergeben_bhyo");
+  });
+  it("Fenster nach dem Ende: abgelaufen; Fenster vor dem Beginn: noch nicht verfuegbar", () => {
+    expect(leiteVerfuegbarkeitAb({ von: "2031-01-01", bis: "2031-12-31" }, strom, []).status).toBe("abgelaufen");
+    expect(leiteVerfuegbarkeitAb({ von: "2024-01-01", bis: "2025-12-31" }, strom, []).status).toBe("noch_nicht_verfuegbar");
+  });
+  it("Stichtag = Fenster [Tag, Tag]: Heute-Semantik unveraendert", () => {
+    const vg = [v({ vergebenVon: "2027-03-01", vergebenBis: "2027-06-30" })];
+    expect(leiteVerfuegbarkeitAb("2027-04-15", strom, vg)).toEqual(
+      leiteVerfuegbarkeitAb({ von: "2027-04-15", bis: "2027-04-15" }, strom, vg),
+    );
+    expect(leiteVerfuegbarkeitAb("2027-08-01", strom, vg).status).toBe("verfuegbar");
+  });
+  it("reichereVerfuegbarkeitAn nimmt das Fenster entgegen", () => {
+    const [s] = reichereVerfuegbarkeitAn(
+      [
+        {
+          id: "a",
+          zeitraumVon: strom.zeitraumVon,
+          zeitraumBis: strom.zeitraumBis,
+          reserviertBhyo: false,
+          verfuegbarkeit: undefined as VerfuegbarkeitsErgebnis | undefined,
+        },
+      ],
+      new Map([["a", [v({ vergebenVon: "2027-03-01", vergebenBis: "2027-06-30" })]]]),
+      jahr2027,
+    );
+    expect(s!.verfuegbarkeit?.status).toBe("vergeben_extern");
+  });
+});
+
+// E40: Zeitraeume mit „bis" statt Strich.
+describe("E40: vergabeLabel mit „bis\"", () => {
+  it("beide Grenzen, offenes Ende, Beginn = Ende", () => {
+    expect(vergabeLabel("2026-01-01", "2027-06-30")).toBe("01/2026 bis 06/2027");
+    expect(vergabeLabel("2027-07-01", null)).toBe("ab 07/2027 (unbefristet)");
+    expect(vergabeLabel(null, "2027-06-30")).toBe("bis 06/2027");
+    expect(vergabeLabel("2026-03-01", "2026-03-31")).toBe("03/2026");
   });
 });

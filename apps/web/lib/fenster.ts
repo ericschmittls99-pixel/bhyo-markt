@@ -114,10 +114,15 @@ export function fensterFaktor(
 }
 
 /**
- * Fenster auf den Pool anwenden: fensterbezogener Status-Filter plus
- * SKALIERTE Strom-Kopien (Mengenfelder × Faktor) — alle bestehenden
- * auswertung-Module rechnen damit unveraendert fensterbezogen; Preis ×
- * skalierte Menge ergibt automatisch das fensterbezogene Potenzial.
+ * Fenster auf den Pool anwenden: SKALIERTE Strom-Kopien (Mengenfelder ×
+ * Faktor) — alle bestehenden auswertung-Module rechnen damit unveraendert
+ * fensterbezogen; Preis × skalierte Menge ergibt automatisch das
+ * fensterbezogene Potenzial. Die Status-Auswahl bestimmt hier nur, welche
+ * Monatskategorien in die Menge zaehlen; WELCHE Stroeme bleiben, entscheidet
+ * seit E41 (28.09.2026) der Verfuegbarkeitsfilter des gemeinsamen
+ * Filtermodells (Status gegen das Fenster, Ueberschneidungsregel E32) —
+ * vorher stand hier eine zweite, mengenbasierte Filterlogik nur fuer
+ * auswertung.
  */
 export function wendeFensterAn(
   stroeme: Strom[],
@@ -134,10 +139,6 @@ export function wendeFensterAn(
   const erg: Strom[] = [];
   for (const s of stroeme) {
     const vergaben = vergabenMap.get(s.id) ?? [];
-    if (statusAuswahl.length) {
-      const k = fensterKategorien(jahre, s, vergaben);
-      if (!statusAuswahl.some((a) => k.has(a))) continue;
-    }
     const f = fensterFaktor(jahre, s, vergaben, mengenKategorien, agg);
     erg.push({
       ...s,

@@ -2,11 +2,13 @@ import { CLUSTER_LABEL } from "./farben";
 import { filterKlartext } from "./export-filtertext";
 import { type ExportKontext, exportModus } from "./export-modell";
 import { exportAnsicht, exportZeilen } from "./export-zeilen";
-import { type Ansicht, type Sicht, leiste, leseSicht } from "./filter-modell";
+import { type Ansicht, type Sicht, filterLabel, leiste, leseSicht } from "./filter-modell";
 import { ladeAlleVergaben, ladeRegionOptionen, ladeStroeme } from "./stroeme";
 import { type Strom, facettenOptionen, filterAusSearchParams } from "./stroeme-modell";
 import { type VergabeDaten, reichereVerfuegbarkeitAn } from "./verfuegbarkeit";
 import { reichereVerifikationAn } from "./verifizierung";
+import { fensterAusJahren, leseZeitbezug, zeitbezugText } from "./zeitbezug";
+import { fmtDatum } from "./format";
 
 /**
  * EIN Ladepfad für beide Ausgaben (CSV-Route und Druck-Route, F6): dieselbe
@@ -59,8 +61,15 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     ladeRegionOptionen(),
   ]);
   const stichtag = jetzt.toISOString().slice(0, 10);
+  // E41: Aus auswertung. gilt der Verfuegbarkeitsstatus gegen das gewaehlte
+  // Jahr bzw. den Zeitraum (dieselbe Ableitung wie die Seite, lib/zeitbezug);
+  // aus stroeme./karte. gegen heute. Die Metazeile nennt den Bezug.
+  const zeitbezug =
+    ansicht === "auswertung" ? leseZeitbezug(roh, [...bioRoh, ...outRoh], Number(stichtag.slice(0, 4))) : null;
+  const bezug = zeitbezug ? fensterAusJahren(zeitbezug.jahre) : stichtag;
+  const verfuegbarkeitBezug = zeitbezug ? zeitbezugText(zeitbezug) : `heute (${fmtDatum(stichtag)})`;
   const anreichern = (pool: Strom[], vergaben: Map<string, VergabeDaten[]>) =>
-    reichereVerifikationAn(reichereVerfuegbarkeitAn(pool, vergaben, stichtag), vergaben, stichtag);
+    reichereVerifikationAn(reichereVerfuegbarkeitAn(pool, vergaben, bezug), vergaben, stichtag);
   const bio = anreichern(bioRoh, vergabenBio);
   const out = anreichern(outRoh, vergabenOut);
   const rows = [...exportZeilen(bio, roh), ...exportZeilen(out, roh)];
@@ -73,7 +82,13 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     stand: standText(jetzt),
     ansicht: `${ANSICHT_TEXT[ansicht]} · ${SICHT_TEXT[sicht]}`,
     bezugsjahr: Number(stichtag.slice(0, 4)),
-    aktiveFilter: filterKlartext([...lst.haupt, ...lst.weitere].map((e) => e.def), filter, optionen),
+    verfuegbarkeitBezug,
+    // E41: Beschriftung wie in der Ansicht („Status im gewählten Zeitraum" in auswertung.).
+    aktiveFilter: filterKlartext(
+      [...lst.haupt, ...lst.weitere].map((e) => ({ ...e.def, label: filterLabel(e.def, ansicht) })),
+      filter,
+      optionen,
+    ),
     nichtAngewandt: filterKlartext(lst.zurueckgehalten, filter, optionen),
   };
   return { rows, kontext, sicht, stichtag };

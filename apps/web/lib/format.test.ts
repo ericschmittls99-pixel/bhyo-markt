@@ -8,7 +8,9 @@ import {
   fmtPreis,
   fmtQuote,
   fmtZahlungsstrom,
+  fmtZeitraum,
   formatSpanne,
+  formatZeitspanne,
   rundeAnteile100,
 } from "./format";
 
@@ -105,5 +107,24 @@ describe("formatSpanne", () => {
   });
   it("kein Halbgeviertstrich in der Ausgabe", () => {
     expect(formatSpanne(-54, -32, "€/t")).not.toContain("–");
+  });
+});
+
+// E40 (28.09.2026): Zeitraeume mit „bis" — Schwester von formatSpanne.
+describe("formatZeitspanne", () => {
+  it("beide Grenzen: 01/2026 bis 12/2031", () => {
+    expect(formatZeitspanne("2026-01-01", "2031-12-31")).toBe("01/2026 bis 12/2031");
+    expect(fmtZeitraum("2026-01-01", "2031-12-31")).toBe("01/2026 bis 12/2031");
+  });
+  it("ohne Ende: ab 01/2026; ohne Beginn: bis 12/2031; beides offen: benannter Zustand", () => {
+    expect(formatZeitspanne("2026-01-01", null)).toBe("ab 01/2026");
+    expect(formatZeitspanne(null, "2031-12-31")).toBe("bis 12/2031");
+    expect(formatZeitspanne(null, null)).toBe("nicht erfasst");
+  });
+  it("Beginn = Ende: nur ein Monat", () => {
+    expect(formatZeitspanne("2026-03-01", "2026-03-31")).toBe("03/2026");
+  });
+  it("kein Halbgeviertstrich", () => {
+    expect(formatZeitspanne("2026-01-01", "2031-12-31")).not.toContain("–");
   });
 });
