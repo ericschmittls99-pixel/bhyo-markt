@@ -334,40 +334,44 @@ export function Detail({
             </div>
             <div className="ov-kopf-aktionen">
               {/* E44: Sperren / Entsperren / Zuweisen — nur fuer Berechtigte (Matrix), serverseitig erneut geprueft. */}
+              {/* Icon-Knoepfe wie der Papierkorb (Kopfzeile bleibt einzeilig), Wortlaut als aria-label/Tooltip. */}
               {sperrRechte?.sperren && (
                 <button
                   type="button"
-                  className="btn btn--sm"
+                  className="icon-btn"
+                  aria-label="Sperren"
+                  title="Sperren"
                   disabled={pending}
                   onClick={() => sperrAktion(() => stromSperren(s.art, s.id), "Strom gesperrt")}
                 >
                   <i className="ph ph-lock" aria-hidden />
-                  Sperren
                 </button>
               )}
               {sperrRechte?.entsperren && (
                 <button
                   type="button"
-                  className="btn btn--sm"
+                  className="icon-btn"
+                  aria-label="Entsperren"
+                  title="Entsperren"
                   disabled={pending}
                   onClick={() => sperrAktion(() => stromEntsperren(s.art, s.id), "Strom entsperrt, Zuweisungen entfernt")}
                 >
                   <i className="ph ph-lock-open" aria-hidden />
-                  Entsperren
                 </button>
               )}
               {sperrRechte?.zuweisen && (
                 <span data-pop className="pop-anchor">
                   <button
                     type="button"
-                    className="btn btn--sm"
+                    className="icon-btn"
+                    aria-label="Zuweisen …"
+                    title="Zuweisen …"
                     aria-haspopup="menu"
                     aria-expanded={zuweisenOffen}
                     disabled={pending}
                     onClick={() => setZuweisenOffen((v) => !v)}
                   >
                     <i className="ph ph-user-plus" aria-hidden />
-                    Zuweisen …
                   </button>
                   {zuweisenOffen && (
                     <span role="menu" aria-label="Zuweisen an" className="pop">
