@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { usePopoverLage } from "@/components/usePopoverLage";
 import {
@@ -71,11 +71,24 @@ export function JahrRegler({
     const param = jahreParam(liste);
     if (param !== jahreParam(jahre)) onJahre(param);
   }
+  // Uebernahme: beim Loslassen sofort, sonst 350 ms nach der letzten
+  // Aenderung (Pfeiltasten ohne keyup-Ereignis, Touch, Scrollrad) — so
+  // schreibt jede Bedienart in die URL, ohne bei jedem Schritt zu navigieren.
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const spaeter = (v: number, b: number) => {
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(() => uebernehmen(v, b), 350);
+  };
+  const sofort = (v: number, b: number) => {
+    if (timer.current) clearTimeout(timer.current);
+    uebernehmen(v, b);
+  };
+  useEffect(() => () => { if (timer.current) clearTimeout(timer.current); }, []);
   const commitEvents = (v: number, b: number) => ({
-    onMouseUp: () => uebernehmen(v, b),
-    onTouchEnd: () => uebernehmen(v, b),
-    onKeyUp: () => uebernehmen(v, b),
-    onBlur: () => uebernehmen(v, b),
+    onMouseUp: () => sofort(v, b),
+    onTouchEnd: () => sofort(v, b),
+    onKeyUp: () => sofort(v, b),
+    onBlur: () => sofort(v, b),
   });
 
   return (
@@ -129,7 +142,11 @@ export function JahrRegler({
                   value={von}
                   aria-label="Von Jahr"
                   aria-valuetext={String(von)}
-                  onChange={(e) => setVon(Number(e.target.value))}
+                  onChange={(e) => {
+                    const n = Number(e.target.value);
+                    setVon(n);
+                    spaeter(n, bis);
+                  }}
                   {...commitEvents(von, bis)}
                 />
               )}
@@ -142,7 +159,11 @@ export function JahrRegler({
                 value={bis}
                 aria-label={einzel ? "Jahr" : "Bis Jahr"}
                 aria-valuetext={String(bis)}
-                onChange={(e) => setBis(Number(e.target.value))}
+                onChange={(e) => {
+                  const n = Number(e.target.value);
+                  setBis(n);
+                  spaeter(von, n);
+                }}
                 {...commitEvents(von, bis)}
               />
             </div>
