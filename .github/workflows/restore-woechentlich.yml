@@ -12,8 +12,9 @@ name: Restore-Test woechentlich (Neon-Branch je Lauf)
 #      (Free-Plan: hoechstens 10 Branches je Projekt).
 #
 # Secrets (Environment production-lesend): NEON_API_KEY, NEON_PROJECT_ID,
-# NEON_PARENT_BRANCH_ID (Production-Branch), DATABASE_URL_PRODUCTION_LESEND,
-# dazu Repo-Secrets R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY.
+# NEON_PARENT_BRANCH_ID (Production-Branch); dazu Repo-Secrets
+# R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY. Die Leserolle auf Production wird
+# hier NICHT mehr gebraucht — verglichen wird gegen das Zaehlprotokoll.
 on:
   schedule:
     - cron: "0 3 * * 1"
