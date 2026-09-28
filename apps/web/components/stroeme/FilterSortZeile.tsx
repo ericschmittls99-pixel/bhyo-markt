@@ -9,7 +9,7 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { ExportMenue } from "@/components/ExportMenue";
-import { FILTER_PARAMS } from "@/lib/filter-modell";
+import { FILTER_PARAMS, ruecksetzPatchAus } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
 export type FacettenChip = FacettenChipDef;
@@ -32,6 +32,7 @@ export function FilterSortZeile({
   richtung,
   sortOptionen,
   bereichKeys,
+  ruecksetzParams,
   zurueckgehalten,
   hinweise,
   ansicht,
@@ -45,6 +46,8 @@ export function FilterSortZeile({
   bereich: Record<string, string>;
   /** Bereichs-, Monats- und Datumsparameter dieser Ansicht (aus dem Modell). */
   bereichKeys: readonly string[];
+  /** Alle Parameter, die „Zurücksetzen" leert (lib/filter-modell.ts, leiste().ruecksetzParams). */
+  ruecksetzParams: readonly string[];
   /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
   zurueckgehalten: string[];
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
@@ -128,10 +131,9 @@ export function FilterSortZeile({
   }
 
   function zuruecksetzen() {
-    const leer: Record<string, null> = { q: null };
-    for (const f of facetten) leer[f.key] = null;
-    for (const k of bereichKeys) leer[k] = null;
-    setze(leer);
+    // Ein Ursprung (lib/filter-modell.ts::ruecksetzPatch): alle Parameter
+    // aller geltenden Filter — auch die Blattebenen der Baeume.
+    setze(ruecksetzPatchAus(ruecksetzParams));
     setSchliessSignal((s) => s + 1);
   }
 

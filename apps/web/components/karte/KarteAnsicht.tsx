@@ -50,6 +50,7 @@ export function KarteAnsicht({
   auswahl,
   bereich,
   bereichKeys,
+  ruecksetzParams,
   zurueckgehalten,
   hinweise,
   sicht,
@@ -75,6 +76,7 @@ export function KarteAnsicht({
   auswahl: Record<string, string[]>;
   bereich: Record<string, string>;
   bereichKeys: readonly string[];
+  ruecksetzParams: readonly string[];
   zurueckgehalten: string[];
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
   hinweise: string[];
@@ -188,6 +190,7 @@ export function KarteAnsicht({
         auswahl={auswahl}
         bereich={bereich}
         bereichKeys={bereichKeys}
+        ruecksetzParams={ruecksetzParams}
         zurueckgehalten={zurueckgehalten}
         hinweise={hinweise}
         sicht={sicht}

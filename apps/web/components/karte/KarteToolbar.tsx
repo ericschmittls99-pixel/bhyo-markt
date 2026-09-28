@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { ruecksetzPatchAus } from "@/lib/filter-modell";
 
 import {
   FacettenChips,
@@ -36,6 +37,7 @@ export function KarteToolbar({
   auswahl,
   bereich,
   bereichKeys,
+  ruecksetzParams,
   zurueckgehalten,
   hinweise,
   sicht,
@@ -50,6 +52,8 @@ export function KarteToolbar({
   bereich: Record<string, string>;
   /** Bereichs-, Monats- und Datumsparameter dieser Ansicht (aus dem Modell). */
   bereichKeys: readonly string[];
+  /** Alle Parameter, die „Zurücksetzen" leert (lib/filter-modell.ts, leiste().ruecksetzParams). */
+  ruecksetzParams: readonly string[];
   /** E32: gesetzte Filter, die hier nicht gelten — Beschriftungen. */
   zurueckgehalten: string[];
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
@@ -90,10 +94,7 @@ export function KarteToolbar({
   }
 
   function zuruecksetzen() {
-    const leer: Record<string, null> = { q: null };
-    for (const f of facetten) leer[f.key] = null;
-    for (const k of bereichKeys) leer[k] = null;
-    setze(leer);
+    setze(ruecksetzPatchAus(ruecksetzParams));
     setSchliessSignal((s) => s + 1);
   }
 

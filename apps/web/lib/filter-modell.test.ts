@@ -18,6 +18,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   altwertZuNeu,
+  leiste,
+  ruecksetzPatch,
   ANSICHTEN,
   FILTER,
   FILTER_PARAMS,
@@ -263,5 +265,54 @@ describe("Altwert-Mapping (E34)", () => {
   it("greift beim Einlesen der Adresszeile — gemischt und mit Duplikat", () => {
     const f = filterAusSearchParams({ belegtyp: "dokument_link,vertrag" });
     expect(f.belegtyp).toEqual(["dokument", "vertrag"]);
+  });
+});
+
+// Produktionsfehler 28.09.2026: „Filter zurücksetzen" ließ Blattparameter
+// der Bäume stehen. Der Test läuft über die Filterliste, die auch die
+// Vollständigkeitsprüfung nutzt — ein neuer Filter ist automatisch dabei.
+describe("Filter zurücksetzen leert jeden geltenden Filter vollständig", () => {
+  /** Beispielwerte je Filterart; Bäume in drei Varianten (Eltern, Kind, gemischt). */
+  function belegungen(def: (typeof FILTER)[number]): Record<string, string>[] {
+    if (def.typ === "hierarchie") {
+      const [eltern, ...kinder] = def.params;
+      const blatt = kinder[kinder.length - 1] ?? eltern!;
+      return [
+        { [eltern!]: "a" },
+        { [blatt]: "b" },
+        Object.fromEntries(def.params.map((p, i) => [p, `w${i}`])),
+      ];
+    }
+    return [Object.fromEntries(def.params.map((p) => [p, def.typ === "monat" ? "2026-01" : def.typ === "datum" ? "2026-01-01" : "1"]))];
+  }
+
+  for (const ansicht of ANSICHTEN) {
+    for (const sicht of SICHTEN) {
+      it(`${ansicht}/${sicht}: nach dem Zurücksetzen ist kein geltender Filter mehr gesetzt`, () => {
+        const luecken: string[] = [];
+        for (const def of filterFuer(ansicht, sicht)) {
+          for (const belegung of belegungen(def)) {
+            const werte = filterAusSearchParams(belegung) as unknown as Record<string, unknown>;
+            const vorher = leiste(ansicht, sicht, werte);
+            expect(vorher.irgendeinFilter, `${def.key} ${JSON.stringify(belegung)} gilt als gesetzt`).toBe(true);
+            // Wie useUrlZustand.setze: null loescht den Parameter.
+            const patch = ruecksetzPatch(vorher);
+            const nachher: Record<string, string> = { ...belegung };
+            for (const k of Object.keys(patch)) delete nachher[k];
+            const werteNachher = filterAusSearchParams(nachher) as unknown as Record<string, unknown>;
+            const l = leiste(ansicht, sicht, werteNachher);
+            if (l.irgendeinFilter) luecken.push(`${def.key} ${JSON.stringify(belegung)} → bleibt ${JSON.stringify(nachher)}`);
+          }
+        }
+        expect(luecken).toEqual([]);
+      });
+    }
+  }
+
+  it("das Einzel-Aufheben eines Baums (leere) leert alle Ebenen des Baums", async () => {
+    const { leere } = await import("./hierarchie");
+    for (const def of FILTER.filter((f) => f.typ === "hierarchie")) {
+      expect(Object.keys(leere([...def.ebenen!])).sort()).toEqual([...def.params].sort());
+    }
   });
 });

@@ -197,6 +197,7 @@ export async function RegisterInhalt({
         facetten={facetten}
         auswahl={auswahl}
         bereich={bereich}
+        ruecksetzParams={lst.ruecksetzParams}
         bereichKeys={lst.haupt
           .concat(lst.weitere)
           .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
