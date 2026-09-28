@@ -2,7 +2,7 @@ import { CLUSTER_LABEL } from "./farben";
 import { filterKlartext } from "./export-filtertext";
 import { type ExportKontext, exportModus } from "./export-modell";
 import { exportAnsicht, exportZeilen } from "./export-zeilen";
-import { type Ansicht, type Sicht, leiste, leseSicht } from "./filter-modell";
+import { type Ansicht, type Sicht, filterLabel, leiste, leseSicht } from "./filter-modell";
 import { ladeAlleVergaben, ladeRegionOptionen, ladeStroeme } from "./stroeme";
 import { type Strom, facettenOptionen, filterAusSearchParams } from "./stroeme-modell";
 import { type VergabeDaten, reichereVerfuegbarkeitAn } from "./verfuegbarkeit";
@@ -83,7 +83,12 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     ansicht: `${ANSICHT_TEXT[ansicht]} · ${SICHT_TEXT[sicht]}`,
     bezugsjahr: Number(stichtag.slice(0, 4)),
     verfuegbarkeitBezug,
-    aktiveFilter: filterKlartext([...lst.haupt, ...lst.weitere].map((e) => e.def), filter, optionen),
+    // E41: Beschriftung wie in der Ansicht („Status im gewählten Zeitraum" in auswertung.).
+    aktiveFilter: filterKlartext(
+      [...lst.haupt, ...lst.weitere].map((e) => ({ ...e.def, label: filterLabel(e.def, ansicht) })),
+      filter,
+      optionen,
+    ),
     nichtAngewandt: filterKlartext(lst.zurueckgehalten, filter, optionen),
   };
   return { rows, kontext, sicht, stichtag };
