@@ -76,6 +76,9 @@ async function main() {
     console.log(`  ${t} | ${np} | ${nr} | ${diff === 0 ? "gleich" : diff > 0 ? `+${diff}` : diff}`);
   }
   console.log(`ABWEICHUNGEN ${abweichungen} von ${tProd.length} Tabellen (Dump von 02:00 UTC; Aenderungen seither sind erwartbar)`);
+  // STRENG=1 (woechentlicher Lauf direkt nach dem Backup): jede Abweichung
+  // ist rot — dort ist keine Aenderung dazwischen zu erwarten.
+  if (process.env.STRENG === "1" && abweichungen > 0) fehler.push(`${abweichungen} Tabellen weichen in der Zeilenzahl ab (STRENG)`);
 
   const [sr, sp] = await Promise.all([stand(restore), stand(prod)]);
   console.log("STAND production " + JSON.stringify(sp));

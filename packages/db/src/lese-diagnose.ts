@@ -56,6 +56,17 @@ async function main() {
            (select count(*) from benutzer)::int       as benutzer`;
   console.log("KONTROLLE " + JSON.stringify(z));
 
+  // Neon-Kontingent (Go-live, 28.09.2026): Datenbankgroesse und die groessten
+  // Tabellen — rein lesend, gehoert in die Kontingent-Tabelle des Berichts.
+  const [groesse] = await sql`select pg_size_pretty(pg_database_size(current_database())) as db`;
+  const tabellen = await sql`
+    select relname as tabelle, pg_size_pretty(pg_total_relation_size(c.oid)) as gesamt,
+           pg_total_relation_size(c.oid) as bytes
+      from pg_class c join pg_namespace n on n.oid = c.relnamespace
+     where n.nspname = 'public' and c.relkind = 'r'
+     order by pg_total_relation_size(c.oid) desc limit 6`;
+  console.log(`GROESSE db=${groesse!.db} | ` + tabellen.map((t) => `${t.tabelle}=${t.gesamt}`).join(" "));
+
   const [m] = await sql`
     select count(*)::int as migrationen,
            max(created_at)::text as zuletzt
