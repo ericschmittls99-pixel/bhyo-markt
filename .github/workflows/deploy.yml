@@ -35,7 +35,7 @@ jobs:
   # per `needs` daran — ein falscher Ref bricht den Lauf ab, statt ihn still
   # zu ueberspringen.
   ziel-wache:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -74,13 +74,13 @@ jobs:
   # WEDER Preview NOCH Production. Bewusst eng: nur Typen und Tests, kein
   # Lint, keine Formatierung, keine Coverage.
   typen-und-tests:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -105,16 +105,16 @@ jobs:
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Environment nur wegen des Secrets DATABASE_URL_PRODUCTION; das Gate
     # liest ausschliesslich.
     environment: production
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -147,15 +147,15 @@ jobs:
       needs.ziel-wache.result == 'success' &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -183,7 +183,7 @@ jobs:
 
       - name: Altfelder-Archiv hochladen
         if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: altfelder-archiv-preview
           path: packages/db/altfelder-archiv.json
