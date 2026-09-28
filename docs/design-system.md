@@ -64,10 +64,14 @@ keine Mausereignisse ab. Aggregat-Marker zeigen „N Ströme ·
 hineinzoomen für Einzelheiten"; die kleinen Fächer-Orbs behalten den
 nativen Tooltip, weil ein Popover den Fächer verdecken würde.
 
-**Basemap-Filter (F2)**: hell `grayscale(1) contrast(0.8) brightness(1.1)`,
-dunkel `grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.8)
-brightness(0.94)` — feine OSM-Details treten zurück, ohne dass die Karte
-unscharf wirkt.
+**Basemap-Anmutung (F2, seit Rückmeldung 1 am 28.09.2026 als Raster-Paint)**:
+grau, Kontrast gesenkt, hell aufgehellt, dunkel invertiert — nicht mehr als
+CSS-Filter auf dem Canvas (der färbte auch die Regionsumrisse grau), sondern
+als `raster-saturation`/`raster-brightness-min/max` der OSM-Ebene
+(`rasterPaint()` in `KarteMap.tsx`). Regionsumrisse: grau
+(`--text-tertiary`), 3 px, `line-join`/`line-cap` round; der Regionsname
+erscheint als Glas-Popover (`.km-pop`) beim Überfahren, Antippen oder
+Tastaturfokus statt als Dauer-Label (Rückmeldung 2).
 
 Seit F0b sind auch **Landkreis und Bundesland reine Ableitungen** — aus der
 Koordinate per räumlichem Join auf VG250 (Referenz über den ARS, nie über

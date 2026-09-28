@@ -9,19 +9,20 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import type { Sicht } from "@/lib/auswertung-modell";
+import { SORTIERUNGEN, SORTIERUNG_STANDARD, type Sortierung } from "@/lib/auswertung-sortierung";
 import { ExportMenue } from "@/components/ExportMenue";
+import { SortMenue } from "@/components/SortMenue";
 import { FILTER_PARAMS, ruecksetzPatchAus } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
-
 /**
- * Toolbar von auswertung. (AP1i PR 7): sicht-Umschalter Feedstock ODER
- * Outputs (kein Alle-Tab — Spec-Aenderung Eric, die Kacheln sind artrein)
- * + Facetten-Chips (immer sichtbar, wie im Mockup — anders als karte./
- * stroeme. gibt es keinen Filter-Toggle) + Reset-X + CSV-Export als
- * Sekundaer-Button (E9). Die Filter leben im geteilten Querystring
- * (FILTER_PARAMS); der CSV-Link reicht genau diese Parameter
- * plus die explizite sicht an die Export-Route weiter.
+ * Kopfzeile von auswertung. (E39, 28.09.2026) — dieselbe Bedienlogik wie
+ * ströme.: Zeile 1 links der Schalter Feedstock/Outputs, rechts Filter-Pille
+ * (mit Zähler), Sortier-Pille und Export-Icon; ihre Höhe ändert sich NIE.
+ * Die Filter stehen ausschließlich in der Zeile darunter (zu: Zähltext,
+ * offen: Chips, „Weitere Filter" als „+"). Vorher saßen die Chips in der
+ * Kopfzeile selbst, die dadurch von 52 auf 88 px wuchs und alles darunter
+ * verschob. Auf-/Zuklappen lebt im Cookie bhyo_ui, die Filter im Querystring.
  */
 export function AuswertungToolbar({
   facetten,
@@ -34,6 +35,8 @@ export function AuswertungToolbar({
   hinweise,
   sicht,
   irgendeinFilter,
+  countText,
+  sortierung,
 }: {
   facetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
@@ -48,6 +51,10 @@ export function AuswertungToolbar({
   hinweise: string[];
   sicht: Sicht;
   irgendeinFilter: boolean;
+  /** Zähltext der Filterzeile im zugeklappten Zustand („73 Belege"). */
+  countText: string;
+  /** E39: Sortierung der Akkordeon-Einträge (URL `awsort`). */
+  sortierung: Sortierung;
 }) {
   const { setze, searchParams } = useUrlZustand();
   const [schliessSignal, setSchliessSignal] = useState(0);
@@ -66,6 +73,10 @@ export function AuswertungToolbar({
     setSchliessSignal((s) => s + 1);
   }
 
+  const bereichAnzahl = bereichKeys.filter((k) => (bereich[k] ?? "") !== "").length;
+  const facettenAnzahl = facetten.reduce((n, f) => n + (auswahl[f.key]?.length ?? 0), 0);
+  const filterAnzahl = facettenAnzahl + bereichAnzahl;
+
   const exportParams = new URLSearchParams();
   for (const k of FILTER_PARAMS) {
     const v = searchParams.get(k);
@@ -77,57 +88,70 @@ export function AuswertungToolbar({
   exportParams.set("ansicht", "auswertung");
 
   return (
-    <div className="aw-toolbar">
-      <div className="seg" role="group" aria-label="Feedstock oder Outputs">
-        {(
-          [
-            ["feedstock", "Feedstock"],
-            ["outputs", "Outputs"],
-          ] as const
-        ).map(([wert, label]) => (
+    <>
+      <div className="st-toolbar aw-kopfzeile">
+        <div className="seg" role="group" aria-label="Feedstock oder Outputs">
+          {(
+            [
+              ["feedstock", "Feedstock"],
+              ["outputs", "Outputs"],
+            ] as const
+          ).map(([wert, label]) => (
+            <button
+              key={wert}
+              type="button"
+              className="seg-opt"
+              aria-pressed={sicht === wert}
+              onClick={() => setze({ sicht: wert })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
+        <div className="st-toolbar-rechts">
           <button
-            key={wert}
             type="button"
-            className="seg-opt"
-            aria-pressed={sicht === wert}
-            onClick={() => setze({ sicht: wert })}
+            className={`fchip${offen || filterAnzahl ? " aktiv" : ""}`}
+            aria-expanded={offen}
+            aria-controls="aw-filter"
+            onClick={toggleLeiste}
           >
-            {label}
+            Filter
+            {filterAnzahl > 0 && <span className="fchip-count">{filterAnzahl}</span>}
           </button>
-        ))}
+          <SortMenue
+            optionen={SORTIERUNGEN.map(([key, label]) => ({ key, label }))}
+            aktiv={sortierung}
+            onWahl={(key) => setze({ awsort: key === SORTIERUNG_STANDARD ? null : key })}
+            schliessSignal={schliessSignal}
+            onOffen={() => setSchliessSignal((s) => s + 1)}
+          />
+          {/* E36: ein Export-Knopf mit Menü (Modus extern/intern, Ausgaben). */}
+          <ExportMenue exportParams={exportParams} />
+        </div>
       </div>
+      {/* aw-kopfzeile-ende */}
 
-      <div className="aw-toolbar-trenner" aria-hidden />
-
-      {/* E32: Filterleiste auf- und zuklappbar wie in stroeme. und karte. —
-          vorher war sie hier als einzige immer offen und der Zustand wurde
-          nicht gemerkt. */}
-      <button
-        type="button"
-        className={`fchip${offen || irgendeinFilter ? " aktiv" : ""}`}
-        aria-expanded={offen}
-        aria-controls="aw-filter"
-        onClick={toggleLeiste}
-      >
-        Filter
-      </button>
-
-      <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
-
-      {offen && (
-      <FacettenChips
-        facetten={facetten}
-        auswahl={auswahl}
-        bereichKeys={bereichKeys}
-        bereich={bereich}
-        mitReset={irgendeinFilter}
-        onReset={zuruecksetzen}
-        schliessSignal={schliessSignal}
-      />
-      )}
-
-      {/* E36: ein Export-Knopf mit Menü (Modus extern/intern, Ausgaben). */}
-      <ExportMenue exportParams={exportParams} className="aw-export" />
-    </div>
+      <div className="st-filterzeile aw-filterzeile">
+        {!offen && <span className="st-count">{countText}</span>}
+        {offen && (
+          <div id="aw-filter" className="st-chips">
+            <FacettenChips
+              facetten={facetten}
+              auswahl={auswahl}
+              bereichKeys={bereichKeys}
+              bereich={bereich}
+              bereichKompakt
+              mitReset={irgendeinFilter}
+              onReset={zuruecksetzen}
+              schliessSignal={schliessSignal}
+              onPopoverOffen={() => setSchliessSignal((s) => s + 1)}
+            />
+          </div>
+        )}
+        <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
+      </div>
+    </>
   );
 }

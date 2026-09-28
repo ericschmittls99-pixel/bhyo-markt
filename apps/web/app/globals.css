@@ -3894,26 +3894,16 @@ table.st-tabelle tbody tr:focus-visible {
   flex: 1;
   min-height: 0;
 }
-.aw-toolbar {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 8px 12px;
-  min-height: var(--toolbar-h);
-  width: 100%;
-  max-width: calc(var(--content-max) + 2 * var(--gutter));
-  margin: 0 auto;
-  /* Symmetrisch wie .st-toolbar: sonst sitzen die Tabs 4 px hoeher als in
-     stroeme. und die Kopfzeile springt beim Seitenwechsel. */
-  padding: 4px var(--gutter);
+/* E39 (28.09.2026): Kopfzeile von auswertung. = .st-toolbar aus stroeme.,
+   nur mit FESTER Hoehe und ohne Umbruch — sie darf nie springen, egal
+   welche Filter aktiv sind (vorher 52 -> 88 px bei offenen Chips). Die
+   Filter stehen ausschliesslich in der .st-filterzeile darunter. */
+.aw-kopfzeile {
+  height: var(--toolbar-h);
+  flex-wrap: nowrap;
 }
-.aw-toolbar-trenner {
-  width: 1px;
-  height: 24px;
-  background: var(--border-default);
-}
-.aw-export {
-  margin-left: auto;
+.aw-filterzeile {
+  min-height: 48px;
 }
 .aw-inhalt {
   flex: 1;
@@ -4330,15 +4320,88 @@ table.st-tabelle tbody tr:focus-visible {
   margin: 0 auto;
   padding: 0 var(--gutter) 12px;
 }
-.aw-jahr-pillen {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-.aw-jahr-ueberlauf {
-  display: block;
-  color: var(--text-tertiary);
+/* E39: Jahres-Regler im Popover der Uhr-Pille. Native range-Inputs, beim
+   Zeitraum zwei uebereinander (nur die Griffe fangen den Zeiger). */
+.jr-pop { padding: 14px 18px 10px; }
+.jr { position: relative; padding-top: 22px; }
+.jr-labels { position: relative; height: 0; }
+.jr-label {
+  position: absolute;
+  top: -22px;
+  transform: translateX(-50%);
+  font: 600 12px/1 var(--font-sans);
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+.jr-spur {
+  position: relative;
+  height: 24px;
+  margin: 0 9px;
+}
+.jr-spur::before {
+  content: "";
+  position: absolute;
+  left: -9px;
+  right: -9px;
+  top: 9px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-sunken);
+}
+.jr-fuellung {
+  position: absolute;
+  top: 9px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--action-primary-bg);
+  pointer-events: none;
+}
+.jr-griff {
+  position: absolute;
+  left: -9px;
+  right: -9px;
+  top: 0;
+  width: calc(100% + 18px);
+  height: 24px;
+  margin: 0;
+  background: transparent;
+  appearance: none;
+  -webkit-appearance: none;
+  pointer-events: none;
+  outline: none;
+}
+.jr-griff::-webkit-slider-runnable-track { background: transparent; height: 24px; }
+.jr-griff::-moz-range-track { background: transparent; height: 24px; }
+.jr-griff::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  margin-top: 3px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  border: 2px solid var(--action-primary-bg);
+  box-shadow: var(--shadow-card);
+  cursor: grab;
+  pointer-events: auto;
+}
+.jr-griff::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--surface-card);
+  border: 2px solid var(--action-primary-bg);
+  box-shadow: var(--shadow-card);
+  cursor: grab;
+  pointer-events: auto;
+}
+.jr-griff:focus-visible::-webkit-slider-thumb { box-shadow: var(--ring-focus); }
+.jr-griff:focus-visible::-moz-range-thumb { box-shadow: var(--ring-focus); }
+.jr-grenzen {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
 }
 
 .aw-mini-switch {

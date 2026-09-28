@@ -23,6 +23,7 @@ import {
   wendeFensterAn,
   type FensterKategorie,
 } from "@/lib/fenster";
+import { leseSortierung } from "@/lib/auswertung-sortierung";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import {
   ladeAlleVergaben,
@@ -84,6 +85,8 @@ export default async function AuswertungPage({
   // E33: Verifikationsstatus einmal je Request, damit der Filter hier greift.
   const pool = reichereVerifikationAn(poolRoh, vergabenMap, heuteIso);
   const aktuellesJahr = Number(heuteIso.slice(0, 4));
+  // E39: Sortierung der Akkordeon-Eintraege (Standard = Modellreihenfolge).
+  const sortierung = leseSortierung(ersterWert(sp.awsort) || undefined);
 
   // Zeitbezug (AP1j PR 4): Einzeljahr (Default aktuelles Jahr) oder
   // Zeitraum; oe pro Jahr oder Summe (beim Einzeljahr identisch).
@@ -208,7 +211,7 @@ export default async function AuswertungPage({
       kpis={kpiKarten(recs, sicht, agg === "summe")}
       auswahlText={auswahlZeile(recs)}
       anzahl={recs.length}
-      cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht) : null}
+      cluster={sicht === "feedstock" ? clusterZeilen(pool, recs, sicht, sortierung) : null}
       qualitaet={qualitaetsDaten(recs)}
       status={statusZeilen(recs)}
       saison={saisonDaten(recs)}
@@ -220,7 +223,7 @@ export default async function AuswertungPage({
       }
       potenzial={sicht === "feedstock" ? potenzialZeilen(pool, recs) : []}
       preisKorridore={sicht === "feedstock" ? preisKorridorZeilen(pool, recs) : []}
-      outMengen={sicht === "outputs" ? outputMengen(pool, recs) : null}
+      outMengen={sicht === "outputs" ? outputMengen(pool, recs, sortierung) : null}
       outPotenzial={sicht === "outputs" ? outputPotenzialZeilen(pool, recs) : null}
       outPreise={sicht === "outputs" ? outputPreisZeilen(pool, recs) : null}
       outJahre={
@@ -242,6 +245,7 @@ export default async function AuswertungPage({
       agg={agg}
       jahreAuswahl={jahre}
       poolAchse={poolAchse}
+      sortierung={sortierung}
       irgendeinFilter={irgendeinFilter}
       detailStrom={detailStrom}
       historie={historie}
