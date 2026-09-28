@@ -544,6 +544,8 @@ export function KarteMap({
       // beim Antippen; per Tastatur ueber den fokussierbaren Anker (unten).
       const tip = machePopover("", []);
       tip.classList.add("km-region-tip");
+      // Beim Neuaufbau der Karte (Remount) bleibt sonst das alte Element im Container.
+      regionTipRef.current?.remove();
       containerRef.current?.appendChild(tip);
       regionTipRef.current = tip;
       const zeige = (e: { point: { x: number; y: number }; features?: unknown[] }) => {
