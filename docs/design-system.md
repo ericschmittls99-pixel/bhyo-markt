@@ -517,7 +517,7 @@ deaktivierte Adresse bekommt nicht denselben Text wie eine unbekannte.
 
 Kein Schreibrecht heißt: Aktionen werden **ausgeblendet** (`canEdit` aus der
 Rolle), nicht deaktiviert dargestellt. Die Oberfläche ist dabei nie der
-Schutz — die Durchsetzung sitzt serverseitig in `lib/wache.ts`.
+Schutz — die Durchsetzung sitzt serverseitig in `lib/rechte/wache.ts` (Matrix in `lib/rechte/matrix.ts`, E42).
 
 ## Formularblock „Ort" (F0a, 23.09.2026; F4-Korrekturen 24.09.2026)
 

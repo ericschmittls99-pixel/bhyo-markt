@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import { updateUiCookie } from "@/lib/ui-state";
-import { ROLLE_LABEL, type Rolle } from "@/lib/rollen";
+import { ROLLE_LABEL, type Rolle } from "@/lib/rechte";
 
 const TITEL: [string, string][] = [
   ["/register", "ströme."],

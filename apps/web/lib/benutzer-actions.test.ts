@@ -11,7 +11,7 @@ import { join } from "node:path";
 
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { Rolle } from "./rollen";
+import type { Rolle } from "./rechte/rollen";
 
 let angemeldet: string | null = null;
 let eintrag: { rolle: Rolle; aktiv: boolean; name: string | null } | null = null;

@@ -8,7 +8,7 @@
  * niemand mehr herein, um das zu reparieren. Die einzige Rettung wäre dann
  * eine Migration, also ein Deploy.
  */
-import type { Rolle } from "@/lib/rollen";
+import type { Rolle } from "@/lib/rechte";
 
 export interface BenutzerZeile {
   email: string;

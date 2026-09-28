@@ -4,8 +4,8 @@ import { asc } from "drizzle-orm";
 import { BenutzerVerwaltung } from "@/components/einstellungen/BenutzerVerwaltung";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { withDb } from "@/lib/db";
-import { darf } from "@/lib/rollen";
-import { aktuellerZugang } from "@/lib/wache";
+import { darf } from "@/lib/rechte";
+import { aktuellerZugang } from "@/lib/rechte/wache";
 
 export const dynamic = "force-dynamic";
 
@@ -16,7 +16,7 @@ export const dynamic = "force-dynamic";
  */
 export default async function EinstellungenPage() {
   const zugang = await aktuellerZugang();
-  const istAdmin = zugang.art === "erlaubt" && darf(zugang.rolle, "verwalten");
+  const istAdmin = zugang.art === "erlaubt" && darf(zugang, "benutzer.anlegen");
 
   if (!istAdmin) {
     return (

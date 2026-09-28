@@ -6,7 +6,7 @@ import { Geist } from "next/font/google";
 import { HeaderBar } from "@/components/shell/HeaderBar";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { ZugangSperre } from "@/components/shell/ZugangSperre";
-import { adminKontakt, aktuellerZugang } from "@/lib/wache";
+import { adminKontakt, aktuellerZugang } from "@/lib/rechte/wache";
 import { listRegionen } from "@/lib/register";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 

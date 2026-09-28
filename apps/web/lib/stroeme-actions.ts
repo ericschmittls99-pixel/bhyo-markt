@@ -6,7 +6,7 @@ import { revalidatePath } from "next/cache";
 
 import { withDb } from "@/lib/db";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL } from "@/lib/status";
-import { schreibrechtFuerAction } from "@/lib/wache";
+import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { StromArt } from "@/lib/stroeme-modell";
 
 export interface AktionErgebnis {
@@ -18,7 +18,7 @@ export interface AktionErgebnis {
  * Gemeinsamer Rumpf. Bekommt die BEREITS geprueffte E-Mail uebergeben — die
  * Wache sitzt am Eingang jeder exportierten Aktion, nicht hier drin: Eine
  * Pruefung eine Ebene tiefer sieht man der Signatur nicht an, und
- * scripts/wache-abdeckung.ts sieht sie auch nicht.
+ * scripts/rechte-check.ts sieht sie auch nicht.
  */
 async function wechsleStatus(
   email: string,
@@ -84,7 +84,7 @@ export async function statusSetzen(
   id: string,
   neu: string,
 ): Promise<AktionErgebnis> {
-  const wache = await schreibrechtFuerAction();
+  const wache = await rechtFuerAction("strom.status_setzen");
   if ("fehler" in wache) return wache;
   return wechsleStatus(
     wache.email,
@@ -103,7 +103,7 @@ export async function stromVerwerfen(
   art: StromArt,
   id: string,
 ): Promise<AktionErgebnis> {
-  const wache = await schreibrechtFuerAction();
+  const wache = await rechtFuerAction("strom.verwerfen");
   if ("fehler" in wache) return wache;
   return wechsleStatus(wache.email, art, id, "verworfen", "Strom verworfen (statt gelöscht)");
 }

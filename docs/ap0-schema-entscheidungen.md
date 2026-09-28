@@ -620,6 +620,26 @@ drei Ansichten; die Beschriftung darf je Ansicht abweichen
 (`labelJeAnsicht`, `filterLabel`). Der Eintrag vom 25.09.2026, wonach die
 Jahrespillen diese Rolle in auswertung. übernehmen, ist damit aufgehoben.
 
+## 22. Rechte-Matrix als Daten (E42, AP2.1 PR a, 28.09.2026)
+
+Rollen, Rechte und Durchsetzung leben in **einem Modul** `apps/web/lib/rechte/`:
+`rollen.ts` (Rollen, Zugang, fail closed), `matrix.ts` (Typ `Aktion`, die
+Matrix `MATRIX` als Daten, `darf(nutzer, aktion, objekt?)`), `wache.ts`
+(serverseitige Durchsetzung: `verlange(aktion)`, `wacheFuerRoute(aktion)`,
+`rechtFuerAction(aktion)`; Lesen über `verlangeZugang()`/`zugangFuerRoute()`).
+Außerhalb des Moduls gibt es keine Rechte-Logik; die Oberfläche liest dieselbe
+Matrix nur zum Ausblenden. **Eine Aktion steht in der Matrix erst, wenn es
+ihren Schreibpfad gibt** (heute elf: strom.anlegen/bearbeiten/status_setzen/
+verwerfen, akteur.anlegen, materialart.anlegen, region.anlegen,
+projekt.starten, benutzer.anlegen/rolle_setzen/aktiv_setzen), eine Rolle
+kommt erst mit ihrer ersten Wirkung (pruefer folgt mit PR b). `darf()` ist
+fail closed: unbekannte Rolle, unbekannte Aktion, kein oder kein erlaubter
+Zugang ergeben false. Das Verhalten gegenüber E30 ist unverändert (bearbeiter
+erfasst, admin verwaltet zusätzlich); der Test hält jede Kombination Rolle ×
+Aktion ausdrücklich fest. Der CI-Wächter `scripts/rechte-check.ts`
+(vormals wache-abdeckung) verlangt in jedem Schreibpfad einen Wache-Aufruf
+mit einer Aktion, die die Matrix kennt — als Literal, sonst rot.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

@@ -111,6 +111,10 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
   `bearbeiter` erfasst und bearbeitet, `admin` verwaltet zusätzlich die
   Benutzer. Frühere Fassungen nannten vier Stufen mit „Bewerten"; das ist keine
   eigene Rolle, die Frage wird erst mit AP3 geprüft.
+- **Rechte sind Daten** (E42): `apps/web/lib/rechte/` hält Rollen, die
+  Aktions-Matrix und die Wache. Jeder Schreibpfad nennt seine Aktion und ruft
+  die Wache auf; `scripts/rechte-check.ts` erzwingt das in der CI. Eine Aktion
+  entsteht erst mit ihrem Schreibpfad, eine Rolle erst mit ihrer Wirkung.
 - **Fail closed**: Eine E-Mail ohne Eintrag in `benutzer` oder mit
   `aktiv = false` bekommt keinen Zugang — kein stilles Zurückfallen auf
   Lesezugriff. Jede Rechteprüfung sitzt serverseitig; die Oberfläche blendet

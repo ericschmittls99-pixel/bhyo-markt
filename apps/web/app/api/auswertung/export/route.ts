@@ -1,6 +1,6 @@
 import { erzeugeCsv, exportDateiname } from "@/lib/export-modell";
 import { ladeExport } from "@/lib/export-server";
-import { wacheFuerRoute } from "@/lib/wache";
+import { zugangFuerRoute } from "@/lib/rechte/wache";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +15,7 @@ export const dynamic = "force-dynamic";
 export async function GET(req: Request) {
   // F8/E30: auch Lesen laeuft ueber die Wache — eine unbekannte oder
   // deaktivierte Adresse darf keine Daten sehen (fail closed).
-  const wache = await wacheFuerRoute("lesen");
+  const wache = await zugangFuerRoute();
   if (!wache.ok) return wache.antwort;
   const roh: Record<string, string> = {};
   for (const [k, v] of new URL(req.url).searchParams.entries()) roh[k] = v;

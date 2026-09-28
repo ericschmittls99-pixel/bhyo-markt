@@ -3,14 +3,14 @@ import { akteur } from "@bhyo/db/schema";
 import { sektorAusEingabe } from "@/lib/akteur-anlage";
 import { withDb } from "@/lib/db";
 import { ladeSektoren, sucheAkteure } from "@/lib/register";
-import { wacheFuerRoute } from "@/lib/wache";
+import { wacheFuerRoute, zugangFuerRoute } from "@/lib/rechte/wache";
 
 export const dynamic = "force-dynamic";
 
 /** Live-Suche fuer die Akteur-Combobox. */
 export async function GET(req: Request) {
   // F8/E30: Lesen reicht hier — ein Betrachter muss Auswahllisten sehen.
-  const wache = await wacheFuerRoute("lesen");
+  const wache = await zugangFuerRoute();
   if (!wache.ok) return wache.antwort;
   const q = new URL(req.url).searchParams.get("q") ?? "";
   return Response.json({ akteure: await sucheAkteure(q) });
@@ -24,7 +24,7 @@ export async function GET(req: Request) {
  */
 export async function POST(req: Request) {
   // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
-  const wache = await wacheFuerRoute("schreiben");
+  const wache = await wacheFuerRoute("akteur.anlegen");
   if (!wache.ok) return wache.antwort;
   const body = (await req.json().catch(() => null)) as {
     name?: string;
