@@ -52,6 +52,25 @@ export const OSM_STYLE = {
 };
 
 /**
+ * Kachel-Anmutung als Raster-Paint statt CSS-Filter auf dem Canvas
+ * (Rueckmeldung 1, 28.09.2026): Der Canvas-Filter `grayscale(1) …` machte
+ * ALLES grau, auch die Regionsumrisse — eine farbige Linie war so unmoeglich.
+ * Die Kennlinie der F2-Varianten (hell V2, dunkel V1) ist hier rechnerisch
+ * nachgebildet: grayscale -> raster-saturation -1; contrast/brightness bzw.
+ * invert -> lineare Abbildung der Luminanz auf [brightness-min, brightness-max]
+ * (hell: 0 -> 0,11, 1 -> 0,99; dunkel: 0 -> 0,79, 1 -> 0,15, also invertiert).
+ * Vektor-Layer (Umrisse) bleiben davon unberuehrt.
+ */
+function rasterPaint(dunkel: boolean) {
+  return dunkel
+    ? { "raster-saturation": -1, "raster-brightness-min": 0.79, "raster-brightness-max": 0.15 }
+    : { "raster-saturation": -1, "raster-brightness-min": 0.11, "raster-brightness-max": 0.99 };
+}
+function istDunkel(): boolean {
+  return document.documentElement.dataset.theme === "dark";
+}
+
+/**
  * F2: Glas-Popover am Marker-Hover — ersetzt den nativen Browser-Tooltip
  * (unstyled, verzoegert, im Dark Mode systemfarben). Inhalt kommt aus der
  * reinen Funktion popoverZeilen; Sichtbarkeit steuert CSS (.km-pop).
@@ -163,6 +182,7 @@ export function KarteMap({
   );
   const labelsRef = useRef<MlMarker[]>([]);
   const regionTipRef = useRef<HTMLElement | null>(null);
+  const themeBeobachterRef = useRef<MutationObserver | null>(null);
   const [ready, setReady] = useState(false);
 
   const dragStart = useRef<{ x: number; y: number } | null>(null);
@@ -180,7 +200,10 @@ export function KarteMap({
       if (abgebrochen || !containerRef.current) return;
       map = new ml.Map({
         container: containerRef.current,
-        style: OSM_STYLE,
+        style: {
+          ...OSM_STYLE,
+          layers: OSM_STYLE.layers.map((l) => ({ ...l, paint: rasterPaint(istDunkel()) })),
+        },
         center: [9.2, 48.8],
         zoom: 7,
         attributionControl: { compact: true },
@@ -189,6 +212,14 @@ export function KarteMap({
         console.info("karte: maplibre load");
         setReady(true);
       });
+      // Themenwechsel (data-theme) -> Kachel-Anmutung nachziehen.
+      const themeBeobachter = new MutationObserver(() => {
+        const m = mapRef.current;
+        if (!m || !m.getLayer("osm")) return;
+        for (const [k, v] of Object.entries(rasterPaint(istDunkel()))) m.setPaintProperty("osm", k, v);
+      });
+      themeBeobachter.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      themeBeobachterRef.current = themeBeobachter;
       // Aggregation laeuft schon WAEHREND des Zoomens (rAF-gedrosselt) —
       // Pan aendert Pixel-Abstaende nicht, zoom schon.
       let rafId = 0;
@@ -235,6 +266,7 @@ export function KarteMap({
     })();
     return () => {
       abgebrochen = true;
+      themeBeobachterRef.current?.disconnect();
       map?.remove();
       mapRef.current = null;
       steuerungRef.current = null;
@@ -547,7 +579,6 @@ export function KarteMap({
         const el = document.createElement("button");
         el.type = "button";
         el.className = "km-region-anker";
-        el.setAttribute("aria-label", `Region ${r.name}, ${r.anzahl} Ströme — hineinzoomen`);
         // Hinter die Strom-Marker (Karten-Review 22.09.2026).
         el.style.zIndex = "1";
         el.append(machePopover(r.name, [`${r.anzahl} Ströme`]));
@@ -560,6 +591,8 @@ export function KarteMap({
             .setLngLat([(b.getWest() + b.getEast()) / 2, b.getNorth()])
             .addTo(map),
         );
+        // Nach addTo: MapLibre setzt sonst sein eigenes aria-label „Map marker".
+        el.setAttribute("aria-label", `Region ${r.name}, ${r.anzahl} Ströme — hineinzoomen`);
       }
     });
   }, [regionen, umrisseAn, ready, onRegionKlick]);

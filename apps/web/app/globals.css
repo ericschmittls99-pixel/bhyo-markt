@@ -3393,17 +3393,11 @@ table.st-tabelle tbody tr:focus-visible {
   width: 100%;
   height: 100%;
 }
-/* F2 (Eric, 23.09.2026): Kontrast gesenkt und Helligkeit leicht angehoben,
-   damit die feinen OSM-Details (Hoehenangaben, Hoehenpunkte, Ortsstrassen)
-   zuruecktreten, ohne dass die Karte unscharf wirkt. Gewaehlt aus je drei
-   Varianten: hell V2, dunkel V1. grayscale/invert/hue-rotate unveraendert. */
-.km-flaeche canvas {
-  filter: grayscale(1) contrast(0.8) brightness(1.1);
-}
-[data-theme="dark"] .km-flaeche canvas {
-  filter: grayscale(1) invert(0.92) hue-rotate(180deg) contrast(0.8)
-    brightness(0.94);
-}
+/* F2 (Eric, 23.09.2026): Kachel-Anmutung (grayscale, Kontrast gesenkt,
+   Helligkeit angehoben; dunkel invertiert) — seit Rueckmeldung 1 (28.09.2026)
+   nicht mehr als CSS-Filter auf dem Canvas, sondern als Raster-Paint der
+   OSM-Ebene in KarteMap.tsx (rasterPaint): der Canvas-Filter faerbte auch
+   die Regionsumrisse grau. */
 
 /* Marker: 1:1 Mockup — Orb-Bild (km-fill) 6 px im Glas-Halo, Zaehler-Pille,
    Stack-Parts fahren per is-open aus dem Zentrum auf den Bogen. */
