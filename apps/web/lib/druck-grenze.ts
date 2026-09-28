@@ -20,3 +20,12 @@ export function druckErlaubt(anzahl: number): boolean {
 export function druckHinweis(anzahl: number): string {
   return `Zu viele Ströme für den Druck: ${anzahl} Datenblätter, Obergrenze ${DRUCK_OBERGRENZE}. Bitte Filter setzen (Cluster, Landkreis, Verfügbarkeit …) oder die CSV nutzen — sie kennt keine Obergrenze.`;
 }
+
+/**
+ * Testschalter für den Lasttest: `?grenze=aus` hebt die Obergrenze auf —
+ * AUSSCHLIESSLICH auf der Preview (ENVIRONMENT = "preview"). Production kennt
+ * keinen Weg an der Grenze vorbei; ein 128-seitiger Ausdruck nützt niemandem.
+ */
+export function grenzeAusgesetzt(param: string | null | undefined, umgebung: string): boolean {
+  return umgebung === "preview" && param === "aus";
+}
