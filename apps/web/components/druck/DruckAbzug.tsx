@@ -11,6 +11,7 @@ import {
   zelleDruck,
   zellenWert,
 } from "@/lib/export-modell";
+import { druckErlaubt, druckHinweis } from "@/lib/druck-grenze";
 import { fmtGeldGross, fmtMenge } from "@/lib/format";
 import { potenzialEuroFeedstock, potenzialEuroOutput } from "@/lib/potenzial";
 import type { Strom } from "@/lib/stroeme-modell";
@@ -117,6 +118,13 @@ export function DruckAbzug({ rows, kontext }: { rows: Strom[]; kontext: ExportKo
 
       {rows.length === 0 ? (
         <p className="druck-leer">Kein Strom entspricht Suche und Filtern.</p>
+      ) : !druckErlaubt(rows.length) ? (
+        // Obergrenze (lib/druck-grenze.ts): kein Absturz des Workers, sondern
+        // ein Hinweis mit Zahl, Grenze und Ausweg. Kopf und Zusammenfassung
+        // oben bleiben, damit man sieht, was die Auswahl enthält.
+        <p className="druck-leer druck-grenze" role="status">
+          {druckHinweis(rows.length)}
+        </p>
       ) : (
         <ol className="druck-liste">
           {rows.map((s) => (

@@ -4806,3 +4806,10 @@ table.st-tabelle tbody tr:focus-visible {
     color: #000;
   }
 }
+.druck-grenze {
+  border: 1px solid var(--text-primary);
+  border-radius: 6px;
+  padding: 12px 14px;
+  color: var(--text-primary);
+  font-weight: 600;
+}
