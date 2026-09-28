@@ -20,6 +20,7 @@ import {
   fmtZahlungsstrom,
   fmtMonat,
   fmtZeitraum,
+  formatSpanne,
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
@@ -427,9 +428,15 @@ export function Detail({
                     <Kv
                       label="Korridor"
                       wert={
-                        s.preisMin != null || s.preisMax != null
-                          ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"} – ${s.preisMax != null ? fmtPreis(s.preisMax) : "–"} €/t`
-                          : "–"
+                        // Rueckmeldung 1: Spannen mit „bis" (formatSpanne); eine
+                        // offene Seite wird als „ab"/„bis" benannt statt mit Strich.
+                        s.preisMin != null && s.preisMax != null
+                          ? formatSpanne(s.preisMin, s.preisMax, "€/t")
+                          : s.preisMin != null
+                            ? `ab ${fmtPreis(s.preisMin)} €/t`
+                            : s.preisMax != null
+                              ? `bis ${fmtPreis(s.preisMax)} €/t`
+                              : "–"
                       }
                     />
                     <Kv

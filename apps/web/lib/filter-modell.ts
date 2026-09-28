@@ -459,6 +459,28 @@ export interface Leiste {
   zurueckgehalten: FilterDef[];
   /** Alle Parameter, die „Zurücksetzen" in dieser Ansicht leert. */
   ruecksetzParams: string[];
+  /**
+   * Felder des Popovers „Weitere Filter" (Bereiche, Monate, Datum,
+   * Zeitfenster) in Anzeigereihenfolge — siehe BEREICH_REIHENFOLGE. Vorher
+   * rechneten drei Seiten dieselbe Liste aus den Einträgen nach.
+   */
+  bereichParams: string[];
+}
+
+/**
+ * Reihenfolge im Popover „Weitere Filter" (Rückmeldung 1, Eric 28.09.2026):
+ * Zeile 1 „Verfügbar ab" | „Erstellt am", Zeile 2 „Vollständigkeit min/max".
+ * Alles Übrige folgt danach in der Reihenfolge des Modells. Das Popover ist
+ * zweispaltig; die Paare bleiben deshalb zusammen.
+ */
+export const BEREICH_REIHENFOLGE: readonly string[] = ["vonAb", "erstellt", "vollMin", "vollMax"];
+
+function bereichParamsVon(geltend: FilterDef[]): string[] {
+  const alle = geltend
+    .filter((f) => !["facette", "hierarchie", "text"].includes(f.typ))
+    .flatMap((f) => f.params);
+  const vorn = BEREICH_REIHENFOLGE.filter((p) => alle.includes(p));
+  return [...vorn, ...alle.filter((p) => !vorn.includes(p))];
 }
 
 /**
@@ -527,5 +549,6 @@ export function leiste(
       (f) => !gilt(f, ansicht, sicht) && istGesetzt(f, werte),
     ),
     ruecksetzParams: geltend.flatMap((f) => f.params),
+    bereichParams: bereichParamsVon(geltend),
   };
 }

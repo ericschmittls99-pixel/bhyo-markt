@@ -316,3 +316,28 @@ describe("Filter zurücksetzen leert jeden geltenden Filter vollständig", () =>
     }
   });
 });
+
+// Rückmeldung 1 (28.09.2026): Reihenfolge im Popover „Weitere Filter" —
+// Zeile 1 „Verfügbar ab" | „Erstellt am", Zeile 2 „Vollständigkeit min/max";
+// der Rest folgt in Modellreihenfolge. Eine Quelle für alle drei Seiten.
+describe("Popover Weitere Filter: Reihenfolge und Vollständigkeit", () => {
+  it("ströme./feedstock beginnt mit vonAb, erstellt, vollMin, vollMax", () => {
+    const l = leiste("stroeme", "feedstock", {});
+    expect(l.bereichParams.slice(0, 4)).toEqual(["vonAb", "erstellt", "vollMin", "vollMax"]);
+  });
+  it("enthält genau die Nicht-Facetten-Parameter der geltenden Filter, nichts doppelt", () => {
+    for (const ansicht of ["stroeme", "karte", "auswertung"] as const) {
+      for (const sicht of ["feedstock", "outputs"] as const) {
+        const erwartet = filterFuer(ansicht, sicht)
+          .filter((f) => !["facette", "hierarchie", "text"].includes(f.typ))
+          .flatMap((f) => f.params);
+        const ist = leiste(ansicht, sicht, {}).bereichParams;
+        expect([...ist].sort(), `${ansicht}/${sicht}`).toEqual([...erwartet].sort());
+        expect(new Set(ist).size).toBe(ist.length);
+      }
+    }
+  });
+  it("auswertung. (ohne Verfügbar ab) beginnt mit erstellt, vollMin, vollMax", () => {
+    expect(leiste("auswertung", "feedstock", {}).bereichParams.slice(0, 3)).toEqual(["erstellt", "vollMin", "vollMax"]);
+  });
+});

@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { usePopoverLage } from "@/components/usePopoverLage";
 import { type ExportModus, MODUS_SATZ } from "@/lib/export-modell";
 
 /**
@@ -9,20 +10,22 @@ import { type ExportModus, MODUS_SATZ } from "@/lib/export-modell";
  * der ein kleines Menü öffnet: oben die Wahl extern/intern (voreingestellt
  * extern — wer alles sehen will, muss es bewusst wählen), darunter die
  * Ausgaben. Der interne Modus trägt einen sichtbaren Hinweis. „Drucken"
- * führt zur Druck-Route (F6 PR B).
+ * führt zur Druck-Route (F6 PR B). Rückmeldung 1 (28.09.2026): überall nur
+ * das Icon mit aria-label/Tooltip „Exportieren" — eine Komponente, eine Form.
  */
 export function ExportMenue({
   exportParams,
-  kompakt,
+  className,
 }: {
   /** Filter-Parameter, Sicht und Ansicht — der Modus kommt aus dem Menü. */
   exportParams: URLSearchParams;
-  /** Nur Icon (Filterzeile) statt Icon + Text (Toolbar). */
-  kompakt?: boolean;
+  /** Zusätzliche Klasse am Anker (Platzierung in der jeweiligen Leiste). */
+  className?: string;
 }) {
   const [offen, setOffen] = useState(false);
   const [modus, setModus] = useState<ExportModus>("extern");
   const ref = useRef<HTMLDivElement>(null);
+  const lage = usePopoverLage(offen);
 
   useEffect(() => {
     if (!offen) return;
@@ -46,21 +49,20 @@ export function ExportMenue({
   const druckHref = `/auswertung/druck?${params}`;
 
   return (
-    <div className="pop-anchor" ref={ref}>
+    <div className={`pop-anchor${className ? ` ${className}` : ""}`} ref={ref}>
       <button
         type="button"
-        className={`btn btn--sm${kompakt ? " btn--icon" : " aw-export"}`}
+        className="btn btn--sm btn--icon"
         aria-haspopup="menu"
         aria-expanded={offen}
-        aria-label={kompakt ? "Export" : undefined}
-        title={kompakt ? "Export" : undefined}
+        aria-label="Exportieren"
+        title="Exportieren"
         onClick={() => setOffen((o) => !o)}
       >
         <i className="ph ph-download-simple" aria-hidden />
-        {!kompakt && "Export"}
       </button>
       {offen && (
-        <div role="menu" aria-label="Export" className="pop exp-pop">
+        <div role="menu" aria-label="Exportieren" className="pop exp-pop" ref={lage.popRef} style={lage.popStil}>
           <div className="exp-modus" role="radiogroup" aria-label="Modus">
             {(["extern", "intern"] as const).map((m) => (
               <label key={m} className={`exp-modus-opt${modus === m ? " aktiv" : ""}`}>

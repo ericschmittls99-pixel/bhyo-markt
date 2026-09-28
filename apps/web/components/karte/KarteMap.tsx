@@ -52,6 +52,25 @@ export const OSM_STYLE = {
 };
 
 /**
+ * Kachel-Anmutung als Raster-Paint statt CSS-Filter auf dem Canvas
+ * (Rueckmeldung 1, 28.09.2026): Der Canvas-Filter `grayscale(1) …` machte
+ * ALLES grau, auch die Regionsumrisse — eine farbige Linie war so unmoeglich.
+ * Die Kennlinie der F2-Varianten (hell V2, dunkel V1) ist hier rechnerisch
+ * nachgebildet: grayscale -> raster-saturation -1; contrast/brightness bzw.
+ * invert -> lineare Abbildung der Luminanz auf [brightness-min, brightness-max]
+ * (hell: 0 -> 0,11, 1 -> 0,99; dunkel: 0 -> 0,79, 1 -> 0,15, also invertiert).
+ * Vektor-Layer (Umrisse) bleiben davon unberuehrt.
+ */
+function rasterPaint(dunkel: boolean) {
+  return dunkel
+    ? { "raster-saturation": -1, "raster-brightness-min": 0.79, "raster-brightness-max": 0.15 }
+    : { "raster-saturation": -1, "raster-brightness-min": 0.11, "raster-brightness-max": 0.99 };
+}
+function istDunkel(): boolean {
+  return document.documentElement.dataset.theme === "dark";
+}
+
+/**
  * F2: Glas-Popover am Marker-Hover — ersetzt den nativen Browser-Tooltip
  * (unstyled, verzoegert, im Dark Mode systemfarben). Inhalt kommt aus der
  * reinen Funktion popoverZeilen; Sichtbarkeit steuert CSS (.km-pop).
@@ -162,6 +181,8 @@ export function KarteMap({
     new Map<string, { marker: MlMarker; orbEl: HTMLElement; typ: string; punktId?: string }>(),
   );
   const labelsRef = useRef<MlMarker[]>([]);
+  const regionTipRef = useRef<HTMLElement | null>(null);
+  const themeBeobachterRef = useRef<MutationObserver | null>(null);
   const [ready, setReady] = useState(false);
 
   const dragStart = useRef<{ x: number; y: number } | null>(null);
@@ -179,7 +200,10 @@ export function KarteMap({
       if (abgebrochen || !containerRef.current) return;
       map = new ml.Map({
         container: containerRef.current,
-        style: OSM_STYLE,
+        style: {
+          ...OSM_STYLE,
+          layers: OSM_STYLE.layers.map((l) => ({ ...l, paint: rasterPaint(istDunkel()) })),
+        },
         center: [9.2, 48.8],
         zoom: 7,
         attributionControl: { compact: true },
@@ -188,6 +212,14 @@ export function KarteMap({
         console.info("karte: maplibre load");
         setReady(true);
       });
+      // Themenwechsel (data-theme) -> Kachel-Anmutung nachziehen.
+      const themeBeobachter = new MutationObserver(() => {
+        const m = mapRef.current;
+        if (!m || !m.getLayer("osm")) return;
+        for (const [k, v] of Object.entries(rasterPaint(istDunkel()))) m.setPaintProperty("osm", k, v);
+      });
+      themeBeobachter.observe(document.documentElement, { attributes: true, attributeFilter: ["data-theme"] });
+      themeBeobachterRef.current = themeBeobachter;
       // Aggregation laeuft schon WAEHREND des Zoomens (rAF-gedrosselt) —
       // Pan aendert Pixel-Abstaende nicht, zoom schon.
       let rafId = 0;
@@ -234,6 +266,7 @@ export function KarteMap({
     })();
     return () => {
       abgebrochen = true;
+      themeBeobachterRef.current?.disconnect();
       map?.remove();
       mapRef.current = null;
       steuerungRef.current = null;
@@ -473,7 +506,7 @@ export function KarteMap({
         .map((r) => ({
           type: "Feature" as const,
           geometry: r.geojson as never,
-          properties: { id: r.id, name: r.name },
+          properties: { id: r.id, name: r.name, anzahl: r.anzahl },
         })),
     };
     const src = "km-regionen";
@@ -484,25 +517,59 @@ export function KarteMap({
       map.addSource(src, { type: "geojson", data: data as never });
       // Karten-Review 22.09.2026: Umrisse waren zu schwach — Fuellung und
       // Linie moderat angehoben (Region ist Datenmarkierung, kein Marker).
+      // Farbe aus den Tokens (--bhyo-lime-500), damit Karte und Oberflaeche
+      // dieselbe Quelle haben; LIME ist nur der Fallback ohne CSS.
+      const lime =
+        getComputedStyle(document.documentElement).getPropertyValue("--bhyo-lime-500").trim() || LIME;
       map.addLayer({
         id: "km-regionen-fill",
         type: "fill",
         source: src,
-        paint: { "fill-color": LIME, "fill-opacity": 0.09 },
+        paint: { "fill-color": lime, "fill-opacity": 0.09 },
       });
       map.addLayer({
         id: "km-regionen-line",
         type: "line",
         source: src,
-        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken) und eine
-        // praegnantere Linie — die Umrisse sollen die Flaeche fuehren, ohne
-        // mit den Markern zu konkurrieren.
+        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken); die
+        // Geometrie selbst bleibt exakt (region.gebiet, keine Vereinfachung).
+        // Rueckmeldung 1 (28.09.2026): Linie 1,5-fach (3 -> 4,5 px), damit
+        // die Umrisse die Flaeche fuehren, ohne mit den Markern zu konkurrieren.
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": LIME, "line-width": 3, "line-opacity": 1 },
+        paint: { "line-color": lime, "line-width": 4.5, "line-opacity": 1 },
+      });
+
+      // Rueckmeldung 1: kein Dauer-Label mehr. Der Regionsname erscheint als
+      // Glas-Popover (wie am Marker) beim Ueberfahren der Flaeche, auf Touch
+      // beim Antippen; per Tastatur ueber den fokussierbaren Anker (unten).
+      const tip = machePopover("", []);
+      tip.classList.add("km-region-tip");
+      // Beim Neuaufbau der Karte (Remount) bleibt sonst das alte Element im Container.
+      regionTipRef.current?.remove();
+      containerRef.current?.appendChild(tip);
+      regionTipRef.current = tip;
+      const zeige = (e: { point: { x: number; y: number }; features?: unknown[] }) => {
+        const f = e.features?.[0] as { properties?: { name?: string; anzahl?: number } } | undefined;
+        if (!f?.properties?.name) return;
+        tip.replaceChildren(
+          ...machePopover(f.properties.name, [`${f.properties.anzahl ?? 0} Ströme`]).childNodes,
+        );
+        tip.style.left = `${e.point.x}px`;
+        tip.style.top = `${e.point.y}px`;
+        tip.classList.add("is-open");
+      };
+      const verstecke = () => tip.classList.remove("is-open");
+      map.on("mousemove", "km-regionen-fill", zeige);
+      map.on("mouseleave", "km-regionen-fill", verstecke);
+      map.on("click", "km-regionen-fill", zeige);
+      map.on("click", (e) => {
+        if (!map.queryRenderedFeatures(e.point, { layers: ["km-regionen-fill"] }).length) verstecke();
       });
     }
 
-    // Glas-Label-Pillen am noerdlichsten Punkt jeder Region.
+    // Unauffaelliger, fokussierbarer Anker am noerdlichsten Punkt jeder
+    // Region (Tastatur: Fokus zeigt den Namen, Enter zoomt hinein). Ersetzt
+    // die Glas-Label-Pille (Rueckmeldung 1, 28.09.2026).
     void import("maplibre-gl").then((mod) => {
       const ml = mod.default;
       if (mapRef.current !== map) return;
@@ -513,10 +580,10 @@ export function KarteMap({
         if (!b) continue;
         const el = document.createElement("button");
         el.type = "button";
-        el.className = "km-region-label";
+        el.className = "km-region-anker";
         // Hinter die Strom-Marker (Karten-Review 22.09.2026).
         el.style.zIndex = "1";
-        el.innerHTML = `<span>${r.name}</span><em>${r.anzahl}</em>`;
+        el.append(machePopover(r.name, [`${r.anzahl} Ströme`]));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           onRegionKlick(r.id);
@@ -526,6 +593,8 @@ export function KarteMap({
             .setLngLat([(b.getWest() + b.getEast()) / 2, b.getNorth()])
             .addTo(map),
         );
+        // Nach addTo: MapLibre setzt sonst sein eigenes aria-label „Map marker".
+        el.setAttribute("aria-label", `Region ${r.name}, ${r.anzahl} Ströme — hineinzoomen`);
       }
     });
   }, [regionen, umrisseAn, ready, onRegionKlick]);

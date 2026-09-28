@@ -9,6 +9,7 @@ import {
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { ExportMenue } from "@/components/ExportMenue";
+import { usePopoverLage } from "@/components/usePopoverLage";
 import { FILTER_PARAMS, ruecksetzPatchAus } from "@/lib/filter-modell";
 import { updateUiCookie } from "@/lib/ui-state";
 
@@ -65,6 +66,7 @@ export function FilterSortZeile({
   const [schliessSignal, setSchliessSignal] = useState(0);
   const [zeilenBreite, setZeilenBreite] = useState(0);
   const zeileRef = useRef<HTMLDivElement>(null);
+  const sortLage = usePopoverLage(sortOffen);
 
   // Sortmenue schliessen bei Klick ausserhalb / Escape.
   useEffect(() => {
@@ -217,7 +219,13 @@ export function FilterSortZeile({
             )}
           </button>
           {sortOffen && (
-            <div role="menu" aria-label="Sortieren" className="pop" style={{ width: 240 }}>
+            <div
+              role="menu"
+              aria-label="Sortieren"
+              className="pop"
+              ref={sortLage.popRef}
+              style={{ width: 240, ...sortLage.popStil }}
+            >
               <div className="menu">
                 {sortOptionen.map(([k, label]) => (
                   <button
@@ -269,7 +277,7 @@ export function FilterSortZeile({
             geteilten Filter-Parameter wie in auswertung., mit Art des Tabs
             als sicht und dem Scope der Ansicht. Rechts vom Ansichts-Schalter,
             nur als Icon (Review Eric, 24.09.2026); E36: Menü mit Modus. */}
-        <ExportMenue exportParams={exportParams} kompakt />
+        <ExportMenue exportParams={exportParams} />
       </div>
     </div>
   );

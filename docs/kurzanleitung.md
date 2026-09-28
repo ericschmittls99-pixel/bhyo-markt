@@ -58,7 +58,7 @@ Preise, Vergaben, Vollständigkeit). Freitext findet auch Belegnummern
 
 ## 5. Exportieren
 
-Knopf **Export** (Toolbar auswertung.) bzw. Download-Icon (Filterzeile
+Das Download-Icon „Exportieren" (Toolbar auswertung. bzw. Filterzeile
 ströme.) öffnet ein Menü.
 
 - **Voreinstellung ist „extern"**: Belegangaben nicht freigegebener Belege
