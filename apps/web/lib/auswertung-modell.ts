@@ -9,7 +9,7 @@ import { energieKwh, preisEuroMwh, preisEuroT, STOFFLICHE_PRODUKTE } from "./ene
 import { jahresAnteil, type FensterKategorie } from "./fenster";
 import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
-import { anteileProzent, fmtDatum, fmtGeldGross, fmtMenge, fmtPreis } from "./format";
+import { anteileProzent, fmtDatum, fmtGeldGross, fmtMenge, fmtPreis, formatSpanne } from "./format";
 import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
@@ -715,7 +715,7 @@ function zuJahresBalken(
   const max = Math.max(1, ...werte);
   return {
     max,
-    skalaText: `0 – ${fmtMenge(max)} ${einheit}`,
+    skalaText: formatSpanne(0, max, einheit, fmtMenge),
     balken: achse.map((jahr, i) => ({
       jahr,
       wertText: fmtMenge(Math.round(werte[i]!)),

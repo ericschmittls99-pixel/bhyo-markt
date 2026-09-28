@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { usePopoverLage } from "@/components/usePopoverLage";
 import type { FacettenOption } from "@/lib/stroeme-modell";
 import { HierarchieBaum } from "@/components/stroeme/HierarchieBaum";
 import { leere, type Ebene, type Knoten } from "@/lib/hierarchie";
@@ -66,6 +67,10 @@ export function FacettenChips({
   const [facettenSuche, setFacettenSuche] = useState("");
   const [bereichOffen, setBereichOffen] = useState(false);
   const sucheRef = useRef<HTMLInputElement>(null);
+  // Rückmeldung 1: Popover nie über den rechten Rand — gemeinsame Lage für
+  // ströme., auswertung. und karte. (lib/popover-lage.ts).
+  const facettenLage = usePopoverLage(offeneFacette);
+  const bereichLage = usePopoverLage(bereichOffen);
 
   // Popover schliessen bei Klick ausserhalb / Escape / Parent-Signal.
   useEffect(() => {
@@ -183,7 +188,13 @@ export function FacettenChips({
               {h && h.anzahl > 1 && <span className="fchip-count">{h.anzahl}</span>}
             </button>
             {istOffen && h && (
-              <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 320 }}>
+              <div
+                role="dialog"
+                aria-label={f.label}
+                className="pop pop--links"
+                ref={facettenLage.popRef}
+                style={{ width: 320, ...facettenLage.popStil }}
+              >
                 {h.anzahl > 0 && (
                   <>
                     <button
@@ -216,7 +227,13 @@ export function FacettenChips({
               </div>
             )}
             {istOffen && !h && (
-              <div role="dialog" aria-label={f.label} className="pop pop--links" style={{ width: 280 }}>
+              <div
+                role="dialog"
+                aria-label={f.label}
+                className="pop pop--links"
+                ref={facettenLage.popRef}
+                style={{ width: 280, ...facettenLage.popStil }}
+              >
                 <div className="pop-suche">
                   <div className="search search--sm">
                     <i className="ph ph-magnifying-glass" aria-hidden />
@@ -268,7 +285,7 @@ export function FacettenChips({
         );
       })}
 
-      <div data-pop className="pop-anchor">
+      <div data-pop className="pop-anchor fc-weitere">
         <button
           type="button"
           className={`fchip${bereichAnzahl || bereichOffen ? " aktiv" : ""}`}
@@ -289,7 +306,8 @@ export function FacettenChips({
             role="dialog"
             aria-label="Weitere Filter"
             className="pop pop--links pop--form"
-            style={{ width: bereichKeys.length > 2 ? 400 : 320 }}
+            ref={bereichLage.popRef}
+            style={{ width: bereichKeys.length > 2 ? 400 : 320, ...bereichLage.popStil }}
           >
             {bereichKeys.map((k) => {
               const feld = bereichFeld(k);

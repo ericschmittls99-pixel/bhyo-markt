@@ -1113,7 +1113,7 @@ describe("E26 — Skalen und Bezugsgroessen", () => {
 
   it("Zeitreihe: die Skala beginnt bei 0 und nennt ihre Obergrenze", () => {
     const j = jahresBalken([f1, f2], 2026);
-    expect(j.skalaText).toMatch(/^0 – /);
+    expect(j.skalaText).toMatch(/^0 bis /);
     expect(Math.min(...j.balken.map((b) => b.pct))).toBeGreaterThanOrEqual(0);
     expect(Math.max(...j.balken.map((b) => b.pct))).toBe(100);
     // Ein Jahr ohne Menge zeigt keinen Stummel (Luecke 2027).

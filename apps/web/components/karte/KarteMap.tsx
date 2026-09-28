@@ -162,6 +162,7 @@ export function KarteMap({
     new Map<string, { marker: MlMarker; orbEl: HTMLElement; typ: string; punktId?: string }>(),
   );
   const labelsRef = useRef<MlMarker[]>([]);
+  const regionTipRef = useRef<HTMLElement | null>(null);
   const [ready, setReady] = useState(false);
 
   const dragStart = useRef<{ x: number; y: number } | null>(null);
@@ -473,7 +474,7 @@ export function KarteMap({
         .map((r) => ({
           type: "Feature" as const,
           geometry: r.geojson as never,
-          properties: { id: r.id, name: r.name },
+          properties: { id: r.id, name: r.name, anzahl: r.anzahl },
         })),
     };
     const src = "km-regionen";
@@ -484,25 +485,57 @@ export function KarteMap({
       map.addSource(src, { type: "geojson", data: data as never });
       // Karten-Review 22.09.2026: Umrisse waren zu schwach — Fuellung und
       // Linie moderat angehoben (Region ist Datenmarkierung, kein Marker).
+      // Farbe aus den Tokens (--bhyo-lime-500), damit Karte und Oberflaeche
+      // dieselbe Quelle haben; LIME ist nur der Fallback ohne CSS.
+      const lime =
+        getComputedStyle(document.documentElement).getPropertyValue("--bhyo-lime-500").trim() || LIME;
       map.addLayer({
         id: "km-regionen-fill",
         type: "fill",
         source: src,
-        paint: { "fill-color": LIME, "fill-opacity": 0.09 },
+        paint: { "fill-color": lime, "fill-opacity": 0.09 },
       });
       map.addLayer({
         id: "km-regionen-line",
         type: "line",
         source: src,
-        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken) und eine
-        // praegnantere Linie — die Umrisse sollen die Flaeche fuehren, ohne
-        // mit den Markern zu konkurrieren.
+        // F2: rundere Regionen (weiche Ecken statt spitzer Zacken); die
+        // Geometrie selbst bleibt exakt (region.gebiet, keine Vereinfachung).
+        // Rueckmeldung 1 (28.09.2026): Linie 1,5-fach (3 -> 4,5 px), damit
+        // die Umrisse die Flaeche fuehren, ohne mit den Markern zu konkurrieren.
         layout: { "line-join": "round", "line-cap": "round" },
-        paint: { "line-color": LIME, "line-width": 3, "line-opacity": 1 },
+        paint: { "line-color": lime, "line-width": 4.5, "line-opacity": 1 },
+      });
+
+      // Rueckmeldung 1: kein Dauer-Label mehr. Der Regionsname erscheint als
+      // Glas-Popover (wie am Marker) beim Ueberfahren der Flaeche, auf Touch
+      // beim Antippen; per Tastatur ueber den fokussierbaren Anker (unten).
+      const tip = machePopover("", []);
+      tip.classList.add("km-region-tip");
+      containerRef.current?.appendChild(tip);
+      regionTipRef.current = tip;
+      const zeige = (e: { point: { x: number; y: number }; features?: unknown[] }) => {
+        const f = e.features?.[0] as { properties?: { name?: string; anzahl?: number } } | undefined;
+        if (!f?.properties?.name) return;
+        tip.replaceChildren(
+          ...machePopover(f.properties.name, [`${f.properties.anzahl ?? 0} Ströme`]).childNodes,
+        );
+        tip.style.left = `${e.point.x}px`;
+        tip.style.top = `${e.point.y}px`;
+        tip.classList.add("is-open");
+      };
+      const verstecke = () => tip.classList.remove("is-open");
+      map.on("mousemove", "km-regionen-fill", zeige);
+      map.on("mouseleave", "km-regionen-fill", verstecke);
+      map.on("click", "km-regionen-fill", zeige);
+      map.on("click", (e) => {
+        if (!map.queryRenderedFeatures(e.point, { layers: ["km-regionen-fill"] }).length) verstecke();
       });
     }
 
-    // Glas-Label-Pillen am noerdlichsten Punkt jeder Region.
+    // Unauffaelliger, fokussierbarer Anker am noerdlichsten Punkt jeder
+    // Region (Tastatur: Fokus zeigt den Namen, Enter zoomt hinein). Ersetzt
+    // die Glas-Label-Pille (Rueckmeldung 1, 28.09.2026).
     void import("maplibre-gl").then((mod) => {
       const ml = mod.default;
       if (mapRef.current !== map) return;
@@ -513,10 +546,11 @@ export function KarteMap({
         if (!b) continue;
         const el = document.createElement("button");
         el.type = "button";
-        el.className = "km-region-label";
+        el.className = "km-region-anker";
+        el.setAttribute("aria-label", `Region ${r.name}, ${r.anzahl} Ströme — hineinzoomen`);
         // Hinter die Strom-Marker (Karten-Review 22.09.2026).
         el.style.zIndex = "1";
-        el.innerHTML = `<span>${r.name}</span><em>${r.anzahl}</em>`;
+        el.append(machePopover(r.name, [`${r.anzahl} Ströme`]));
         el.addEventListener("click", (e) => {
           e.stopPropagation();
           onRegionKlick(r.id);

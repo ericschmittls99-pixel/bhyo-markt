@@ -198,10 +198,7 @@ export async function RegisterInhalt({
         auswahl={auswahl}
         bereich={bereich}
         ruecksetzParams={lst.ruecksetzParams}
-        bereichKeys={lst.haupt
-          .concat(lst.weitere)
-          .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
-          .flatMap((e) => e.def.params)}
+        bereichKeys={lst.bereichParams}
         zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
         hinweise={nichtBeruecksichtigt.map(nichtBeruecksichtigtText)}
         sortKey={sortKey}

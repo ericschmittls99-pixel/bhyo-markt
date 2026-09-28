@@ -133,6 +133,27 @@ export function fmtDatum(iso: string | null): string {
   return iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "–";
 }
 
+/**
+ * Wertspanne in der Anzeige (Rueckmeldung 1, 28.09.2026): „-54 bis -32 €/t".
+ * Das Wort „bis" statt eines Strichs, weil der Halbgeviertstrich neben
+ * negativen Preisen (E14: Annahmeentgelt) wie ein Minus liest. Gilt fuer
+ * alle Wertspannen der Oberflaeche (Beleg, Strom-Detail, Preisband,
+ * Tooltips); der Export fuehrt min und max weiter in eigenen Spalten.
+ * min = max ergibt einen einzelnen Wert. Formatiert wird je Wert mit der
+ * uebergebenen Groessenart-Funktion (E20), voreingestellt fmtPreis.
+ */
+export function formatSpanne(
+  min: number,
+  max: number,
+  einheit: string,
+  fmt: (n: number) => string = fmtPreis,
+): string {
+  const a = fmt(min);
+  const b = fmt(max);
+  const zahl = a === b ? a : `${a} bis ${b}`;
+  return einheit ? `${zahl} ${einheit}` : zahl;
+}
+
 /** Verfuegbarkeitszeitraum MM/JJJJ – MM/JJJJ. */
 export function fmtZeitraum(von: string | null, bis: string | null): string {
   return `${fmtMonat(von)} – ${fmtMonat(bis)}`;

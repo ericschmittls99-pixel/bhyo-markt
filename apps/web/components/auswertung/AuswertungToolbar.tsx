@@ -127,7 +127,7 @@ export function AuswertungToolbar({
       )}
 
       {/* E36: ein Export-Knopf mit Menü (Modus extern/intern, Ausgaben). */}
-      <ExportMenue exportParams={exportParams} />
+      <ExportMenue exportParams={exportParams} className="aw-export" />
     </div>
   );
 }

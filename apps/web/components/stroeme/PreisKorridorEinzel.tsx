@@ -1,4 +1,4 @@
-import { fmtPreis } from "@/lib/format";
+import { fmtPreis, formatSpanne } from "@/lib/format";
 import type { PreisKorridorEinzel as Korridor } from "@/lib/preiskorridor-einzel";
 
 /**
@@ -53,7 +53,7 @@ export function PreisKorridorEinzel({ k }: { k: Korridor }) {
             <span className="pk-sym pk-sym--band" aria-hidden /> {k.gruppe}
           </dt>
           <dd>
-            {fmtPreis(k.band.min)} – {fmtPreis(k.band.max)}, Mittel {fmtPreis(k.band.mittel)} {k.einheit} · {k.band.n} Vergleichswerte
+            {formatSpanne(k.band.min, k.band.max, "")}, Mittel {fmtPreis(k.band.mittel)} {k.einheit} · {k.band.n} Vergleichswerte
             {k.band.zusatz ? ` ${k.band.zusatz}` : ""}
           </dd>
         </div>
@@ -64,7 +64,7 @@ export function PreisKorridorEinzel({ k }: { k: Korridor }) {
             </dt>
             <dd>
               {k.art === "biomasse"
-                ? `${fmtPreis(k.eigen.min)} – ${fmtPreis(k.eigen.max)}, Mittel ${fmtPreis(k.eigen.mittel)} ${k.einheit}`
+                ? `${formatSpanne(k.eigen.min, k.eigen.max, "")}, Mittel ${fmtPreis(k.eigen.mittel)} ${k.einheit}`
                 : `${fmtPreis(k.eigen.mittel)} ${k.einheit}`}
             </dd>
           </div>

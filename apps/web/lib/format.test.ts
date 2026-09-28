@@ -8,6 +8,7 @@ import {
   fmtPreis,
   fmtQuote,
   fmtZahlungsstrom,
+  formatSpanne,
   rundeAnteile100,
 } from "./format";
 
@@ -80,5 +81,29 @@ describe("rundeAnteile100 (Largest Remainder)", () => {
     expect(ganz.reduce((a, b) => a + b, 0)).toBe(100);
     expect(Math.max(...ganz)).toBe(9);
     expect(Math.min(...ganz)).toBe(8);
+  });
+});
+
+// Rueckmeldung 1 (28.09.2026): Wertspannen mit „bis" statt Strich — neben
+// negativen Preisen liest ein Halbgeviertstrich wie ein Minus.
+describe("formatSpanne", () => {
+  it("negative Werte: -54 bis -32 €/t", () => {
+    expect(formatSpanne(-54, -32, "€/t")).toBe("-54 bis -32 €/t");
+  });
+  it("gemischte Vorzeichen: -10 bis 5", () => {
+    expect(formatSpanne(-10, 5, "€/t")).toBe("-10 bis 5 €/t");
+  });
+  it("min = max: nur ein Wert", () => {
+    expect(formatSpanne(78, 78, "€/t")).toBe("78 €/t");
+  });
+  it("min = max erst nach Rundung: ebenfalls ein Wert", () => {
+    expect(formatSpanne(77.6, 78.4, "€/t")).toBe("78 €/t");
+  });
+  it("ohne Einheit und mit anderer Groessenart (Mengen)", () => {
+    expect(formatSpanne(0, 1850, "t/a", fmtMenge)).toBe("0 bis 1.850 t/a");
+    expect(formatSpanne(-3, 4, "")).toBe("-3 bis 4");
+  });
+  it("kein Halbgeviertstrich in der Ausgabe", () => {
+    expect(formatSpanne(-54, -32, "€/t")).not.toContain("–");
   });
 });

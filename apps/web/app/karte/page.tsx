@@ -173,9 +173,7 @@ export default async function KartePage({
       hierarchie: hierarchien[e.def.key],
     }));
   const { auswahl, bereich, irgendeinFilter } = lst;
-  const bereichKeys = [...lst.haupt, ...lst.weitere]
-    .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
-    .flatMap((e) => e.def.params);
+  const bereichKeys = lst.bereichParams;
 
   // Marker-Klick oeffnet DASSELBE Detail wie stroeme. (Spec-Anpassung Eric):
   // vollen Strom + Historie laden; nicht im Pool (Filter/500er-Limit) →

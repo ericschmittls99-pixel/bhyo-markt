@@ -179,9 +179,7 @@ export default async function AuswertungPage({
       hierarchie: hierarchien[e.def.key],
     }));
   const { auswahl, bereich, irgendeinFilter } = lst;
-  const bereichKeys = [...lst.haupt, ...lst.weitere]
-    .filter((e) => !["facette", "hierarchie", "text"].includes(e.def.typ))
-    .flatMap((e) => e.def.params);
+  const bereichKeys = lst.bereichParams;
 
   // Detail wie karte. (eine Detailansicht, zwei Einstiegspunkte): Strom nicht
   // im Pool (Filter/500er-Limit) -> gezielt nachladen, Art unbekannt.
