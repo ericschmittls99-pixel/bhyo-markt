@@ -31,7 +31,7 @@ jobs:
   # und macht den Grund im Log sichtbar. Sie ersetzt die Policy nicht, sie
   # erklaert sie und haelt sie im Repo fest.
   ziel-wache:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
     steps:
@@ -47,7 +47,7 @@ jobs:
 
   migrate:
     needs: [ziel-wache]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     # Environment "production" traegt das Secret DATABASE_URL_PRODUCTION und
     # ist auf den Branch main beschraenkt.
     environment: production
@@ -61,11 +61,11 @@ jobs:
           echo '::error::Abbruch: Das Eingabefeld "bestaetigung" muss woertlich "production" lauten.'
           exit 1
 
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -114,7 +114,7 @@ jobs:
           test -f altfelder-archiv.json || { echo '::error::Archivdatei fehlt — kein DROP.'; exit 1; }
 
       - name: Altfelder-Archiv hochladen
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: altfelder-archiv-production
           path: packages/db/altfelder-archiv.json
