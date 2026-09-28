@@ -31,9 +31,14 @@ async function main() {
     select count(*)::int as benutzer,
            count(*) filter (where rolle = 'admin' and aktiv)::int as aktive_admins,
            count(*) filter (where email <> lower(email))::int as falsche_schreibweise,
-           count(*) filter (where not aktiv)::int as inaktive
+           count(*) filter (where not aktiv)::int as inaktive,
+           count(*) filter (where id is null)::int as ohne_id,
+           count(distinct id)::int as ids
     from benutzer`;
   console.log("BENUTZER " + JSON.stringify(z));
+  // AP2.1 PR b0: jede Zeile traegt eine eindeutige ID (Migration 0024).
+  if (z!.ohne_id > 0) fehler.push(`${z!.ohne_id} Benutzer ohne id`);
+  if (z!.ids !== z!.benutzer) fehler.push("benutzer.id nicht eindeutig");
   if (z!.aktive_admins < 1) fehler.push("kein aktiver Admin — Zugang waere gesperrt");
   if (z!.falsche_schreibweise > 0) {
     fehler.push(`${z!.falsche_schreibweise} E-Mail(s) nicht in Kleinschreibung`);

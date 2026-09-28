@@ -32,7 +32,7 @@ export function normalisiereEmail(roh: string): string {
 
 /** Zustand eines Zugangs — jeder Fall benannt, keiner implizit. */
 export type Zugang =
-  | { art: "erlaubt"; email: string; rolle: Rolle; name: string | null }
+  | { art: "erlaubt"; id: string; email: string; rolle: Rolle; name: string | null }
   | { art: "nicht_angemeldet" }
   | { art: "unbekannt"; email: string }
   | { art: "deaktiviert"; email: string };
@@ -44,11 +44,13 @@ export type Zugang =
  */
 export function bestimmeZugang(
   email: string | null,
-  eintrag: { rolle: Rolle; aktiv: boolean; name: string | null } | null,
+  eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null } | null,
 ): Zugang {
   if (!email) return { art: "nicht_angemeldet" };
   const norm = normalisiereEmail(email);
   if (!eintrag) return { art: "unbekannt", email: norm };
   if (!eintrag.aktiv) return { art: "deaktiviert", email: norm };
-  return { art: "erlaubt", email: norm, rolle: eintrag.rolle, name: eintrag.name };
+  // AP2.1 PR b0: Die stabile Nutzer-ID reist im Zugang mit — fuer Sperren
+  // und Zuweisungen (PR b). Entschieden wird weiter ueber die Rolle.
+  return { art: "erlaubt", id: eintrag.id, email: norm, rolle: eintrag.rolle, name: eintrag.name };
 }

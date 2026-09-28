@@ -42,7 +42,7 @@ export async function aktuellerZugang(): Promise<Zugang> {
 
   const eintrag = await withDb(async (db) => {
     const [z] = await db
-      .select({ rolle: benutzer.rolle, aktiv: benutzer.aktiv, name: benutzer.name })
+      .select({ id: benutzer.id, rolle: benutzer.rolle, aktiv: benutzer.aktiv, name: benutzer.name })
       .from(benutzer)
       .where(eq(benutzer.email, email))
       .limit(1);

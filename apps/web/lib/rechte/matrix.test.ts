@@ -34,7 +34,7 @@ describe("E42 Rechte-Matrix", () => {
     for (const rolle of ROLLEN) {
       it(`${rolle} × ${aktion} = ${ERWARTUNG[aktion][rolle]}`, () => {
         expect(darf({ rolle }, aktion)).toBe(ERWARTUNG[aktion][rolle]);
-        expect(darf({ art: "erlaubt", email: "x@bhyo.de", rolle, name: null }, aktion)).toBe(
+        expect(darf({ art: "erlaubt", id: "00000000-0000-4000-8000-000000000001", email: "x@bhyo.de", rolle, name: null }, aktion)).toBe(
           ERWARTUNG[aktion][rolle],
         );
       });

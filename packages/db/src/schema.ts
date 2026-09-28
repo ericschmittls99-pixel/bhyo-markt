@@ -650,6 +650,10 @@ export const benutzer = pgTable(
   "benutzer",
   {
     email: text("email").primaryKey(),
+    // AP2.1 PR b0: stabile Nutzer-ID fuer neue Referenzen (Sperren,
+    // Zuweisungen ab PR b). Der PK bleibt die E-Mail; bestehende Referenzen
+    // (aenderung.benutzer_email) bleiben unangetastet. Expand nach E21.
+    id: uuid("id").notNull().defaultRandom().unique(),
     rolle: benutzerRolle("rolle").notNull(),
     name: text("name"),
     aktiv: boolean("aktiv").notNull().default(true),

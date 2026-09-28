@@ -16,7 +16,7 @@ import type { Rolle } from "./rollen";
 
 /** Von Test zu Test umgestellt: Wer ist angemeldet, und was steht in `benutzer`? */
 let angemeldet: string | null = null;
-let eintrag: { rolle: Rolle; aktiv: boolean; name: string | null } | null = null;
+let eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null } | null = null;
 /** Was die Admin-Suche (adminKontakt) findet — unabhaengig vom Angemeldeten. */
 let aktiverAdmin: { email: string } | null = null;
 /** Zählt DB-Zugriffe jenseits der Rollenabfrage — muss bei Abweisung 0 bleiben. */
@@ -62,7 +62,7 @@ const verlangeVerwaltungsrecht = () => verlange("benutzer.rolle_setzen");
 
 function alsBenutzer(email: string, rolle: Rolle, aktiv = true) {
   angemeldet = email;
-  eintrag = { rolle, aktiv, name: null };
+  eintrag = { id: "00000000-0000-4000-8000-000000000001", rolle, aktiv, name: null };
 }
 
 beforeEach(() => {
@@ -142,7 +142,7 @@ describe("Fail closed", () => {
   it("Großschreibung in der Access-Adresse sperrt niemanden aus", async () => {
     // Access liefert die Adresse nicht garantiert klein; die Wache normalisiert.
     angemeldet = "Bearbeiter@BHYO.de";
-    eintrag = { rolle: "bearbeiter", aktiv: true, name: null };
+    eintrag = { id: "00000000-0000-4000-8000-000000000002", rolle: "bearbeiter", aktiv: true, name: null };
     await expect(verlangeSchreibrecht()).resolves.toMatchObject({
       email: "bearbeiter@bhyo.de",
     });
