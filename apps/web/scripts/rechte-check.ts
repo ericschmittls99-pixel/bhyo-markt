@@ -14,7 +14,7 @@
  * und wuerde neue Pfade genau dann verpassen, wenn niemand an ihn denkt.
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { join, relative, sep } from "node:path";
 
 const WURZEL = process.cwd();
 
@@ -91,8 +91,11 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     return null;
   };
 
-  // 1. Server-Actions: jede exportierte async-Funktion in einer "use server"-Datei.
-  for (const datei of dateien(join(wurzel, "lib"))) {
+  // 1. Server-Actions: jede exportierte async-Funktion in einer "use server"-
+  //    Datei — im GANZEN Baum (lib, app, components), nicht nur in lib/:
+  //    eine Action ist ueberall ein Endpunkt (Sicherheitsmessung AP2.1).
+  for (const datei of dateien(wurzel)) {
+    if (datei.includes(`${sep}scripts${sep}`)) continue;
     const quelle = readFileSync(datei, "utf8");
     if (!/^["']use server["'];/m.test(quelle)) continue;
     for (const m of quelle.matchAll(/^export async function (\w+)/gm)) {

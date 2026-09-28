@@ -169,6 +169,13 @@
       "when": 1790584053924,
       "tag": "0023_qualitaetsstufe_search_path",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1790610989350,
+      "tag": "0024_ap2_benutzer_id",
+      "breakpoints": true
     }
   ]
 }
