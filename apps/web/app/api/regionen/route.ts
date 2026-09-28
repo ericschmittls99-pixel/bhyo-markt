@@ -18,7 +18,8 @@ function normBbox(bbox: unknown): [number, number, number, number] | null {
 /** Weg 1: Fokusregion aus gezeichnetem Rechteck sofort anlegen. */
 export async function POST(req: Request) {
   // F8/E30: Schreibrecht ueber die zentrale Wache, nicht "irgendwie angemeldet".
-  // PROBE (rechte-check rot zeigen): Wache absichtlich entfernt.
+  const wache = await wacheFuerRoute("region.anlegen");
+  if (!wache.ok) return wache.antwort;
   const body = (await req.json().catch(() => null)) as {
     name?: string;
     bbox?: unknown;
