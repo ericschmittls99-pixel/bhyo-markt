@@ -78,6 +78,8 @@ jobs:
           echo "DUMP $NEUESTER"
           aws s3 cp "s3://$R2_BUCKET/$NEUESTER" ./backup.dump --endpoint-url "$R2_ENDPOINT"
           ls -lh backup.dump
+          PROTOKOLL="${NEUESTER%.dump}.zaehlung.json"
+          aws s3 cp "s3://$R2_BUCKET/$PROTOKOLL" ./zaehlung.json --endpoint-url "$R2_ENDPOINT" || echo "::warning::Kein Zaehlprotokoll $PROTOKOLL im Bucket."
           # Kein "| head": unter pipefail bricht das SIGPIPE den Schritt ab (Lauf 36396504811).
           pg_restore --list backup.dump | sed -n 1,5p
 
@@ -102,8 +104,8 @@ jobs:
           TARGET_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
         run: ./scripts/restore-test.sh ./backup.dump
 
-      - name: Zaehlung je Tabelle gegen Production (lesend)
+      - name: Zaehlung je Tabelle gegen das Zaehlprotokoll des Dumps
         env:
           RESTORE_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+          ZAEHLPROTOKOLL: ${{ github.workspace }}/zaehlung.json
         run: pnpm --filter @bhyo/db restore-zaehlung
