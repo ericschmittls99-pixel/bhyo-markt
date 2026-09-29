@@ -767,9 +767,12 @@ Eintrag nach erledigt, CHECK genau ein Strom).
 Inbox gehört der Person), Objektregel „nur Empfänger" (`empfaenger_id =
 nutzer.id`, auch admin nicht fremde) mit Zeilensperre in der Transaktion
 (`pruefeInboxEmpfaenger`). Fremde und unbekannte Einträge werden gleich
-abgewiesen. **Benannte Ausnahme im protokoll-check:** die Inbox-Aktionen
-protokollieren nicht — der Lese-/Erledigt-Zustand der eigenen Einträge ist
-kein fachliches Ereignis.
+abgewiesen. **Benannte Ausnahme im protokoll-check** (Entscheidung Eric,
+29.09.2026): die fünf Inbox-Aktionen protokollieren nicht — der Lese-/
+Erledigt-Zustand der eigenen Einträge ist ein persönlicher Arbeitsstand,
+kein fachliches Ereignis. Jede Aktion steht namentlich in der Ausnahmeliste
+(kein Platzhalter für Datei oder Ordner); eine neue Inbox-Aktion fällt
+automatisch unter die Prüfung, bis sie ausdrücklich eingetragen ist.
 
 **Bedienung:** Kopfzeile nach dem E39-Muster (Segment „Offen | Erledigt",
 Erledigt zeigt auch Verworfene mit Pille, rechts „Alle erledigt" für reine

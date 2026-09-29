@@ -20,6 +20,22 @@ import { dateien, schreibpfade, type Lücke } from "./schreibpfade";
 
 const WURZEL = process.cwd();
 
+/**
+ * Benannte Ausnahmen — jede einzeln, ohne Platzhalter fuer Datei oder
+ * Ordner (Entscheidung Eric, 29.09.2026): Die fuenf Inbox-Aktionen aendern
+ * nur den Lese-/Erledigt-Zustand der EIGENEN Eintraege — ein persoenlicher
+ * Arbeitsstand, kein fachliches Ereignis, deshalb kein Protokoll. Eine neue
+ * Inbox-Aktion faellt automatisch unter die Pruefung, bis sie hier
+ * ausdruecklich eingetragen ist.
+ */
+export const AUSNAHMEN: ReadonlySet<string> = new Set([
+  "lib/inbox/actions.ts · inboxGelesen()",
+  "lib/inbox/actions.ts · inboxUngelesen()",
+  "lib/inbox/actions.ts · inboxErledigen()",
+  "lib/inbox/actions.ts · inboxVerwerfen()",
+  "lib/inbox/actions.ts · inboxAlleErledigen()",
+]);
+
 /** Die Arten des Enums, aus packages/db/src/schema.ts SELBST gelesen. */
 function ereignisArten(wurzel: string): Set<string> {
   const quelle = readFileSync(join(wurzel, "..", "..", "packages", "db", "src", "schema.ts"), "utf8");
@@ -48,11 +64,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
   // (b) Jeder Schreibpfad protokolliert mit einer Art.
   const arten = ereignisArten(wurzel);
   for (const pfad of schreibpfade(wurzel)) {
-    // Benannte Ausnahme (AP2.2 PR b): Die Inbox-Aktionen aendern nur den
-    // Lese-/Erledigt-Zustand der EIGENEN Eintraege — kein fachliches
-    // Ereignis, deshalb kein Protokoll. Andere Pfade in lib/inbox gibt es
-    // nicht (die Zustellung ist ein Baustein von protokolliere).
-    if (pfad.datei === join("lib", "inbox", "actions.ts")) continue;
+    if (AUSNAHMEN.has(`${pfad.datei} · ${pfad.pfad}`)) continue;
     const text = pfad.mitImporten;
     if (!/\bprotokolliere\s*\(/.test(text)) {
       luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: kein Aufruf von protokolliere()` });
@@ -69,7 +81,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
 if (process.argv[1]?.endsWith("protokoll-check.ts")) {
   const luecken = findeLuecken();
   if (luecken.length === 0) {
-    console.log("protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert (benannte Ausnahme: lib/inbox/actions.ts, Inbox-Zustand ist kein Ereignis).");
+    console.log(`protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert; benannte Ausnahmen (${AUSNAHMEN.size}): ${[...AUSNAHMEN].join(", ")}.`);
   } else {
     for (const l of luecken) console.error(`::error file=${l.datei}::${l.pfad} — ${l.grund}`);
     process.exit(1);
