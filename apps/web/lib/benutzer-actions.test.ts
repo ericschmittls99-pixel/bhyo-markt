@@ -19,6 +19,8 @@ let eintrag: { rolle: Rolle; aktiv: boolean; name: string | null } | null = null
 let tabelle: { email: string; rolle: Rolle; aktiv: boolean }[] = [];
 /** Jede echte Schreiboperation landet hier; bei Ablehnung muss sie leer sein. */
 let schreibvorgaenge: string[] = [];
+/** Wirft die Attrappe beim INSERT diesen Fehler? (Datenbank-Constraint schlaegt zu.) */
+let insertFehler: unknown = null;
 
 function fakeDb() {
   const db: Record<string, unknown> = {
@@ -41,6 +43,7 @@ function fakeDb() {
     }),
     insert: () => ({
       values: async (werte: unknown) => {
+        if (insertFehler) throw insertFehler;
         schreibvorgaenge.push(`insert ${JSON.stringify(werte)}`);
       },
     }),
@@ -70,6 +73,7 @@ beforeEach(() => {
   eintrag = null;
   tabelle = [];
   schreibvorgaenge = [];
+  insertFehler = null;
 });
 
 describe("Der letzte aktive Admin kann sich nicht aussperren", () => {
@@ -129,6 +133,36 @@ describe("Anlegen", () => {
     const ergebnis = await benutzerAnlegen({ ok: false }, formular(ERIC, "bearbeiter"));
     expect(ergebnis.ok).toBe(false);
     expect(schreibvorgaenge).toEqual([]);
+  });
+
+  // Production-Fehler 29.09.2026: Die Vorpruefung las (ueber den Hyperdrive-
+  // Abfrage-Cache) einen veralteten Stand, das INSERT lief in den Primaer-
+  // schluessel — SQLSTATE 23505 kam ungefangen als 500 beim Nutzer an. Die
+  // DB-Constraint ist die Wahrheit; die Aktion muss ihre Antwort verstehen.
+  it("fängt die Unique-Verletzung der Datenbank ab und meldet sie klar", async () => {
+    alsAdmin();
+    insertFehler = Object.assign(new Error("duplicate key value"), { code: "23505" });
+    const ergebnis = await benutzerAnlegen({ ok: false }, formular("neu@bhyo.de", "bearbeiter"));
+    expect(ergebnis.ok).toBe(false);
+    expect(ergebnis.fehler).toMatch(/bereits eingetragen/);
+  });
+
+  it("erkennt die Unique-Verletzung auch eingepackt (DrizzleQueryError → cause)", async () => {
+    alsAdmin();
+    insertFehler = Object.assign(new Error("Failed query"), {
+      cause: Object.assign(new Error("duplicate key value"), { code: "23505" }),
+    });
+    const ergebnis = await benutzerAnlegen({ ok: false }, formular("neu@bhyo.de", "bearbeiter"));
+    expect(ergebnis.ok).toBe(false);
+    expect(ergebnis.fehler).toMatch(/bereits eingetragen/);
+  });
+
+  it("verschluckt andere Datenbankfehler nicht", async () => {
+    alsAdmin();
+    insertFehler = Object.assign(new Error("connection lost"), { code: "08006" });
+    await expect(
+      benutzerAnlegen({ ok: false }, formular("neu@bhyo.de", "bearbeiter")),
+    ).rejects.toThrow("connection lost");
   });
 
   it("weist eine unbekannte Rolle ab", async () => {

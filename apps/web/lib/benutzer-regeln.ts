@@ -23,6 +23,10 @@ export type Ablehnung =
   | { grund: "ungueltige_email"; text: string }
   | { grund: "schon_vorhanden"; text: string };
 
+/** Eine Adresse, ein Eintrag — gilt für die Vorprüfung UND die DB-Antwort. */
+export const TEXT_SCHON_VORHANDEN =
+  "Diese Adresse ist bereits eingetragen — dort die Rolle ändern.";
+
 const LETZTER_ADMIN =
   "Das ist der letzte aktive Admin. Erst eine zweite Person zum Admin machen, " +
   "sonst kann niemand mehr Rollen vergeben.";
@@ -82,10 +86,7 @@ export function pruefeNeuanlage(
     return { grund: "ungueltige_email", text: "Das ist keine gültige E-Mail-Adresse." };
   }
   if (alle.some((b) => b.email === email)) {
-    return {
-      grund: "schon_vorhanden",
-      text: "Diese Adresse ist bereits eingetragen — dort die Rolle ändern.",
-    };
+    return { grund: "schon_vorhanden", text: TEXT_SCHON_VORHANDEN };
   }
   return null;
 }

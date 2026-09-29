@@ -153,6 +153,30 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@v7
+      # Hyperdrive-Waechter (29.09.2026): Der Abfrage-Cache von Hyperdrive
+      # liefert veraltete SELECT-Ergebnisse — ein frisch angelegter Eintrag
+      # fehlt in der sofort gelesenen Liste, und die Vorpruefung auf
+      # Eindeutigkeit laeuft ins Leere (Unique-Verletzung, 500). Der Cache
+      # muss in BEIDEN Umgebungen aus sein. Hier wird die Konfiguration der
+      # Zielumgebung gelesen, BEVOR irgendetwas deployt wird; gleicher Token
+      # wie der Deploy, kein neues Secret. Kein Ergebnis ist kein Ergebnis:
+      # Nicht lesbar = rot.
+      - name: Hyperdrive-Waechter (Abfrage-Cache aus)
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          HYPERDRIVE_ID: ${{ github.event_name == 'pull_request' && '7bf0712cc8224c32a061ef0abea561f9' || '2a873aa18f654dc4897b145cb24db7d7' }}
+        run: |
+          # Die geprüfte ID muss die sein, die wrangler.jsonc auch bindet.
+          grep -q "\"id\": \"$HYPERDRIVE_ID\"" apps/web/wrangler.jsonc \
+            || { echo "::error::Hyperdrive-ID $HYPERDRIVE_ID steht nicht in apps/web/wrangler.jsonc — Waechter und Bindung sind auseinandergelaufen."; exit 1; }
+          antwort=$(curl -sS --max-time 30 -H "Authorization: Bearer $CLOUDFLARE_API_TOKEN" \
+            "https://api.cloudflare.com/client/v4/accounts/$CLOUDFLARE_ACCOUNT_ID/hyperdrive/configs/$HYPERDRIVE_ID")
+          echo "$antwort" | jq -c '{success, errors, name: .result.name, caching: .result.caching}'
+          echo "$antwort" | jq -e '.success == true' >/dev/null \
+            || { echo "::error::Hyperdrive-Konfiguration $HYPERDRIVE_ID nicht lesbar (Token-Recht Hyperdrive:Read?)."; exit 1; }
+          echo "$antwort" | jq -e '.result.caching.disabled == true' >/dev/null \
+            || { echo "::error::Hyperdrive-Abfrage-Cache ist in der Zielumgebung AN (caching.disabled != true). Deploy abgebrochen."; exit 1; }
 
       - uses: pnpm/action-setup@v6
 
