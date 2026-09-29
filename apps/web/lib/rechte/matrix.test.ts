@@ -29,7 +29,6 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "strom.zuweisen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "strom.zuweisung_entfernen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "akteur.anlegen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
-  "materialart.anlegen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "region.anlegen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "projekt.starten": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "benutzer.anlegen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },

@@ -20,18 +20,6 @@ import { dateien, schreibpfade, type Lücke } from "./schreibpfade";
 
 const WURZEL = process.cwd();
 
-/**
- * Pfade, die bewusst NICHT protokollieren — mit Grund. Jede Ausnahme steht
- * hier sichtbar; eine stille gibt es nicht.
- */
-export const AUSNAHMEN: Record<string, string> = {
-  // Entscheidung Eric ausstehend (AP2.2 PR a, Schritt 0): materialart hat
-  // keinen uuid-Schluessel (code text), aenderung.entitaet_id ist uuid. Die
-  // Route hat keinen Aufrufer in der Oberflaeche; AP2.3 entscheidet
-  // Admin-Referenzpflege oder Entfernen.
-  "app/api/materialarten/route.ts · POST": "materialart ohne uuid (code ist Schluessel); Entscheidung AP2.3",
-};
-
 /** Die Arten des Enums, aus packages/db/src/schema.ts SELBST gelesen. */
 function ereignisArten(wurzel: string): Set<string> {
   const quelle = readFileSync(join(wurzel, "..", "..", "packages", "db", "src", "schema.ts"), "utf8");
@@ -60,8 +48,6 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
   // (b) Jeder Schreibpfad protokolliert mit einer Art.
   const arten = ereignisArten(wurzel);
   for (const pfad of schreibpfade(wurzel)) {
-    const schluessel = `${pfad.datei} · ${pfad.pfad}`;
-    if (AUSNAHMEN[schluessel]) continue;
     const text = pfad.mitImporten;
     if (!/\bprotokolliere\s*\(/.test(text)) {
       luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: kein Aufruf von protokolliere()` });
@@ -77,9 +63,8 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
 
 if (process.argv[1]?.endsWith("protokoll-check.ts")) {
   const luecken = findeLuecken();
-  const ausnahmen = Object.keys(AUSNAHMEN).length;
   if (luecken.length === 0) {
-    console.log(`protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert (${ausnahmen} benannte Ausnahme(n)).`);
+    console.log("protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert, ohne Ausnahme.");
   } else {
     for (const l of luecken) console.error(`::error file=${l.datei}::${l.pfad} — ${l.grund}`);
     process.exit(1);

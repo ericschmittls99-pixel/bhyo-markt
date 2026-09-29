@@ -718,8 +718,12 @@ Akteur, Region, Projektstart), tun es jetzt in einer Transaktion mit ihrer
 außerhalb von `lib/protokoll`, (b) jeder Schreibpfad (dieselbe Ermittlung
 wie `rechte-check`, `scripts/schreibpfade.ts`) ruft `protokolliere` mit
 einer Art auf — auch über eine aus `@/lib` importierte Funktion (eine
-Ebene). Benannte Ausnahme: `POST /api/materialarten` (kein uuid-Schlüssel,
-Entscheidung AP2.3). DB-Check `protokoll-check` in der CI: CHECK greift,
+Ebene), ohne Ausnahme. **Entfernt** (Entscheidung Eric, 29.09.2026, benannte
+Ausnahme von „kein Verhaltensunterschied"): `POST /api/materialarten` und
+die Aktion `materialart.anlegen` — kein Aufrufer, und Bearbeiter sollen
+die Taxonomie nicht per API erweitern können; `materialart` hat zudem keinen
+uuid-Schlüssel für den Objektbezug. AP2.3 baut bei Bedarf einen Admin-Pfad
+mit eigenem Schlüsselkonzept. DB-Check `protokoll-check` in der CI: CHECK greift,
 Rollback hinterlässt nichts.
 
 **Ableitung, nichts gespeichert** (E23): `ersteller(strom)` = Urheber des
