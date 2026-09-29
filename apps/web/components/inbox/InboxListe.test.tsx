@@ -83,3 +83,26 @@ describe("InboxListe", () => {
     expect(renderToStaticMarkup(<AlleErledigt anzahlOffen={2} />)).not.toContain("disabled");
   });
 });
+
+describe("PR c: Zugriffsanfrage in der Liste", () => {
+  it("zeigt die Notiz, Zuweisen und Ablehnen — keine Erledigt/Verwerfen-Icons", () => {
+    const html = renderToStaticMarkup(
+      <InboxListe
+        zeilen={[
+          zeile({
+            typ: "zugriffsanfrage",
+            notiz: "Bitte kurz freigeben",
+            text: "Bernd Bearbeiter bittet um Zugriff auf B-000012 Papierschlamm",
+          }),
+        ]}
+        zustand="offen"
+      />,
+    );
+    expect(html).toContain("bittet um Zugriff auf");
+    expect(html).toContain("„Bitte kurz freigeben");
+    expect(html).toContain(">Zuweisen<");
+    expect(html).toContain(">Ablehnen<");
+    expect(html).not.toContain('aria-label="Erledigt"');
+    expect(html).not.toContain('aria-label="Verwerfen"');
+  });
+});
