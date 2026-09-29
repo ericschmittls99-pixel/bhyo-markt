@@ -24,10 +24,24 @@ Vorprüfung vorbei ins INSERT: Unique-Verletzung (SQLSTATE 23505), beim
 Nutzer ein 500er. Beobachtet auf Production am 28./29.09.2026 („neuer
 Eintrag erst nach dem nächsten Seitenaufruf da").
 
-**Umstellung** per `wrangler hyperdrive update <id> --caching-disabled true`:
+**Umstellung** per `wrangler hyperdrive update <id> --caching-disabled true`
+(Eric, OAuth-Login, PR #116):
 
-- Preview: ausstehend (Messung vor/nach der Umstellung, siehe PR #116)
-- Production: ausstehend (nach grünem Preview-Beleg, Freigabe Eric liegt vor)
+- Preview: 29.09.2026 08:47 UTC (`modified_on` 08:47:46Z)
+- Production: 29.09.2026 08:51 UTC (`modified_on` 08:51:12Z), Freigabe Eric
+  nach dem Preview-Beleg
+
+**Messung auf der Preview** (Benutzer anlegen in einstellungen., Code-Stand
+12d60f2 ohne 23505-Behandlung, Screenshots in
+`docs/screenshots/hyperdrive-cache/`):
+
+| | Anlegen, sofort Liste lesen | Gleiche Adresse sofort noch einmal |
+|---|---|---|
+| Cache an (vorher) | Formular zurückgesetzt, **Zeile fehlt** | **Fehlerseite** „etwas ist schiefgelaufen" (Kennung 1871839046), Unique-Verletzung ungefangen |
+| Cache aus (nachher) | **Zeile sofort da** | Vorprüfung greift: „Diese Adresse ist bereits eingetragen — dort die Rolle ändern." |
+
+Damit ist der Cache als Ursache der Beobachtung „neuer Eintrag erst nach
+dem nächsten Seitenaufruf da" belegt.
 
 **Wächter.** Schritt „Hyperdrive-Waechter (Abfrage-Cache aus)" im Job
 `deploy` von `.github/workflows/deploy.yml`: liest die Konfiguration der
@@ -49,8 +63,8 @@ Unique-Constraints:
 | `lib/benutzer-actions.ts` `benutzerAnlegen` | `benutzer.email` (PK) | ja (`pruefeNeuanlage`) | 23505 → „Diese Adresse ist bereits eingetragen …" (Test) |
 | `lib/beleg-server.ts` `erstelleBeleg` | `beleg.beleg_nr` | nein — Nummer aus DB-Sequenz (E29) | keine nötig |
 | `lib/bewertung.ts` `naechsteLaufId` | `analyse_lauf.lauf_id`, `lauf_nummernkreis.jahr` | nein — Zähler in Transaktion mit `FOR UPDATE`, `ON CONFLICT DO NOTHING` | keine nötig |
-| `lib/sperre-actions.ts` `stromZuweisen` | `strom_zuweisung_*_nutzer_uidx` | nein — `ON CONFLICT DO NOTHING` | keine nötig |
-| `app/api/materialarten` POST | `materialart.code` (PK) | nein — `ON CONFLICT DO NOTHING`, dann Lesen | keine nötig |
+| `lib/sperre-actions.ts` `stromZuweisen` | `strom_zuweisung_*_nutzer_uidx` | nein — `ON CONFLICT DO NOTHING` | `RETURNING` leer → „… ist bereits zugewiesen.", kein Protokolleintrag (Test); vorher stiller Erfolg mit falschem Protokoll |
+| `app/api/materialarten` POST | `materialart.code` (PK) | nein — `ON CONFLICT DO NOTHING`, dann Lesen | gibt den bestehenden Eintrag zurück; kein Aufrufer in der Oberfläche |
 | `app/api/akteure` POST | keine Unique-Constraint auf `akteur` | — | — |
 | `akteur_interesse (akteur_id, region_id)` | unique | kein Schreibpfad im Code | — |
 

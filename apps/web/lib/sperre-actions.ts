@@ -108,7 +108,10 @@ export async function stromZuweisen(art: StromArt, id: string, nutzerId: string)
           .limit(1);
         if (!ziel) throw new Error("Diese Person ist nicht eingetragen.");
         if (!darfZugewiesenWerden(ziel)) throw new Error("Zuweisen geht nur an aktive Nutzer mit mindestens Bearbeiter-Rolle.");
-        await tx
+        // Der Teil-Unique-Index ist die Wahrheit: ON CONFLICT DO NOTHING fügt
+        // bei bestehender Zuweisung 0 Zeilen ein. Das ist kein Erfolg und
+        // bekommt kein „zugewiesen"-Protokoll (Rückfrage Eric, 29.09.2026).
+        const neu = await tx
           .insert(stromZuweisung)
           .values({
             biomassestromId: art === "biomasse" ? id : null,
@@ -116,7 +119,9 @@ export async function stromZuweisen(art: StromArt, id: string, nutzerId: string)
             nutzerId,
             zugewiesenVon: wache.zugang.id,
           })
-          .onConflictDoNothing();
+          .onConflictDoNothing()
+          .returning({ id: stromZuweisung.id });
+        if (!neu.length) throw new Error(`${ziel.name ?? ziel.email} ist bereits zugewiesen.`);
         await tx.insert(aenderung).values({
           entitaetTyp: entitaetTyp(art),
           entitaetId: id,
