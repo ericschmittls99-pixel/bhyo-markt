@@ -74,7 +74,10 @@ const strom = {
   zuweisungen: [],
 } as unknown as Strom;
 
-function render(sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean }) {
+function render(
+  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean; anfragen?: boolean },
+  anfrage: { am: string } | null = null,
+) {
   return renderToStaticMarkup(
     <Detail
       strom={strom}
@@ -85,6 +88,7 @@ function render(sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren
       canEdit={true}
       sperrRechte={sperrRechte}
       zuweisbare={[]}
+      anfrage={anfrage}
     />,
   );
 }
@@ -115,5 +119,24 @@ describe("E44 Beleg-Kopf: fremder Bearbeiter an einem gesperrten Strom", () => {
     // Der Tooltip nennt den Inhaber weiterhin; der HINWEIS fuer Nicht-Berechtigte fehlt.
     expect(inhaber).not.toContain("ov-sperre-hinweis");
     expect(inhaber).toContain("gesperrt seit");
+  });
+});
+
+// --- PR c: Zugriff anfragen ------------------------------------------------
+describe("PR c: fremder Bearbeiter am gesperrten Strom", () => {
+  const fremd = { bearbeiten: false, sperren: false, entsperren: false, zuweisen: false, anfragen: true };
+  it("sieht den Knopf „Zugriff anfragen“, solange keine Anfrage laeuft", () => {
+    const html = render(fremd);
+    expect(html).toContain("Zugriff anfragen");
+    expect(html).not.toContain("Angefragt am");
+  });
+  it("sieht „Angefragt am …“ statt des Knopfs, wenn seine Anfrage offen ist", () => {
+    const html = render(fremd, { am: "2026-09-29T12:00:00.000Z" });
+    expect(html).toContain("Angefragt am");
+    expect(html).not.toContain("Zugriff anfragen");
+  });
+  it("Inhaber, Zugewiesene und Betrachter sehen keinen Knopf", () => {
+    expect(render({ bearbeiten: true, sperren: false, entsperren: true, zuweisen: true, anfragen: false })).not.toContain("Zugriff anfragen");
+    expect(render({ bearbeiten: false, sperren: false, entsperren: false, zuweisen: false, anfragen: false })).not.toContain("Zugriff anfragen");
   });
 });
