@@ -20,7 +20,12 @@ jobs:
           api() { curl -sS -H "Authorization: Bearer $NEON_API_KEY" -H "Accept: application/json" "https://console.neon.tech/api/v2$1"; }
           echo "ME $(api /users/me | jq -c '{id: (.id|tostring|.[0:8]), login, email_gesetzt: (.email != null), plan}')"
           echo "ORGS $(api /users/me/organizations | jq -c '[.organizations[]? | {id, name, plan: .plan}]')"
-          echo "PROJEKTE $(api '/projects?limit=100' | jq -c '[.projects[] | {id, name, org_id}]')"
-          echo "PROJEKT_ID_SECRET_GEFUNDEN $(api '/projects?limit=100' | jq --arg p "$NEON_PROJECT_ID" '[.projects[].id] | index($p) != null')"
+          echo "PROJEKTE_PERSOENLICH $(api '/projects?limit=100' | jq -c '[.projects[]? | {id, name, org_id}]')"
+          for o in $(api /users/me/organizations | jq -r '.organizations[]?.id'); do
+            echo "PROJEKTE_ORG $(api "/projects?org_id=$o&limit=100" | jq -c --arg o "$o" '{org: $o, projekte: [.projects[]? | {id, name}]}')"
+            echo "ORG_MITGLIEDER $(api "/organizations/$o/members" | jq -c '[.members[]? | {role: .member.role, org_id: .member.org_id}]' 2>/dev/null)"
+          done
+          echo "PROJEKT_ID_SECRET_IN_ORG $(for o in $(api /users/me/organizations | jq -r '.organizations[]?.id'); do api "/projects?org_id=$o&limit=100" | jq --arg p "$NEON_PROJECT_ID" '[.projects[].id] | index($p) != null'; done)"
+          echo "PROJEKT_DIREKT $(api "/projects/$NEON_PROJECT_ID" | jq -c '{name: .project.name, org_id: .project.org_id, region: .project.region_id, pg: .project.pg_version, gefunden: (.project != null)}')"
           echo "KEYS $(api /api_keys | jq -c '[.[]? | {id, name, created_at, last_used_at}]' 2>/dev/null || echo 'nicht lesbar')"
           echo "ORG_KEYS $(for o in $(api /users/me/organizations | jq -r '.organizations[]?.id'); do api "/organizations/$o/api_keys" | jq -c --arg o "$o" '{org: $o, keys: [.[]? | {id, name, project_id, created_at}]}'; done)"
