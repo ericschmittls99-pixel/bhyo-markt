@@ -45,6 +45,17 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
               <span className="st-card-orb">
                 <Orb strom={s} size={24} />
               </span>
+              {/* E44: Schloss-Indikator auf der Karte gesperrter Belege. */}
+              {s.sperre && (
+                <span
+                  className="st-card-sperre"
+                  role="img"
+                  aria-label={`Gesperrt von ${s.sperre.von.name ?? s.sperre.von.email}`}
+                  title={`Gesperrt von ${s.sperre.von.name ?? s.sperre.von.email}`}
+                >
+                  <i className="ph-fill ph-lock" aria-hidden />
+                </span>
+              )}
               <span
                 className="st-card-ring"
                 title={`Erfassung ${s.vollstaendigkeit} % vollständig`}

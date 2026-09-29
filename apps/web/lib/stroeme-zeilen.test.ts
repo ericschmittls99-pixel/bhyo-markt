@@ -55,6 +55,9 @@ const biomasseBasis: BiomasseZeile = {
   belegGueltigBis: null,
   belegErstelltAm: null,
   belegMetadata: null,
+      gesperrtAm: null,
+      sperrInhaber: null,
+      zuweisungen: [],
 };
 
 const outputBasis: OutputZeile = {
@@ -96,6 +99,9 @@ const outputBasis: OutputZeile = {
   belegGueltigBis: null,
   belegErstelltAm: null,
   belegMetadata: null,
+      gesperrtAm: null,
+      sperrInhaber: null,
+      zuweisungen: [],
 };
 
 describe("biomasseZeileZuStrom: regionNamen/regionIds", () => {

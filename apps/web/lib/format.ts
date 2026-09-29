@@ -128,6 +128,21 @@ export function fmtMonat(iso: string | null): string {
   return iso ? `${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "–";
 }
 
+/** ISO-Zeitstempel -> TT.MM.JJJJ, HH:MM Uhr (Europe/Berlin) — z. B. „gesperrt seit". */
+const dtBerlin = new Intl.DateTimeFormat("de-DE", {
+  timeZone: "Europe/Berlin",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+export function fmtDatumZeit(iso: string | null): string {
+  if (!iso) return "–";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "–" : `${dtBerlin.format(d)} Uhr`;
+}
+
 /** ISO-Datum -> TT.MM.JJJJ. */
 export function fmtDatum(iso: string | null): string {
   return iso ? `${iso.slice(8, 10)}.${iso.slice(5, 7)}.${iso.slice(0, 4)}` : "–";

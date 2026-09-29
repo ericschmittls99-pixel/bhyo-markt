@@ -15,6 +15,7 @@ import {
   timestamp,
   unique,
   uuid,
+  uniqueIndex,
 } from "drizzle-orm/pg-core";
 
 // Die drei bestaetigten Enums aus docs/ap0-schema-entscheidungen.md. Werte in
@@ -70,6 +71,9 @@ export const benutzerRolle = pgEnum("benutzer_rolle", [
   "betrachter",
   "bearbeiter",
   "admin",
+  // E42/AP2.1 PR b: Pruefer (sperren, zuweisen). DB-Reihenfolge = Anhaenge-
+  // Historie; die Hierarchie steht in apps/web/lib/rechte/matrix.ts.
+  "pruefer",
 ]);
 
 // F0b: VG250-Ebenen — Laender (2-stelliger ARS) und Kreise (5-stellig).
@@ -398,6 +402,10 @@ export const biomassestrom = pgTable("biomassestrom", {
   // ueber die Verifikations-Faelligkeit (PR 5), nicht ueber eine eigene
   // Schwelle. null = nicht reserviert.
   reserviertSeit: date("reserviert_seit"),
+  // E44 (AP2.1 PR b): Sperre am Strom — Inhaber und Zeitpunkt, beide NULL
+  // oder beide gesetzt (CHECK). FK auf benutzer(id), nie auf die E-Mail.
+  gesperrtVon: uuid("gesperrt_von").references(() => benutzer.id),
+  gesperrtAm: timestamp("gesperrt_am", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -409,6 +417,10 @@ export const biomassestrom = pgTable("biomassestrom", {
     index("biomassestrom_akteur_id_idx").on(t.akteurId),
     index("biomassestrom_beleg_id_idx").on(t.belegId),
     index("biomassestrom_materialart_code_idx").on(t.materialartCode),
+    check(
+      "biomassestrom_sperre_check",
+      sql`(${t.gesperrtVon} is null) = (${t.gesperrtAm} is null)`,
+    ),
   ],
 );
 
@@ -469,6 +481,9 @@ export const outputBedarf = pgTable("output_bedarf", {
   reserviertBhyo: boolean("reserviert_bhyo").notNull().default(false),
   // Stempel-Semantik wie biomassestrom.reserviert_seit.
   reserviertSeit: date("reserviert_seit"),
+  // E44 (AP2.1 PR b): Sperre wie biomassestrom.
+  gesperrtVon: uuid("gesperrt_von").references(() => benutzer.id),
+  gesperrtAm: timestamp("gesperrt_am", { withTimezone: true }),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
     .defaultNow(),
@@ -480,6 +495,47 @@ export const outputBedarf = pgTable("output_bedarf", {
     index("output_bedarf_akteur_id_idx").on(t.akteurId),
     index("output_bedarf_beleg_id_idx").on(t.belegId),
     index("output_bedarf_produkt_code_idx").on(t.produktCode),
+    check(
+      "output_bedarf_sperre_check",
+      sql`(${t.gesperrtVon} is null) = (${t.gesperrtAm} is null)`,
+    ),
+  ],
+);
+
+/**
+ * E44 (AP2.1 PR b): Zuweisung eines gesperrten Stroms an weitere Nutzer.
+ * Genau EIN Elternbezug (CHECK), typisierte FKs, keine polymorphe Referenz;
+ * je Strom-Typ ein partieller Unique-Index auf (strom, nutzer). Entsperren
+ * loescht alle Zuweisungen des Stroms (Anwendung, in derselben Transaktion).
+ * Projekte folgen in AP5 nach demselben Muster.
+ */
+export const stromZuweisung = pgTable(
+  "strom_zuweisung",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
+    outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    nutzerId: uuid("nutzer_id")
+      .notNull()
+      .references(() => benutzer.id),
+    zugewiesenVon: uuid("zugewiesen_von")
+      .notNull()
+      .references(() => benutzer.id),
+    zugewiesenAm: timestamp("zugewiesen_am", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+  },
+  (t) => [
+    check(
+      "strom_zuweisung_genau_ein_strom_check",
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}) = 1`,
+    ),
+    uniqueIndex("strom_zuweisung_biomasse_nutzer_uidx")
+      .on(t.biomassestromId, t.nutzerId)
+      .where(sql`${t.biomassestromId} is not null`),
+    uniqueIndex("strom_zuweisung_output_nutzer_uidx")
+      .on(t.outputBedarfId, t.nutzerId)
+      .where(sql`${t.outputBedarfId} is not null`),
   ],
 );
 

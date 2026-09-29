@@ -7,6 +7,8 @@ import { revalidatePath } from "next/cache";
 import { withDb } from "@/lib/db";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL } from "@/lib/status";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { pruefeStromSperre } from "@/lib/rechte/sperre-server";
+import type { Zugang } from "@/lib/rechte";
 import type { StromArt } from "@/lib/stroeme-modell";
 
 export interface AktionErgebnis {
@@ -21,12 +23,14 @@ export interface AktionErgebnis {
  * scripts/rechte-check.ts sieht sie auch nicht.
  */
 async function wechsleStatus(
-  email: string,
+  zugang: Extract<Zugang, { art: "erlaubt" }>,
+  aktion: "strom.status_setzen" | "strom.verwerfen",
   art: StromArt,
   id: string,
   neu: string,
   logText: string,
 ): Promise<AktionErgebnis> {
+  const email = zugang.email;
   if (!(neu in STATUS_LABEL)) return { ok: false, fehler: "Unbekannter Status." };
 
   try {
@@ -35,6 +39,8 @@ async function wechsleStatus(
     // einen veralteten Wert; und Statuswechsel ohne Protokoll darf es nicht geben.
     await withDb((db) =>
       db.transaction(async (tx) => {
+        // E44: Objektstufe — Sperre lesen (Zeilensperre) und gegen die Matrix pruefen.
+        await pruefeStromSperre(tx, zugang, aktion, art, id);
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
         const [zeile] = await tx
           .select({ status: tabelle.status })
@@ -87,7 +93,8 @@ export async function statusSetzen(
   const wache = await rechtFuerAction("strom.status_setzen");
   if ("fehler" in wache) return wache;
   return wechsleStatus(
-    wache.email,
+    wache.zugang,
+    "strom.status_setzen",
     art,
     id,
     neu,
@@ -105,5 +112,5 @@ export async function stromVerwerfen(
 ): Promise<AktionErgebnis> {
   const wache = await rechtFuerAction("strom.verwerfen");
   if ("fehler" in wache) return wache;
-  return wechsleStatus(wache.email, art, id, "verworfen", "Strom verworfen (statt gelöscht)");
+  return wechsleStatus(wache.zugang, "strom.verwerfen", art, id, "verworfen", "Strom verworfen (statt gelöscht)");
 }

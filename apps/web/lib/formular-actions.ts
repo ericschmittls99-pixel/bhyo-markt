@@ -31,6 +31,7 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { pruefeBelegSperre, pruefeStromSperre } from "@/lib/rechte/sperre-server";
 import { dezimalKanonisch, monatKanonisch } from "@/lib/eingabe-format";
 
 export interface SpeichernErgebnis {
@@ -240,6 +241,8 @@ export async function stromSpeichern(
           return;
         }
 
+        // E44: Objektstufe — Sperre des Stroms (Zeilensperre) gegen die Matrix.
+        await pruefeStromSperre(tx, wache.zugang, "strom.bearbeiten", art, id);
         // Bearbeiten: Beleg in place (Entscheidung Eric), Status unangetastet.
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
         const [bestand] = await tx
@@ -252,6 +255,9 @@ export async function stromSpeichern(
           .limit(1);
         if (!bestand) throw new ValidierungsFehler("Datensatz nicht gefunden.");
 
+        // E44, geteilte Belege: nur aendern, wenn kein referenzierender Strom
+        // fuer den Handelnden gesperrt ist (alle Referenzen gehalten).
+        if (bestand.belegId) await pruefeBelegSperre(tx, wache.zugang, bestand.belegId);
         const belegErgebnis = bestand.belegId
           ? await aktualisiereBeleg(tx, formData, bestand.belegId)
           : await erstelleBeleg(tx, formData);

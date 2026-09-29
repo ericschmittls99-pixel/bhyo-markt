@@ -107,14 +107,18 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
   `https://bhyo.cloudflareaccess.com/cdn-cgi/access/certs` validiert. Ihm
   ungeprüft zu vertrauen ist die klassische Lücke.
 - **Rollen liegen in der App**, nicht in Access: die `benutzer`-Tabelle mappt die
-  E-Mail auf genau eine von drei Rollen (E30, 24.09.2026) — `betrachter` liest,
-  `bearbeiter` erfasst und bearbeitet, `admin` verwaltet zusätzlich die
-  Benutzer. Frühere Fassungen nannten vier Stufen mit „Bewerten"; das ist keine
-  eigene Rolle, die Frage wird erst mit AP3 geprüft.
+  E-Mail auf genau eine von vier Rollen (E30/E42) — `betrachter` liest,
+  `bearbeiter` erfasst und bearbeitet, `pruefer` sperrt Ströme und weist sie zu
+  (E44), `admin` verwaltet zusätzlich die Benutzer. Hierarchie admin ⊇ pruefer
+  ⊇ bearbeiter ⊇ betrachter, ausgeschrieben in `apps/web/lib/rechte/matrix.ts`.
 - **Rechte sind Daten** (E42): `apps/web/lib/rechte/` hält Rollen, die
   Aktions-Matrix und die Wache. Jeder Schreibpfad nennt seine Aktion und ruft
   die Wache auf; `scripts/rechte-check.ts` erzwingt das in der CI. Eine Aktion
   entsteht erst mit ihrem Schreibpfad, eine Rolle erst mit ihrer Wirkung.
+- **Sperren sind Objektregeln derselben Matrix** (E44): Ein gesperrter Strom
+  bleibt lesbar; ändern dürfen ihn Sperrinhaber, Zugewiesene und Admins. Die
+  Prüfung liest die Sperre in der Transaktion des Schreibpfads (Zeilensperre),
+  nie nur in der Oberfläche.
 - **Fail closed**: Eine E-Mail ohne Eintrag in `benutzer` oder mit
   `aktiv = false` bekommt keinen Zugang — kein stilles Zurückfallen auf
   Lesezugriff. Jede Rechteprüfung sitzt serverseitig; die Oberfläche blendet
