@@ -276,6 +276,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db sperre-check
 
+      # ROT-NACHWEIS (Wegwerf-PR): Protokoll-Check VOR der Migration 0026.
+      - name: Protokoll-Check (Ereignisprotokoll)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db protokoll-check
+
       # F5 PR B: Sektor-Referenzdaten — die acht Werte stehen, kein Akteur
       # traegt einen unbekannten Sektor, "abnehmer" ist keiner mehr, und der
       # Fremdschluessel greift wirklich.
