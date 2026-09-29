@@ -63,6 +63,8 @@ describe("stromZuweisen und ON CONFLICT DO NOTHING", () => {
     eingefuegt = [{ id: "z1" }];
     await expect(stromZuweisen("biomasse", "s1", ZIEL.id)).resolves.toEqual({ ok: true });
     expect(protokoll).toHaveLength(1);
+    // PR c: die Freischaltung geht an den Zugewiesenen — das Protokoll traegt ihn nicht als Spalte,
+    // die Zustellung bekommt ihn ueber betrifftId (siehe zustellung.zugriff.test.ts).
   });
 
   it("meldet „ist bereits zugewiesen“, wenn 0 Zeilen eingefügt wurden — ohne Protokolleintrag", async () => {

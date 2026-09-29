@@ -685,3 +685,13 @@ Erledigt, Verwerfen, „⋯" mit Popover „Als ungelesen markieren"). Unter
 Zähler-Badge: Lime-Pille (`.sb-badge`, `.hdr-badge`) mit weißer Ziffer, ab
 100 „99+"; eingeklappte Sidebar zeigt einen Punkt am Icon. Leerzustand über
 `EmptyState` mit Tray-Icon: „Keine offenen Mitteilungen.".
+
+### Zugriffsanfrage (PR c)
+
+Im Beleg-Kopf neben „Gesperrt von …" ein Ghost-Button „Zugriff anfragen"
+(Hand-Icon) mit Popover: Textarea (max. 500 Zeichen, Zähler), Primär-Button
+„Anfragen". Läuft eine Anfrage: Caption „Angefragt am TT.MM.JJJJ, HH:MM Uhr".
+In der Inbox-Zeile einer Anfrage steht die Notiz als zweite Caption-Zeile in
+Anführungszeichen; rechts „Zuweisen" (Primär, klein) und „Ablehnen" (Ghost)
+statt der Icon-Aktionen. Freischaltung und Ablehnung sind gewöhnliche
+Hinweiszeilen.
