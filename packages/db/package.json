@@ -24,6 +24,7 @@
     "benutzer-check": "tsx src/benutzer-check.ts",
     "sperre-check": "tsx src/sperre-check.ts",
     "protokoll-check": "tsx src/protokoll-check.ts",
+    "inbox-check": "tsx src/inbox-check.ts",
     "sektor-check": "tsx src/sektor-check.ts",
     "beleg-check": "tsx src/beleg-check.ts",
     "beleg-frist-check": "tsx src/beleg-frist-check.ts",
