@@ -120,6 +120,11 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
   Schreibpfad ruft `protokolliere` in seiner Transaktion auf;
   `scripts/protokoll-check.ts` erzwingt beides in der CI. Ersteller und
   Beteiligte werden daraus abgeleitet, nie gespeichert.
+- **Inbox aus dem Protokoll** (AP2.2): `apps/web/lib/inbox` ist die einzige
+  Schreibstelle für `inbox_eintrag`; die Zustellung hängt an `protokolliere`
+  (dieselbe Transaktion), Empfänger werden aus den Beteiligten abgeleitet,
+  Bündelung erledigt die Datenbank (partielle Unique-Indizes). Einträge
+  liest und ändert nur der Empfänger.
 - **Sperren sind Objektregeln derselben Matrix** (E44): Ein gesperrter Strom
   bleibt lesbar; ändern dürfen ihn Sperrinhaber, Zugewiesene und Admins. Die
   Prüfung liest die Sperre in der Transaktion des Schreibpfads (Zeilensperre),

@@ -34,6 +34,8 @@ vi.mock("@/lib/db", () => ({
           if (istProtokoll) protokoll.push(werte);
           const ergebnis = Promise.resolve(undefined) as Promise<unknown> & Record<string, unknown>;
           ergebnis.onConflictDoNothing = () => ({ returning: async () => eingefuegt });
+          // Das Protokoll (lib/protokoll) liest die Ereignis-ID per RETURNING.
+          ergebnis.returning = async () => [{ id: "e1" }];
           return ergebnis;
         },
       }),
@@ -43,6 +45,7 @@ vi.mock("@/lib/db", () => ({
   },
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
+vi.mock("@/lib/inbox/zustellung", () => ({ zustellen: async () => 0 }));
 vi.mock("@/lib/rechte/sperre-server", async (orig) => {
   const echt = await orig<typeof import("@/lib/rechte/sperre-server")>();
   return { ...echt, pruefeStromSperre: async () => {} };

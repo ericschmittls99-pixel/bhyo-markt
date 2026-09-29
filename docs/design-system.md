@@ -668,3 +668,20 @@ ziehen. Darunter die Legende (Gruppe mit n Vergleichswerten, dieser Strom)
 und die Wertung als fetter Satz aus der Sicht bhyo. Ohne Band steht kursiv
 der benannte Zustand („zu wenig Vergleichswerte"). Keine Ampelfarben; die
 Richtung steht in Worten.
+
+## inbox. (AP2.2 PR b, 29.09.2026)
+
+Die eigenen Mitteilungen als Liste im Glas-Raster: Kopfzeile nach dem
+E39-Muster (`st-toolbar aw-kopfzeile`, Segment „Offen | Erledigt", Zähltext,
+rechts „Alle erledigt" als Ghost-Button). Zeilen (`.ib-zeile`) auf
+`--surface-card` mit `--border-subtle`, Raster: Ungelesen-Punkt (8 px,
+`--text-accent`: Waldgrün, im Dark Mode Lime — keine Ampelfarbe), Avatar
+des Auslösers (Größe s, Farbe aus der Nutzer-ID), Text (ungelesen fett,
+einzeilig mit Ellipse), Zustands-Pille nur in „Erledigt" (`pill pill--muted`,
+verworfen gedimmt), relative Zeit als Caption, Icon-Buttons (Öffnen,
+Erledigt, Verwerfen, „⋯" mit Popover „Als ungelesen markieren"). Unter
+720 px bricht die Zeile auf zwei Reihen.
+
+Zähler-Badge: Lime-Pille (`.sb-badge`, `.hdr-badge`) mit weißer Ziffer, ab
+100 „99+"; eingeklappte Sidebar zeigt einen Punkt am Icon. Leerzustand über
+`EmptyState` mit Tray-Icon: „Keine offenen Mitteilungen.".

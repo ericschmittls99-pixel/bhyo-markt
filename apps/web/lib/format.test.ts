@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   fmtAnteil,
+  fmtRelativ,
   fmtFaktor,
   fmtGeldGross,
   fmtMenge,
@@ -126,5 +127,19 @@ describe("formatZeitspanne", () => {
   });
   it("kein Halbgeviertstrich", () => {
     expect(formatZeitspanne("2026-01-01", "2031-12-31")).not.toContain("–");
+  });
+});
+
+describe("fmtRelativ (AP2.2 Inbox)", () => {
+  const jetzt = new Date("2026-09-29T12:00:00Z");
+  const vor = (sek: number) => new Date(jetzt.getTime() - sek * 1000).toISOString();
+  it("Sekunden, Minuten, Stunden, gestern, Tage, dann Datum", () => {
+    expect(fmtRelativ(vor(10), jetzt)).toBe("gerade eben");
+    expect(fmtRelativ(vor(5 * 60), jetzt)).toBe("vor 5 Min.");
+    expect(fmtRelativ(vor(3 * 3600), jetzt)).toBe("vor 3 Std.");
+    expect(fmtRelativ(vor(26 * 3600), jetzt)).toBe("gestern");
+    expect(fmtRelativ(vor(4 * 86400), jetzt)).toBe("vor 4 Tagen");
+    expect(fmtRelativ(vor(10 * 86400), jetzt)).toBe("19.09.2026");
+    expect(fmtRelativ("kaputt", jetzt)).toBe("–");
   });
 });

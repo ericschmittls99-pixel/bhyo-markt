@@ -188,3 +188,24 @@ export function formatZeitspanne(von: string | null, bis: string | null): string
 export function fmtZeitraum(von: string | null, bis: string | null): string {
   return formatZeitspanne(von, bis);
 }
+
+/**
+ * Relative Zeit fuer Listen (AP2.2 Inbox): „gerade eben", „vor 5 Min.",
+ * „vor 3 Std.", „gestern", „vor 4 Tagen", ab 7 Tagen das Datum. Rein: der
+ * Bezugszeitpunkt kommt herein (Server-Zeit), damit Server und Client
+ * dasselbe rendern.
+ */
+export function fmtRelativ(iso: string, jetzt: Date): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return "–";
+  const sek = Math.round((jetzt.getTime() - d.getTime()) / 1000);
+  if (sek < 45) return "gerade eben";
+  const min = Math.round(sek / 60);
+  if (min < 60) return `vor ${min} Min.`;
+  const std = Math.round(min / 60);
+  if (std < 24) return `vor ${std} Std.`;
+  const tage = Math.round(std / 24);
+  if (tage === 1) return "gestern";
+  if (tage < 7) return `vor ${tage} Tagen`;
+  return fmtDatum(iso.slice(0, 10));
+}

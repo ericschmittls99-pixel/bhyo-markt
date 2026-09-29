@@ -5151,3 +5151,162 @@ table.st-tabelle tbody tr:focus-visible {
   font-size: 13px;
 }
 .einst-avatar { display: inline-flex; align-items: center; gap: 8px; }
+
+/* ------------------------------------------------------------------------
+   inbox. (AP2.2 PR b) — Liste der eigenen Mitteilungen. Liquid Glass wie
+   der Rest: Flaechen ueber Tokens, Pillen fuer Zustaende, Akzent nur fuer
+   den Ungelesen-Punkt (Waldgruen, im Dark Mode Lime ueber --text-accent).
+   ------------------------------------------------------------------------ */
+.ib {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+  padding: 0 0 var(--gutter);
+}
+.ib-leer {
+  flex: 1;
+  display: grid;
+  place-items: center;
+  padding: 8px var(--gutter) var(--gutter);
+}
+.ib-inhalt {
+  width: 100%;
+  max-width: calc(var(--content-max) + 2 * var(--gutter));
+  margin: 0 auto;
+  padding: 8px var(--gutter) 0;
+}
+.ib-fehler {
+  margin: 0 0 8px;
+  font: var(--type-caption);
+  color: var(--text-accent);
+}
+.ib-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.ib-zeile {
+  display: grid;
+  grid-template-columns: 8px 24px minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 12px;
+  min-height: 48px;
+  padding: 6px 8px 6px 12px;
+  border-radius: var(--radius-control);
+  background: var(--surface-card);
+  border: 1px solid var(--border-subtle);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.ib-zeile:hover {
+  background: var(--surface-hover);
+}
+.ib-punkt {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: transparent;
+}
+.ib-ungelesen .ib-punkt {
+  background: var(--text-accent);
+}
+.ib-text {
+  min-width: 0;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  font: var(--type-body-sm);
+  color: var(--text-primary);
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ib-text:focus-visible {
+  box-shadow: var(--ring-focus);
+  border-radius: 4px;
+}
+.ib-ungelesen .ib-text {
+  font-weight: 600;
+}
+.ib-zeit {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.ib-aktionen {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+.ib-menue {
+  right: 0;
+  left: auto;
+  width: 240px;
+}
+/* Verworfen wird von Erledigt unterschieden — Pille, kein Durchstreichen. */
+.ib-zustand--verworfen {
+  opacity: 0.7;
+}
+@media (max-width: 720px) {
+  .ib-zeile {
+    grid-template-columns: 8px 24px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+  }
+  .ib-zeit {
+    grid-column: 3;
+  }
+  .ib-aktionen {
+    grid-column: 3 / -1;
+    justify-content: flex-end;
+  }
+}
+
+/* Zaehler-Badge: Sidebar und Kopfzeile. Lime-Pille wie die Marke, keine
+   Ampelfarbe. Eingeklappte Sidebar: kleiner Punkt am Icon. */
+.sb-badge {
+  margin-left: auto;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-lime);
+  color: var(--text-on-lime);
+  font: 600 11px/18px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}
+.sb-item--badge {
+  position: relative;
+}
+.sidebar.collapsed .sb-badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  min-width: 8px;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  font-size: 0;
+}
+.hdr-inbox {
+  position: relative;
+}
+.hdr-badge {
+  position: absolute;
+  top: -2px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: var(--radius-pill);
+  background: var(--surface-lime);
+  color: var(--text-on-lime);
+  font: 600 10px/16px var(--font-sans);
+  font-variant-numeric: tabular-nums;
+  text-align: center;
+}

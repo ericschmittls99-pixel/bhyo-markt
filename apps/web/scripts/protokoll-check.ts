@@ -48,6 +48,11 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
   // (b) Jeder Schreibpfad protokolliert mit einer Art.
   const arten = ereignisArten(wurzel);
   for (const pfad of schreibpfade(wurzel)) {
+    // Benannte Ausnahme (AP2.2 PR b): Die Inbox-Aktionen aendern nur den
+    // Lese-/Erledigt-Zustand der EIGENEN Eintraege — kein fachliches
+    // Ereignis, deshalb kein Protokoll. Andere Pfade in lib/inbox gibt es
+    // nicht (die Zustellung ist ein Baustein von protokolliere).
+    if (pfad.datei === join("lib", "inbox", "actions.ts")) continue;
     const text = pfad.mitImporten;
     if (!/\bprotokolliere\s*\(/.test(text)) {
       luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: kein Aufruf von protokolliere()` });
@@ -64,7 +69,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
 if (process.argv[1]?.endsWith("protokoll-check.ts")) {
   const luecken = findeLuecken();
   if (luecken.length === 0) {
-    console.log("protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert, ohne Ausnahme.");
+    console.log("protokoll-check OK — eine Schreibstelle (lib/protokoll), jeder Schreibpfad protokolliert (benannte Ausnahme: lib/inbox/actions.ts, Inbox-Zustand ist kein Ereignis).");
   } else {
     for (const l of luecken) console.error(`::error file=${l.datei}::${l.pfad} — ${l.grund}`);
     process.exit(1);

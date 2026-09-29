@@ -34,12 +34,20 @@ export const AKTIONEN = [
   "benutzer.anlegen",
   "benutzer.rolle_setzen",
   "benutzer.aktiv_setzen",
+  // Inbox (lib/inbox/actions.ts, AP2.2): nur der Empfaenger, Objektregel
+  "inbox.gelesen",
+  "inbox.ungelesen",
+  "inbox.erledigen",
+  "inbox.verwerfen",
+  "inbox.alle_erledigen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
 const ERFASSEN: readonly Rolle[] = ["bearbeiter", "pruefer", "admin"];
 const SPERREN: readonly Rolle[] = ["pruefer", "admin"];
 const VERWALTEN: readonly Rolle[] = ["admin"];
+/** Jede Rolle mit Zugang — die Inbox gehoert der Person, nicht der Rolle. */
+const ALLE: readonly Rolle[] = ROLLEN;
 
 /** Wer darf was — je Aktion die Rollen, die sie ausloesen duerfen (Rollenstufe). */
 export const MATRIX: Record<Aktion, readonly Rolle[]> = {
@@ -57,6 +65,11 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "benutzer.anlegen": VERWALTEN,
   "benutzer.rolle_setzen": VERWALTEN,
   "benutzer.aktiv_setzen": VERWALTEN,
+  "inbox.gelesen": ALLE,
+  "inbox.ungelesen": ALLE,
+  "inbox.erledigen": ALLE,
+  "inbox.verwerfen": ALLE,
+  "inbox.alle_erledigen": ALLE,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -72,20 +85,34 @@ export interface StromSperre {
   zugewiesene: readonly string[];
 }
 
+/** AP2.2: Objekt der Inbox-Regeln — der Empfaenger des Eintrags. */
+export interface InboxObjekt {
+  empfaengerId: string;
+}
+
+/** Alles, woran eine Objektregel entscheidet. */
+export type Objekt = StromSperre | InboxObjekt;
+const istSperre = (o: Objekt): o is StromSperre => "gesperrtVon" in o;
+
 export function istAktion(wert: string): wert is Aktion {
   return (AKTIONEN as readonly string[]).includes(wert);
 }
 
-type Objektregel = (nutzer: { id: string | undefined; rolle: Rolle }, objekt: StromSperre) => boolean;
+type Objektregel = (nutzer: { id: string | undefined; rolle: Rolle }, objekt: Objekt) => boolean;
 
 /** Gesperrt: nur Inhaber, Zugewiesene und admin duerfen den Strom fachlich aendern (E44). */
 const aendernBeiSperre: Objektregel = (n, o) =>
-  o.gesperrtVon == null || n.rolle === "admin" || (!!n.id && (n.id === o.gesperrtVon || o.zugewiesene.includes(n.id)));
+  istSperre(o) &&
+  (o.gesperrtVon == null || n.rolle === "admin" || (!!n.id && (n.id === o.gesperrtVon || o.zugewiesene.includes(n.id))));
 /** Sperren: nur auf ungesperrten Stroemen. */
-const sperren: Objektregel = (_n, o) => o.gesperrtVon == null;
+const sperren: Objektregel = (_n, o) => istSperre(o) && o.gesperrtVon == null;
 /** Entsperren / zuweisen / Zuweisung entfernen: der Sperrinhaber, solange er pruefer ist, oder admin. */
 const inhaberOderAdmin: Objektregel = (n, o) =>
-  o.gesperrtVon != null && (n.rolle === "admin" || (n.rolle === "pruefer" && !!n.id && n.id === o.gesperrtVon));
+  istSperre(o) &&
+  o.gesperrtVon != null &&
+  (n.rolle === "admin" || (n.rolle === "pruefer" && !!n.id && n.id === o.gesperrtVon));
+/** AP2.2: Inbox-Eintraege liest und aendert nur der Empfaenger — auch admin nicht fremde. */
+const nurEmpfaenger: Objektregel = (n, o) => !istSperre(o) && !!n.id && n.id === o.empfaengerId;
 
 /**
  * Objektbezogene Regeln (E44) — gelten ZUSAETZLICH zur Rollenstufe. Wo eine
@@ -101,6 +128,10 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "strom.entsperren": inhaberOderAdmin,
   "strom.zuweisen": inhaberOderAdmin,
   "strom.zuweisung_entfernen": inhaberOderAdmin,
+  "inbox.gelesen": nurEmpfaenger,
+  "inbox.ungelesen": nurEmpfaenger,
+  "inbox.erledigen": nurEmpfaenger,
+  "inbox.verwerfen": nurEmpfaenger,
 };
 
 /** Aktionen, die ein Objekt verlangen (fuer Aufrufer, Wächter und Tests). */
@@ -129,7 +160,7 @@ export function darfRolle(nutzer: Nutzer, aktion: string): boolean {
  * die Oberflaeche ruft sie nur zum Ausblenden auf. Ohne Objekt entscheidet
  * die Rollenstufe — ausser die Aktion hat eine Objektregel: dann false.
  */
-export function darf(nutzer: Nutzer, aktion: string, objekt?: StromSperre | null): boolean {
+export function darf(nutzer: Nutzer, aktion: string, objekt?: Objekt | null): boolean {
   if (!nutzer) return false;
   if ("art" in nutzer && nutzer.art !== "erlaubt") return false;
   const rolle = nutzer.rolle;

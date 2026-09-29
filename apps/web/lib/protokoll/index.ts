@@ -12,6 +12,7 @@
 import { aenderung, ereignisArt } from "@bhyo/db/schema";
 
 import type { AppDb } from "@/lib/db";
+import { zustellen } from "@/lib/inbox/zustellung";
 
 export type EreignisArt = (typeof ereignisArt.enumValues)[number];
 
@@ -37,7 +38,7 @@ export interface Ereignis {
 }
 
 /** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
-export type Schreiber = Pick<AppDb, "insert">;
+export type Schreiber = Pick<AppDb, "insert" | "select">;
 
 /** Standardtexte je Art — fuer die bestehende Verlaufsanzeige. */
 export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = {
@@ -63,19 +64,31 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
  * `altbestand` ist keine Art, die Code erzeugt — der Typ laesst sie nicht zu,
  * und zur Laufzeit wird sie trotzdem abgewiesen.
  */
-export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<void> {
+export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<{ id: string }> {
   if ((ereignis.art as string) === "altbestand") {
     throw new Error("altbestand ist Altzeilen vorbehalten und wird nie neu geschrieben.");
   }
   if (!ereignis.benutzerId) throw new Error("Ereignis ohne Urheber (benutzerId).");
   const text = ereignis.text?.trim() || STANDARDTEXT[ereignis.art];
-  await tx.insert(aenderung).values({
-    entitaetTyp: ereignis.entitaet,
-    entitaetId: ereignis.id,
+  const [zeile] = await tx
+    .insert(aenderung)
+    .values({
+      entitaetTyp: ereignis.entitaet,
+      entitaetId: ereignis.id,
+      art: ereignis.art,
+      benutzerId: ereignis.benutzerId,
+      benutzerEmail: ereignis.benutzerEmail,
+      // Praefix bleibt, weil die Verlaufsanzeige ihn heute so zeigt (F8/E30).
+      text: `${ereignis.benutzerEmail}: ${text}`,
+    })
+    .returning({ id: aenderung.id });
+  // AP2.2 PR b: Zustellung in derselben Transaktion — Rollback = keine Zustellung.
+  await zustellen(tx, {
+    id: zeile!.id,
     art: ereignis.art,
-    benutzerId: ereignis.benutzerId,
-    benutzerEmail: ereignis.benutzerEmail,
-    // Praefix bleibt, weil die Verlaufsanzeige ihn heute so zeigt (F8/E30).
-    text: `${ereignis.benutzerEmail}: ${text}`,
+    entitaet: ereignis.entitaet,
+    entitaetId: ereignis.id,
+    ausloeserId: ereignis.benutzerId,
   });
+  return { id: zeile!.id };
 }

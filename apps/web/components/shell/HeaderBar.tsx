@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
@@ -12,6 +13,7 @@ const TITEL: [string, string][] = [
   ["/auswertung", "auswertung."],
   ["/bewertung", "planer."],
   ["/import", "import."],
+  ["/inbox", "inbox."],
   ["/einstellungen", "einstellungen."],
 ];
 
@@ -25,21 +27,24 @@ function initialen(email: string | null): string {
 
 /**
  * Kopfzeile laut V2-Mockup: Seitentitel links, rechts Inbox und Konto-Menue.
- * Inbox ist ein Platzhalter (kein Benachrichtigungs-Modell im Schema, AP1i
- * Delta-Bericht §3) und zeigt den Leerzustand aus dem Mockup. Das Konto-Menue
- * traegt den Theme-Umschalter; Profil und Abmelden sind Mockup-Platzhalter.
+ * Die Inbox ist seit AP2.2 echt: das Tray-Icon fuehrt zu inbox. und traegt
+ * den Zaehler der ungelesenen Eintraege (frueher ein Platzhalter-Popover).
+ * Das Konto-Menue traegt den Theme-Umschalter; Profil und Abmelden sind
+ * Mockup-Platzhalter.
  */
 export function HeaderBar({
   email,
   rolle,
   initialTheme,
+  ungelesen = 0,
 }: {
   email: string | null;
   rolle: Rolle | null;
   initialTheme: "light" | "dark";
+  /** AP2.2: ungelesene Inbox-Eintraege (Zaehler am Tray-Icon). */
+  ungelesen?: number;
 }) {
   const pathname = usePathname();
-  const [inboxOpen, setInboxOpen] = useState(false);
   const [accountOpen, setAccountOpen] = useState(false);
   const [dark, setDark] = useState(initialTheme === "dark");
   const [toast, setToast] = useState<string | null>(null);
@@ -49,13 +54,11 @@ export function HeaderBar({
   useEffect(() => {
     function onDown(ev: MouseEvent) {
       if (wrapRef.current && !wrapRef.current.contains(ev.target as Node)) {
-        setInboxOpen(false);
         setAccountOpen(false);
       }
     }
     function onKey(ev: KeyboardEvent) {
       if (ev.key === "Escape") {
-        setInboxOpen(false);
         setAccountOpen(false);
       }
     }
@@ -68,7 +71,6 @@ export function HeaderBar({
   }, []);
 
   function zeigeToast(msg: string) {
-    setInboxOpen(false);
     setAccountOpen(false);
     setToast(msg);
     if (toastTimer.current) clearTimeout(toastTimer.current);
@@ -89,47 +91,21 @@ export function HeaderBar({
     <header className="hdr">
       <h1>{titel}</h1>
       <div className="hdr-actions" ref={wrapRef}>
-        <div className="pop-anchor">
-          <button
-            type="button"
-            className="icon-btn"
-            onClick={() => {
-              setInboxOpen((v) => !v);
-              setAccountOpen(false);
-            }}
-            aria-haspopup="dialog"
-            aria-expanded={inboxOpen}
-            aria-label="Inbox"
-          >
-            <i className="ph ph-tray" aria-hidden />
-          </button>
-          {inboxOpen && (
-            <div role="dialog" aria-label="Inbox" className="pop" style={{ width: 360 }}>
-              <div className="pop-head">
-                <h2>inbox.</h2>
-                <button type="button" className="btn btn--ghost btn--sm" disabled>
-                  Alle als gelesen markieren
-                </button>
-              </div>
-              <div className="empty-state" style={{ padding: "24px 0 20px" }}>
-                <span className="disc">
-                  <i className="ph ph-tray" aria-hidden />
-                </span>
-                <h2>keine nachrichten.</h2>
-                <p>Einladungen, Import-Berichte und Rollenänderungen landen hier.</p>
-              </div>
-            </div>
-          )}
-        </div>
+        <Link
+          href="/inbox"
+          className="icon-btn hdr-inbox"
+          aria-label={ungelesen > 0 ? `Inbox, ${ungelesen} ungelesen` : "Inbox"}
+          title="inbox."
+        >
+          <i className={`${pathname.startsWith("/inbox") ? "ph-fill" : "ph"} ph-tray`} aria-hidden />
+          {ungelesen > 0 && <span className="hdr-badge">{ungelesen > 99 ? "99+" : ungelesen}</span>}
+        </Link>
 
         <div className="pop-anchor">
           <button
             type="button"
             className="avatar-btn"
-            onClick={() => {
-              setAccountOpen((v) => !v);
-              setInboxOpen(false);
-            }}
+            onClick={() => setAccountOpen((v) => !v)}
             aria-haspopup="menu"
             aria-expanded={accountOpen}
             aria-label="Konto"

@@ -190,6 +190,13 @@
       "when": 1790678099214,
       "tag": "0026_ap2_ereignisprotokoll",
       "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1790689105947,
+      "tag": "0027_ap2_inbox",
+      "breakpoints": true
     }
   ]
 }
