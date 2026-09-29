@@ -24,7 +24,8 @@ import {
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
-import { NOTIZ_MAX, stromEntsperren, stromSperren, stromZuweisen, zugriffAnfragen, zuweisungEntfernen } from "@/lib/sperre-actions";
+import { stromEntsperren, stromSperren, stromZuweisen, zugriffAnfragen, zuweisungEntfernen } from "@/lib/sperre-actions";
+import { NOTIZ_MAX } from "@/lib/inbox/notiz";
 import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
 import { fmtDatumZeit } from "@/lib/format";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutzer, type Strom } from "@/lib/stroeme-modell";

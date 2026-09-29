@@ -31,7 +31,8 @@ vi.mock("@/lib/rechte/sperre-server", async (orig) => {
   };
 });
 
-const { zugriffAnfragen, NOTIZ_MAX } = await import("./sperre-actions");
+const { zugriffAnfragen } = await import("./sperre-actions");
+const { NOTIZ_MAX } = await import("./inbox/notiz");
 
 beforeEach(() => {
   sperrpruefungen = 0;

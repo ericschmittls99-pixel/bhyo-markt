@@ -8,6 +8,7 @@ import { withDb } from "@/lib/db";
 import { darfZugewiesenWerden } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import { protokolliere } from "@/lib/protokoll";
+import { NOTIZ_MAX } from "@/lib/inbox/notiz";
 import {
   Gesperrt,
   loescheZuweisungen,
@@ -144,9 +145,6 @@ export async function zuweisungEntfernen(art: StromArt, id: string, nutzerId: st
 }
 
 export { Gesperrt };
-
-/** PR c: Laenge der optionalen Notiz einer Zugriffsanfrage. */
-export const NOTIZ_MAX = 500;
 
 /**
  * PR c: Zugriff auf einen gesperrten Strom anfragen — Rolle >= bearbeiter,
