@@ -330,8 +330,9 @@ describe("Popover Weitere Filter: Reihenfolge und Vollständigkeit", () => {
   it("enthält genau die Nicht-Facetten-Parameter der geltenden Filter, nichts doppelt", () => {
     for (const ansicht of ["stroeme", "karte", "auswertung"] as const) {
       for (const sicht of ["feedstock", "outputs"] as const) {
+        // E56: Schalter stehen in der Kopfzeile, nicht im Popover „Weitere Filter".
         const erwartet = filterFuer(ansicht, sicht)
-          .filter((f) => !["facette", "hierarchie", "text"].includes(f.typ))
+          .filter((f) => !["facette", "hierarchie", "text", "schalter"].includes(f.typ))
           .flatMap((f) => f.params);
         const ist = leiste(ansicht, sicht, {}).bereichParams;
         expect([...ist].sort(), `${ansicht}/${sicht}`).toEqual([...erwartet].sort());

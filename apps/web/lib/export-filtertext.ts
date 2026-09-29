@@ -31,6 +31,11 @@ export function filterKlartext(
       else if (von) teile.push(`ab ${von}`);
       else if (bis) teile.push(`bis ${bis}`);
       if (zustand) teile.push(zustand);
+    } else if (def.typ === "schalter") {
+      // E56: Der Schalter hat einen benannten Wert — die Beschriftung genuegt („Für mich").
+      const v = ((werte[def.params[0]!] as string | undefined) ?? "").trim();
+      if (v) out.push(def.label);
+      continue;
     } else {
       const v = ((werte[def.params[0]!] as string | undefined) ?? "").trim();
       if (v) teile.push(v);

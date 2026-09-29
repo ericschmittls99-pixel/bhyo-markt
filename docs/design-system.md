@@ -695,3 +695,12 @@ In der Inbox-Zeile einer Anfrage steht die Notiz als zweite Caption-Zeile in
 Anführungszeichen; rechts „Zuweisen" (Primär, klein) und „Ablehnen" (Ghost)
 statt der Icon-Aktionen. Freischaltung und Ablehnung sind gewöhnliche
 Hinweiszeilen.
+
+## Schalter „Alle | Für mich" (E56, 29.09.2026)
+
+Zweiter Segment-Schalter (`seg`/`seg-opt`, `aria-pressed`) neben
+Feedstock/Outputs in ströme. und karte., nur für Nicht-Betrachter. Kein
+Chip in der Filterzeile, zählt nicht zur Filter-Pille, wohl aber zu
+„Zurücksetzen". Tooltip am Knopf: „Von mir gesperrt, mir zugewiesen oder
+mit meiner Beteiligung". Leerzustand in ströme. über `EmptyState` (Icon
+user) mit „Alle anzeigen"; auf der Karte als Hinweiszeile.
