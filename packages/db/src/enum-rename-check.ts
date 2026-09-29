@@ -1,5 +1,5 @@
 /**
- * Enum-Rename-Waechter (Entscheidung Eric, 29.09.2026, AP2.2 PR c Nachtrag).
+ * Enum-Rename-Waechter (E53, Entscheidung Eric, 29.09.2026, AP2.2 PR c Nachtrag).
  *
  * Migration 0028 deklariert inbox_typ_text(inbox_typ) als IMMUTABLE, damit
  * der Enum→Text-Vergleich in einem Index-Praedikat stehen darf. Das ist nur

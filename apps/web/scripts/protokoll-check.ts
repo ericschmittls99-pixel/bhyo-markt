@@ -21,7 +21,7 @@ import { dateien, schreibpfade, type Lücke } from "./schreibpfade";
 const WURZEL = process.cwd();
 
 /**
- * Benannte Ausnahmen — jede einzeln, ohne Platzhalter fuer Datei oder
+ * Benannte Ausnahmen (E54) — jede einzeln, ohne Platzhalter fuer Datei oder
  * Ordner (Entscheidung Eric, 29.09.2026): Die fuenf Inbox-Aktionen aendern
  * nur den Lese-/Erledigt-Zustand der EIGENEN Eintraege — ein persoenlicher
  * Arbeitsstand, kein fachliches Ereignis, deshalb kein Protokoll. Eine neue

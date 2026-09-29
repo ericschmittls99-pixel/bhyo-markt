@@ -128,3 +128,23 @@ describe("schema-gate: Zielnachweis", () => {
     expect(gate).not.toMatch(/console\.log\([^)]*\$\{url\}/);
   });
 });
+
+// Haertung (29.09.2026, Punkt 3): Nach jedem main-Deploy laeuft der Leseweg
+// automatisch — nur lesend, nur nach erfolgreichem Deploy, rot bei Fehlschlag.
+describe("deploy.yml: Leseweg nach dem main-Deploy", () => {
+  const deployYml = readFileSync(new URL("../../../.github/workflows/deploy.yml", import.meta.url), "utf8");
+  const job = deployYml.slice(deployYml.indexOf("  lese-diagnose:"));
+  it("haengt am deploy-Job, nur bei main-Push und nur nach Erfolg", () => {
+    expect(job).toContain("needs: [deploy]");
+    expect(job).toContain("github.event_name != 'pull_request' && needs.deploy.result == 'success'");
+  });
+  it("laeuft im Environment production-lesend und nutzt ausschliesslich das lesende Secret", () => {
+    expect(job).toContain("environment: production-lesend");
+    expect(job).toContain("DATABASE_URL_PRODUCTION_LESEND");
+    expect(job).not.toContain("DATABASE_URL_PRODUCTION }}");
+    expect(job).not.toContain("DATABASE_URL_PREVIEW");
+  });
+  it("fuehrt Zielnachweis, Abweichungsliste und Messung aus", () => {
+    for (const s of ["lese-diagnose", "beleg-abweichung", "protokoll-messung"]) expect(job).toContain(`pnpm --filter @bhyo/db ${s}`);
+  });
+});

@@ -594,7 +594,7 @@ Einstufung je Spalte bleibt grün.
 
 Weg A: Der Filter „Verfügbarkeit" gilt jetzt auch in auswertung. — dort als
 **„Status im gewählten Zeitraum"** (seit 29.09.2026: „Verfügbarkeit" mit
-Hinweis zur Bezugszeit, Abschnitt 27) — und wird gegen das gewählte Jahr bzw.
+Hinweis zur Bezugszeit, E52, Abschnitt 27) — und wird gegen das gewählte Jahr bzw.
 den Zeitraum aus E39 ausgewertet, nicht gegen heute. Es gelten dieselben
 Statuswerte und dieselbe Hierarchie wie in ströme./karte. und die
 Überschneidungsregel aus E32: „vergeben" heißt, ein Vergabezeitraum
@@ -768,7 +768,7 @@ Eintrag nach erledigt, CHECK genau ein Strom).
 Inbox gehört der Person), Objektregel „nur Empfänger" (`empfaenger_id =
 nutzer.id`, auch admin nicht fremde) mit Zeilensperre in der Transaktion
 (`pruefeInboxEmpfaenger`). Fremde und unbekannte Einträge werden gleich
-abgewiesen. **Benannte Ausnahme im protokoll-check** (Entscheidung Eric,
+abgewiesen. **E54 — Benannte Ausnahme im protokoll-check** (Entscheidung Eric,
 29.09.2026): die fünf Inbox-Aktionen protokollieren nicht — der Lese-/
 Erledigt-Zustand der eigenen Einträge ist ein persönlicher Arbeitsstand,
 kein fachliches Ereignis. Jede Aktion steht namentlich in der Ausnahmeliste
@@ -792,9 +792,10 @@ Archivierung vorerst.
 `zugriff_abgelehnt`; `inbox_typ` + `zugriffsanfrage`, `freischaltung`,
 `zugriff_abgelehnt`; je Strom-Typ ein partieller Unique-Index (Empfänger,
 Strom, Anfragender) WHERE offen AND zugriffsanfrage — **zwei Anfragende = zwei
-Einträge**, dieselbe Person bündelt. Die Prädikate vergleichen `typ::text`,
-weil ein in derselben Migrations-Transaktion angefügter Enum-Wert dort nicht
-als Literal verwendbar ist.
+Einträge**, dieselbe Person bündelt. Die Prädikate vergleichen über die
+IMMUTABLE-Hilfsfunktion `inbox_typ_text` (E53, Abschnitt 27), weil ein in
+derselben Migrations-Transaktion angefügter Enum-Wert dort nicht als
+Literal verwendbar und der nackte Cast nicht immutable ist.
 
 **Anfragen:** Knopf „Zugriff anfragen" im Beleg-Kopf für fremde Bearbeiter,
 Aktion `strom.zugriff_anfragen` (Rolle ≥ bearbeiter; Objektregel: Strom
@@ -818,10 +819,10 @@ den Aktionen — eine Schreibstelle. Anfrage-Einträge sind keine reinen
 Hinweise („Alle erledigt" lässt sie stehen), Freischaltung und Ablehnung
 sind reine Hinweise.
 
-## 27. Filter „Verfügbarkeit" und IMMUTABLE-Enum-Funktion (29.09.2026)
+## 27. Filter „Verfügbarkeit" (E52) und IMMUTABLE-Enum-Funktion (E53) (29.09.2026)
 
-**Eine Beschriftung, Bezugszeit im Hinweis** (Rückmeldung aus dem
-Echtbetrieb): Der Verfügbarkeitsfilter heißt in ströme., karte. und
+**E52 — Eine Beschriftung, Bezugszeit im Hinweis** (Rückmeldung aus dem
+Echtbetrieb, PR #125): Der Verfügbarkeitsfilter heißt in ströme., karte. und
 auswertung. „Verfügbarkeit" (E32: ein Filter, ein Name). Der Unterschied der
 Bezugszeit steht im Hinweis am Filter — Tooltip am Chip und Zeile im Popover:
 „bezogen auf heute" in ströme. und karte., „bezogen auf das gewählte Jahr
@@ -832,7 +833,7 @@ gewählten Zeitraum" (E41) entfällt; `labelJeAnsicht` ist durch
 bereits selbst; die Filterzeile im Export-Kopf nennt den Filter jetzt
 ebenfalls „Verfügbarkeit".
 
-**IMMUTABLE-Funktion `inbox_typ_text`** (Migration 0028): Postgres verlangt
+**E53 — IMMUTABLE-Funktion `inbox_typ_text`** (Migration 0028, PR #124/#125): Postgres verlangt
 in Index-Prädikaten unveränderliche Ausdrücke; der Enum→Text-Cast gilt nur
 als STABLE, und ein in derselben Transaktion angefügter Enum-Wert ist dort
 nicht als Literal verwendbar. Die Funktion erklärt den Cast für
