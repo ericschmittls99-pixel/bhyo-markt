@@ -1,0 +1,26 @@
+# TEMPORAER (Haertung, Schritt 0 — Messung): Was kann der heutige NEON_API_KEY?
+# Nur lesende Neon-API-Aufrufe; der Key wird nicht ausgegeben. Wird vor dem
+# Merge geloescht.
+name: tmp Neon-Key-Messung
+on:
+  push:
+    branches: [haertung-umgebungen]
+jobs:
+  messen:
+    runs-on: ubuntu-24.04
+    environment: production-lesend
+    permissions:
+      contents: read
+    steps:
+      - name: Neon-API lesend abfragen
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+        run: |
+          api() { curl -sS -H "Authorization: Bearer $NEON_API_KEY" -H "Accept: application/json" "https://console.neon.tech/api/v2$1"; }
+          echo "ME $(api /users/me | jq -c '{id: (.id|tostring|.[0:8]), login, email_gesetzt: (.email != null), plan}')"
+          echo "ORGS $(api /users/me/organizations | jq -c '[.organizations[]? | {id, name, plan: .plan}]')"
+          echo "PROJEKTE $(api '/projects?limit=100' | jq -c '[.projects[] | {id, name, org_id}]')"
+          echo "PROJEKT_ID_SECRET_GEFUNDEN $(api '/projects?limit=100' | jq --arg p "$NEON_PROJECT_ID" '[.projects[].id] | index($p) != null')"
+          echo "KEYS $(api /api_keys | jq -c '[.[]? | {id, name, created_at, last_used_at}]' 2>/dev/null || echo 'nicht lesbar')"
+          echo "ORG_KEYS $(for o in $(api /users/me/organizations | jq -r '.organizations[]?.id'); do api "/organizations/$o/api_keys" | jq -c --arg o "$o" '{org: $o, keys: [.[]? | {id, name, project_id, created_at}]}'; done)"
