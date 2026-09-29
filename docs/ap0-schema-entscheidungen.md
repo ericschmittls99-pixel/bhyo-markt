@@ -732,6 +732,59 @@ Ereignisses `angelegt`, sonst benannt „Ersteller unbekannt";
 `status_gesetzt`, `verworfen` (Sperren und Zuweisen zählen nicht,
 Altbestand fällt heraus). Grundlage der Empfängerregel in PR b.
 
+## 25. Inbox-Kern (AP2.2 PR b, 29.09.2026)
+
+**Name der Ansicht: inbox.** — benannte Ausnahme von „Domänenbegriffe deutsch"
+(wie feedstock). Navigation: Eintrag über einstellungen. mit Zähler-Badge
+(ungelesen), dazu das Tray-Icon der Kopfzeile (vorher Platzhalter). Keine
+Live-Aktualisierung: der Zähler aktualisiert sich beim nächsten Seitenaufruf.
+
+**Datenmodell** (Migration 0027, Expand): Enums `inbox_typ` (vorerst
+`aenderung_eintrag`) und `inbox_zustand` (`offen`, `erledigt`, `verworfen`);
+Tabelle `inbox_eintrag` mit Empfänger und Auslöser (FK `benutzer(id)`, NOT
+NULL), Typ, genau einem Strom (CHECK), `ereignis_id` (FK Protokoll, letztes
+Ereignis), `anzahl` (CHECK ≥ 1), Zeitstempeln, `gelesen_am`, Zustand mit
+`zustand_seit`, `notiz` (PR c). **Bündelung per DB:** partielle
+Unique-Indizes je Strom-Typ auf (Empfänger, Strom) WHERE offen AND
+aenderung_eintrag; die Zustellung ist ein Upsert (anzahl + 1, Auslöser,
+Ereignis und aktualisiert_am neu, gelesen_am NULL). Nach „erledigt" entsteht
+bei der nächsten Änderung ein neuer Eintrag. Zähler-Index (Empfänger) WHERE
+offen AND ungelesen.
+
+**Zustellung:** Register `apps/web/lib/inbox/register.ts` (je Typ Text,
+Empfängerregel, Bündelungsschlüssel, erlaubte Aktionen, „reiner Hinweis").
+`protokolliere()` ruft `zustellen(tx, ereignis)` in derselben Transaktion
+auf — Rollback = keine Zustellung. **Empfängerregel aenderung_eintrag** bei
+geaendert, status_gesetzt, verworfen: alle Beteiligten des Stroms
+(`beteiligteAus`, E23) außer dem Auslöser, Deaktivierten und Betrachtern;
+Sperren und Zuweisen zählen nicht. Einzige Schreibstelle für `inbox_eintrag`
+ist `lib/inbox`; CI-Wächter `inbox-check` (kein INSERT/UPDATE außerhalb),
+DB-Check `inbox-check` (Unique-Index greift, Bündelung per Upsert, neuer
+Eintrag nach erledigt, CHECK genau ein Strom).
+
+**Rechte:** Aktionen `inbox.gelesen`, `inbox.ungelesen`, `inbox.erledigen`,
+`inbox.verwerfen`, `inbox.alle_erledigen` in der Matrix (jede Rolle — die
+Inbox gehört der Person), Objektregel „nur Empfänger" (`empfaenger_id =
+nutzer.id`, auch admin nicht fremde) mit Zeilensperre in der Transaktion
+(`pruefeInboxEmpfaenger`). Fremde und unbekannte Einträge werden gleich
+abgewiesen. **Benannte Ausnahme im protokoll-check** (Entscheidung Eric,
+29.09.2026): die fünf Inbox-Aktionen protokollieren nicht — der Lese-/
+Erledigt-Zustand der eigenen Einträge ist ein persönlicher Arbeitsstand,
+kein fachliches Ereignis. Jede Aktion steht namentlich in der Ausnahmeliste
+(kein Platzhalter für Datei oder Ordner); eine neue Inbox-Aktion fällt
+automatisch unter die Prüfung, bis sie ausdrücklich eingetragen ist.
+
+**Bedienung:** Kopfzeile nach dem E39-Muster (Segment „Offen | Erledigt",
+Erledigt zeigt auch Verworfene mit Pille, rechts „Alle erledigt" für reine
+Hinweise). Zeile: Ungelesen-Punkt (Akzent), Avatar des Auslösers, Text
+„<Name> hat <Belegnummer> <Bezeichnung> geändert" plus „(n Änderungen)",
+relative Zeit. Aktionen Öffnen, Erledigt, Verwerfen, im Menü „Als ungelesen
+markieren". Öffnen setzt gelesen und zeigt **dasselbe Detail-Panel wie
+ströme.** auf der inbox.-Seite (Rechte wie dort; `lib/detail-daten.ts` ist
+die eine Zusammenstellung für beide Seiten; Bearbeiten führt nach ströme.).
+Leerzustand „Keine offenen Mitteilungen.". Keine Löschung, keine
+Archivierung vorerst.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

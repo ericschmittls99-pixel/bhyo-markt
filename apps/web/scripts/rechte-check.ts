@@ -79,8 +79,9 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     if (fremd.length) return `unbekannte Aktion „${fremd.join('", „')}" (nicht in der Matrix)`;
     // E44: Objektstufe — wer eine Aktion mit Sperrregel nennt, muss sie in der
     // Transaktion pruefen (direkt oder ueber einen Rumpf mit demselben Literal).
-    if (literale.some((l) => mitObjekt.has(l)) && !/\bpruefeStromSperre\s*\(/.test(text)) {
-      return `Aktion mit Sperrregel ohne Objektstufe (pruefeStromSperre) im Schreibpfad`;
+    // AP2.2: Inbox-Objektregel (Empfaenger) prueft `pruefeInboxEmpfaenger(`.
+    if (literale.some((l) => mitObjekt.has(l)) && !/\b(pruefeStromSperre|pruefeInboxEmpfaenger)\s*\(/.test(text)) {
+      return `Aktion mit Objektregel ohne Objektstufe (pruefeStromSperre / pruefeInboxEmpfaenger) im Schreibpfad`;
     }
     return null;
   };

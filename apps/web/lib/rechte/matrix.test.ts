@@ -9,6 +9,7 @@ import {
   istAktion,
   nurAdmin,
   type Aktion,
+  type Objekt,
   type StromSperre,
 } from "./matrix";
 import { ROLLEN, type Rolle } from "./rollen";
@@ -34,6 +35,12 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "benutzer.anlegen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "benutzer.rolle_setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "benutzer.aktiv_setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  // AP2.2: die Inbox gehoert der Person — jede Rolle, Objektregel „nur Empfaenger".
+  "inbox.gelesen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  "inbox.ungelesen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  "inbox.erledigen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  "inbox.verwerfen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  "inbox.alle_erledigen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -41,8 +48,10 @@ const ANDERE = "00000000-0000-4000-8000-000000000002";
 const DRITTE = "00000000-0000-4000-8000-000000000003";
 const FREI: StromSperre = { gesperrtVon: null, zugewiesene: [] };
 /** Objekt, an dem die Rollenstufe allein entscheidet: frei bzw. von mir gesperrt. */
-const passendesObjekt = (aktion: Aktion): StromSperre | undefined => {
+const passendesObjekt = (aktion: Aktion): Objekt | undefined => {
   if (!brauchtObjekt(aktion)) return undefined;
+  // AP2.2: Inbox-Regeln entscheiden am eigenen Eintrag.
+  if (aktion.startsWith("inbox.")) return { empfaengerId: ICH };
   return aktion === "strom.entsperren" || aktion === "strom.zuweisen" || aktion === "strom.zuweisung_entfernen"
     ? { gesperrtVon: ICH, zugewiesene: [] }
     : FREI;
@@ -71,7 +80,8 @@ describe("E42 Rechte-Matrix (Rollenstufe)", () => {
       const o = passendesObjekt(a);
       if (darf({ rolle: "bearbeiter", id: ICH }, a, o)) expect(darf({ rolle: "pruefer", id: ICH }, a, o)).toBe(true);
       if (darf({ rolle: "pruefer", id: ICH }, a, o)) expect(darf({ rolle: "admin", id: ICH }, a, o)).toBe(true);
-      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe(false);
+      // Betrachter schreiben nichts Fachliches — ihre eigene Inbox duerfen sie bedienen (AP2.2).
+      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe(a.startsWith("inbox."));
     }
   });
 
@@ -166,5 +176,24 @@ describe("E44 Sperren, Entsperren, Zuweisen", () => {
     expect(darfZugewiesenWerden({ rolle: "bearbeiter", aktiv: false })).toBe(false);
     expect(darfZugewiesenWerden(null)).toBe(false);
     expect(darfZugewiesenWerden({ rolle: "superuser", aktiv: true })).toBe(false);
+  });
+});
+
+// --- AP2.2: Inbox — nur der Empfaenger --------------------------------------
+describe("AP2.2 Inbox: Objektregel nur Empfaenger", () => {
+  for (const aktion of ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"] as const) {
+    it(`${aktion}: eigener Eintrag ja, fremder nein — auch fuer admin; ohne Objekt nie`, () => {
+      for (const rolle of ROLLEN) {
+        expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ICH })).toBe(true);
+        expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ANDERE })).toBe(false);
+        expect(darf({ rolle, id: ICH }, aktion)).toBe(false);
+      }
+      // Ein Sperr-Objekt ist fuer eine Inbox-Regel kein Objekt.
+      expect(darf({ rolle: "admin", id: ICH }, aktion, FREI)).toBe(false);
+    });
+  }
+  it("inbox.alle_erledigen hat keine Objektregel (wirkt nur auf eigene Eintraege per WHERE)", () => {
+    expect(brauchtObjekt("inbox.alle_erledigen")).toBe(false);
+    expect(darf({ rolle: "betrachter", id: ICH }, "inbox.alle_erledigen")).toBe(true);
   });
 });

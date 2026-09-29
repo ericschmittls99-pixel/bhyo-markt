@@ -42,9 +42,12 @@ interface NavEintrag {
 export function Sidebar({
   regionen,
   initial,
+  ungelesen = 0,
 }: {
   regionen: { id: string; name: string }[];
   initial: UiState;
+  /** AP2.2: ungelesene Inbox-Eintraege — Zaehler-Badge; aktualisiert sich beim naechsten Seitenaufruf. */
+  ungelesen?: number;
 }) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -154,6 +157,7 @@ export function Sidebar({
   };
 
   const settingsAktiv = pathname.startsWith("/einstellungen");
+  const inboxAktiv = pathname.startsWith("/inbox");
 
   return (
     <aside aria-label="Seitennavigation" className={`sidebar${collapsed ? " collapsed" : ""}`}>
@@ -253,6 +257,20 @@ export function Sidebar({
       </nav>
 
       <div className="sb-foot">
+        <Link
+          href="/inbox"
+          className="sb-item sb-item--badge"
+          title={collapsed ? `inbox.${ungelesen ? ` (${ungelesen} ungelesen)` : ""}` : undefined}
+          aria-current={inboxAktiv ? "page" : undefined}
+        >
+          <i className={`${inboxAktiv ? "ph-fill" : "ph"} ph-tray`} aria-hidden />
+          <span className="lbl">inbox.</span>
+          {ungelesen > 0 && (
+            <span className="sb-badge" aria-label={`${ungelesen} ungelesen`}>
+              {ungelesen > 99 ? "99+" : ungelesen}
+            </span>
+          )}
+        </Link>
         <Link
           href="/einstellungen"
           className="sb-item"

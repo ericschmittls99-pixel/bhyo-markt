@@ -7,6 +7,8 @@ import { HeaderBar } from "@/components/shell/HeaderBar";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { ZugangSperre } from "@/components/shell/ZugangSperre";
 import { adminKontakt, aktuellerZugang } from "@/lib/rechte/wache";
+import { withDb } from "@/lib/db";
+import { zaehleUngelesen } from "@/lib/inbox/server";
 import { listRegionen } from "@/lib/register";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 
@@ -66,13 +68,17 @@ export default async function RootLayout({
   const email = zugang.art === "erlaubt" ? zugang.email : null;
   // Fokusregionen fuer das planer.-Akkordeon; ohne DB bleibt die Liste leer.
   const regionen = await listRegionen().catch(() => []);
+  // AP2.2: Zaehler der Inbox (ungelesen) fuer Sidebar und Kopfzeile — beim
+  // Seitenaufruf gelesen, keine Live-Aktualisierung (Entscheidung Eric).
+  const ungelesen =
+    zugang.art === "erlaubt" ? await withDb((db) => zaehleUngelesen(db, zugang.id)).catch(() => 0) : 0;
 
   return (
     <html lang="de" data-theme={theme} className={geist.variable}>
       <body>
         <div className="shell">
           <Suspense fallback={null}>
-            <Sidebar regionen={regionen} initial={ui} />
+            <Sidebar regionen={regionen} initial={ui} ungelesen={ungelesen} />
           </Suspense>
           <div className="shell-main">
             <Suspense fallback={null}>
@@ -80,6 +86,7 @@ export default async function RootLayout({
                 email={email}
                 rolle={zugang.art === "erlaubt" ? zugang.rolle : null}
                 initialTheme={theme}
+                ungelesen={ungelesen}
               />
             </Suspense>
             <div className="shell-content">{children}</div>

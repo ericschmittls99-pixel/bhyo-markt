@@ -1,12 +1,28 @@
-import { describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { protokolliere, STANDARDTEXT, type Ereignis } from "./index";
+// AP2.2 PR b: Die Zustellung haengt an protokolliere — hier nur aufgezeichnet.
+const zustellen = vi.fn(async (_tx: unknown, _e: unknown) => 0);
+vi.mock("@/lib/inbox/zustellung", () => ({ zustellen }));
 
+const { protokolliere, STANDARDTEXT } = await import("./index");
+type Ereignis = import("./index").Ereignis;
+
+const EREIGNIS_ID = "00000000-0000-4000-8000-0000000000ee";
 function attrappe() {
   const zeilen: Record<string, unknown>[] = [];
-  const tx = { insert: () => ({ values: async (w: Record<string, unknown>) => { zeilen.push(w); } }) };
+  const tx = {
+    insert: () => ({
+      values: (w: Record<string, unknown>) => {
+        zeilen.push(w);
+        return { returning: async () => [{ id: EREIGNIS_ID }] };
+      },
+    }),
+    select: () => { throw new Error("kein select erwartet"); },
+  };
   return { tx: tx as unknown as Parameters<typeof protokolliere>[0], zeilen };
 }
+
+beforeEach(() => zustellen.mockClear());
 
 const BASIS: Ereignis = {
   art: "gesperrt",
@@ -50,7 +66,21 @@ describe("protokolliere", () => {
     // Rollback = kein Ereignis: Das gilt nur, wenn das Ereignis in der Transaktion
     // des Schreibpfads landet. Die Attrappe ist die einzige Verbindung, die es gibt.
     const { tx, zeilen } = attrappe();
-    await protokolliere(tx, BASIS);
+    await expect(protokolliere(tx, BASIS)).resolves.toEqual({ id: EREIGNIS_ID });
     expect(zeilen).toHaveLength(1);
+  });
+
+  it("stellt in derselben Transaktion zu — mit der Ereignis-ID, Art, Objektbezug und Auslöser (AP2.2)", async () => {
+    const { tx } = attrappe();
+    await protokolliere(tx, { ...BASIS, art: "geaendert" });
+    expect(zustellen).toHaveBeenCalledTimes(1);
+    expect(zustellen.mock.calls[0]![0]).toBe(tx);
+    expect(zustellen.mock.calls[0]![1]).toEqual({
+      id: EREIGNIS_ID,
+      art: "geaendert",
+      entitaet: "biomassestrom",
+      entitaetId: BASIS.id,
+      ausloeserId: BASIS.benutzerId,
+    });
   });
 });

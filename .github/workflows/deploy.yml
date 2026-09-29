@@ -109,6 +109,11 @@ jobs:
         working-directory: apps/web
         run: pnpm exec tsx scripts/protokoll-check.ts
 
+      # AP2.2 PR b: inbox_eintrag wird nur in lib/inbox geschrieben.
+      - name: inbox-check (Inbox-Schreibstelle)
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/inbox-check.ts
+
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'
@@ -289,6 +294,14 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db protokoll-check
+
+      # AP2.2 PR b: Inbox — Strukturen stehen, Unique-Index und CHECK greifen,
+      # Buendelung per Upsert (anzahl + 1, ungelesen; nach erledigt neuer Eintrag).
+      - name: Inbox-Check (Inbox)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db inbox-check
 
       # F5 PR B: Sektor-Referenzdaten — die acht Werte stehen, kein Akteur
       # traegt einen unbekannten Sektor, "abnehmer" ist keiner mehr, und der

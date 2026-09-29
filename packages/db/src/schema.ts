@@ -736,6 +736,67 @@ export const aenderung = pgTable(
 );
 
 /**
+ * AP2.2 PR b: Inbox. Typen und Zustaende als Enums (Anhaenge-Historie).
+ * `aenderung_eintrag` = „Aenderung an meinem Eintrag"; PR c ergaenzt
+ * zugriffsanfrage, freischaltung, zugriff_abgelehnt.
+ */
+export const inboxTyp = pgEnum("inbox_typ", ["aenderung_eintrag"]);
+export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
+
+/**
+ * Inbox-Eintrag je Empfaenger. Buendelung per DB: je Strom-Typ ein
+ * partieller Unique-Index (Empfaenger, Strom) WHERE offen AND
+ * aenderung_eintrag — die Zustellung ist ein Upsert (anzahl + 1, Ausloeser/
+ * Ereignis/aktualisiert_am neu, gelesen_am NULL). Nach „erledigt" entsteht
+ * bei der naechsten Aenderung ein neuer Eintrag. Einzige Schreibstelle ist
+ * apps/web/lib/inbox (CI: inbox-check).
+ */
+export const inboxEintrag = pgTable(
+  "inbox_eintrag",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    empfaengerId: uuid("empfaenger_id")
+      .notNull()
+      .references(() => benutzer.id),
+    ausloeserId: uuid("ausloeser_id")
+      .notNull()
+      .references(() => benutzer.id),
+    typ: inboxTyp("typ").notNull(),
+    biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
+    outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    /** Letztes Ereignis des Buendels (Protokoll). */
+    ereignisId: uuid("ereignis_id")
+      .notNull()
+      .references(() => aenderung.id),
+    anzahl: integer("anzahl").notNull().default(1),
+    erstelltAm: timestamp("erstellt_am", { withTimezone: true }).notNull().defaultNow(),
+    aktualisiertAm: timestamp("aktualisiert_am", { withTimezone: true }).notNull().defaultNow(),
+    gelesenAm: timestamp("gelesen_am", { withTimezone: true }),
+    zustand: inboxZustand("zustand").notNull().default("offen"),
+    zustandSeit: timestamp("zustand_seit", { withTimezone: true }).notNull().defaultNow(),
+    /** PR c: Notiz der Zugriffsanfrage (max. 500 Zeichen, geprueft im Code). */
+    notiz: text("notiz"),
+  },
+  (t) => [
+    check(
+      "inbox_eintrag_genau_ein_strom_check",
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}) = 1`,
+    ),
+    check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
+    uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
+      .on(t.empfaengerId, t.biomassestromId)
+      .where(sql`${t.zustand} = 'offen' and ${t.typ} = 'aenderung_eintrag' and ${t.biomassestromId} is not null`),
+    uniqueIndex("inbox_eintrag_output_offen_uidx")
+      .on(t.empfaengerId, t.outputBedarfId)
+      .where(sql`${t.zustand} = 'offen' and ${t.typ} = 'aenderung_eintrag' and ${t.outputBedarfId} is not null`),
+    // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
+    index("inbox_eintrag_zaehler_idx")
+      .on(t.empfaengerId)
+      .where(sql`${t.zustand} = 'offen' and ${t.gelesenAm} is null`),
+  ],
+);
+
+/**
  * F8/E30: Rollen der internen Nutzenden. Die Identitaet kommt aus Cloudflare
  * Access, die Rolle aus dieser Tabelle — Access entscheidet, wer hereinkommt,
  * die Anwendung entscheidet, was diese Person darf.
