@@ -9,8 +9,10 @@ import {
   pruefeAktivWechsel,
   pruefeNeuanlage,
   pruefeRollenwechsel,
+  TEXT_SCHON_VORHANDEN,
   type BenutzerZeile,
 } from "@/lib/benutzer-regeln";
+import { istEindeutigkeitsVerletzung } from "@/lib/db-fehler";
 import { normalisiereEmail, ROLLEN, type Rolle } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 
@@ -49,7 +51,16 @@ export async function benutzerAnlegen(
     const alle = (await ladeAlle(db)) as BenutzerZeile[];
     const ablehnung = pruefeNeuanlage(alle, email);
     if (ablehnung) return ablehnung.text;
-    await db.insert(benutzer).values({ email, rolle, name });
+    try {
+      await db.insert(benutzer).values({ email, rolle, name });
+    } catch (e) {
+      // Die Vorprüfung oben ist Komfort; die Wahrheit ist der Primärschlüssel.
+      // Liest sie einen veralteten Stand (Hyperdrive-Abfrage-Cache, 29.09.2026),
+      // antwortet die Datenbank mit 23505 — und der Nutzer bekommt dieselbe
+      // klare Meldung statt eines 500ers. Alles andere bleibt ein Fehler.
+      if (istEindeutigkeitsVerletzung(e)) return TEXT_SCHON_VORHANDEN;
+      throw e;
+    }
     return null;
   });
 

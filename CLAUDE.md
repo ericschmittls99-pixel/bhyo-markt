@@ -168,6 +168,7 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
 - `docs/ap0c-handoff-backup-restore.md` — Handoff für den täglichen Backup-Job und den Restore-Test
 - `docs/ap1a-handoff-datenmodell.md` — Handoff für die Kernentitäten-Migration (Region, Akteur, Beleg, Biomassestrom, Output-Bedarf, Akteur-Interesse, Analyse-Lauf, Entfernung)
 - `docs/ap1b-handoff-erfassung.md` — Handoff für Erfassungs-UI, Schema-Ergänzung Migration 0002, Qualitäts-Ableitung als Code, Beleg-Upload nach R2
+- `docs/betrieb.md` — Einstellungen außerhalb des Repos, die der Code voraussetzt (Hyperdrive-Abfrage-Cache aus, mit Wächter)
 
 Die Konzept- und Planungsebene (Hub-Note, Arbeitspakete, To-do-Liste) liegt
 außerhalb dieses Repos im Obsidian-Vault und ist die Quelle der Wahrheit für
