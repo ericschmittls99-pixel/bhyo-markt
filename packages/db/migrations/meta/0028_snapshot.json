@@ -1,5 +1,5 @@
 {
-  "id": "f341f3f7-2e8c-4ea3-9882-35dc6758b5ba",
+  "id": "2de2b034-11a5-4e57-af7d-c82d92a2cff3",
   "prevId": "f3630f97-cd7d-456d-8271-b6c050028977",
   "version": "7",
   "dialect": "postgresql",
@@ -1172,7 +1172,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and \"inbox_eintrag\".\"typ\"::text = 'zugriffsanfrage' and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'zugriffsanfrage' and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}
@@ -1200,7 +1200,7 @@
             }
           ],
           "isUnique": true,
-          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and \"inbox_eintrag\".\"typ\"::text = 'zugriffsanfrage' and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'zugriffsanfrage' and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
           "concurrently": false,
           "method": "btree",
           "with": {}

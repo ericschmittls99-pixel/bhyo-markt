@@ -799,14 +799,16 @@ export const inboxEintrag = pgTable(
       .on(t.empfaengerId, t.outputBedarfId)
       .where(sql`${t.zustand} = 'offen' and ${t.typ} = 'aenderung_eintrag' and ${t.outputBedarfId} is not null`),
     // PR c: Zugriffsanfrage — je Empfaenger, Strom UND Anfragendem ein offener
-    // Eintrag (zwei Anfragende = zwei Eintraege). `typ::text`, weil der neue
-    // Enum-Wert in derselben Migrations-Transaktion sonst nicht verwendbar ist.
+    // Eintrag (zwei Anfragende = zwei Eintraege). Das Praedikat vergleicht
+    // ueber inbox_typ_text() (IMMUTABLE, Migration 0028): Der neue Enum-Wert
+    // ist in derselben Migrations-Transaktion nicht als Literal verwendbar,
+    // und der nackte Cast ::text ist fuer ein Index-Praedikat nicht immutable.
     uniqueIndex("inbox_eintrag_biomasse_anfrage_uidx")
       .on(t.empfaengerId, t.biomassestromId, t.ausloeserId)
-      .where(sql`${t.zustand} = 'offen' and ${t.typ}::text = 'zugriffsanfrage' and ${t.biomassestromId} is not null`),
+      .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'zugriffsanfrage' and ${t.biomassestromId} is not null`),
     uniqueIndex("inbox_eintrag_output_anfrage_uidx")
       .on(t.empfaengerId, t.outputBedarfId, t.ausloeserId)
-      .where(sql`${t.zustand} = 'offen' and ${t.typ}::text = 'zugriffsanfrage' and ${t.outputBedarfId} is not null`),
+      .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'zugriffsanfrage' and ${t.outputBedarfId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)

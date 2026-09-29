@@ -167,7 +167,8 @@ function buendelung(typ: InboxTyp, zielSpalte: typeof inboxEintrag.biomassestrom
     case "zugriffsanfrage":
       return {
         target: [inboxEintrag.empfaengerId, zielSpalte, inboxEintrag.ausloeserId],
-        where: sql`${inboxEintrag.zustand} = 'offen' and ${inboxEintrag.typ}::text = 'zugriffsanfrage' and ${zielSpalte} is not null`,
+        // Muss dem Index-Praedikat entsprechen (inbox_typ_text, Migration 0028).
+        where: sql`${inboxEintrag.zustand} = 'offen' and inbox_typ_text(${inboxEintrag.typ}) = 'zugriffsanfrage' and ${zielSpalte} is not null`,
       };
     default:
       return null;
