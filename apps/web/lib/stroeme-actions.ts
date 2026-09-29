@@ -1,6 +1,6 @@
 "use server";
 
-import { aenderung, biomassestrom, outputBedarf } from "@bhyo/db/schema";
+import { biomassestrom, outputBedarf } from "@bhyo/db/schema";
 import { and, eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -8,6 +8,7 @@ import { withDb } from "@/lib/db";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL } from "@/lib/status";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import { pruefeStromSperre } from "@/lib/rechte/sperre-server";
+import { protokolliere } from "@/lib/protokoll";
 import type { Zugang } from "@/lib/rechte";
 import type { StromArt } from "@/lib/stroeme-modell";
 
@@ -65,11 +66,13 @@ async function wechsleStatus(
           .returning({ id: tabelle.id });
         if (!geaendert.length)
           throw new Error("Der Status wurde zwischenzeitlich geändert — bitte neu laden.");
-        await tx.insert(aenderung).values({
-          entitaetTyp: art === "biomasse" ? "biomassestrom" : "output_bedarf",
-          entitaetId: id,
-          text: `${email}: ${logText}`,
+        await protokolliere(tx, {
+          art: aktion === "strom.verwerfen" ? "verworfen" : "status_gesetzt",
+          entitaet: art === "biomasse" ? "biomassestrom" : "output_bedarf",
+          id,
+          benutzerId: zugang.id,
           benutzerEmail: email,
+          text: logText,
         });
       }),
     );

@@ -28,7 +28,6 @@ export const AKTIONEN = [
   "strom.zuweisung_entfernen",
   // Referenz- und Stammdaten (API-Routen)
   "akteur.anlegen",
-  "materialart.anlegen",
   "region.anlegen",
   "projekt.starten",
   // Benutzerverwaltung (benutzer-actions.ts)
@@ -53,7 +52,6 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "strom.zuweisen": SPERREN,
   "strom.zuweisung_entfernen": SPERREN,
   "akteur.anlegen": ERFASSEN,
-  "materialart.anlegen": ERFASSEN,
   "region.anlegen": ERFASSEN,
   "projekt.starten": ERFASSEN,
   "benutzer.anlegen": VERWALTEN,

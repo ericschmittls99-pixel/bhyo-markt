@@ -43,3 +43,9 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
         run: pnpm --filter @bhyo/db beleg-abweichung
+      # AP2.2 PR a: Messung des Protokolls (Zeilen, Textmuster, E-Mail-Join;
+      # nach 0026 Arten und benutzer_id). Nur SELECT.
+      - name: Protokoll-Messung (AP2.2, nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db protokoll-messung

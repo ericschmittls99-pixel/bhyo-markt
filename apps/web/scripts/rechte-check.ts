@@ -13,8 +13,12 @@
  * Bewusst quellentextbasiert: Ein Laufzeittest muesste jede Route aufrufen
  * und wuerde neue Pfade genau dann verpassen, wenn niemand an ihn denkt.
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join, relative, sep } from "node:path";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { schreibpfade, type Lücke } from "./schreibpfade";
+
+export type { Lücke };
 
 const WURZEL = process.cwd();
 
@@ -53,35 +57,6 @@ function objektAktionen(wurzel: string): Set<string> {
   return new Set([...block.matchAll(/"([a-z_]+\.[a-z_]+)":/g)].map((m) => m[1]!));
 }
 
-const SCHREIB_METHODEN = ["POST", "PUT", "PATCH", "DELETE"] as const;
-
-export interface Lücke {
-  datei: string;
-  pfad: string;
-  grund: string;
-}
-
-function dateien(verzeichnis: string, treffer: string[] = []): string[] {
-  for (const eintrag of readdirSync(verzeichnis)) {
-    if (eintrag === "node_modules" || eintrag === ".next") continue;
-    const voll = join(verzeichnis, eintrag);
-    if (statSync(voll).isDirectory()) dateien(voll, treffer);
-    else if (/\.tsx?$/.test(eintrag) && !/\.test\.tsx?$/.test(eintrag)) treffer.push(voll);
-  }
-  return treffer;
-}
-
-/**
- * Schneidet den Rumpf einer exportierten Funktion heraus — von ihrem Beginn
- * bis zum naechsten `export`. Grob, aber ausreichend: Wir fragen nur, ob in
- * diesem Abschnitt ein Wache-Aufruf vorkommt.
- */
-function rumpf(quelle: string, ab: number): string {
-  const rest = quelle.slice(ab);
-  const naechster = rest.slice(1).search(/^(?:export |async function |function )/m);
-  return naechster === -1 ? rest : rest.slice(0, naechster + 1);
-}
-
 export function findeLuecken(wurzel = WURZEL): Lücke[] {
   const luecken: Lücke[] = [];
   const bekannt = aktionen(wurzel);
@@ -110,51 +85,11 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     return null;
   };
 
-  /**
-   * Rumpf samt aufgerufener LOKALER Helfer (eine Ebene): Die Objektstufe darf
-   * in einem gemeinsamen Rumpf der Datei sitzen (z. B. wechsleStatus in
-   * stroeme-actions.ts), solange die exportierte Aktion ihn aufruft.
-   */
-  const mitHelfern = (quelle: string, text: string): string => {
-    const lokale = new Map<string, string>();
-    for (const m of quelle.matchAll(/^(?:async )?function (\w+)\(/gm)) {
-      lokale.set(m[1]!, rumpf(quelle, m.index!));
-    }
-    let erweitert = text;
-    for (const [name, body] of lokale) {
-      if (new RegExp(`\\b${name}\\s*\\(`).test(text)) erweitert += "\n" + body;
-    }
-    return erweitert;
-  };
-
-  // 1. Server-Actions: jede exportierte async-Funktion in einer "use server"-
-  //    Datei — im GANZEN Baum (lib, app, components), nicht nur in lib/:
-  //    eine Action ist ueberall ein Endpunkt (Sicherheitsmessung AP2.1).
-  for (const datei of dateien(wurzel)) {
-    if (datei.includes(`${sep}scripts${sep}`)) continue;
-    const quelle = readFileSync(datei, "utf8");
-    if (!/^["']use server["'];/m.test(quelle)) continue;
-    for (const m of quelle.matchAll(/^export async function (\w+)/gm)) {
-      const name = m[1]!;
-      // logAenderung ist ein Baustein ohne eigenen Schreibpfad: Es wird
-      // ausschliesslich INNERHALB bereits geprueffter Aktionen aufgerufen und
-      // bekommt die geprueffte E-Mail uebergeben.
-      if (name === "logAenderung") continue;
-      const grund = pruefe(mitHelfern(quelle, rumpf(quelle, m.index!)));
-      if (grund) luecken.push({ datei: relative(wurzel, datei), pfad: `${name}()`, grund: `Server-Action: ${grund}` });
-    }
-  }
-
-  // 2. Schreibende API-Routen.
-  for (const datei of dateien(join(wurzel, "app", "api"))) {
-    if (!datei.endsWith("route.ts")) continue;
-    const quelle = readFileSync(datei, "utf8");
-    for (const methode of SCHREIB_METHODEN) {
-      const m = new RegExp(`^export async function ${methode}\\b`, "m").exec(quelle);
-      if (!m) continue;
-      const grund = pruefe(rumpf(quelle, m.index));
-      if (grund) luecken.push({ datei: relative(wurzel, datei), pfad: `${methode}`, grund: `schreibende Route: ${grund}` });
-    }
+  // Die Wache muss im Pfad selbst oder einem LOKALEN Helfer sitzen — ein
+  // importierter Helfer zaehlt hier nicht (die Wache gehoert an den Eingang).
+  for (const pfad of schreibpfade(wurzel)) {
+    const grund = pruefe(pfad.mitLokalen);
+    if (grund) luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: ${grund}` });
   }
 
   return luecken;

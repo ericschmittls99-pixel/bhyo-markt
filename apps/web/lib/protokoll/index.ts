@@ -1,0 +1,81 @@
+/**
+ * AP2.2 PR a: Das Ereignisprotokoll. `aenderung` ist die Tabelle, dieses
+ * Modul die EINZIGE Schreibstelle — scripts/protokoll-check.ts erzwingt das
+ * in der CI (kein INSERT auf aenderung ausserhalb von lib/protokoll, und
+ * jeder Schreibpfad protokolliert).
+ *
+ * Ein Ereignis wird immer in der Transaktion des Schreibpfads geschrieben:
+ * rollt sie zurueck, gibt es auch kein Ereignis. Deshalb nimmt
+ * `protokolliere` die Transaktion entgegen und oeffnet nie eine eigene
+ * Verbindung.
+ */
+import { aenderung, ereignisArt } from "@bhyo/db/schema";
+
+import type { AppDb } from "@/lib/db";
+
+export type EreignisArt = (typeof ereignisArt.enumValues)[number];
+
+/** Objektbezug: polymorph, das Protokoll ueberdauert verworfene Objekte. */
+export type Entitaet =
+  | "biomassestrom"
+  | "output_bedarf"
+  | "benutzer"
+  | "akteur"
+  | "region"
+  | "analyse_lauf";
+
+export interface Ereignis {
+  art: Exclude<EreignisArt, "altbestand">;
+  entitaet: Entitaet;
+  id: string;
+  /** Urheber als benutzer.id — Pflicht (CHECK aenderung_urheber_check). */
+  benutzerId: string;
+  /** Urheber-E-Mail: bleibt vorerst als Spalte und Textpraefix (Anzeige). */
+  benutzerEmail: string;
+  /** Freitext (Begruendung, Zielstatus …); fehlt er, gilt der Standardtext der Art. */
+  text?: string;
+}
+
+/** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
+export type Schreiber = Pick<AppDb, "insert">;
+
+/** Standardtexte je Art — fuer die bestehende Verlaufsanzeige. */
+export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = {
+  angelegt: "Ersterfassung",
+  geaendert: "Geändert",
+  status_gesetzt: "Status gesetzt",
+  verworfen: "Strom verworfen (statt gelöscht)",
+  gesperrt: "Strom gesperrt",
+  entsperrt: "Strom entsperrt (Zuweisungen entfernt)",
+  zugewiesen: "Zugewiesen",
+  zuweisung_entfernt: "Zuweisung entfernt",
+  benutzer_angelegt: "Benutzer angelegt",
+  rolle_gesetzt: "Rolle gesetzt",
+  benutzer_aktiviert: "Zugang aktiviert",
+  benutzer_deaktiviert: "Zugang deaktiviert",
+  region_angelegt: "Region angelegt",
+  akteur_angelegt: "Akteur angelegt",
+  projekt_angelegt: "Projekt gestartet",
+};
+
+/**
+ * Schreibt genau eine Protokollzeile in der uebergebenen Transaktion.
+ * `altbestand` ist keine Art, die Code erzeugt — der Typ laesst sie nicht zu,
+ * und zur Laufzeit wird sie trotzdem abgewiesen.
+ */
+export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<void> {
+  if ((ereignis.art as string) === "altbestand") {
+    throw new Error("altbestand ist Altzeilen vorbehalten und wird nie neu geschrieben.");
+  }
+  if (!ereignis.benutzerId) throw new Error("Ereignis ohne Urheber (benutzerId).");
+  const text = ereignis.text?.trim() || STANDARDTEXT[ereignis.art];
+  await tx.insert(aenderung).values({
+    entitaetTyp: ereignis.entitaet,
+    entitaetId: ereignis.id,
+    art: ereignis.art,
+    benutzerId: ereignis.benutzerId,
+    benutzerEmail: ereignis.benutzerEmail,
+    // Praefix bleibt, weil die Verlaufsanzeige ihn heute so zeigt (F8/E30).
+    text: `${ereignis.benutzerEmail}: ${text}`,
+  });
+}

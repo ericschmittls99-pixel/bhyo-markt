@@ -675,22 +675,65 @@ export const entfernung = pgTable(
  * auf die geloggte Entitaet – wie bei entfernung bewusst ohne FK-Constraint,
  * damit ein Log-Eintrag auch einen spaeter verworfenen Datensatz ueberdauert.
  */
-export const aenderung = pgTable("aenderung", {
-  id: uuid("id").primaryKey().defaultRandom(),
-  entitaetTyp: text("entitaet_typ").notNull(),
-  entitaetId: uuid("entitaet_id").notNull(),
-  zeitpunkt: timestamp("zeitpunkt", { withTimezone: true })
-    .notNull()
-    .defaultNow(),
-  text: text("text").notNull(),
-  /**
-   * F8/E30: Urheber als eigene Spalte statt als Textpraefix in `text`. Der
-   * Praefix bleibt in Altzeilen stehen, wird aber nicht mehr als Quelle
-   * gelesen — nullable, weil Altzeilen bewusst NICHT durch Textzerlegung
-   * nachgetragen werden (sie zeigen "unbekannt").
-   */
-  benutzerEmail: text("benutzer_email"),
-});
+/**
+ * AP2.2 PR a: Ereignisarten des Protokolls — genau die Arten, die ein
+ * Schreibpfad erzeugt (apps/web/lib/protokoll), plus `altbestand` fuer
+ * Zeilen von vor der Migration 0026. Anhaenge-Historie, nicht umsortierbar.
+ */
+export const ereignisArt = pgEnum("ereignis_art", [
+  "angelegt",
+  "geaendert",
+  "status_gesetzt",
+  "verworfen",
+  "gesperrt",
+  "entsperrt",
+  "zugewiesen",
+  "zuweisung_entfernt",
+  "benutzer_angelegt",
+  "rolle_gesetzt",
+  "benutzer_aktiviert",
+  "benutzer_deaktiviert",
+  "region_angelegt",
+  "akteur_angelegt",
+  "projekt_angelegt",
+  "altbestand",
+]);
+
+export const aenderung = pgTable(
+  "aenderung",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    entitaetTyp: text("entitaet_typ").notNull(),
+    entitaetId: uuid("entitaet_id").notNull(),
+    zeitpunkt: timestamp("zeitpunkt", { withTimezone: true })
+      .notNull()
+      .defaultNow(),
+    text: text("text").notNull(),
+    /**
+     * F8/E30: Urheber als eigene Spalte statt als Textpraefix in `text`. Der
+     * Praefix bleibt in Altzeilen stehen, wird aber nicht mehr als Quelle
+     * gelesen — nullable, weil Altzeilen bewusst NICHT durch Textzerlegung
+     * nachgetragen werden (sie zeigen "unbekannt").
+     */
+    benutzerEmail: text("benutzer_email"),
+    /**
+     * AP2.2 PR a (Migration 0026): `aenderung` ist das Ereignisprotokoll.
+     * Kein DEFAULT auf `art` — jede neue Zeile nennt ihre Art ausdruecklich;
+     * Altzeilen tragen `altbestand`. `benutzer_id` ist der Urheber als FK
+     * (Altzeilen per E-Mail-Join, sonst NULL). Der CHECK erzwingt: alles
+     * ausser Altbestand hat einen Urheber.
+     */
+    art: ereignisArt("art").notNull(),
+    benutzerId: uuid("benutzer_id").references(() => benutzer.id),
+  },
+  (t) => [
+    index("aenderung_entitaet_idx").on(t.entitaetTyp, t.entitaetId),
+    check(
+      "aenderung_urheber_check",
+      sql`${t.art} = 'altbestand' or ${t.benutzerId} is not null`,
+    ),
+  ],
+);
 
 /**
  * F8/E30: Rollen der internen Nutzenden. Die Identitaet kommt aus Cloudflare

@@ -7,6 +7,7 @@ import {
 import { eq, sql } from "drizzle-orm";
 
 import { type AppDb, withDb } from "@/lib/db";
+import { protokolliere } from "@/lib/protokoll";
 
 /** Transaktions-Handle von db.transaction (hat execute/insert/select wie AppDb). */
 type Tx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
@@ -120,19 +121,35 @@ async function naechsteLaufId(tx: Tx, jahr: number): Promise<string> {
   return `BW-${jahr}-${String(naechste).padStart(3, "0")}`;
 }
 
+/** Urheber eines Schreibpfads — die geprueffte Identitaet aus der Wache. */
+export interface Urheber {
+  id: string;
+  email: string;
+}
+
+/** Lauf anlegen und protokollieren — in der Transaktion des Aufrufers. */
+async function legeLaufAn(tx: Tx, nutzer: Urheber, regionId: string): Promise<string> {
+  const laufId = await naechsteLaufId(tx, new Date().getFullYear());
+  const [lauf] = await tx.insert(analyseLauf).values({ regionId, laufId }).returning({ id: analyseLauf.id });
+  await protokolliere(tx, {
+    art: "projekt_angelegt",
+    entitaet: "analyse_lauf",
+    id: lauf!.id,
+    benutzerId: nutzer.id,
+    benutzerEmail: nutzer.email,
+    text: `Lauf ${laufId} gestartet`,
+  });
+  return laufId;
+}
+
 /** Legt den ersten analyse_lauf (arbeitsfassung) fuer eine bestehende Region an. */
-export function starteLauf(regionId: string): Promise<string> {
-  return withDb((db) =>
-    db.transaction(async (tx) => {
-      const laufId = await naechsteLaufId(tx, new Date().getFullYear());
-      await tx.insert(analyseLauf).values({ regionId, laufId });
-      return laufId;
-    }),
-  );
+export function starteLauf(nutzer: Urheber, regionId: string): Promise<string> {
+  return withDb((db) => db.transaction((tx) => legeLaufAn(tx, nutzer, regionId)));
 }
 
 async function insertRegion(
   tx: Tx,
+  nutzer: Urheber,
   name: string,
   bbox: [number, number, number, number],
 ): Promise<string> {
@@ -142,27 +159,37 @@ async function insertRegion(
         values (${name}, ST_SetSRID(ST_MakeEnvelope(${minLng}, ${minLat}, ${maxLng}, ${maxLat}), 4326))
         returning id`,
   )) as unknown as Array<{ id: string }>;
-  return rows[0]!.id;
+  const regionId = rows[0]!.id;
+  await protokolliere(tx, {
+    art: "region_angelegt",
+    entitaet: "region",
+    id: regionId,
+    benutzerId: nutzer.id,
+    benutzerEmail: nutzer.email,
+    text: `Region „${name}" angelegt`,
+  });
+  return regionId;
 }
 
 /** Weg 1: Fokusregion sofort anlegen (ohne Lauf). */
 export function erstelleRegion(
+  nutzer: Urheber,
   name: string,
   bbox: [number, number, number, number],
 ): Promise<string> {
-  return withDb((db) => db.transaction((tx) => insertRegion(tx, name, bbox)));
+  return withDb((db) => db.transaction((tx) => insertRegion(tx, nutzer, name, bbox)));
 }
 
 /** Weg 2: Region zeichnen UND direkt Projekt starten – nur dann wird persistiert. */
 export function erstelleRegionUndStarte(
+  nutzer: Urheber,
   name: string,
   bbox: [number, number, number, number],
 ): Promise<{ regionId: string; laufId: string }> {
   return withDb((db) =>
     db.transaction(async (tx) => {
-      const regionId = await insertRegion(tx, name, bbox);
-      const laufId = await naechsteLaufId(tx, new Date().getFullYear());
-      await tx.insert(analyseLauf).values({ regionId, laufId });
+      const regionId = await insertRegion(tx, nutzer, name, bbox);
+      const laufId = await legeLaufAn(tx, nutzer, regionId);
       return { regionId, laufId };
     }),
   );

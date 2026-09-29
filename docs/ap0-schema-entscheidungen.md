@@ -686,6 +686,52 @@ aus der Nutzer-ID über Tokens, Größen s/m, kein Foto) auch in der
 Benutzerliste. Kein „Zugriff anfragen" (AP2.2). Screenshots:
 `docs/screenshots/e44/`.
 
+## 24. Ereignisprotokoll (E23, AP2.2 PR a, 29.09.2026)
+
+**`aenderung` wird zum Ereignisprotokoll** — keine neue Tabelle, keine
+Umbenennung (das wäre ein Contract nach E21 ohne fachlichen Nutzen).
+Migration 0026 (Expand): Enum `ereignis_art` mit genau den Arten, die ein
+Schreibpfad erzeugt (`angelegt`, `geaendert`, `status_gesetzt`, `verworfen`,
+`gesperrt`, `entsperrt`, `zugewiesen`, `zuweisung_entfernt`,
+`benutzer_angelegt`, `rolle_gesetzt`, `benutzer_aktiviert`,
+`benutzer_deaktiviert`, `region_angelegt`, `akteur_angelegt`,
+`projekt_angelegt`) plus `altbestand`; Spalten `art` (NOT NULL, ohne
+DEFAULT) und `benutzer_id` (FK `benutzer(id)`); CHECK
+`art = 'altbestand' OR benutzer_id IS NOT NULL`; Index auf
+(`entitaet_typ`, `entitaet_id`). Entitätstyp und -ID bleiben der polymorphe
+Objektbezug (das Protokoll überdauert verworfene Objekte); Freitext und
+Urheber-E-Mail bleiben vorerst.
+
+**Altzeilen:** Art `altbestand` für alle — die Art ist aus dem Freitext nicht
+eindeutig ableitbar, weil dieselbe Spalte Code-Texte („Status auf … gesetzt")
+und freie Begründungen aus dem Formular trägt (Messung 29.09.2026: Production
+2 Zeilen, Preview 32; kein Muster ist formal eindeutig). `benutzer_id` per
+E-Mail-Join über die Spalte `benutzer_email` (Production 2/2, Preview 13/32);
+der Textpräfix ist seit F8/E30 keine Quelle und bleibt es.
+
+**Eine Schreibstelle:** `apps/web/lib/protokoll` — `protokolliere(tx,
+{ art, entitaet, id, benutzerId, benutzerEmail, text? })` schreibt in der
+Transaktion des Schreibpfads (Rollback = kein Ereignis). Jeder Schreibpfad
+protokolliert; Pfade, die es bisher nicht taten (Benutzerverwaltung,
+Akteur, Region, Projektstart), tun es jetzt in einer Transaktion mit ihrer
+Änderung. CI-Wächter `protokoll-check`: (a) kein INSERT auf `aenderung`
+außerhalb von `lib/protokoll`, (b) jeder Schreibpfad (dieselbe Ermittlung
+wie `rechte-check`, `scripts/schreibpfade.ts`) ruft `protokolliere` mit
+einer Art auf — auch über eine aus `@/lib` importierte Funktion (eine
+Ebene), ohne Ausnahme. **Entfernt** (Entscheidung Eric, 29.09.2026, benannte
+Ausnahme von „kein Verhaltensunterschied"): `POST /api/materialarten` und
+die Aktion `materialart.anlegen` — kein Aufrufer, und Bearbeiter sollen
+die Taxonomie nicht per API erweitern können; `materialart` hat zudem keinen
+uuid-Schlüssel für den Objektbezug. AP2.3 baut bei Bedarf einen Admin-Pfad
+mit eigenem Schlüsselkonzept. DB-Check `protokoll-check` in der CI: CHECK greift,
+Rollback hinterlässt nichts.
+
+**Ableitung, nichts gespeichert** (E23): `ersteller(strom)` = Urheber des
+Ereignisses `angelegt`, sonst benannt „Ersteller unbekannt";
+`beteiligte(strom)` = alle Urheber der Arten `angelegt`, `geaendert`,
+`status_gesetzt`, `verworfen` (Sperren und Zuweisen zählen nicht,
+Altbestand fällt heraus). Grundlage der Empfängerregel in PR b.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

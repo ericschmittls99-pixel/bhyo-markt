@@ -64,7 +64,7 @@ Unique-Constraints:
 | `lib/beleg-server.ts` `erstelleBeleg` | `beleg.beleg_nr` | nein — Nummer aus DB-Sequenz (E29) | keine nötig |
 | `lib/bewertung.ts` `naechsteLaufId` | `analyse_lauf.lauf_id`, `lauf_nummernkreis.jahr` | nein — Zähler in Transaktion mit `FOR UPDATE`, `ON CONFLICT DO NOTHING` | keine nötig |
 | `lib/sperre-actions.ts` `stromZuweisen` | `strom_zuweisung_*_nutzer_uidx` | nein — `ON CONFLICT DO NOTHING` | `RETURNING` leer → „… ist bereits zugewiesen.", kein Protokolleintrag (Test); vorher stiller Erfolg mit falschem Protokoll |
-| `app/api/materialarten` POST | `materialart.code` (PK) | nein — `ON CONFLICT DO NOTHING`, dann Lesen | gibt den bestehenden Eintrag zurück; kein Aufrufer in der Oberfläche |
+| `app/api/materialarten` POST | `materialart.code` (PK) | — | Route am 29.09.2026 entfernt (AP2.2 PR a, kein Aufrufer) |
 | `app/api/akteure` POST | keine Unique-Constraint auf `akteur` | — | — |
 | `akteur_interesse (akteur_id, region_id)` | unique | kein Schreibpfad im Code | — |
 

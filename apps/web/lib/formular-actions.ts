@@ -7,7 +7,6 @@ import { revalidatePath } from "next/cache";
 import {
   aktualisiereBeleg,
   erstelleBeleg,
-  logAenderung,
   pflicht,
   saisonAusFormData,
   text,
@@ -31,6 +30,7 @@ import {
   type VergabeFormZeile,
 } from "@/lib/verfuegbarkeit";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { protokolliere } from "@/lib/protokoll";
 import { pruefeBelegSperre, pruefeStromSperre } from "@/lib/rechte/sperre-server";
 import { dezimalKanonisch, monatKanonisch } from "@/lib/eingabe-format";
 
@@ -224,7 +224,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: biomassestrom.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
+            await protokolliere(tx, { art: "angelegt", entitaet: entitaetTyp, id: row!.id, benutzerId: wache.zugang.id, benutzerEmail: email, text: begruendung });
           } else {
             const [row] = await tx
               .insert(outputBedarf)
@@ -236,7 +236,7 @@ export async function stromSpeichern(
               } as never)
               .returning({ id: outputBedarf.id });
             await vergabenSpeichern(tx, row!.id);
-            await logAenderung(tx, entitaetTyp, row!.id, email, begruendung || "Ersterfassung");
+            await protokolliere(tx, { art: "angelegt", entitaet: entitaetTyp, id: row!.id, benutzerId: wache.zugang.id, benutzerEmail: email, text: begruendung });
           }
           return;
         }
@@ -277,7 +277,7 @@ export async function stromSpeichern(
           } as never)
           .where(eq(tabelle.id, id));
         await vergabenSpeichern(tx, id);
-        await logAenderung(tx, entitaetTyp, id, email, begruendung);
+        await protokolliere(tx, { art: "geaendert", entitaet: entitaetTyp, id, benutzerId: wache.zugang.id, benutzerEmail: email, text: begruendung });
       }),
     );
   } catch (e) {

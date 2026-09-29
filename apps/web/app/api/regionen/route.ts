@@ -30,6 +30,6 @@ export async function POST(req: Request) {
   if (!bbox)
     return Response.json({ error: "Ungültiges Gebiet" }, { status: 400 });
 
-  const id = await erstelleRegion(name, bbox);
+  const id = await erstelleRegion(wache.zugang, name, bbox);
   return Response.json({ region: { id, name } }, { status: 201 });
 }
