@@ -48,7 +48,7 @@ export async function stromSperren(art: StromArt, id: string): Promise<AktionErg
           .where(and(eq(t.id, id), isNull(t.gesperrtVon)))
           .returning({ id: t.id });
         if (!geaendert.length) throw new Error("Der Strom wurde zwischenzeitlich gesperrt — bitte neu laden.");
-        await protokolliere(tx, { art: "gesperrt", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email });
+        // PROBE (b): Ereignis vergessen
       }),
     );
   } catch (e) {

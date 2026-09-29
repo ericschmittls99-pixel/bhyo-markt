@@ -1,4 +1,4 @@
-import { beleg } from "@bhyo/db/schema";
+import { aenderung, beleg } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AppDb, getBelegeBucket, getEnvironment } from "@/lib/db";
@@ -176,4 +176,9 @@ export async function aktualisiereBeleg(
     .where(eq(beleg.id, belegId));
 
   return { belegId };
+}
+
+/** PROBE (a): Direkt-Insert ausserhalb des Moduls — muss protokoll-check rot machen. */
+export async function probeDirektInsert(db: AppDb) {
+  await db.insert(aenderung).values({ entitaetTyp: "probe", entitaetId: "x", text: "probe", art: "geaendert", benutzerId: "x" });
 }
