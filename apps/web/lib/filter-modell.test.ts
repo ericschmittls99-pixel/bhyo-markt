@@ -18,15 +18,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   altwertZuNeu,
-  leiste,
-  ruecksetzPatch,
   ANSICHTEN,
   FILTER,
   FILTER_PARAMS,
-  SICHTEN,
   filterFuer,
+  filterHinweis,
+  filterLabel,
   gilt,
+  leiste,
   leseSicht,
+  ruecksetzPatch,
+  SICHTEN,
   type Ansicht,
   type Sicht,
 } from "./filter-modell";
