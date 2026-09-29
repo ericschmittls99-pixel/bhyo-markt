@@ -148,8 +148,12 @@ export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "off
   );
 }
 
-/** „Alle erledigt" in der Kopfzeile — nur für reine Hinweise, nur offene, nur eigene. */
-InboxListe.AlleErledigt = function AlleErledigt({ anzahlOffen }: { anzahlOffen: number }) {
+/**
+ * „Alle erledigt" in der Kopfzeile — nur für reine Hinweise, nur offene, nur
+ * eigene. Eigener Export: Eine Eigenschaft an der Client-Komponente ist aus
+ * einer Server-Komponente heraus nicht erreichbar (Client-Referenz).
+ */
+export function AlleErledigt({ anzahlOffen }: { anzahlOffen: number }) {
   const router = useRouter();
   const [laeuft, starte] = useTransition();
   return (
@@ -168,4 +172,4 @@ InboxListe.AlleErledigt = function AlleErledigt({ anzahlOffen }: { anzahlOffen: 
       Alle erledigt
     </button>
   );
-};
+}

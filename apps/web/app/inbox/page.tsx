@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { InboxListe } from "@/components/inbox/InboxListe";
+import { AlleErledigt, InboxListe } from "@/components/inbox/InboxListe";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { Detail } from "@/components/stroeme/Detail";
 import { withDb } from "@/lib/db";
@@ -79,7 +79,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
             : `${zeilen.length} erledigt oder verworfen`}
         </span>
         <div className="st-toolbar-rechts">
-          <InboxListe.AlleErledigt anzahlOffen={offenAnzahl ?? 0} />
+          <AlleErledigt anzahlOffen={offenAnzahl ?? 0} />
         </div>
       </div>
 

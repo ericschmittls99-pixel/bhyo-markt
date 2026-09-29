@@ -21,7 +21,7 @@ vi.mock("@/lib/inbox/actions", () => ({
   inboxAlleErledigen: async () => ({ ok: true, anzahl: 0 }),
 }));
 
-const { InboxListe } = await import("./InboxListe");
+const { InboxListe, AlleErledigt } = await import("./InboxListe");
 type Zeile = import("./InboxListe").Zeile;
 
 const BERND = { id: "00000000-0000-4000-8000-0000000000b1", name: "Bernd Bearbeiter", email: "bernd@bhyo.de" };
@@ -78,7 +78,7 @@ describe("InboxListe", () => {
   });
 
   it("„Alle erledigt“ ist ohne offene Eintraege deaktiviert", () => {
-    expect(renderToStaticMarkup(<InboxListe.AlleErledigt anzahlOffen={0} />)).toContain("disabled");
-    expect(renderToStaticMarkup(<InboxListe.AlleErledigt anzahlOffen={2} />)).not.toContain("disabled");
+    expect(renderToStaticMarkup(<AlleErledigt anzahlOffen={0} />)).toContain("disabled");
+    expect(renderToStaticMarkup(<AlleErledigt anzahlOffen={2} />)).not.toContain("disabled");
   });
 });
