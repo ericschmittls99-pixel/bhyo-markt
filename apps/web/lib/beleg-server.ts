@@ -1,4 +1,4 @@
-import { beleg } from "@bhyo/db/schema";
+import { beleg, inboxEintrag } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { type AppDb, getBelegeBucket, getEnvironment } from "@/lib/db";
@@ -176,4 +176,9 @@ export async function aktualisiereBeleg(
     .where(eq(beleg.id, belegId));
 
   return { belegId };
+}
+
+/** PROBE: Schreibzugriff auf inbox_eintrag ausserhalb des Moduls — muss inbox-check rot machen. */
+export async function probeInboxUpdate(db: AppDb) {
+  await db.update(inboxEintrag).set({ gelesenAm: new Date() });
 }
