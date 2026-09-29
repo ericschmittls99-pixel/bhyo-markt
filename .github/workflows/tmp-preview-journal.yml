@@ -21,13 +21,4 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         working-directory: packages/db
-        run: |
-          pnpm exec tsx -e "
-            import postgres from 'postgres';
-            const sql = postgres(process.env.DATABASE_URL, { max: 1, fetch_types: false });
-            const z = await sql\`select count(*)::int as n, count(distinct hash)::int as hashes, max(id)::int as max_id from drizzle.__drizzle_migrations\`;
-            const letzte = await sql\`select id, created_at from drizzle.__drizzle_migrations order by id desc limit 3\`;
-            const dup = await sql\`select hash, count(*)::int as n from drizzle.__drizzle_migrations group by hash having count(*) > 1\`;
-            console.log('JOURNAL ' + JSON.stringify({ ...z[0], letzte, doppelte: dup.length }));
-            await sql.end();
-          "
+        run: pnpm exec tsx src/tmp-journal-lesen.ts
