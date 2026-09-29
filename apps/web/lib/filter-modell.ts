@@ -250,8 +250,8 @@ export const FILTER: readonly FilterDef[] = [
     key: "verfuegbarkeit",
     label: "Verfügbarkeit",
     // E41 (28.09.2026): gilt auch in auswertung. — dort gegen das gewaehlte
-    // Jahr bzw. den Zeitraum (E39) statt gegen heute. Rueckmeldung aus dem
-    // Echtbetrieb (29.09.2026): EINE Beschriftung in allen Ansichten, die
+    // Jahr bzw. den Zeitraum (E39) statt gegen heute. E52 (Rueckmeldung aus dem
+    // Echtbetrieb, 29.09.2026): EINE Beschriftung in allen Ansichten, die
     // Bezugszeit steht im Hinweis — vorher hiess der Filter in auswertung.
     // „Status im gewaehlten Zeitraum" und war dort nicht als derselbe
     // Filter erkennbar.

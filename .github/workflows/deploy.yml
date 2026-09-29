@@ -385,3 +385,38 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: pnpm exec wrangler deploy --env preview
+
+  # Haertung (Entscheidung Eric, 29.09.2026, Punkt 3): Nach jedem main-Deploy
+  # laeuft der Leseweg automatisch als letzter Schritt — nur lesend, ueber die
+  # Leserolle bhyo_leser (Environment production-lesend, kein Schreibrecht).
+  # Ein Fehlschlag macht den Lauf rot: Damit greifen die datenpruefenden
+  # Checks (Zielnachweis, Abweichungsliste, Protokoll- und Inbox-Messung)
+  # auch gegen Production, nicht nur gegen die Preview.
+  lese-diagnose:
+    needs: [deploy]
+    if: github.event_name != 'pull_request' && needs.deploy.result == 'success'
+    runs-on: ubuntu-24.04
+    environment: production-lesend
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Zielnachweis + Schreibversuch (muss scheitern)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db lese-diagnose
+      - name: Abweichungsliste Belege (E34, nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db beleg-abweichung
+      - name: Protokoll- und Inbox-Messung (nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db protokoll-messung
