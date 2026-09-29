@@ -785,6 +785,38 @@ die eine Zusammenstellung für beide Seiten; Bearbeiten führt nach ströme.).
 Leerzustand „Keine offenen Mitteilungen.". Keine Löschung, keine
 Archivierung vorerst.
 
+## 26. Zugriffsanfrage & Freischaltung (AP2.2 PR c, 29.09.2026)
+
+**Datenmodell** (Migration 0028, Expand): `ereignis_art` + `zugriff_angefragt`,
+`zugriff_abgelehnt`; `inbox_typ` + `zugriffsanfrage`, `freischaltung`,
+`zugriff_abgelehnt`; je Strom-Typ ein partieller Unique-Index (Empfänger,
+Strom, Anfragender) WHERE offen AND zugriffsanfrage — **zwei Anfragende = zwei
+Einträge**, dieselbe Person bündelt. Die Prädikate vergleichen `typ::text`,
+weil ein in derselben Migrations-Transaktion angefügter Enum-Wert dort nicht
+als Literal verwendbar ist.
+
+**Anfragen:** Knopf „Zugriff anfragen" im Beleg-Kopf für fremde Bearbeiter,
+Aktion `strom.zugriff_anfragen` (Rolle ≥ bearbeiter; Objektregel: Strom
+gesperrt, weder Inhaber noch zugewiesen), optionale Notiz (max. 500 Zeichen,
+geprüft im Code, gespeichert am Inbox-Eintrag). Läuft schon eine offene
+Anfrage, zeigt der Kopf „Angefragt am …" — abgeleitet aus dem offenen
+Eintrag. **Empfänger:** der Sperrinhaber; ist er kein Prüfer mehr oder
+deaktiviert, alle aktiven Admins.
+
+**Antworten am Eintrag:** „Zuweisen" ruft dieselbe Aktion `strom.zuweisen`
+auf (gleiche Rechte); „Ablehnen" (`inbox.ablehnen`, nur Empfänger)
+protokolliert `zugriff_abgelehnt` am Strom. Jede Zuweisung — mit oder ohne
+Anfrage — erzeugt `freischaltung` für die zugewiesene Person; die Ablehnung
+erzeugt `zugriff_abgelehnt` für den Anfragenden. Die betroffene Person
+steht als `betrifftId` am Ereignis (Protokoll-Text, kein eigenes Feld).
+**Abräumen bei allen Empfängern** (wer handelt, räumt bei allen ab):
+Zuweisen und Ablehnen erledigen die offenen Anfragen dieser Person zum
+Strom, **Entsperren erledigt alle offenen Anfragen zum Strom ohne weitere
+Mitteilung**. Das Abräumen sitzt in der Zustellung (lib/inbox), nicht in
+den Aktionen — eine Schreibstelle. Anfrage-Einträge sind keine reinen
+Hinweise („Alle erledigt" lässt sie stehen), Freischaltung und Ablehnung
+sind reine Hinweise.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

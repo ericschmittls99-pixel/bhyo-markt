@@ -109,6 +109,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           canEdit={canEdit}
           sperrRechte={detail.sperrRechte}
           zuweisbare={detail.zuweisbare}
+          anfrage={detail.anfrage}
           verfuegbarkeit={detail.verfuegbarkeit}
           vergaben={detail.vergaben}
           preisKorridor={detail.preisKorridor}

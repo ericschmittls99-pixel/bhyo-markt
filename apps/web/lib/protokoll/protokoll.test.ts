@@ -81,6 +81,15 @@ describe("protokolliere", () => {
       entitaet: "biomassestrom",
       entitaetId: BASIS.id,
       ausloeserId: BASIS.benutzerId,
+      betrifftId: null,
+      text: null,
     });
+  });
+
+  it("reicht betroffene Person und Rohtext an die Zustellung durch (PR c)", async () => {
+    const { tx } = attrappe();
+    const BERND = "00000000-0000-4000-8000-0000000000b1";
+    await protokolliere(tx, { ...BASIS, art: "zugewiesen", betrifftId: BERND, text: "  Bernd zugewiesen " });
+    expect(zustellen.mock.calls[0]![1]).toMatchObject({ art: "zugewiesen", betrifftId: BERND, text: "Bernd zugewiesen" });
   });
 });

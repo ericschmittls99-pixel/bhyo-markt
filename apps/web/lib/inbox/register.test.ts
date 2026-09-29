@@ -7,9 +7,23 @@ describe("Inbox-Register", () => {
     expect(typFuerArt("geaendert")).toBe("aenderung_eintrag");
     expect(typFuerArt("status_gesetzt")).toBe("aenderung_eintrag");
     expect(typFuerArt("verworfen")).toBe("aenderung_eintrag");
-    for (const art of ["angelegt", "gesperrt", "entsperrt", "zugewiesen", "zuweisung_entfernt", "benutzer_angelegt", "altbestand"] as const) {
+    for (const art of ["angelegt", "gesperrt", "entsperrt", "zuweisung_entfernt", "benutzer_angelegt", "altbestand"] as const) {
       expect(typFuerArt(art)).toBeNull();
     }
+  });
+  it("PR c: zugriff_angefragt → zugriffsanfrage, zugewiesen → freischaltung, zugriff_abgelehnt → zugriff_abgelehnt", () => {
+    expect(typFuerArt("zugriff_angefragt")).toBe("zugriffsanfrage");
+    expect(typFuerArt("zugewiesen")).toBe("freischaltung");
+    expect(typFuerArt("zugriff_abgelehnt")).toBe("zugriff_abgelehnt");
+    expect(INBOX_TYPEN.zugriffsanfrage.reinerHinweis).toBe(false);
+    expect(INBOX_TYPEN.zugriffsanfrage.aktionen).toEqual(["inbox.gelesen", "inbox.ungelesen", "strom.zuweisen", "inbox.ablehnen"]);
+    expect(INBOX_TYPEN.freischaltung.reinerHinweis).toBe(true);
+    expect(INBOX_TYPEN.zugriff_abgelehnt.reinerHinweis).toBe(true);
+    const z = { ausloeserName: "Bernd Bearbeiter", belegNr: "B-000012", bezeichnung: "Stroh", anzahl: 1 };
+    expect(INBOX_TYPEN.zugriffsanfrage.text(z)).toBe("Bernd Bearbeiter bittet um Zugriff auf B-000012 Stroh");
+    expect(INBOX_TYPEN.zugriffsanfrage.text({ ...z, anzahl: 2 })).toBe("Bernd Bearbeiter bittet um Zugriff auf B-000012 Stroh (2. Anfrage)");
+    expect(INBOX_TYPEN.freischaltung.text({ ...z, ausloeserName: "Petra Prüfer" })).toBe("Petra Prüfer hat dir Zugriff auf B-000012 Stroh gegeben");
+    expect(INBOX_TYPEN.zugriff_abgelehnt.text({ ...z, ausloeserName: "Petra Prüfer" })).toBe("Petra Prüfer hat deine Zugriffsanfrage zu B-000012 Stroh abgelehnt");
   });
   it("Zeilentext: Name, Belegnummer, Bezeichnung, Zusatz bei Buendelung", () => {
     const text = INBOX_TYPEN.aenderung_eintrag.text;

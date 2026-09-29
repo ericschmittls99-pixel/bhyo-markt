@@ -6,6 +6,7 @@
  */
 import { CLUSTER_LABEL } from "@/lib/farben";
 import { withDb } from "@/lib/db";
+import { offeneAnfrageVon } from "@/lib/inbox/server";
 import { preisKorridorEinzel, type PreisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { darf, type Zugang } from "@/lib/rechte";
 import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
@@ -19,7 +20,9 @@ export interface DetailDaten {
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   verifizierung: string | null;
-  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean };
+  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean; anfragen: boolean };
+  /** PR c: laufende Zugriffsanfrage des Betrachtenden zu diesem Strom. */
+  anfrage: { am: string } | null;
   zuweisbare: SperrNutzer[];
   vergaben: VergabeDaten[];
   verfuegbarkeit: VerfuegbarkeitsErgebnis | null;
@@ -41,6 +44,7 @@ export function sperrRechteFuer(zugang: Zugang, strom: Strom): DetailDaten["sper
     sperren: darf(zugang, "strom.sperren", sperre),
     entsperren: darf(zugang, "strom.entsperren", sperre),
     zuweisen: darf(zugang, "strom.zuweisen", sperre),
+    anfragen: darf(zugang, "strom.zugriff_anfragen", sperre),
   };
 }
 
@@ -55,12 +59,17 @@ export async function detailDatenAus(
 ): Promise<DetailDaten> {
   const sperrRechte = sperrRechteFuer(zugang, strom);
   const zuweisbare = sperrRechte.zuweisen ? await withDb((db) => ladeZuweisbare(db)) : [];
+  const anfrage =
+    sperrRechte.anfragen && zugang.art === "erlaubt"
+      ? await withDb((db) => offeneAnfrageVon(db, zugang.id, strom.art, strom.id))
+      : null;
   return {
     strom,
     historie,
     begruendung: begruendungAus(ersteAenderung),
     verifizierung: verifikationsFaelligkeit(strom.beleg, strom, vergaben),
     sperrRechte,
+    anfrage,
     zuweisbare,
     vergaben,
     verfuegbarkeit: strom.verfuegbarkeit ?? null,

@@ -37,6 +37,7 @@ const zeile = (extra: Partial<Zeile>): Zeile => ({
   strom: { art: "biomasse", id: "s1" },
   belegNr: "B-000012",
   bezeichnung: "Papierschlamm",
+  notiz: null,
   text: "Bernd Bearbeiter hat B-000012 Papierschlamm geändert",
   zeit: "vor 5 Min.",
   ...extra,
@@ -80,5 +81,28 @@ describe("InboxListe", () => {
   it("„Alle erledigt“ ist ohne offene Eintraege deaktiviert", () => {
     expect(renderToStaticMarkup(<AlleErledigt anzahlOffen={0} />)).toContain("disabled");
     expect(renderToStaticMarkup(<AlleErledigt anzahlOffen={2} />)).not.toContain("disabled");
+  });
+});
+
+describe("PR c: Zugriffsanfrage in der Liste", () => {
+  it("zeigt die Notiz, Zuweisen und Ablehnen — keine Erledigt/Verwerfen-Icons", () => {
+    const html = renderToStaticMarkup(
+      <InboxListe
+        zeilen={[
+          zeile({
+            typ: "zugriffsanfrage",
+            notiz: "Bitte kurz freigeben",
+            text: "Bernd Bearbeiter bittet um Zugriff auf B-000012 Papierschlamm",
+          }),
+        ]}
+        zustand="offen"
+      />,
+    );
+    expect(html).toContain("bittet um Zugriff auf");
+    expect(html).toContain("„Bitte kurz freigeben");
+    expect(html).toContain(">Zuweisen<");
+    expect(html).toContain(">Ablehnen<");
+    expect(html).not.toContain('aria-label="Erledigt"');
+    expect(html).not.toContain('aria-label="Verwerfen"');
   });
 });

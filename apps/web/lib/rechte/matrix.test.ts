@@ -29,6 +29,8 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "strom.entsperren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "strom.zuweisen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "strom.zuweisung_entfernen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  // PR c: Zugriff anfragen — Rolle >= bearbeiter, Objektregel gesperrt/fremd.
+  "strom.zugriff_anfragen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "akteur.anlegen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "region.anlegen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "projekt.starten": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
@@ -41,6 +43,7 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "inbox.erledigen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   "inbox.verwerfen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   "inbox.alle_erledigen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  "inbox.ablehnen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -52,6 +55,8 @@ const passendesObjekt = (aktion: Aktion): Objekt | undefined => {
   if (!brauchtObjekt(aktion)) return undefined;
   // AP2.2: Inbox-Regeln entscheiden am eigenen Eintrag.
   if (aktion.startsWith("inbox.")) return { empfaengerId: ICH };
+  // PR c: anfragen kann nur, wer am gesperrten Strom fremd ist.
+  if (aktion === "strom.zugriff_anfragen") return { gesperrtVon: ANDERE, zugewiesene: [DRITTE] };
   return aktion === "strom.entsperren" || aktion === "strom.zuweisen" || aktion === "strom.zuweisung_entfernen"
     ? { gesperrtVon: ICH, zugewiesene: [] }
     : FREI;
@@ -181,7 +186,7 @@ describe("E44 Sperren, Entsperren, Zuweisen", () => {
 
 // --- AP2.2: Inbox — nur der Empfaenger --------------------------------------
 describe("AP2.2 Inbox: Objektregel nur Empfaenger", () => {
-  for (const aktion of ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"] as const) {
+  for (const aktion of ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.ablehnen"] as const) {
     it(`${aktion}: eigener Eintrag ja, fremder nein — auch fuer admin; ohne Objekt nie`, () => {
       for (const rolle of ROLLEN) {
         expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ICH })).toBe(true);
@@ -195,5 +200,19 @@ describe("AP2.2 Inbox: Objektregel nur Empfaenger", () => {
   it("inbox.alle_erledigen hat keine Objektregel (wirkt nur auf eigene Eintraege per WHERE)", () => {
     expect(brauchtObjekt("inbox.alle_erledigen")).toBe(false);
     expect(darf({ rolle: "betrachter", id: ICH }, "inbox.alle_erledigen")).toBe(true);
+  });
+});
+
+// --- PR c: Zugriff anfragen -------------------------------------------------
+describe("PR c strom.zugriff_anfragen", () => {
+  it("nur am gesperrten Strom, nur wer weder Inhaber noch zugewiesen ist; Betrachter nie", () => {
+    for (const rolle of ["bearbeiter", "pruefer", "admin"] as const) {
+      expect(darf({ rolle, id: ICH }, "strom.zugriff_anfragen", objektFuer(true, "fremd"))).toBe(true);
+      expect(darf({ rolle, id: ICH }, "strom.zugriff_anfragen", objektFuer(true, "inhaber"))).toBe(false);
+      expect(darf({ rolle, id: ICH }, "strom.zugriff_anfragen", objektFuer(true, "zugewiesen"))).toBe(false);
+      expect(darf({ rolle, id: ICH }, "strom.zugriff_anfragen", FREI)).toBe(false);
+    }
+    expect(darf({ rolle: "betrachter", id: ICH }, "strom.zugriff_anfragen", objektFuer(true, "fremd"))).toBe(false);
+    expect(darf({ rolle: "bearbeiter", id: ICH }, "strom.zugriff_anfragen")).toBe(false);
   });
 });

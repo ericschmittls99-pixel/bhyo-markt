@@ -9,8 +9,10 @@ const ICH = { id: "00000000-0000-4000-8000-000000000001", email: "ich@bhyo.de", 
 const ANDERE = "00000000-0000-4000-8000-000000000002";
 
 /** Die Zeile, die die Attrappe beim FOR-UPDATE-Lesen liefert. */
-let eintrag: { id: string; empfaengerId: string; typ: string; zustand: string; gelesenAm: Date | null } | null = null;
+let eintrag: { id: string; empfaengerId: string; ausloeserId: string; typ: string; zustand: string; gelesenAm: Date | null; biomassestromId: string | null; outputBedarfId: string | null } | null = null;
 let updates: Record<string, unknown>[] = [];
+const protokolliere = vi.fn(async (_tx: unknown, _e: unknown) => ({ id: "e-neu" }));
+vi.mock("@/lib/protokoll", async (orig) => ({ ...(await orig<typeof import("@/lib/protokoll")>()), protokolliere }));
 
 vi.mock("@/lib/db", () => ({
   currentUserEmail: async () => ICH.email,
@@ -35,22 +37,25 @@ vi.mock("@/lib/rechte/wache", async (orig) => ({
   rechtFuerAction: async () => ({ email: ICH.email, zugang: { art: "erlaubt", ...ICH } }),
 }));
 
-const { inboxGelesen, inboxUngelesen, inboxErledigen, inboxVerwerfen, inboxAlleErledigen } = await import("./actions");
+const { inboxGelesen, inboxUngelesen, inboxErledigen, inboxVerwerfen, inboxAlleErledigen, inboxAblehnen } = await import("./actions");
+const STROM = "00000000-0000-4000-8000-0000000000c1";
 
 beforeEach(() => {
-  eintrag = { id: "e1", empfaengerId: ICH.id, typ: "aenderung_eintrag", zustand: "offen", gelesenAm: null };
+  eintrag = { id: "e1", empfaengerId: ICH.id, ausloeserId: ANDERE, typ: "aenderung_eintrag", zustand: "offen", gelesenAm: null, biomassestromId: STROM, outputBedarfId: null };
   updates = [];
+  protokolliere.mockClear();
 });
 
 describe("Inbox-Aktionen: nur der Empfaenger", () => {
   it("fremde Eintraege werden bei jeder Einzelaktion abgewiesen, ohne zu schreiben", async () => {
     eintrag = { ...eintrag!, empfaengerId: ANDERE };
-    for (const lauf of [() => inboxGelesen("e1"), () => inboxUngelesen("e1"), () => inboxErledigen("e1"), () => inboxVerwerfen("e1")]) {
+    for (const lauf of [() => inboxGelesen("e1"), () => inboxUngelesen("e1"), () => inboxErledigen("e1"), () => inboxVerwerfen("e1"), () => inboxAblehnen("e1")]) {
       const erg = await lauf();
       expect(erg.ok).toBe(false);
       expect(erg.fehler).toBe("Dieser Eintrag gehört einer anderen Person.");
     }
     expect(updates).toEqual([]);
+    expect(protokolliere).not.toHaveBeenCalled();
   });
   it("ein unbekannter Eintrag wird wie ein fremder behandelt", async () => {
     eintrag = null;
@@ -83,5 +88,28 @@ describe("Inbox-Aktionen: nur der Empfaenger", () => {
     const erg = await inboxAlleErledigen();
     expect(erg).toEqual({ ok: true, anzahl: 1 });
     expect(updates[0]).toMatchObject({ zustand: "erledigt" });
+  });
+});
+
+describe("PR c: Ablehnen", () => {
+  it("nur eine offene Zugriffsanfrage — protokolliert zugriff_abgelehnt am Strom, betroffen ist der Anfragende", async () => {
+    eintrag = { ...eintrag!, typ: "zugriffsanfrage" };
+    expect(await inboxAblehnen("e1")).toEqual({ ok: true });
+    expect(protokolliere).toHaveBeenCalledTimes(1);
+    expect(protokolliere.mock.calls[0]![1]).toMatchObject({
+      art: "zugriff_abgelehnt",
+      entitaet: "biomassestrom",
+      id: STROM,
+      benutzerId: ICH.id,
+      betrifftId: ANDERE,
+    });
+    // Das Abraeumen und die Antwort erledigt die Zustellung (lib/inbox/zustellung.ts), nicht die Aktion.
+    expect(updates).toEqual([]);
+  });
+  it("kein Hinweis-Eintrag und keine erledigte Anfrage lassen sich ablehnen", async () => {
+    expect((await inboxAblehnen("e1")).fehler).toBe("Nur eine Zugriffsanfrage lässt sich ablehnen.");
+    eintrag = { ...eintrag!, typ: "zugriffsanfrage", zustand: "erledigt" };
+    expect((await inboxAblehnen("e1")).fehler).toBe("Die Anfrage ist nicht mehr offen.");
+    expect(protokolliere).not.toHaveBeenCalled();
   });
 });

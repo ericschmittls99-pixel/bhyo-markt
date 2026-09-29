@@ -8,6 +8,7 @@ import { withDb } from "@/lib/db";
 import { darfZugewiesenWerden } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import { protokolliere } from "@/lib/protokoll";
+import { NOTIZ_MAX } from "@/lib/inbox/notiz";
 import {
   Gesperrt,
   loescheZuweisungen,
@@ -113,7 +114,8 @@ export async function stromZuweisen(art: StromArt, id: string, nutzerId: string)
           .onConflictDoNothing()
           .returning({ id: stromZuweisung.id });
         if (!neu.length) throw new Error(`${ziel.name ?? ziel.email} ist bereits zugewiesen.`);
-        await protokolliere(tx, { art: "zugewiesen", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email, text: `${ziel.name ?? ziel.email} zugewiesen` });
+        // PR c: betrifftId => Freischaltung an den Zugewiesenen, offene Anfragen dieser Person werden abgeraeumt.
+        await protokolliere(tx, { art: "zugewiesen", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email, text: `${ziel.name ?? ziel.email} zugewiesen`, betrifftId: nutzerId });
       }),
     );
   } catch (e) {
@@ -143,3 +145,36 @@ export async function zuweisungEntfernen(art: StromArt, id: string, nutzerId: st
 }
 
 export { Gesperrt };
+
+/**
+ * PR c: Zugriff auf einen gesperrten Strom anfragen — Rolle >= bearbeiter,
+ * Strom gesperrt, weder Inhaber noch zugewiesen (Objektregel). Das Ereignis
+ * zugriff_angefragt stellt die Anfrage an den Sperrinhaber zu (Register);
+ * eine zweite Anfrage derselben Person buendelt die DB.
+ */
+export async function zugriffAnfragen(art: StromArt, id: string, notiz?: string | null): Promise<AktionErgebnis> {
+  const wache = await rechtFuerAction("strom.zugriff_anfragen");
+  if ("fehler" in wache) return wache;
+  const text = (notiz ?? "").trim();
+  if (text.length > NOTIZ_MAX) return { ok: false, fehler: `Die Notiz darf höchstens ${NOTIZ_MAX} Zeichen lang sein.` };
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        await pruefeStromSperre(tx, wache.zugang, "strom.zugriff_anfragen", art, id);
+        await protokolliere(tx, {
+          art: "zugriff_angefragt",
+          entitaet: entitaetTyp(art),
+          id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: text || undefined,
+        });
+      }),
+    );
+  } catch (e) {
+    return fehler(e);
+  }
+  revalidatePath("/register");
+  revalidatePath("/inbox");
+  return { ok: true };
+}
