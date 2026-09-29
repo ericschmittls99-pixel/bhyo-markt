@@ -18,15 +18,17 @@ import { describe, expect, it } from "vitest";
 
 import {
   altwertZuNeu,
-  leiste,
-  ruecksetzPatch,
   ANSICHTEN,
   FILTER,
   FILTER_PARAMS,
-  SICHTEN,
   filterFuer,
+  filterHinweis,
+  filterLabel,
   gilt,
+  leiste,
   leseSicht,
+  ruecksetzPatch,
+  SICHTEN,
   type Ansicht,
   type Sicht,
 } from "./filter-modell";
@@ -339,5 +341,26 @@ describe("Popover Weitere Filter: Reihenfolge und Vollständigkeit", () => {
   });
   it("auswertung. (ohne Verfügbar ab) beginnt mit erstellt, vollMin, vollMax", () => {
     expect(leiste("auswertung", "feedstock", {}).bereichParams.slice(0, 3)).toEqual(["erstellt", "vollMin", "vollMax"]);
+  });
+});
+
+// Rueckmeldung Echtbetrieb (29.09.2026): EINE Beschriftung fuer denselben
+// Filter in allen Ansichten (E32); die Bezugszeit steht im Hinweis.
+describe("Verfügbarkeit: eine Beschriftung, Bezugszeit im Hinweis", () => {
+  const def = FILTER.find((f) => f.key === "verfuegbarkeit")!;
+  it("heißt in ströme., karte. und auswertung. gleich", () => {
+    for (const ansicht of ["stroeme", "karte", "auswertung"] as const) {
+      expect(filterLabel(def, ansicht)).toBe("Verfügbarkeit");
+    }
+  });
+  it("Hinweis: heute in ströme./karte., das gewählte Fenster in auswertung.", () => {
+    expect(filterHinweis(def, "stroeme")).toBe("bezogen auf heute");
+    expect(filterHinweis(def, "karte")).toBe("bezogen auf heute");
+    expect(filterHinweis(def, "auswertung")).toBe("bezogen auf das gewählte Jahr bzw. den gewählten Zeitraum");
+  });
+  it("kein anderer Filter trägt eine abweichende Beschriftung je Ansicht", () => {
+    for (const f of FILTER) {
+      for (const ansicht of ["stroeme", "karte", "auswertung"] as const) expect(filterLabel(f, ansicht)).toBe(f.label);
+    }
   });
 });

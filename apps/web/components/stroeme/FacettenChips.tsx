@@ -12,6 +12,8 @@ import { monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
 export interface FacettenChipDef {
   key: string;
   label: string;
+  /** Hinweis zum Filter (Tooltip am Chip, Zeile im Popover), z. B. die Bezugszeit. */
+  hinweis?: string;
   optionen: FacettenOption[];
   /**
    * F5 PR B: Gruppierter Filter. Ist er gesetzt, traegt der Chip einen Baum
@@ -175,7 +177,7 @@ export function FacettenChips({
               // Zusammengeklappt steht die Kurzfassung statt einer langen
               // Liste: "Baden-Württemberg, +2 Landkreise" sagt mehr als sechs
               // abgeschnittene Namen.
-              title={h && h.kurz ? h.kurz : undefined}
+              title={h && h.kurz ? h.kurz : f.hinweis}
               onClick={() => {
                 setOffeneFacette(istOffen ? null : f.key);
                 setFacettenSuche("");
@@ -234,6 +236,12 @@ export function FacettenChips({
                 ref={facettenLage.popRef}
                 style={{ width: 280, ...facettenLage.popStil }}
               >
+                {f.hinweis && (
+                  <p className="pop-hinweis">
+                    <i className="ph ph-info" aria-hidden />
+                    {f.hinweis}
+                  </p>
+                )}
                 <div className="pop-suche">
                   <div className="search search--sm">
                     <i className="ph ph-magnifying-glass" aria-hidden />

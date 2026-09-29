@@ -114,6 +114,12 @@ jobs:
         working-directory: apps/web
         run: pnpm exec tsx scripts/inbox-check.ts
 
+      # Enum-Rename-Waechter: inbox_typ_text ist IMMUTABLE — Werte von
+      # inbox_typ (und der Typ selbst) werden nie umbenannt, sonst waeren
+      # Index-Praedikat und ON CONFLICT still falsch. Liste im Skript.
+      - name: enum-rename-check (IMMUTABLE-Enums)
+        run: pnpm --filter @bhyo/db enum-rename-check
+
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'

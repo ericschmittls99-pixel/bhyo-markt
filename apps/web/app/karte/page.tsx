@@ -30,7 +30,7 @@ import {
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { filterLabel, leiste } from "@/lib/filter-modell";
+import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export const dynamic = "force-dynamic";
@@ -169,6 +169,7 @@ export default async function KartePage({
     .map((e) => ({
       key: e.def.params[0]!,
       label: filterLabel(e.def, "karte"),
+      hinweis: filterHinweis(e.def, "karte"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));

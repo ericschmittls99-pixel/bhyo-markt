@@ -83,7 +83,7 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     ansicht: `${ANSICHT_TEXT[ansicht]} · ${SICHT_TEXT[sicht]}`,
     bezugsjahr: Number(stichtag.slice(0, 4)),
     verfuegbarkeitBezug,
-    // E41: Beschriftung wie in der Ansicht („Status im gewählten Zeitraum" in auswertung.).
+    // E41/E32: dieselbe Beschriftung wie in der Ansicht („Verfügbarkeit" ueberall; die Bezugszeit steht in „Verfügbarkeit bezogen auf").
     aktiveFilter: filterKlartext(
       [...lst.haupt, ...lst.weitere].map((e) => ({ ...e.def, label: filterLabel(e.def, ansicht) })),
       filter,

@@ -41,7 +41,7 @@ import {
 } from "@/lib/stroeme-modell";
 import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { filterLabel, leiste } from "@/lib/filter-modell";
+import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
 import { fensterAusJahren, leseZeitbezug } from "@/lib/zeitbezug";
 import { cookies } from "next/headers";
@@ -159,6 +159,7 @@ export default async function AuswertungPage({
     .map((e) => ({
       key: e.def.params[0]!,
       label: filterLabel(e.def, "auswertung"),
+      hinweis: filterHinweis(e.def, "auswertung"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));
