@@ -9,6 +9,9 @@
  * 3. Buendelung per Upsert: die zweite Zustellung erhoeht anzahl und setzt
  *    gelesen_am zurueck; nach „erledigt" entsteht ein NEUER Eintrag.
  * 4. CHECK „genau ein Strom" greift.
+ * 5. PR c: Zugriffsanfrage — der Index (Empfaenger, Strom, Anfragender) greift:
+ *    zweite offene Anfrage derselben Person abgewiesen, zweite Anfragende
+ *    zugelassen; Enum inbox_typ traegt die drei neuen Typen.
  *
  * Schreibt nichts Bleibendes: jede Probe laeuft in einer Transaktion, die
  * zurueckgerollt wird. Ohne Benutzer, Strom oder Protokollzeile in der DB
@@ -48,10 +51,12 @@ async function main() {
   const [t] = await sql`select count(*)::int as n from information_schema.tables where table_name = 'inbox_eintrag'`;
   const [e] = await sql`select count(*)::int as n from pg_type where typname in ('inbox_typ', 'inbox_zustand')`;
   const idx = await sql`select indexname from pg_indexes where tablename = 'inbox_eintrag'
-    and indexname in ('inbox_eintrag_biomasse_offen_uidx', 'inbox_eintrag_output_offen_uidx', 'inbox_eintrag_zaehler_idx')`;
-  console.log(`STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/3`);
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 3) {
-    console.error("INBOXCHECK FEHLER: Migration 0027 fehlt (inbox_eintrag / Enums / Indizes)");
+    and indexname in ('inbox_eintrag_biomasse_offen_uidx', 'inbox_eintrag_output_offen_uidx', 'inbox_eintrag_zaehler_idx',
+                      'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx')`;
+  const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
+  console.log(`STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/5 typen=${typen.length}/4`);
+  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 5 || typen.length !== 4) {
+    console.error("INBOXCHECK FEHLER: Migration 0027/0028 fehlt (inbox_eintrag / Enums / Indizes / Typen)");
     await sql.end();
     process.exit(1);
   }
@@ -111,6 +116,30 @@ async function main() {
     values (${nutzer.id}, ${nutzer.id}, 'aenderung_eintrag', ${ereignis.id})`);
   console.log(`OHNE_STROM_ABGEWIESEN ${!!ohneStrom.fehler}`);
   if (!ohneStrom.fehler) fehler.push("Eintrag ohne Strom kam durch — CHECK greift nicht");
+
+  // (5) PR c: Zugriffsanfrage — Index (Empfaenger, Strom, Anfragender) greift.
+  const [zweiter] = await sql`select id from benutzer where id <> ${nutzer.id} order by email limit 1`;
+  const anfrage = (tx: postgres.TransactionSql, ausloeser: string) => tx`
+    insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id)
+    values (${nutzer.id}, ${ausloeser}, 'zugriffsanfrage', ${strom.id}, ${ereignis.id})`;
+  const doppelteAnfrage = await probe(async (tx) => {
+    await anfrage(tx, nutzer.id);
+    await anfrage(tx, nutzer.id);
+  });
+  console.log(`ZWEITE_ANFRAGE_DERSELBEN_PERSON_ABGEWIESEN ${!!doppelteAnfrage.fehler}`);
+  if (!doppelteAnfrage.fehler) fehler.push("zweite offene Zugriffsanfrage derselben Person kam durch — Index greift nicht");
+  if (zweiter) {
+    const zweiAnfragende = await probe(async (tx) => {
+      await anfrage(tx, nutzer.id);
+      await anfrage(tx, zweiter.id);
+      const [n] = await tx`select count(*)::int as n from inbox_eintrag where empfaenger_id = ${nutzer.id} and biomassestrom_id = ${strom.id} and typ = 'zugriffsanfrage'`;
+      return n!.n;
+    });
+    console.log(`ZWEI_ANFRAGENDE ${JSON.stringify(zweiAnfragende)}`);
+    if (zweiAnfragende.ergebnis !== 2) fehler.push(`zwei Anfragende ergeben nicht zwei Eintraege: ${JSON.stringify(zweiAnfragende)}`);
+  } else {
+    console.log("ZWEI_ANFRAGENDE uebersprungen (nur ein Benutzer)");
+  }
 
   const [rest] = await sql`select count(*)::int as n from inbox_eintrag where ausloeser_id = empfaenger_id and empfaenger_id = ${nutzer.id} and biomassestrom_id = ${strom.id}`;
   console.log(`RUECKSTAND ${rest!.n}`);
