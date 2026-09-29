@@ -31,7 +31,7 @@ export function kriterienFuer(s: Strom, nutzerId: string, beteiligt: ReadonlySet
 
 export function istFuerMich(s: Strom, nutzerId: string, beteiligt: ReadonlySet<string>): boolean {
   const k = kriterienFuer(s, nutzerId, beteiligt);
-  return k.gesperrtVonMir || k.mirZugewiesen || k.beteiligt;
+  return k.gesperrtVonMir || k.mirZugewiesen; // PROBE: Beteiligung entfernt
 }
 
 /** Reichert das Flag einmal je Request am Pool an (wie Verfuegbarkeit/Verifikation). */
