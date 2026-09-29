@@ -39,7 +39,7 @@ import { detailDatenAus } from "@/lib/detail-daten";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { withDb } from "@/lib/db";
-import { artAusSicht, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
+import { artAusSicht, filterHinweis, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
 export type SearchParams = Record<string, string | string[] | undefined>;
@@ -124,6 +124,7 @@ export async function RegisterInhalt({
     .map((e) => ({
       key: e.def.params[0]!,
       label: filterLabel(e.def, "stroeme"),
+      hinweis: filterHinweis(e.def, "stroeme"),
       optionen: e.optionen,
       hierarchie: hierarchien[e.def.key],
     }));

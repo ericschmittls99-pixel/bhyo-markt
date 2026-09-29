@@ -5362,3 +5362,20 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
 }
+
+/* Hinweis im Filter-Popover (Rueckmeldung Echtbetrieb 29.09.2026): z. B. die
+   Bezugszeit der Verfuegbarkeit — eine Beschriftung, der Unterschied steht hier. */
+.pop-hinweis {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  margin: 0;
+  padding: 8px 12px 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}
+.pop-hinweis i {
+  flex: 0 0 auto;
+  margin-top: 1px;
+}

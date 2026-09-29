@@ -1,0 +1,33 @@
+# TEMPORAER (AP2.2 PR c Nachweis): Migrations-Journal der Preview lesen —
+# 0028 muss genau einmal gefuehrt sein. Nur SELECT. Wird vor dem Merge geloescht.
+name: tmp Preview-Journal
+on:
+  push:
+    branches: [e45-verfuegbarkeit-filter]
+jobs:
+  journal:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Journal der Preview (nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        working-directory: packages/db
+        run: |
+          pnpm exec tsx -e "
+            import postgres from 'postgres';
+            const sql = postgres(process.env.DATABASE_URL, { max: 1, fetch_types: false });
+            const z = await sql\`select count(*)::int as n, count(distinct hash)::int as hashes, max(id)::int as max_id from drizzle.__drizzle_migrations\`;
+            const letzte = await sql\`select id, created_at from drizzle.__drizzle_migrations order by id desc limit 3\`;
+            const dup = await sql\`select hash, count(*)::int as n from drizzle.__drizzle_migrations group by hash having count(*) > 1\`;
+            console.log('JOURNAL ' + JSON.stringify({ ...z[0], letzte, doppelte: dup.length }));
+            await sql.end();
+          "

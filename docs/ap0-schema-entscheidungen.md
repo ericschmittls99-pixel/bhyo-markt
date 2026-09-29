@@ -593,7 +593,8 @@ Einstufung je Spalte bleibt grün.
 ## 21. Verfügbarkeitsstatus in auswertung. gegen das Fenster (E41, 28.09.2026)
 
 Weg A: Der Filter „Verfügbarkeit" gilt jetzt auch in auswertung. — dort als
-**„Status im gewählten Zeitraum"** — und wird gegen das gewählte Jahr bzw.
+**„Status im gewählten Zeitraum"** (seit 29.09.2026: „Verfügbarkeit" mit
+Hinweis zur Bezugszeit, Abschnitt 27) — und wird gegen das gewählte Jahr bzw.
 den Zeitraum aus E39 ausgewertet, nicht gegen heute. Es gelten dieselben
 Statuswerte und dieselbe Hierarchie wie in ströme./karte. und die
 Überschneidungsregel aus E32: „vergeben" heißt, ein Vergabezeitraum
@@ -816,6 +817,34 @@ Mitteilung**. Das Abräumen sitzt in der Zustellung (lib/inbox), nicht in
 den Aktionen — eine Schreibstelle. Anfrage-Einträge sind keine reinen
 Hinweise („Alle erledigt" lässt sie stehen), Freischaltung und Ablehnung
 sind reine Hinweise.
+
+## 27. Filter „Verfügbarkeit" und IMMUTABLE-Enum-Funktion (29.09.2026)
+
+**Eine Beschriftung, Bezugszeit im Hinweis** (Rückmeldung aus dem
+Echtbetrieb): Der Verfügbarkeitsfilter heißt in ströme., karte. und
+auswertung. „Verfügbarkeit" (E32: ein Filter, ein Name). Der Unterschied der
+Bezugszeit steht im Hinweis am Filter — Tooltip am Chip und Zeile im Popover:
+„bezogen auf heute" in ströme. und karte., „bezogen auf das gewählte Jahr
+bzw. den gewählten Zeitraum" in auswertung. Die Beschriftung „Status im
+gewählten Zeitraum" (E41) entfällt; `labelJeAnsicht` ist durch
+`hinweis`/`hinweisJeAnsicht` ersetzt. Die Export-Spalten bleiben:
+„Verfügbarkeit" und „Verfügbarkeit bezogen auf" (E41) tragen die Bezugszeit
+bereits selbst; die Filterzeile im Export-Kopf nennt den Filter jetzt
+ebenfalls „Verfügbarkeit".
+
+**IMMUTABLE-Funktion `inbox_typ_text`** (Migration 0028): Postgres verlangt
+in Index-Prädikaten unveränderliche Ausdrücke; der Enum→Text-Cast gilt nur
+als STABLE, und ein in derselben Transaktion angefügter Enum-Wert ist dort
+nicht als Literal verwendbar. Die Funktion erklärt den Cast für
+unveränderlich. **Bedingung:** Die Werte von `inbox_typ` (und der Typ
+selbst) werden nie umbenannt — ein `ALTER TYPE … RENAME VALUE` würde
+Index-Prädikat und ON CONFLICT still verfälschen. **Wächter**
+`packages/db/src/enum-rename-check.ts` (CI, typen-und-tests) weist jede
+Migration ab, die einen gelisteten Enum oder den Typ umbenennt; die Liste
+der in IMMUTABLE-Funktionen verwendeten Enums steht im Wächter. **Ein Wert
+wird stattdessen ersetzt:** neuen Wert anlegen (ADD VALUE), Daten
+migrieren, alten Wert nicht mehr verwenden (Code und Register), Altzeilen
+bleiben lesbar.
 
 ## Noch offen – nicht raten
 

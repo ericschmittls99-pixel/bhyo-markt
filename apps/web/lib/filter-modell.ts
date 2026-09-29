@@ -70,8 +70,13 @@ export interface FilterDef {
   params: readonly string[];
   /** In welchen Ansichten er gilt. */
   ansichten: readonly Ansicht[];
-  /** Abweichende Beschriftung in einzelnen Ansichten (E41: auswertung.). */
-  labelJeAnsicht?: Partial<Record<Ansicht, string>>;
+  /**
+   * Eine Beschriftung fuer denselben Filter in allen Ansichten (E32). Was
+   * sich je Ansicht unterscheidet — etwa die Bezugszeit der Verfuegbarkeit —
+   * steht im Hinweis (Tooltip und Zeile im Popover), nicht im Namen.
+   */
+  hinweis?: string;
+  hinweisJeAnsicht?: Partial<Record<Ansicht, string>>;
   /** Für welche Stromarten er gilt. */
   arten: readonly FilterArt[];
   /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
@@ -245,10 +250,13 @@ export const FILTER: readonly FilterDef[] = [
     key: "verfuegbarkeit",
     label: "Verfügbarkeit",
     // E41 (28.09.2026): gilt auch in auswertung. — dort gegen das gewaehlte
-    // Jahr bzw. den Zeitraum (E39) statt gegen heute; die Beschriftung sagt
-    // das. Vorher wirkte der Parameter dort still und fensterbezogen, die
-    // Leiste meldete zugleich „gilt hier nicht" (E32-Widerspruch aus AP1j).
-    labelJeAnsicht: { auswertung: "Status im gewählten Zeitraum" },
+    // Jahr bzw. den Zeitraum (E39) statt gegen heute. Rueckmeldung aus dem
+    // Echtbetrieb (29.09.2026): EINE Beschriftung in allen Ansichten, die
+    // Bezugszeit steht im Hinweis — vorher hiess der Filter in auswertung.
+    // „Status im gewaehlten Zeitraum" und war dort nicht als derselbe
+    // Filter erkennbar.
+    hinweis: "bezogen auf heute",
+    hinweisJeAnsicht: { auswertung: "bezogen auf das gewählte Jahr bzw. den gewählten Zeitraum" },
     typ: "facette",
     params: ["verfuegbarkeit"],
     ansichten: ALLE_ANSICHTEN,
@@ -384,7 +392,13 @@ export function gilt(f: FilterDef, ansicht: Ansicht, sicht: Sicht): boolean {
 
 /** Beschriftung eines Filters in einer Ansicht (E41: je Ansicht abweichend moeglich). */
 export function filterLabel(def: FilterDef, ansicht: Ansicht): string {
-  return def.labelJeAnsicht?.[ansicht] ?? def.label;
+  void ansicht; // eine Beschriftung fuer alle Ansichten (E32); die Signatur bleibt fuer die Aufrufer
+  return def.label;
+}
+
+/** Hinweis zum Filter in dieser Ansicht (Tooltip und Popover-Zeile), z. B. die Bezugszeit. */
+export function filterHinweis(def: FilterDef, ansicht: Ansicht): string | undefined {
+  return def.hinweisJeAnsicht?.[ansicht] ?? def.hinweis;
 }
 
 /** Die Filter einer Ansicht, in der Reihenfolge des Modells. */
