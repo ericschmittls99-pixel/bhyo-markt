@@ -26,6 +26,8 @@ export const AKTIONEN = [
   "strom.entsperren",
   "strom.zuweisen",
   "strom.zuweisung_entfernen",
+  // Zugriffsanfrage am gesperrten Strom (PR c)
+  "strom.zugriff_anfragen",
   // Referenz- und Stammdaten (API-Routen)
   "akteur.anlegen",
   "region.anlegen",
@@ -40,6 +42,7 @@ export const AKTIONEN = [
   "inbox.erledigen",
   "inbox.verwerfen",
   "inbox.alle_erledigen",
+  "inbox.ablehnen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -59,6 +62,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "strom.entsperren": SPERREN,
   "strom.zuweisen": SPERREN,
   "strom.zuweisung_entfernen": SPERREN,
+  "strom.zugriff_anfragen": ERFASSEN,
   "akteur.anlegen": ERFASSEN,
   "region.anlegen": ERFASSEN,
   "projekt.starten": ERFASSEN,
@@ -70,6 +74,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "inbox.erledigen": ALLE,
   "inbox.verwerfen": ALLE,
   "inbox.alle_erledigen": ALLE,
+  "inbox.ablehnen": ALLE,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -111,6 +116,9 @@ const inhaberOderAdmin: Objektregel = (n, o) =>
   istSperre(o) &&
   o.gesperrtVon != null &&
   (n.rolle === "admin" || (n.rolle === "pruefer" && !!n.id && n.id === o.gesperrtVon));
+/** PR c: Zugriff anfragen — nur am gesperrten Strom, und nur wer weder Inhaber noch zugewiesen ist. */
+const zugriffAnfragen: Objektregel = (n, o) =>
+  istSperre(o) && o.gesperrtVon != null && !!n.id && n.id !== o.gesperrtVon && !o.zugewiesene.includes(n.id);
 /** AP2.2: Inbox-Eintraege liest und aendert nur der Empfaenger — auch admin nicht fremde. */
 const nurEmpfaenger: Objektregel = (n, o) => !istSperre(o) && !!n.id && n.id === o.empfaengerId;
 
@@ -128,10 +136,12 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "strom.entsperren": inhaberOderAdmin,
   "strom.zuweisen": inhaberOderAdmin,
   "strom.zuweisung_entfernen": inhaberOderAdmin,
+  "strom.zugriff_anfragen": zugriffAnfragen,
   "inbox.gelesen": nurEmpfaenger,
   "inbox.ungelesen": nurEmpfaenger,
   "inbox.erledigen": nurEmpfaenger,
   "inbox.verwerfen": nurEmpfaenger,
+  "inbox.ablehnen": nurEmpfaenger,
 };
 
 /** Aktionen, die ein Objekt verlangen (fuer Aufrufer, Wächter und Tests). */

@@ -5310,3 +5310,55 @@ table.st-tabelle tbody tr:focus-visible {
   font-variant-numeric: tabular-nums;
   text-align: center;
 }
+
+/* PR c: Zugriffsanfrage — Notiz in der Zeile, Popover im Beleg-Kopf. */
+.ib-textblock {
+  min-width: 0;
+  display: grid;
+  gap: 2px;
+}
+.ib-notiz {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ov-anfrage-stand {
+  font-variant-numeric: tabular-nums;
+}
+.ov-anfrage {
+  width: 320px;
+  padding: 12px;
+  display: grid;
+  gap: 8px;
+}
+.ov-anfrage-label {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.ov-anfrage-notiz {
+  width: 100%;
+  resize: vertical;
+  padding: 8px 10px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-control);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+}
+.ov-anfrage-notiz:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+.ov-anfrage-fuss {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.ov-anfrage-fuss .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  font-variant-numeric: tabular-nums;
+}

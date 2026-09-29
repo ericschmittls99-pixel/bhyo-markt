@@ -33,12 +33,18 @@ export interface Ereignis {
   benutzerId: string;
   /** Urheber-E-Mail: bleibt vorerst als Spalte und Textpraefix (Anzeige). */
   benutzerEmail: string;
-  /** Freitext (Begruendung, Zielstatus …); fehlt er, gilt der Standardtext der Art. */
+  /** Freitext (Begruendung, Zielstatus, Notiz …); fehlt er, gilt der Standardtext der Art. */
   text?: string;
+  /**
+   * AP2.2 PR c: die betroffene Person (benutzer.id) — bei zugewiesen der
+   * Zugewiesene, bei zugriff_abgelehnt der Anfragende. Die Zustellung braucht
+   * sie als Empfaenger; im Protokoll steht sie im Text.
+   */
+  betrifftId?: string;
 }
 
 /** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
-export type Schreiber = Pick<AppDb, "insert" | "select">;
+export type Schreiber = Pick<AppDb, "insert" | "select" | "update">;
 
 /** Standardtexte je Art — fuer die bestehende Verlaufsanzeige. */
 export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = {
@@ -49,6 +55,8 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   gesperrt: "Strom gesperrt",
   entsperrt: "Strom entsperrt (Zuweisungen entfernt)",
   zugewiesen: "Zugewiesen",
+  zugriff_angefragt: "Zugriff angefragt",
+  zugriff_abgelehnt: "Zugriffsanfrage abgelehnt",
   zuweisung_entfernt: "Zuweisung entfernt",
   benutzer_angelegt: "Benutzer angelegt",
   rolle_gesetzt: "Rolle gesetzt",
@@ -89,6 +97,8 @@ export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<
     entitaet: ereignis.entitaet,
     entitaetId: ereignis.id,
     ausloeserId: ereignis.benutzerId,
+    betrifftId: ereignis.betrifftId ?? null,
+    text: ereignis.text?.trim() || null,
   });
   return { id: zeile!.id };
 }

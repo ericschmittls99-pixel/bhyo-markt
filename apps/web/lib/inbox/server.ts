@@ -28,6 +28,8 @@ export interface InboxZeile {
   strom: { art: StromArt; id: string };
   belegNr: string | null;
   bezeichnung: string | null;
+  /** PR c: Notiz der Zugriffsanfrage. */
+  notiz: string | null;
   /** Fertiger Zeilentext aus dem Register. */
   text: string;
 }
@@ -52,6 +54,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       gelesenAm: inboxEintrag.gelesenAm,
       aktualisiertAm: inboxEintrag.aktualisiertAm,
       zustandSeit: inboxEintrag.zustandSeit,
+      notiz: inboxEintrag.notiz,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       ausloeserId: benutzer.id,
@@ -89,6 +92,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         : { art: "output", id: z.outputBedarfId! },
       belegNr: z.belegNr,
       bezeichnung,
+      notiz: z.notiz,
       text: INBOX_TYPEN[z.typ].text({
         ausloeserName: ausloeser.name ?? ausloeser.email,
         belegNr: z.belegNr,
@@ -116,18 +120,64 @@ export async function pruefeInboxEmpfaenger(
   zugang: Extract<Zugang, { art: "erlaubt" }>,
   aktion: Aktion,
   eintragId: string,
-): Promise<{ id: string; empfaengerId: string; typ: InboxTyp; zustand: "offen" | "erledigt" | "verworfen"; gelesen: boolean }> {
+): Promise<{
+  id: string;
+  empfaengerId: string;
+  ausloeserId: string;
+  typ: InboxTyp;
+  zustand: "offen" | "erledigt" | "verworfen";
+  gelesen: boolean;
+  strom: { art: StromArt; id: string };
+}> {
   const [e] = await tx
     .select({
       id: inboxEintrag.id,
       empfaengerId: inboxEintrag.empfaengerId,
+      ausloeserId: inboxEintrag.ausloeserId,
       typ: inboxEintrag.typ,
       zustand: inboxEintrag.zustand,
       gelesenAm: inboxEintrag.gelesenAm,
+      biomassestromId: inboxEintrag.biomassestromId,
+      outputBedarfId: inboxEintrag.outputBedarfId,
     })
     .from(inboxEintrag)
     .where(eq(inboxEintrag.id, eintragId))
     .for("update");
   if (!e || !darf(zugang, aktion, { empfaengerId: e.empfaengerId })) throw new FremderEintrag();
-  return { id: e.id, empfaengerId: e.empfaengerId, typ: e.typ, zustand: e.zustand, gelesen: e.gelesenAm != null };
+  return {
+    id: e.id,
+    empfaengerId: e.empfaengerId,
+    ausloeserId: e.ausloeserId,
+    typ: e.typ,
+    zustand: e.zustand,
+    gelesen: e.gelesenAm != null,
+    strom: e.biomassestromId ? { art: "biomasse", id: e.biomassestromId } : { art: "output", id: e.outputBedarfId! },
+  };
+}
+
+/**
+ * PR c: Laeuft von dieser Person schon eine offene Zugriffsanfrage zu dem
+ * Strom? Dann zeigt der Beleg-Kopf „Angefragt am …" statt des Knopfs —
+ * abgeleitet aus dem offenen Eintrag (beim Sperrinhaber oder den Admins).
+ */
+export async function offeneAnfrageVon(
+  db: Leser,
+  nutzerId: string,
+  art: StromArt,
+  stromId: string,
+): Promise<{ am: string } | null> {
+  const spalte = art === "biomasse" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId;
+  const [e] = await db
+    .select({ am: inboxEintrag.aktualisiertAm })
+    .from(inboxEintrag)
+    .where(
+      and(
+        eq(inboxEintrag.ausloeserId, nutzerId),
+        eq(spalte, stromId),
+        eq(inboxEintrag.zustand, "offen"),
+        sql`${inboxEintrag.typ}::text = 'zugriffsanfrage'`,
+      ),
+    )
+    .limit(1);
+  return e ? { am: e.am.toISOString() } : null;
 }

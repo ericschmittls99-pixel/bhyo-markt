@@ -5,6 +5,7 @@ import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { withDb } from "@/lib/db";
+import { protokolliere } from "@/lib/protokoll";
 import type { Zugang } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { AktionErgebnis } from "@/lib/stroeme-actions";
@@ -133,4 +134,37 @@ export async function inboxAlleErledigen(): Promise<AktionErgebnis & { anzahl?: 
   }
   aktualisiere();
   return { ok: true, anzahl };
+}
+
+/**
+ * PR c: Zugriffsanfrage ablehnen — nur der Empfaenger, nur offene Anfragen.
+ * Das Ereignis zugriff_abgelehnt (Protokoll, Objektbezug Strom) stellt die
+ * Antwort an den Anfragenden zu und raeumt die Anfrage bei ALLEN Empfaengern
+ * ab (lib/inbox/zustellung.ts). Das ist ein fachliches Ereignis und wird
+ * deshalb protokolliert — anders als der Lese-/Erledigt-Zustand.
+ */
+export async function inboxAblehnen(id: string): Promise<AktionErgebnis> {
+  const wache = await rechtFuerAction("inbox.ablehnen");
+  if ("fehler" in wache) return wache;
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const e = await pruefeInboxEmpfaenger(tx, wache.zugang, "inbox.ablehnen", id);
+        if (e.typ !== "zugriffsanfrage") throw new Error("Nur eine Zugriffsanfrage lässt sich ablehnen.");
+        if (e.zustand !== "offen") throw new Error("Die Anfrage ist nicht mehr offen.");
+        await protokolliere(tx, {
+          art: "zugriff_abgelehnt",
+          entitaet: e.strom.art === "biomasse" ? "biomassestrom" : "output_bedarf",
+          id: e.strom.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          betrifftId: e.ausloeserId,
+        });
+      }),
+    );
+  } catch (e) {
+    return fehler(e);
+  }
+  aktualisiere();
+  return { ok: true };
 }

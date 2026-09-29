@@ -93,6 +93,21 @@ async function main() {
     console.log("ARTEN " + JSON.stringify(arten));
   }
 
+  // AP2.2 PR b/c: Inbox — Zeilen je Zustand/Typ und die Indizes (Zielnachweis nach 0027/0028).
+  const [inboxTabelle] = await sql`select count(*)::int as n from information_schema.tables where table_name = 'inbox_eintrag'`;
+  if (inboxTabelle!.n === 1) {
+    const [ib] = await sql`
+      select count(*)::int as zeilen,
+             count(*) filter (where zustand = 'offen')::int as offen,
+             count(*) filter (where zustand = 'offen' and gelesen_am is null)::int as ungelesen
+        from inbox_eintrag`;
+    const idx = await sql`select indexname from pg_indexes where tablename = 'inbox_eintrag' order by indexname`;
+    const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype order by enumsortorder`;
+    console.log("INBOX " + JSON.stringify({ ...ib, indizes: idx.map((i) => i.indexname), typen: typen.map((t) => t.enumlabel) }));
+  } else {
+    console.log("INBOX Tabelle fehlt (vor 0027)");
+  }
+
   const beispiele = await sql`
     select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n
       from aenderung group by 1, 2 order by 3 desc limit 15`;

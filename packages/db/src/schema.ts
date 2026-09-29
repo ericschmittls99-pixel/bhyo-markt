@@ -697,6 +697,9 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "akteur_angelegt",
   "projekt_angelegt",
   "altbestand",
+  // AP2.2 PR c: Zugriffsanfrage und Ablehnung (Anhaenge-Historie).
+  "zugriff_angefragt",
+  "zugriff_abgelehnt",
 ]);
 
 export const aenderung = pgTable(
@@ -740,7 +743,13 @@ export const aenderung = pgTable(
  * `aenderung_eintrag` = „Aenderung an meinem Eintrag"; PR c ergaenzt
  * zugriffsanfrage, freischaltung, zugriff_abgelehnt.
  */
-export const inboxTyp = pgEnum("inbox_typ", ["aenderung_eintrag"]);
+export const inboxTyp = pgEnum("inbox_typ", [
+  "aenderung_eintrag",
+  // AP2.2 PR c
+  "zugriffsanfrage",
+  "freischaltung",
+  "zugriff_abgelehnt",
+]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
 /**
@@ -789,6 +798,15 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_output_offen_uidx")
       .on(t.empfaengerId, t.outputBedarfId)
       .where(sql`${t.zustand} = 'offen' and ${t.typ} = 'aenderung_eintrag' and ${t.outputBedarfId} is not null`),
+    // PR c: Zugriffsanfrage — je Empfaenger, Strom UND Anfragendem ein offener
+    // Eintrag (zwei Anfragende = zwei Eintraege). `typ::text`, weil der neue
+    // Enum-Wert in derselben Migrations-Transaktion sonst nicht verwendbar ist.
+    uniqueIndex("inbox_eintrag_biomasse_anfrage_uidx")
+      .on(t.empfaengerId, t.biomassestromId, t.ausloeserId)
+      .where(sql`${t.zustand} = 'offen' and ${t.typ}::text = 'zugriffsanfrage' and ${t.biomassestromId} is not null`),
+    uniqueIndex("inbox_eintrag_output_anfrage_uidx")
+      .on(t.empfaengerId, t.outputBedarfId, t.ausloeserId)
+      .where(sql`${t.zustand} = 'offen' and ${t.typ}::text = 'zugriffsanfrage' and ${t.outputBedarfId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)

@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Avatar } from "@/components/Avatar";
-import { inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen } from "@/lib/inbox/actions";
+import { inboxAblehnen, inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen } from "@/lib/inbox/actions";
+import { stromZuweisen } from "@/lib/sperre-actions";
 import type { InboxZeile } from "@/lib/inbox/server";
 
 export type Zeile = InboxZeile & { zeit: string };
@@ -79,9 +80,12 @@ export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "off
           <li key={z.id} className={`ib-zeile${!z.gelesen && z.zustand === "offen" ? " ib-ungelesen" : ""}`}>
             <span className="ib-punkt" aria-label={!z.gelesen && z.zustand === "offen" ? "ungelesen" : undefined} />
             <Avatar nutzer={z.ausloeser} groesse="s" />
-            <button type="button" className="ib-text" onClick={() => oeffnen(z)}>
-              {z.text}
-            </button>
+            <span className="ib-textblock">
+              <button type="button" className="ib-text" onClick={() => oeffnen(z)}>
+                {z.text}
+              </button>
+              {z.typ === "zugriffsanfrage" && z.notiz && <span className="ib-notiz">„{z.notiz}"</span>}
+            </span>
             {zustand === "erledigt" && z.zustand !== "offen" && (
               <span className={`pill pill--muted ib-zustand ib-zustand--${z.zustand}`}>{ZUSTAND_LABEL[z.zustand]}</span>
             )}
@@ -92,7 +96,28 @@ export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "off
               <button type="button" className="icon-btn" aria-label="Öffnen" title="Öffnen" onClick={() => oeffnen(z)}>
                 <i className="ph ph-arrow-square-out" aria-hidden />
               </button>
-              {z.zustand === "offen" && (
+              {/* PR c: Zugriffsanfrage — Zuweisen (dieselbe Aktion strom.zuweisen) oder Ablehnen. */}
+              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && (
+                <>
+                  <button
+                    type="button"
+                    className="btn btn--primary btn--sm"
+                    disabled={laeuft}
+                    onClick={() => fuehreAus(() => stromZuweisen(z.strom.art, z.strom.id, z.ausloeser.id))}
+                  >
+                    Zuweisen
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    disabled={laeuft}
+                    onClick={() => fuehreAus(() => inboxAblehnen(z.id))}
+                  >
+                    Ablehnen
+                  </button>
+                </>
+              )}
+              {z.zustand === "offen" && z.typ !== "zugriffsanfrage" && (
                 <>
                   <button
                     type="button"

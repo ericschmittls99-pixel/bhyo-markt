@@ -37,6 +37,7 @@ const zeile = (extra: Partial<Zeile>): Zeile => ({
   strom: { art: "biomasse", id: "s1" },
   belegNr: "B-000012",
   bezeichnung: "Papierschlamm",
+  notiz: null,
   text: "Bernd Bearbeiter hat B-000012 Papierschlamm geändert",
   zeit: "vor 5 Min.",
   ...extra,

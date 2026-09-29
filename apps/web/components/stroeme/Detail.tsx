@@ -24,7 +24,7 @@ import {
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
 import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
-import { stromEntsperren, stromSperren, stromZuweisen, zuweisungEntfernen } from "@/lib/sperre-actions";
+import { NOTIZ_MAX, stromEntsperren, stromSperren, stromZuweisen, zugriffAnfragen, zuweisungEntfernen } from "@/lib/sperre-actions";
 import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
 import { fmtDatumZeit } from "@/lib/format";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutzer, type Strom } from "@/lib/stroeme-modell";
@@ -78,6 +78,7 @@ export function Detail({
   preisKorridor = null,
   sperrRechte = null,
   zuweisbare = [],
+  anfrage = null,
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -101,12 +102,19 @@ export function Detail({
     sperren: boolean;
     entsperren: boolean;
     zuweisen: boolean;
+    /** PR c: Zugriff anfragen (gesperrt, weder Inhaber noch zugewiesen, Rolle >= bearbeiter). */
+    anfragen?: boolean;
   } | null;
+  /** PR c: laufende Zugriffsanfrage des Betrachtenden — dann „Angefragt am …" statt Knopf. */
+  anfrage?: { am: string } | null;
   /** E44: aktive Nutzer mit Rolle >= bearbeiter, an die zugewiesen werden kann. */
   zuweisbare?: SperrNutzer[];
 }) {
   const s = strom;
   const [zuweisenOffen, setZuweisenOffen] = useState(false);
+  // PR c: Zugriffsanfrage — Popover mit optionaler Notiz.
+  const [anfrageOffen, setAnfrageOffen] = useState(false);
+  const [notiz, setNotiz] = useState("");
   // E44: Bearbeiten nur, wenn Rolle UND Sperre es erlauben (die Wache prueft es serverseitig erneut).
   const darfBearbeiten = canEdit && (sperrRechte?.bearbeiten ?? true);
   const sperre = s.sperre ?? null;
@@ -127,6 +135,7 @@ export function Detail({
       if (confirm) return setConfirm(false);
       if (statusMenu) return setStatusMenu(false);
       if (zuweisenOffen) return setZuweisenOffen(false);
+      if (anfrageOffen) return setAnfrageOffen(false);
       schliessen();
     }
     document.addEventListener("keydown", onKey);
@@ -309,6 +318,55 @@ export function Detail({
                       />
                       {!darfBearbeiten && (
                         <span className="ov-sperre-hinweis">Gesperrt von {anzeigeName(sperre.von)}</span>
+                      )}
+                      {/* PR c: fremde Bearbeiter fragen Zugriff an; laeuft eine Anfrage, steht ihr Datum hier. */}
+                      {!darfBearbeiten && anfrage && (
+                        <span className="ov-sperre-hinweis ov-anfrage-stand">Angefragt am {fmtDatumZeit(anfrage.am)}</span>
+                      )}
+                      {!darfBearbeiten && !anfrage && sperrRechte?.anfragen && (
+                        <span data-pop className="pop-anchor">
+                          <button
+                            type="button"
+                            className="btn btn--ghost btn--sm"
+                            aria-haspopup="dialog"
+                            aria-expanded={anfrageOffen}
+                            disabled={pending}
+                            onClick={() => setAnfrageOffen((v) => !v)}
+                          >
+                            <i className="ph ph-hand-waving" aria-hidden />
+                            Zugriff anfragen
+                          </button>
+                          {anfrageOffen && (
+                            <div role="dialog" aria-label="Zugriff anfragen" className="pop ov-anfrage">
+                              <label className="ov-anfrage-label" htmlFor="anfrage-notiz">
+                                Notiz an {anzeigeName(sperre.von)} (optional)
+                              </label>
+                              <textarea
+                                id="anfrage-notiz"
+                                className="ov-anfrage-notiz"
+                                rows={3}
+                                maxLength={NOTIZ_MAX}
+                                value={notiz}
+                                onChange={(ev) => setNotiz(ev.target.value)}
+                                placeholder="Warum brauchst du Zugriff?"
+                              />
+                              <div className="ov-anfrage-fuss">
+                                <span className="c">{notiz.length}/{NOTIZ_MAX}</span>
+                                <button
+                                  type="button"
+                                  className="btn btn--primary btn--sm"
+                                  disabled={pending}
+                                  onClick={() => {
+                                    setAnfrageOffen(false);
+                                    sperrAktion(() => zugriffAnfragen(s.art, s.id, notiz), "Zugriff angefragt");
+                                  }}
+                                >
+                                  Anfragen
+                                </button>
+                              </div>
+                            </div>
+                          )}
+                        </span>
                       )}
                       {sperrRechte?.zuweisen &&
                         zuweisungen.map((z) => (
