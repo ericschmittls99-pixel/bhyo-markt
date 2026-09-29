@@ -1,12 +1,13 @@
 "use server";
 
-import { aenderung, benutzer, biomassestrom, outputBedarf, stromZuweisung } from "@bhyo/db/schema";
+import { benutzer, biomassestrom, outputBedarf, stromZuweisung } from "@bhyo/db/schema";
 import { and, eq, isNull } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { withDb } from "@/lib/db";
 import { darfZugewiesenWerden } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { protokolliere } from "@/lib/protokoll";
 import {
   Gesperrt,
   loescheZuweisungen,
@@ -47,12 +48,7 @@ export async function stromSperren(art: StromArt, id: string): Promise<AktionErg
           .where(and(eq(t.id, id), isNull(t.gesperrtVon)))
           .returning({ id: t.id });
         if (!geaendert.length) throw new Error("Der Strom wurde zwischenzeitlich gesperrt — bitte neu laden.");
-        await tx.insert(aenderung).values({
-          entitaetTyp: entitaetTyp(art),
-          entitaetId: id,
-          text: `${wache.email}: Strom gesperrt`,
-          benutzerEmail: wache.email,
-        });
+        await protokolliere(tx, { art: "gesperrt", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email });
       }),
     );
   } catch (e) {
@@ -78,12 +74,7 @@ export async function stromEntsperren(art: StromArt, id: string): Promise<Aktion
         if (!geaendert.length) throw new Error("Die Sperre wurde zwischenzeitlich geändert — bitte neu laden.");
         // E44: Entsperren entfernt die Zuweisungen.
         await loescheZuweisungen(tx, art, id);
-        await tx.insert(aenderung).values({
-          entitaetTyp: entitaetTyp(art),
-          entitaetId: id,
-          text: `${wache.email}: Strom entsperrt (Zuweisungen entfernt)`,
-          benutzerEmail: wache.email,
-        });
+        await protokolliere(tx, { art: "entsperrt", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email });
       }),
     );
   } catch (e) {
@@ -122,12 +113,7 @@ export async function stromZuweisen(art: StromArt, id: string, nutzerId: string)
           .onConflictDoNothing()
           .returning({ id: stromZuweisung.id });
         if (!neu.length) throw new Error(`${ziel.name ?? ziel.email} ist bereits zugewiesen.`);
-        await tx.insert(aenderung).values({
-          entitaetTyp: entitaetTyp(art),
-          entitaetId: id,
-          text: `${wache.email}: ${ziel.name ?? ziel.email} zugewiesen`,
-          benutzerEmail: wache.email,
-        });
+        await protokolliere(tx, { art: "zugewiesen", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email, text: `${ziel.name ?? ziel.email} zugewiesen` });
       }),
     );
   } catch (e) {
@@ -146,12 +132,7 @@ export async function zuweisungEntfernen(art: StromArt, id: string, nutzerId: st
         await pruefeStromSperre(tx, wache.zugang, "strom.zuweisung_entfernen", art, id);
         const spalte = art === "biomasse" ? stromZuweisung.biomassestromId : stromZuweisung.outputBedarfId;
         await tx.delete(stromZuweisung).where(and(eq(spalte, id), eq(stromZuweisung.nutzerId, nutzerId)));
-        await tx.insert(aenderung).values({
-          entitaetTyp: entitaetTyp(art),
-          entitaetId: id,
-          text: `${wache.email}: Zuweisung entfernt`,
-          benutzerEmail: wache.email,
-        });
+        await protokolliere(tx, { art: "zuweisung_entfernt", entitaet: entitaetTyp(art), id, benutzerId: wache.zugang.id, benutzerEmail: wache.email });
       }),
     );
   } catch (e) {

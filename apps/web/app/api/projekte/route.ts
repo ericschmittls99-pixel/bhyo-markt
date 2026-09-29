@@ -31,7 +31,7 @@ export async function POST(req: Request) {
   } | null;
 
   if (body?.regionId) {
-    const laufId = await starteLauf(body.regionId);
+    const laufId = await starteLauf(wache.zugang, body.regionId);
     return Response.json({ laufId }, { status: 201 });
   }
 
@@ -41,6 +41,6 @@ export async function POST(req: Request) {
   if (!bbox)
     return Response.json({ error: "Ungültiges Gebiet" }, { status: 400 });
 
-  const { regionId, laufId } = await erstelleRegionUndStarte(name, bbox);
+  const { regionId, laufId } = await erstelleRegionUndStarte(wache.zugang, name, bbox);
   return Response.json({ regionId, laufId }, { status: 201 });
 }

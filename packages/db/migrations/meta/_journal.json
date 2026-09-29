@@ -183,6 +183,13 @@
       "when": 1790616074697,
       "tag": "0025_ap2_sperren_pruefer",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1790678099214,
+      "tag": "0026_ap2_ereignisprotokoll",
+      "breakpoints": true
     }
   ]
 }

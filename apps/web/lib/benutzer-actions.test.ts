@@ -14,9 +14,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Rolle } from "./rechte/rollen";
 
 let angemeldet: string | null = null;
-let eintrag: { rolle: Rolle; aktiv: boolean; name: string | null } | null = null;
+let eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null } | null = null;
 /** Was in der Tabelle steht — Grundlage der Regelprüfung in der Aktion. */
-let tabelle: { email: string; rolle: Rolle; aktiv: boolean }[] = [];
+let tabelle: { id: string; email: string; rolle: Rolle; aktiv: boolean }[] = [];
+const ERIC_ID = "00000000-0000-4000-8000-0000000000e1";
+const NEU_ID = "00000000-0000-4000-8000-0000000000aa";
 /** Jede echte Schreiboperation landet hier; bei Ablehnung muss sie leer sein. */
 let schreibvorgaenge: string[] = [];
 /** Wirft die Attrappe beim INSERT diesen Fehler? (Datenbank-Constraint schlaegt zu.) */
@@ -42,9 +44,14 @@ function fakeDb() {
       }),
     }),
     insert: () => ({
-      values: async (werte: unknown) => {
+      // Zwei Nutzer: der Benutzer-INSERT mit .returning(), das Protokoll
+      // (lib/protokoll) wartet direkt auf values(). Ein thenable mit returning.
+      values: (werte: unknown) => {
         if (insertFehler) throw insertFehler;
         schreibvorgaenge.push(`insert ${JSON.stringify(werte)}`);
+        return Object.assign(Promise.resolve(undefined), {
+          returning: async () => [{ id: NEU_ID }],
+        });
       },
     }),
     transaction: async (fn: (tx: unknown) => unknown) => fn(db),
@@ -64,8 +71,11 @@ const ERIC = "eric.schmitt@bhyo.de";
 
 function alsAdmin(weitere: { email: string; rolle: Rolle; aktiv: boolean }[] = []) {
   angemeldet = ERIC;
-  eintrag = { rolle: "admin", aktiv: true, name: "Eric Schmitt" };
-  tabelle = [{ email: ERIC, rolle: "admin", aktiv: true }, ...weitere];
+  eintrag = { id: ERIC_ID, rolle: "admin", aktiv: true, name: "Eric Schmitt" };
+  tabelle = [
+    { id: ERIC_ID, email: ERIC, rolle: "admin", aktiv: true },
+    ...weitere.map((w, i) => ({ id: `00000000-0000-4000-8000-0000000000b${i}`, ...w })),
+  ];
 }
 
 beforeEach(() => {
@@ -93,18 +103,23 @@ describe("Der letzte aktive Admin kann sich nicht aussperren", () => {
     expect(schreibvorgaenge).toEqual([]);
   });
 
-  it("mit einem zweiten aktiven Admin geht beides — und wird geschrieben", async () => {
+  it("mit einem zweiten aktiven Admin geht beides — und wird geschrieben, mit Ereignis", async () => {
     alsAdmin([{ email: "zwei@bhyo.de", rolle: "admin", aktiv: true }]);
     await expect(aktivSetzen(ERIC, false)).resolves.toEqual({ ok: true });
-    expect(schreibvorgaenge).toHaveLength(1);
+    // AP2.2 PR a: UPDATE plus genau ein Protokoll-Ereignis in derselben Transaktion.
+    expect(schreibvorgaenge).toHaveLength(2);
+    expect(schreibvorgaenge[0]).toMatch(/^update /);
+    expect(schreibvorgaenge[1]).toContain('"art":"benutzer_deaktiviert"');
+    expect(schreibvorgaenge[1]).toContain(`"entitaetId":"${ERIC_ID}"`);
+    expect(schreibvorgaenge[1]).toContain(`"benutzerId":"${ERIC_ID}"`);
   });
 });
 
 describe("Verwaltungsrecht", () => {
   it("ein Bearbeiter kommt an keine dieser Aktionen heran", async () => {
     angemeldet = "b@bhyo.de";
-    eintrag = { rolle: "bearbeiter", aktiv: true, name: null };
-    tabelle = [{ email: ERIC, rolle: "admin", aktiv: true }];
+    eintrag = { id: "00000000-0000-4000-8000-0000000000b9", rolle: "bearbeiter", aktiv: true, name: null };
+    tabelle = [{ id: ERIC_ID, email: ERIC, rolle: "admin", aktiv: true }];
 
     for (const aufruf of [
       () => aktivSetzen(ERIC, false),
@@ -126,6 +141,10 @@ describe("Anlegen", () => {
       benutzerAnlegen({ ok: false }, formular("Neue.Person@BHYO.de", "bearbeiter")),
     ).resolves.toEqual({ ok: true });
     expect(schreibvorgaenge[0]).toContain('"email":"neue.person@bhyo.de"');
+    // AP2.2 PR a: das Ereignis zeigt auf den NEUEN Benutzer, Urheber ist Eric.
+    expect(schreibvorgaenge[1]).toContain('"art":"benutzer_angelegt"');
+    expect(schreibvorgaenge[1]).toContain(`"entitaetId":"${NEU_ID}"`);
+    expect(schreibvorgaenge[1]).toContain(`"benutzerId":"${ERIC_ID}"`);
   });
 
   it("weist eine doppelte Adresse ab", async () => {

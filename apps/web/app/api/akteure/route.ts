@@ -4,6 +4,7 @@ import { sektorAusEingabe } from "@/lib/akteur-anlage";
 import { withDb } from "@/lib/db";
 import { ladeSektoren, sucheAkteure } from "@/lib/register";
 import { wacheFuerRoute, zugangFuerRoute } from "@/lib/rechte/wache";
+import { protokolliere } from "@/lib/protokoll";
 
 export const dynamic = "force-dynamic";
 
@@ -41,13 +42,23 @@ export async function POST(req: Request) {
   }
   const sektor = eingabe.sektor;
 
-  const created = await withDb(async (db) => {
-    const [row] = await db
-      .insert(akteur)
-      .values({ name, sektor, status: "entwurf" })
-      .returning({ id: akteur.id, name: akteur.name, sektor: akteur.sektor });
-    return row!;
-  });
+  const created = await withDb((db) =>
+    db.transaction(async (tx) => {
+      const [row] = await tx
+        .insert(akteur)
+        .values({ name, sektor, status: "entwurf" })
+        .returning({ id: akteur.id, name: akteur.name, sektor: akteur.sektor });
+      await protokolliere(tx, {
+        art: "akteur_angelegt",
+        entitaet: "akteur",
+        id: row!.id,
+        benutzerId: wache.zugang.id,
+        benutzerEmail: wache.zugang.email,
+        text: `Akteur „${name}" angelegt`,
+      });
+      return row!;
+    }),
+  );
 
   return Response.json({ akteur: created }, { status: 201 });
 }

@@ -15,6 +15,7 @@ import {
 import { istEindeutigkeitsVerletzung } from "@/lib/db-fehler";
 import { normalisiereEmail, ROLLEN, type Rolle } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { protokolliere } from "@/lib/protokoll";
 
 export interface BenutzerErgebnis {
   ok: boolean;
@@ -24,7 +25,7 @@ export interface BenutzerErgebnis {
 /** Aktueller Stand als Grundlage der Regelprüfung — immer frisch gelesen. */
 function ladeAlle(db: Parameters<Parameters<typeof withDb>[0]>[0]) {
   return db
-    .select({ email: benutzer.email, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
+    .select({ id: benutzer.id, email: benutzer.email, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
     .from(benutzer);
 }
 
@@ -47,22 +48,34 @@ export async function benutzerAnlegen(
   if (!istRolle(rolle)) return { ok: false, fehler: "Unbekannte Rolle." };
   const name = String(formData.get("name") ?? "").trim() || null;
 
-  const fehler = await withDb(async (db) => {
-    const alle = (await ladeAlle(db)) as BenutzerZeile[];
-    const ablehnung = pruefeNeuanlage(alle, email);
-    if (ablehnung) return ablehnung.text;
-    try {
-      await db.insert(benutzer).values({ email, rolle, name });
-    } catch (e) {
-      // Die Vorprüfung oben ist Komfort; die Wahrheit ist der Primärschlüssel.
-      // Liest sie einen veralteten Stand (Hyperdrive-Abfrage-Cache, 29.09.2026),
-      // antwortet die Datenbank mit 23505 — und der Nutzer bekommt dieselbe
-      // klare Meldung statt eines 500ers. Alles andere bleibt ein Fehler.
-      if (istEindeutigkeitsVerletzung(e)) return TEXT_SCHON_VORHANDEN;
-      throw e;
-    }
-    return null;
-  });
+  const fehler = await withDb((db) =>
+    // Anlegen und Ereignis in EINER Transaktion: kein Benutzer ohne Protokoll.
+    db.transaction(async (tx) => {
+      const alle = (await ladeAlle(tx)) as BenutzerZeile[];
+      const ablehnung = pruefeNeuanlage(alle, email);
+      if (ablehnung) return ablehnung.text;
+      let neu: { id: string } | undefined;
+      try {
+        [neu] = await tx.insert(benutzer).values({ email, rolle, name }).returning({ id: benutzer.id });
+      } catch (e) {
+        // Die Vorprüfung oben ist Komfort; die Wahrheit ist der Primärschlüssel.
+        // Liest sie einen veralteten Stand (Hyperdrive-Abfrage-Cache, 29.09.2026),
+        // antwortet die Datenbank mit 23505 — und der Nutzer bekommt dieselbe
+        // klare Meldung statt eines 500ers. Alles andere bleibt ein Fehler.
+        if (istEindeutigkeitsVerletzung(e)) return TEXT_SCHON_VORHANDEN;
+        throw e;
+      }
+      await protokolliere(tx, {
+        art: "benutzer_angelegt",
+        entitaet: "benutzer",
+        id: neu!.id,
+        benutzerId: wache.zugang.id,
+        benutzerEmail: wache.email,
+        text: `${email} als ${rolle} angelegt`,
+      });
+      return null;
+    }),
+  );
 
   if (fehler) return { ok: false, fehler };
   revalidatePath("/einstellungen");
@@ -82,13 +95,22 @@ export async function rolleSetzen(email: string, rolle: string): Promise<Benutze
     // Lesen und Schreiben in einer Transaktion: Zwischen Prüfung und Update
     // darf sich der letzte Admin nicht anderswo wegändern lassen.
     return db.transaction(async (tx) => {
-      const alle = (await ladeAlle(tx)) as BenutzerZeile[];
+      const alle = (await ladeAlle(tx)) as (BenutzerZeile & { id: string })[];
       const ablehnung = pruefeRollenwechsel(alle, ziel, rolle);
       if (ablehnung) return ablehnung.text;
+      const betroffen = alle.find((b) => b.email === ziel)!;
       await tx
         .update(benutzer)
         .set({ rolle, geaendertAm: new Date() })
         .where(eq(benutzer.email, ziel));
+      await protokolliere(tx, {
+        art: "rolle_gesetzt",
+        entitaet: "benutzer",
+        id: betroffen.id,
+        benutzerId: wache.zugang.id,
+        benutzerEmail: wache.email,
+        text: `Rolle von ${ziel} auf ${rolle} gesetzt`,
+      });
       return null;
     });
   });
@@ -109,13 +131,22 @@ export async function aktivSetzen(email: string, aktiv: boolean): Promise<Benutz
 
   const fehler = await withDb(async (db) =>
     db.transaction(async (tx) => {
-      const alle = (await ladeAlle(tx)) as BenutzerZeile[];
+      const alle = (await ladeAlle(tx)) as (BenutzerZeile & { id: string })[];
       const ablehnung = pruefeAktivWechsel(alle, ziel, aktiv);
       if (ablehnung) return ablehnung.text;
+      const betroffen = alle.find((b) => b.email === ziel)!;
       await tx
         .update(benutzer)
         .set({ aktiv, geaendertAm: new Date() })
         .where(eq(benutzer.email, ziel));
+      await protokolliere(tx, {
+        art: aktiv ? "benutzer_aktiviert" : "benutzer_deaktiviert",
+        entitaet: "benutzer",
+        id: betroffen.id,
+        benutzerId: wache.zugang.id,
+        benutzerEmail: wache.email,
+        text: `Zugang von ${ziel} ${aktiv ? "aktiviert" : "deaktiviert"}`,
+      });
       return null;
     }),
   );

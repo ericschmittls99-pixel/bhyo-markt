@@ -115,6 +115,11 @@ Sessionmanagement, keine Passwörter, keinen Passwort-Reset.
   Aktions-Matrix und die Wache. Jeder Schreibpfad nennt seine Aktion und ruft
   die Wache auf; `scripts/rechte-check.ts` erzwingt das in der CI. Eine Aktion
   entsteht erst mit ihrem Schreibpfad, eine Rolle erst mit ihrer Wirkung.
+- **Ein Ereignisprotokoll, eine Schreibstelle** (E23/AP2.2): `aenderung` ist
+  das Protokoll, `apps/web/lib/protokoll` die einzige Schreibstelle. Jeder
+  Schreibpfad ruft `protokolliere` in seiner Transaktion auf;
+  `scripts/protokoll-check.ts` erzwingt beides in der CI. Ersteller und
+  Beteiligte werden daraus abgeleitet, nie gespeichert.
 - **Sperren sind Objektregeln derselben Matrix** (E44): Ein gesperrter Strom
   bleibt lesbar; ändern dürfen ihn Sperrinhaber, Zugewiesene und Admins. Die
   Prüfung liest die Sperre in der Transaktion des Schreibpfads (Zeilensperre),
