@@ -27,6 +27,7 @@
     "beleg-check": "tsx src/beleg-check.ts",
     "beleg-frist-check": "tsx src/beleg-frist-check.ts",
     "lese-diagnose": "tsx src/lese-diagnose.ts",
+    "protokoll-messung": "tsx src/protokoll-messung.ts",
     "restore-zaehlung": "tsx src/restore-zaehlung.ts",
     "backup-zaehlung": "tsx src/backup-zaehlung.ts",
     "beleg-abweichung": "tsx src/beleg-abweichung.ts",
