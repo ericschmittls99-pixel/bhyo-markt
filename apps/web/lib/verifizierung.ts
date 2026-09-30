@@ -7,17 +7,18 @@
 // Die alten Zahlen (Vertrag 36, Betriebsdaten 12, Absichtserklaerung 12,
 // Angebot 3, Dokument/Link 12, Gespraech 6) gelten NICHT mehr — wer sie
 // irgendwo findet, findet Altbestand.
-
+//
+// AP2.3 (E60, 30.09.2026): Die Monate sind KEINE Konstanten mehr. Sie kommen
+// aus der Parameter-Historie (parameter_definition/parameter_wert, Migration
+// 0029), aufgeloest ueber die SQL-Funktion parameter_wert(schluessel,
+// basisdatum) im Loader (lib/stroeme.ts) — am Erhebungsdatum des Belegs bzw.
+// an reserviert_seit. Eine spaetere Aenderung „ab Datum X" betrifft deshalb
+// nur Eintraege mit Basisdatum >= X. Fehlt der Wert an einem Datensatz, der
+// ihn braucht, ist das ein Fehler, kein Standardwert.
 import { brauchtGueltigBis, istBelegTyp } from "./qualitaet";
 
-export const BELEG_MONATE: Record<string, number> = {
-  gespraech: 3,
-  dokument: 6,
-  webrecherche: 3,
-  // AP1j PR 5 (Beschluss 22.09.2026): Reservierungen laufen ueber DENSELBEN
-  // Mechanismus — 12 Monate Gueltigkeit ab reserviert_seit, kein Sonderweg.
-  reservierung: 12,
-};
+/** Untere drei Typen: Typ-Frist ab Erhebungsdatum (E33). */
+export const TYPFRIST_TYPEN: readonly string[] = ["gespraech", "dokument", "webrecherche"];
 
 function plusMonate(iso: string, monate: number): string {
   const d = new Date(`${iso}T00:00:00Z`);
@@ -35,12 +36,15 @@ export function naechsteVerifizierung(beleg: {
   typ: string;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
+  fristMonate?: number | null;
 }): string | null {
   if (istBelegTyp(beleg.typ) && brauchtGueltigBis(beleg.typ)) return beleg.gueltigBis;
+  if (!TYPFRIST_TYPEN.includes(beleg.typ)) return null;
   if (!beleg.erhebungsdatum) return null;
-  const monate = BELEG_MONATE[beleg.typ];
-  if (!monate) return null;
-  return plusMonate(beleg.erhebungsdatum, monate);
+  if (beleg.fristMonate == null) {
+    throw new Error(`Verifikationsfrist für Belegtyp „${beleg.typ}" nicht geladen (parameter_wert fehlt am Datensatz).`);
+  }
+  return plusMonate(beleg.erhebungsdatum, beleg.fristMonate);
 }
 
 /**
@@ -52,8 +56,8 @@ export function naechsteVerifizierung(beleg: {
  * bereits Kandidat ist. Funktioniert auch ohne Beleg.
  */
 export function verifikationsFaelligkeit(
-  beleg: { typ: string; gueltigBis: string | null; erhebungsdatum: string | null } | null,
-  strom: { zeitraumBis: string | null; reserviertSeit: string | null },
+  beleg: { typ: string; gueltigBis: string | null; erhebungsdatum: string | null; fristMonate?: number | null } | null,
+  strom: { zeitraumBis: string | null; reserviertSeit: string | null; reservierungMonate?: number | null },
   vergaben: { vergebenBis: string | null }[],
 ): string | null {
   const kandidaten: string[] = [];
@@ -61,8 +65,12 @@ export function verifikationsFaelligkeit(
   if (frist) kandidaten.push(frist);
   if (strom.zeitraumBis) kandidaten.push(strom.zeitraumBis);
   for (const v of vergaben) if (v.vergebenBis) kandidaten.push(v.vergebenBis);
-  if (strom.reserviertSeit)
-    kandidaten.push(plusMonate(strom.reserviertSeit, BELEG_MONATE.reservierung!));
+  if (strom.reserviertSeit) {
+    if (strom.reservierungMonate == null) {
+      throw new Error("Gültigkeit der Reservierung nicht geladen (parameter_wert fehlt am Datensatz).");
+    }
+    kandidaten.push(plusMonate(strom.reserviertSeit, strom.reservierungMonate));
+  }
   return kandidaten.length ? kandidaten.sort()[0]! : null;
 }
 
@@ -110,7 +118,8 @@ export function reichereVerifikationAn<
     id: string;
     zeitraumBis: string | null;
     reserviertSeit: string | null;
-    beleg: { typ: string; gueltigBis: string | null; erhebungsdatum: string | null } | null;
+    reservierungMonate?: number | null;
+    beleg: { typ: string; gueltigBis: string | null; erhebungsdatum: string | null; fristMonate?: number | null } | null;
     verifikation?: VerifikationsErgebnis;
   },
 >(

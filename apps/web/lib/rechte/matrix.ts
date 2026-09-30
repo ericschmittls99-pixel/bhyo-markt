@@ -43,6 +43,9 @@ export const AKTIONEN = [
   "inbox.verwerfen",
   "inbox.alle_erledigen",
   "inbox.ablehnen",
+  // Parameter mit Verlauf (parameter-actions.ts, AP2.3 PR a / E60): nur admin
+  "parameter.setzen",
+  "parameter.zuruecknehmen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -75,6 +78,8 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "inbox.verwerfen": ALLE,
   "inbox.alle_erledigen": ALLE,
   "inbox.ablehnen": ALLE,
+  "parameter.setzen": VERWALTEN,
+  "parameter.zuruecknehmen": VERWALTEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */

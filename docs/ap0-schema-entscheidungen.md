@@ -871,6 +871,46 @@ der Parameter wirkt nicht — ein Filter ohne Wirkung wird nicht angezeigt.
 ströme. als Leerzustand, in karte. als Hinweiszeile). Der Export nennt in
 der aktiven Filterzeile „Für mich".
 
+## 29. AP2.3 Admin-Inputdatenbank: Umfang, Ort (E59) und Wirksamkeit von Parametern (E60), 30.09.2026
+
+**E59 — Umfang und Ort.** v1 umfasst Parameter mit Verlauf (erster
+Verbraucher: die Verifikationsfristen je Belegtyp aus E33, dazu die
+Reservierungsgültigkeit, die denselben Mechanismus nutzt) und die
+Sektorliste (PR b). Materialarten bleiben bei Migrationen; GET
+/api/materialarten wird in PR b entfernt. Ort: einstellungen. mit den
+Reitern Nutzer · Referenzlisten · Parameter (PR a: Nutzer · Parameter);
+Referenzlisten und Parameter sieht und bedient nur admin, serverseitig
+abgesichert (Aktionen `parameter.setzen`, `parameter.zuruecknehmen` in
+der Matrix, VERWALTEN).
+
+**E60 — Wirksamkeit.** Eine Parameteränderung gilt **ab einem Datum**
+(heute oder künftig), **nie rückwirkend**; der alte Wert bleibt im Verlauf.
+Datenmodell (Migration 0029, Expand): `parameter_definition` (Schlüssel
+als Text, kein Enum — E53; neue Schlüssel nur per Migration zusammen mit
+ihrem Verbraucher) und `parameter_wert` (Wert, `gueltig_ab`, Begründung
+Pflicht, Urheber, UNIQUE je Schlüssel und Datum). In der DB: CHECK
+`gueltig_ab = '-infinity' OR gueltig_ab >= Erfassungstag (Europe/Berlin)`;
+Trigger: UPDATE immer abgewiesen, DELETE nur für `gueltig_ab >
+current_date` (Zurücknehmen einer geplanten Änderung); Bereichs-Trigger
+gegen min/max der Definition. **Startwerte** mit `gueltig_ab = '-infinity'`
+= benannter Zustand „seit Einführung": gespraech 3, dokument 6,
+webrecherche 3, reservierung 12 Monate — die bisherigen Konstanten
+`BELEG_MONATE` aus `lib/verifizierung.ts` (E33; Reservierung Beschluss
+22.09.2026). **Lesen an genau einer Stelle:** SQL-Funktion
+`parameter_wert(schluessel, stichtag)` (STABLE) liefert den Wert der Zeile
+mit dem größten `gueltig_ab <= stichtag`; kein Treffer ist ein Fehler, es
+gibt keinen Standardwert. Der TS-Wrapper `parameterWertAm` und der Loader
+(`lib/stroeme.ts`: `belegFristMonate` am Erhebungsdatum,
+`reservierungMonate` an `reserviert_seit`) nutzen dieselbe Funktion; die
+Fälligkeit (`lib/verifizierung.ts`) rechnet mit dem am Datensatz
+gelieferten Wert und hat keine Konstante mehr. Basisdatum bleibt das
+bisherige (Erhebungsdatum = `beleg.erstellt_am::date`, bzw.
+`reserviert_seit`), damit eine spätere Änderung nur Einträge ab ihrem
+Stichtag betrifft. Wächter: `packages/db/src/parameter-check.ts` (CI)
+prüft Funktion, CHECK, beide Trigger, Bereich und die Wirksamkeit ab Datum
+gegen die Preview; Beweis „Fälligkeit vor und nach der Umstellung
+identisch" im PR.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

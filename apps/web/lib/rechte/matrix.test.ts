@@ -44,6 +44,9 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "inbox.verwerfen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   "inbox.alle_erledigen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   "inbox.ablehnen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  // AP2.3: Parameter nur admin.
+  "parameter.setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  "parameter.zuruecknehmen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";

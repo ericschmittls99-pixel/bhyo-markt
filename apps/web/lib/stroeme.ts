@@ -53,6 +53,10 @@ const belegSelect = {
   belegGueltigBis: beleg.gueltigBis,
   belegErstelltAm: beleg.erstelltAm,
   belegMetadata: beleg.metadata,
+  // AP2.3 (E60): Typ-Frist der unteren drei Belegtypen aus der Parameter-
+  // Historie, aufgeloest am Basisdatum (Erhebungsdatum = erstellt_am::date).
+  // Genau eine Lesestelle: die SQL-Funktion parameter_wert(); kein Standardwert.
+  belegFristMonate: sql<unknown>`case when ${beleg.typ} in ('gespraech','dokument','webrecherche') then parameter_wert('verifikationsfrist.' || ${beleg.typ}::text, (${beleg.erstelltAm})::date) end`,
 };
 
 /**
@@ -99,6 +103,8 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           status: biomassestrom.status,
           reserviertBhyo: biomassestrom.reserviertBhyo,
           reserviertSeit: biomassestrom.reserviertSeit,
+          // AP2.3 (E60): Gueltigkeit der Reservierung ab reserviert_seit aus der Parameter-Historie.
+          reservierungMonate: sql<unknown>`case when ${biomassestrom.reserviertSeit} is not null then parameter_wert('verifikationsfrist.reservierung', ${biomassestrom.reserviertSeit}) end`,
           createdAt: biomassestrom.createdAt,
           // E44: Sperre und Zuweisungen — Inhaber/Zugewiesene als JSON (json_build_object,
           // nicht array_agg: der Worker-Treiber liefert Arrays als Text).
@@ -150,6 +156,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         status: outputBedarf.status,
         reserviertBhyo: outputBedarf.reserviertBhyo,
         reserviertSeit: outputBedarf.reserviertSeit,
+        reservierungMonate: sql<unknown>`case when ${outputBedarf.reserviertSeit} is not null then parameter_wert('verifikationsfrist.reservierung', ${outputBedarf.reserviertSeit}) end`,
         createdAt: outputBedarf.createdAt,
         // E44: Sperre und Zuweisungen — Inhaber/Zugewiesene als JSON (json_build_object,
         // nicht array_agg: der Worker-Treiber liefert Arrays als Text).

@@ -309,6 +309,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db inbox-check
 
+      # AP2.3 PR a (E60): Parameter mit Verlauf — Funktion, CHECK und Trigger
+      # greifen (nie rueckwirkend, unveraenderlich, Ruecknahme nur kuenftig),
+      # Wirksamkeit ab Datum, kein Standardwert.
+      - name: Parameter-Check (Parameter mit Verlauf)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db parameter-check
+
       # F5 PR B: Sektor-Referenzdaten — die acht Werte stehen, kein Akteur
       # traegt einen unbekannten Sektor, "abnehmer" ist keiner mehr, und der
       # Fremdschluessel greift wirklich.

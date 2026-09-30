@@ -28,6 +28,8 @@ const beleg = (patch: Partial<StromBeleg>): StromBeleg => ({
   externNachvollziehbar: false,
   gueltigBis: null,
   erhebungsdatum: null,
+  // AP2.3: Startwert der Typ-Frist (Gespraech 3) — im Loader aus parameter_wert().
+  fristMonate: 3,
   kernnotiz: null,
   ...patch,
 });

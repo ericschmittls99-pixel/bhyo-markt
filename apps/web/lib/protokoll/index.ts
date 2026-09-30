@@ -23,7 +23,9 @@ export type Entitaet =
   | "benutzer"
   | "akteur"
   | "region"
-  | "analyse_lauf";
+  | "analyse_lauf"
+  /** AP2.3: Parameterwert (Verlaufszeile) — ueberdauert eine Ruecknahme. */
+  | "parameter_wert";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;
@@ -57,6 +59,8 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   zugewiesen: "Zugewiesen",
   zugriff_angefragt: "Zugriff angefragt",
   zugriff_abgelehnt: "Zugriffsanfrage abgelehnt",
+  parameter_gesetzt: "Parameter gesetzt",
+  parameter_zurueckgenommen: "Parameteränderung zurückgenommen",
   zuweisung_entfernt: "Zuweisung entfernt",
   benutzer_angelegt: "Benutzer angelegt",
   rolle_gesetzt: "Rolle gesetzt",
