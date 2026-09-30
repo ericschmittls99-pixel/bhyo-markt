@@ -1,0 +1,26 @@
+# TEMPORAER (AP2.4 PR a): Vorher/Nachher-Tabelle der Preview-Eintraege
+# (E33-Gesamtfaelligkeit vs. strom_verifikation). Nur SELECT. Vor dem Merge
+# loeschen. Laeuft nach Migration 0032 auf der Preview.
+name: tmp Verifikation Vorher-Nachher
+on:
+  push:
+    branches: [ap24-verifikation]
+    paths: [".github/workflows/tmp-verifikation-vorher-nachher.yml", "packages/db/src/tmp-verifikation-vorher-nachher.ts"]
+jobs:
+  tabelle:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Vorher/Nachher (nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        working-directory: packages/db
+        run: pnpm exec tsx src/tmp-verifikation-vorher-nachher.ts
