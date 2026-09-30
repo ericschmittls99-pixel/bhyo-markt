@@ -26,6 +26,7 @@
     "protokoll-check": "tsx src/protokoll-check.ts",
     "inbox-check": "tsx src/inbox-check.ts",
     "enum-rename-check": "tsx src/enum-rename-check.ts",
+    "parameter-check": "tsx src/parameter-check.ts",
     "sektor-check": "tsx src/sektor-check.ts",
     "beleg-check": "tsx src/beleg-check.ts",
     "beleg-frist-check": "tsx src/beleg-frist-check.ts",

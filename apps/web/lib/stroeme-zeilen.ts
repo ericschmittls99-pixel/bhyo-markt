@@ -85,6 +85,8 @@ export type BelegZeile = {
   belegExtern: boolean | null;
   belegGueltigBis: string | null;
   belegErstelltAm: Date | null;
+  /** AP2.3: Typ-Frist in Monaten aus parameter_wert() am Erhebungsdatum; null bei den oberen vier. */
+  belegFristMonate?: unknown;
   belegMetadata: unknown;
 };
 
@@ -102,6 +104,7 @@ function belegAus(r: BelegZeile): StromBeleg | null {
     erhebungsdatum: r.belegErstelltAm
       ? r.belegErstelltAm.toISOString().slice(0, 10)
       : null,
+    fristMonate: zahlOderNull(r.belegFristMonate),
     kernnotiz: str(m.kernnotiz),
   };
 }
@@ -127,6 +130,8 @@ type GemeinsameZeile = BelegZeile & {
   status: string;
   reserviertBhyo: boolean;
   reserviertSeit: string | null;
+  /** AP2.3: Gueltigkeit der Reservierung in Monaten aus parameter_wert() ab reserviert_seit. */
+  reservierungMonate?: unknown;
   createdAt: Date;
   /** E44 */
   gesperrtAm: Date | null;
@@ -220,6 +225,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     status: r.status,
     reserviertBhyo: r.reserviertBhyo,
     reserviertSeit: r.reserviertSeit,
+    reservierungMonate: zahlOderNull(r.reservierungMonate),
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
     sperre: sperreAus(r),
@@ -298,6 +304,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     status: r.status,
     reserviertBhyo: r.reserviertBhyo,
     reserviertSeit: r.reserviertSeit,
+    reservierungMonate: zahlOderNull(r.reservierungMonate),
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
     sperre: sperreAus(r),

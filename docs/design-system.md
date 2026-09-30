@@ -704,3 +704,18 @@ Chip in der Filterzeile, zählt nicht zur Filter-Pille, wohl aber zu
 „Zurücksetzen". Tooltip am Knopf: „Von mir gesperrt, mir zugewiesen oder
 mit meiner Beteiligung". Leerzustand in ströme. über `EmptyState` (Icon
 user) mit „Alle anzeigen"; auf der Karte als Hinweiszeile.
+
+## einstellungen.: Reiter und Parameter (AP2.3, E59/E60, 30.09.2026)
+
+Reiter als Segment-Schalter (`seg`, Links mit `aria-selected`) über dem
+Inhalt: Nutzer · Parameter (PR b: Referenzlisten dazwischen). Der Reiter
+„Parameter" gruppiert nach Präfix des Schlüssels („verifikationsfristen.")
+in der bekannten `einst-tabelle`: Bezeichnung mit Schlüssel als
+Mono-Caption, aktueller Wert mit Einheit, „gilt seit" („seit Einführung"
+oder TT.MM.JJJJ), geplante Änderungen als Zeilen „ab TT.MM.JJJJ: n Monate"
+mit Ghost-Button „Zurücknehmen", rechts „Ändern" (Button) und „Verlauf"
+(Ghost, klappt eine eingelassene Tabelle auf `--surface-sunken` auf: Wert,
+gültig ab, von mit Avatar, am, Begründung; Startwerte zeigen „Migration").
+Dialog „Ändern" im `modal`-Muster: Zahl (min/max), Datum (ab heute),
+Begründung (Pflicht), Info-Zeile „Gilt für Einträge mit Stichtag ab diesem
+Datum. Bestehende Fälligkeiten bleiben unverändert.", Abbrechen/Speichern.

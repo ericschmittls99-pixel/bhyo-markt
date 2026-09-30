@@ -700,6 +700,9 @@ export const ereignisArt = pgEnum("ereignis_art", [
   // AP2.2 PR c: Zugriffsanfrage und Ablehnung (Anhaenge-Historie).
   "zugriff_angefragt",
   "zugriff_abgelehnt",
+  // AP2.3 PR a: Parameter mit Verlauf.
+  "parameter_gesetzt",
+  "parameter_zurueckgenommen",
 ]);
 
 export const aenderung = pgTable(
@@ -813,6 +816,59 @@ export const inboxEintrag = pgTable(
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)
       .where(sql`${t.zustand} = 'offen' and ${t.gelesenAm} is null`),
+  ],
+);
+
+/**
+ * AP2.3 PR a (E59/E60): Parameter mit Verlauf. Schluessel sind Text, keine
+ * Enum-Werte (E53: neue Enum-Werte sind in derselben Migration nicht als
+ * Literal nutzbar). Neue Schluessel kommen nur per Migration zusammen mit
+ * ihrem Verbraucher.
+ */
+export const parameterDefinition = pgTable("parameter_definition", {
+  /** z. B. verifikationsfrist.gespraech */
+  schluessel: text("schluessel").primaryKey(),
+  bezeichnung: text("bezeichnung").notNull(),
+  /** z. B. monate */
+  einheit: text("einheit").notNull(),
+  min: integer("min").notNull(),
+  max: integer("max").notNull(),
+  beschreibung: text("beschreibung").notNull(),
+});
+
+/**
+ * E60: Ein Wert gilt ab einem Datum, nie rueckwirkend; alte Werte bleiben im
+ * Verlauf. '-infinity' = benannter Zustand „seit Einfuehrung" (Startwerte aus
+ * der Migration, ohne Urheber). Unveraenderlich per Trigger (UPDATE nie,
+ * DELETE nur fuer kuenftige Werte) — Migration 0029. Gelesen wird
+ * ausschliesslich ueber die SQL-Funktion parameter_wert(schluessel, stichtag).
+ */
+export const parameterWert = pgTable(
+  "parameter_wert",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    schluessel: text("schluessel")
+      .notNull()
+      .references(() => parameterDefinition.schluessel),
+    wert: integer("wert").notNull(),
+    gueltigAb: date("gueltig_ab").notNull(),
+    begruendung: text("begruendung").notNull(),
+    erstelltVon: uuid("erstellt_von").references(() => benutzer.id),
+    erstelltAm: timestamp("erstellt_am", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("parameter_wert_schluessel_gueltig_ab_unique").on(t.schluessel, t.gueltigAb),
+    check("parameter_wert_begruendung_check", sql`length(trim(${t.begruendung})) > 0`),
+    // Nie rueckwirkend: gueltig_ab liegt nicht vor dem Tag der Erfassung (Berlin).
+    check(
+      "parameter_wert_nie_rueckwirkend_check",
+      sql`${t.gueltigAb} = '-infinity'::date or ${t.gueltigAb} >= (${t.erstelltAm} at time zone 'Europe/Berlin')::date`,
+    ),
+    // Startwerte (seit Einfuehrung) haben keinen Urheber; alles andere schon.
+    check(
+      "parameter_wert_urheber_check",
+      sql`${t.gueltigAb} = '-infinity'::date or ${t.erstelltVon} is not null`,
+    ),
   ],
 );
 

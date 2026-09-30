@@ -5379,3 +5379,83 @@ table.st-tabelle tbody tr:focus-visible {
   flex: 0 0 auto;
   margin-top: 1px;
 }
+
+/* ------------------------------------------------------------------------
+   einstellungen.: Reiter (AP2.3, E59) und Parameter mit Verlauf (E60).
+   ------------------------------------------------------------------------ */
+.einst-reiter {
+  margin: 0 0 16px;
+}
+.param-gruppe + .param-gruppe {
+  margin-top: 8px;
+}
+.param-schluessel {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+  font-family: var(--font-mono, ui-monospace, monospace);
+}
+.param-wert {
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.param-geplant {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 4px;
+}
+.param-geplant li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.param-aktionen {
+  white-space: nowrap;
+  text-align: right;
+}
+.param-aktionen .btn + .btn {
+  margin-left: 4px;
+}
+.param-verlauf-zeile td {
+  padding: 0 0 12px 0;
+  border-top: 0;
+}
+.param-verlauf {
+  width: 100%;
+  border-collapse: collapse;
+  font: var(--type-caption);
+  background: var(--surface-sunken);
+  border-radius: var(--radius-control);
+}
+.param-verlauf th,
+.param-verlauf td {
+  padding: 6px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+.param-verlauf th {
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+.param-begruendung {
+  text-wrap: pretty;
+}
+.param-dialog {
+  display: grid;
+  gap: 12px;
+  width: min(440px, 100%);
+}
+.param-dialog .pf {
+  display: grid;
+  gap: 4px;
+}
+.param-hinweis {
+  display: flex;
+  gap: 6px;
+  margin: 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  text-wrap: pretty;
+}

@@ -91,6 +91,13 @@ export interface StromBeleg {
   externNachvollziehbar: boolean;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
+  /**
+   * AP2.3 (E60): Typ-Frist in Monaten der unteren drei Typen — aus der
+   * Parameter-Historie am Erhebungsdatum (parameter_wert), nicht aus einer
+   * Konstante. null bei den oberen vier Typen (sie tragen gueltig_bis).
+   * Optional nur im Typ (Fixtures); der Loader setzt es immer.
+   */
+  fristMonate?: number | null;
   kernnotiz: string | null;
 }
 
@@ -151,6 +158,8 @@ export interface Strom {
   reserviertBhyo: boolean;
   /** Stempel der Reservierung (Migration 0010); null = nicht reserviert. */
   reserviertSeit: string | null;
+  /** AP2.3 (E60): Gueltigkeit der Reservierung in Monaten ab reserviert_seit (parameter_wert). Loader setzt es immer. */
+  reservierungMonate?: number | null;
   /** Abgeleiteter Verfuegbarkeitsstatus (PR 3) — nur gesetzt, wo angereichert. */
   verfuegbarkeit?: VerfuegbarkeitsErgebnis;
   /** F5 PR B: Vergabezeilen fuer den Filter "Vergeben ab / bis". */
