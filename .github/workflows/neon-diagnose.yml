@@ -1,0 +1,53 @@
+name: Neon-Diagnose (nur lesen)
+
+# Haertung (Entscheidung Eric, 30.09.2026): lesende Messung, was der Neon-Key
+# in neon-restore sieht (Projekte, Branches, Endpoints) und ob der Branch
+# hinter RESTORE_DATABASE_URL in production-lesend noch existiert. Gibt nie
+# Key- oder Connection-Werte aus — nur Namen, IDs und ja/nein. Beide
+# Environments sind auf main beschraenkt; deshalb ist der Workflow im Repo und
+# wird manuell von main aus gestartet.
+on:
+  workflow_dispatch:
+
+jobs:
+  schluessel:
+    runs-on: ubuntu-24.04
+    environment: neon-restore
+    permissions:
+      contents: read
+    steps:
+      - name: Neon-API lesend abfragen (neon-restore)
+        env:
+          NEON_API_KEY: ${{ secrets.NEON_API_KEY }}
+          NEON_PROJECT_ID: ${{ secrets.NEON_PROJECT_ID }}
+          NEON_PARENT_BRANCH_ID: ${{ secrets.NEON_PARENT_BRANCH_ID }}
+        run: |
+          set -uo pipefail
+          for v in NEON_API_KEY NEON_PROJECT_ID NEON_PARENT_BRANCH_ID; do
+            [ -n "${!v}" ] && echo "SECRET $v gesetzt" || echo "SECRET $v FEHLT"
+          done
+          api() { curl -sS -o /tmp/antwort -w "%{http_code}" -H "Authorization: Bearer $NEON_API_KEY" -H "Accept: application/json" "https://console.neon.tech/api/v2$1"; }
+          # Ist es ein Nutzer-Key (users/me antwortet) oder ein Organisations-Key?
+          code=$(api /users/me); echo "USERS_ME http=$code $(jq -c '{login, plan} // {}' /tmp/antwort 2>/dev/null)"
+          code=$(api /users/me/organizations); echo "ORGS http=$code $(jq -c '[.organizations[]? | {id, name}]' /tmp/antwort 2>/dev/null)"
+          code=$(api '/projects?limit=100'); echo "PROJEKTE http=$code $(jq -c '[.projects[]? | {id, name, org_id}]' /tmp/antwort 2>/dev/null)"
+          code=$(api "/projects/$NEON_PROJECT_ID"); echo "PROJEKT_bhyogenics http=$code $(jq -c '{name: .project.name, org_id: .project.org_id, region: .project.region_id}' /tmp/antwort 2>/dev/null)"
+          code=$(api "/projects/$NEON_PROJECT_ID/branches"); echo "BRANCHES http=$code $(jq -c '[.branches[]? | {id, name, parent_id, default, protected, created_at}]' /tmp/antwort 2>/dev/null)"
+          code=$(api "/projects/$NEON_PROJECT_ID/endpoints"); echo "ENDPOINTS http=$code $(jq -c '[.endpoints[]? | {id, branch_id, type, host_praefix: (.host | split(".")[0])}]' /tmp/antwort 2>/dev/null)"
+          echo "ELTERNBRANCH_VORHANDEN $(jq --arg p "$NEON_PARENT_BRANCH_ID" '[.branches[]?.id] | index($p) != null' /tmp/antwort 2>/dev/null || echo 'nicht pruefbar')"
+          # Rechte: Neon-Keys haben keine Teilrechte — anlegen/loeschen zeigt der
+          # Nachweislauf von restore-woechentlich.yml, nicht eine Leseabfrage.
+
+  scratch:
+    runs-on: ubuntu-24.04
+    environment: production-lesend
+    permissions:
+      contents: read
+    steps:
+      - name: Branch hinter RESTORE_DATABASE_URL (production-lesend), nur Host-Praefix
+        env:
+          RESTORE_DATABASE_URL: ${{ secrets.RESTORE_DATABASE_URL }}
+        run: |
+          if [ -z "$RESTORE_DATABASE_URL" ]; then echo "RESTORE_DATABASE_URL nicht gesetzt"; exit 0; fi
+          host=$(node -e 'console.log(new URL(process.env.RESTORE_DATABASE_URL).hostname)')
+          echo "RESTORE_HOST_PRAEFIX ${host%%.*}"
