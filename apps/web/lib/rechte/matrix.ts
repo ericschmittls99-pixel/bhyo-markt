@@ -96,7 +96,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "sektor.umbenennen": VERWALTEN,
   "sektor.deaktivieren": VERWALTEN,
   "sektor.reaktivieren": VERWALTEN,
-  "strom.pruefen": SPERREN,
+  "strom.pruefen": ERFASSEN, // tmp Rot-Nachweis: bearbeiter duerfte pruefen
   "beleg.abgelaufen_markieren": SPERREN,
   "beleg.abgelaufen_aufheben": SPERREN,
 };
