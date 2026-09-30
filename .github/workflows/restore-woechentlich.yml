@@ -99,11 +99,16 @@ jobs:
           ROLLE=$(curl -sS "$NEON_API/projects/$NEON_PROJECT_ID/branches/$BRANCH_ID/roles" -H "Authorization: Bearer $NEON_API_KEY" | jq -r '.roles[0].name')
           URI=$(curl -sS "$NEON_API/projects/$NEON_PROJECT_ID/connection_uri?branch_id=$BRANCH_ID&database_name=neondb&role_name=$ROLLE&pooled=false" -H "Authorization: Bearer $NEON_API_KEY" | jq -r '.uri // empty')
           [ -n "$URI" ] || { echo "::error::Connection-URI nicht erhalten."; exit 1; }
+          # Maskieren, BEVOR irgendetwas davon ins Log gelangen kann: die URI als
+          # Ganzes, dazu Passwort und Host einzeln, weil der Host getrennt geprueft wird.
           echo "::add-mask::$URI"
-          echo "BRANCH_DATABASE_URL=$URI" >> "$GITHUB_ENV"
+          PW=$(node -e 'console.log(decodeURIComponent(new URL(process.argv[1]).password))' "$URI")
+          [ -n "$PW" ] && echo "::add-mask::$PW"
           host=$(node -e 'console.log(new URL(process.argv[1]).hostname)' "$URI")
-          case "$host" in ep-purple-glade-*|ep-rough-term-*) echo "::error::Neuer Branch zeigt auf $host — abgebrochen."; exit 1;; esac
-          echo "BRANCH_HOST $host"
+          echo "::add-mask::$host"
+          echo "BRANCH_DATABASE_URL=$URI" >> "$GITHUB_ENV"
+          case "$host" in ep-purple-glade-*|ep-rough-term-*) echo "::error::Neuer Branch zeigt auf Production oder Preview — abgebrochen."; exit 1;; esac
+          echo "BRANCH_HOST maskiert, Praefix-Pruefung bestanden"
 
       - name: Neuesten Dump aus R2 holen
         env:
