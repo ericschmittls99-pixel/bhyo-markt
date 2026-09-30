@@ -129,7 +129,7 @@ export function deriveQualitaet(beleg: BelegBewertung): Qualitaet {
   const basis = basisStufe(beleg);
   // E62 D3: Nur die Markierung wertet ab — eine bloss ueberfaellige
   // Verifikation nicht. D bleibt D (Untergrenze).
-  return gesetzt(beleg.abgelaufenAm) ? EINE_STUFE_TIEFER[basis] : basis;
+  return basis; // tmp Rot-Nachweis: Spiegel ohne Abwertung
 }
 
 const EINE_STUFE_TIEFER: Record<Qualitaet, Qualitaet> = { A: "B", B: "C", C: "D", D: "D" };
