@@ -224,6 +224,9 @@ export function Detail({
   const darfPruefen = darfBearbeiten && !!sperrRechte?.pruefen && PRUEF_AUSGANG.includes(s.status);
   // E62: Zustands-Pille aus strom_verifikation() — „gültig bis TT.MM.JJJJ" bzw. der benannte Zustand.
   const verifPill = s.verifikation ? verifikationPill(s.verifikation, fmtDatum) : null;
+  // Im Kopf nur, wenn sie mehr sagt als die Status-Pille daneben (ungeprueft / in Pruefung
+  // stehen dort bereits); im Beleg-Block steht sie immer.
+  const verifPillImKopf = verifPill && s.verifikation?.zustand !== "ungeprueft" && s.verifikation?.zustand !== "in_pruefung" ? verifPill : null;
 
   const chain = feed
     ? [
@@ -331,9 +334,9 @@ export function Detail({
                       </span>
                     )}
                   </span>
-                  {verifPill && (
-                    <span className={`spill spill--${verifPill.tone}`} title="Verifikation">
-                      {verifPill.text}
+                  {verifPillImKopf && (
+                    <span className={`spill spill--${verifPillImKopf.tone}`} title="Verifikation">
+                      {verifPillImKopf.text}
                     </span>
                   )}
                   {verfuegbarkeit && (
