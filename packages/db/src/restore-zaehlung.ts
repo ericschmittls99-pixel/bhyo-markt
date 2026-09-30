@@ -6,7 +6,8 @@
  * das Protokoll, ist der Lauf rot mit "kein Zaehlprotokoll", nicht gruen.
  * Dazu PostGIS-Extension im Restore. Nur lesend.
  *
- * Umgebung: RESTORE_DATABASE_URL (Ziel), ZAEHLPROTOKOLL (Pfad zur JSON-Datei).
+ * Umgebung: ZIEL_DATABASE_URL (Restore-Ziel, der Wegwerf-Branch des Laufs),
+ * ZAEHLPROTOKOLL (Pfad zur JSON-Datei). Kein Secret — die URL entsteht im Lauf.
  */
 import { existsSync, readFileSync } from "node:fs";
 
@@ -14,15 +15,15 @@ import postgres from "postgres";
 
 import { type Zaehlprotokoll, vergleicheMitProtokoll } from "./zaehlprotokoll";
 
-const restoreUrl = process.env.RESTORE_DATABASE_URL;
+const restoreUrl = process.env.ZIEL_DATABASE_URL;
 const protokollPfad = process.env.ZAEHLPROTOKOLL;
 if (!restoreUrl) {
-  console.error("RESTORE_DATABASE_URL ist Pflicht.");
+  console.error("ZIEL_DATABASE_URL ist Pflicht.");
   process.exit(2);
 }
 const restoreHost = new URL(restoreUrl).hostname;
 if (restoreHost.startsWith("ep-purple-glade") || restoreHost.startsWith("ep-rough-term")) {
-  console.error(`::error::RESTORE_DATABASE_URL zeigt auf ${restoreHost} — das ist Production oder Preview, kein Restore-Ziel. Abbruch.`);
+  console.error(`::error::ZIEL_DATABASE_URL zeigt auf ${restoreHost} — das ist Production oder Preview, kein Restore-Ziel. Abbruch.`);
   process.exit(1);
 }
 if (!protokollPfad || !existsSync(protokollPfad)) {

@@ -11,10 +11,15 @@ name: Restore-Test woechentlich (Neon-Branch je Lauf)
 #   4. den Branch wieder loeschen — auch wenn ein Schritt scheitert
 #      (Free-Plan: hoechstens 10 Branches je Projekt).
 #
-# Secrets (Environment production-lesend): NEON_API_KEY, NEON_PROJECT_ID,
+# Secrets (Environment neon-restore, Haertung 30.09.2026): NEON_API_KEY
+# (Organisations-Key, projektbezogen auf bhyogenics), NEON_PROJECT_ID,
 # NEON_PARENT_BRANCH_ID (Production-Branch); dazu Repo-Secrets
 # R2_ACCESS_KEY_ID / R2_SECRET_ACCESS_KEY. Die Leserolle auf Production wird
-# hier NICHT mehr gebraucht — verglichen wird gegen das Zaehlprotokoll.
+# hier NICHT gebraucht — verglichen wird gegen das Zaehlprotokoll; deshalb
+# ist dieses Environment von production-lesend getrennt. Beide sind auf
+# main beschraenkt. Der fruehere restore-test.yml (dauerhafter Scratch-Branch,
+# Secret RESTORE_DATABASE_URL) ist entfallen — er wies nichts nach, was
+# dieser Lauf nicht auch nachweist.
 on:
   schedule:
     - cron: "0 3 * * 1"
@@ -34,7 +39,7 @@ concurrency:
 jobs:
   restore:
     runs-on: ubuntu-24.04
-    environment: production-lesend
+    environment: neon-restore
     permissions:
       contents: read
     env:
@@ -75,7 +80,7 @@ jobs:
         run: |
           set -euo pipefail
           for v in NEON_API_KEY NEON_PROJECT_ID NEON_PARENT_BRANCH_ID; do
-            [ -n "${!v}" ] || { echo "::error::Secret $v fehlt (Environment production-lesend)."; exit 1; }
+            [ -n "${!v}" ] || { echo "::error::Secret $v fehlt (Environment neon-restore)."; exit 1; }
           done
           NAME="restore-${GITHUB_RUN_ID}"
           ANTWORT=$(curl -sS -X POST "$NEON_API/projects/$NEON_PROJECT_ID/branches" \
@@ -137,7 +142,7 @@ jobs:
 
       - name: Zaehlung je Tabelle gegen das Zaehlprotokoll des Dumps
         env:
-          RESTORE_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
+          ZIEL_DATABASE_URL: ${{ env.ZIEL_DATABASE_URL }}
           ZAEHLPROTOKOLL: ${{ github.workspace }}/zaehlung.json
         run: pnpm --filter @bhyo/db restore-zaehlung
 
