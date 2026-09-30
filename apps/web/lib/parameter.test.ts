@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { heuteBerlin, istSeitEinfuehrung, pruefeParameterEingabe, wertMitEinheit } from "./parameter";
+import { istSeitEinfuehrung, pruefeParameterEingabe, wertMitEinheit } from "./parameter";
 
 const DEF = { schluessel: "verifikationsfrist.gespraech", bezeichnung: "Gespräch", einheit: "monate", min: 1, max: 120, beschreibung: "" };
 const HEUTE = "2026-09-30";
@@ -35,9 +35,5 @@ describe("Anzeige", () => {
   it("Wert mit Einheit", () => {
     expect(wertMitEinheit(3, "monate")).toBe("3 Monate");
     expect(wertMitEinheit(1, "monate")).toBe("1 Monat");
-  });
-  it("heuteBerlin liefert das Datum in Europe/Berlin (Tageswechsel vor UTC)", () => {
-    expect(heuteBerlin(new Date("2026-09-30T22:30:00Z"))).toBe("2026-10-01");
-    expect(heuteBerlin(new Date("2026-09-30T21:30:00Z"))).toBe("2026-09-30");
   });
 });

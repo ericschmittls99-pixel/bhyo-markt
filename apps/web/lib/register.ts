@@ -11,6 +11,7 @@ import {
 } from "@bhyo/db/schema";
 import { and, asc, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
+import { kalendertag } from "@/lib/datum";
 import { withDb } from "@/lib/db";
 import { geojsonOderNull } from "@/lib/karte-modell";
 
@@ -412,9 +413,7 @@ function belegDetail(r: BelegRow): DetailBeleg | null {
     href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
     externNachvollziehbar: r.belegExtern ?? false,
     gueltigBis: r.belegGueltigBis,
-    erhebungsdatum: r.belegErstelltAm
-      ? r.belegErstelltAm.toISOString().slice(0, 10)
-      : null,
+    erhebungsdatum: r.belegErstelltAm ? kalendertag(r.belegErstelltAm) : null,
   };
 }
 

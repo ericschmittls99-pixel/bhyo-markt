@@ -5,7 +5,7 @@ import Link from "next/link";
 
 import { BenutzerVerwaltung } from "@/components/einstellungen/BenutzerVerwaltung";
 import { ParameterVerwaltung } from "@/components/einstellungen/ParameterVerwaltung";
-import { heuteBerlin } from "@/lib/parameter";
+import { heuteBerlin, kalendertag } from "@/lib/datum";
 import { ladeParameterUebersicht } from "@/lib/parameter-server";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { withDb } from "@/lib/db";
@@ -82,7 +82,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
           name: b.name,
           rolle: b.rolle,
           aktiv: b.aktiv,
-          erstelltAm: b.erstelltAm.toISOString().slice(0, 10),
+          erstelltAm: kalendertag(b.erstelltAm),
         }))}
         ichSelbst={zugang.email}
       />

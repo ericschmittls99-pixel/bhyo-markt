@@ -58,7 +58,7 @@ vi.mock("@/lib/rechte/wache", async (orig) => {
 });
 
 const { parameterSetzen, parameterZuruecknehmen } = await import("./parameter-actions");
-const { heuteBerlin } = await import("./parameter");
+const { heuteBerlin } = await import("./datum");
 
 function formular(felder: Record<string, string>): FormData {
   const fd = new FormData();

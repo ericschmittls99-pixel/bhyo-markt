@@ -12,6 +12,7 @@ import {
 } from "@bhyo/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
+import { ZEITZONE } from "@/lib/datum";
 import { withDb, type AppDb } from "@/lib/db";
 import {
   formularZeileZuWerte,
@@ -54,9 +55,11 @@ const belegSelect = {
   belegErstelltAm: beleg.erstelltAm,
   belegMetadata: beleg.metadata,
   // AP2.3 (E60): Typ-Frist der unteren drei Belegtypen aus der Parameter-
-  // Historie, aufgeloest am Basisdatum (Erhebungsdatum = erstellt_am::date).
-  // Genau eine Lesestelle: die SQL-Funktion parameter_wert(); kein Standardwert.
-  belegFristMonate: sql<unknown>`case when ${beleg.typ} in ('gespraech','dokument','webrecherche') then parameter_wert('verifikationsfrist.' || ${beleg.typ}::text, (${beleg.erstelltAm})::date) end`,
+  // Historie, aufgeloest am Basisdatum = Erhebungsdatum als Kalendertag
+  // Europe/Berlin (PR b; vorher ::date in Sitzungszeit UTC — zwischen 00:00
+  // und 02:00 Berlin einen Tag zu frueh, am Tag einer Friständerung die alte
+  // Frist). Genau eine Lesestelle: parameter_wert(); kein Standardwert.
+  belegFristMonate: sql<unknown>`case when ${beleg.typ} in ('gespraech','dokument','webrecherche') then parameter_wert('verifikationsfrist.' || ${beleg.typ}::text, (${beleg.erstelltAm} at time zone ${ZEITZONE})::date) end`,
 };
 
 /**

@@ -8,6 +8,7 @@ import { Grid } from "@/components/stroeme/Grid";
 import { Tabelle } from "@/components/stroeme/Tabelle";
 import { Toolbar } from "@/components/stroeme/Toolbar";
 import { EmptyState } from "@/components/shell/EmptyState";
+import { heuteBerlin } from "@/lib/datum";
 import { CLUSTER_LABEL } from "@/lib/farben";
 import type { FormularWerte } from "@/lib/formular-modell";
 import {
@@ -106,7 +107,7 @@ export async function RegisterInhalt({
   // AP1j PR 3: Verfuegbarkeitsstatus EINMAL je Request an den Pool anreichern
   // (stichtag = Serverdatum) — Grid, Tabelle, Detail und die neue Facette
   // lesen alle dasselbe Feld.
-  const stichtag = new Date().toISOString().slice(0, 10);
+  const stichtag = heuteBerlin();
   // E33: Faelligkeit und Verifikationsstatus ebenso einmal je Request.
   const poolBasis = reichereVerifikationAn(
     reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag),

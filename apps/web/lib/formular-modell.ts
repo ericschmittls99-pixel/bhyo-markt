@@ -1,4 +1,5 @@
 import type { StromArt } from "./stroeme-modell";
+import { kalendertag } from "./datum";
 import { brauchtGueltigBis, istBelegTyp } from "./qualitaet";
 // Nur Typ-Import: verfuegbarkeit.ts importiert zur Laufzeit aus dieser Datei,
 // die Gegenrichtung bleibt typenreiner Import ohne Zykluswirkung.
@@ -397,9 +398,7 @@ function belegAusZeile(r: FormularZeile): FormularBeleg | null {
     quellenangabe: mStr("quellenangabe"),
     linkUrl: s(r.belegLinkUrl),
     dateiKey: r.belegDateiKey,
-    erhebungsdatum: r.belegErstelltAm
-      ? r.belegErstelltAm.toISOString().slice(0, 10)
-      : "",
+    erhebungsdatum: r.belegErstelltAm ? kalendertag(r.belegErstelltAm) : "",
     gueltigBis: s(r.belegGueltigBis),
     extern: r.belegExtern ?? false,
     kernnotiz: mStr("kernnotiz"),

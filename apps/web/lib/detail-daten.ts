@@ -5,6 +5,7 @@
  * Verifikation, Sperr-Rechte, Preiskorridor) steht hier, nicht doppelt.
  */
 import { CLUSTER_LABEL } from "@/lib/farben";
+import { heuteBerlin } from "@/lib/datum";
 import { withDb } from "@/lib/db";
 import { offeneAnfrageVon } from "@/lib/inbox/server";
 import { preisKorridorEinzel, type PreisKorridorEinzel } from "@/lib/preiskorridor-einzel";
@@ -85,7 +86,7 @@ export async function ladeDetailDaten(art: StromArt, id: string, zugang: Zugang)
     ladeHistorie(art, id),
     ladeErsteAenderung(art, id),
   ]);
-  const stichtag = new Date().toISOString().slice(0, 10);
+  const stichtag = heuteBerlin();
   const pool = reichereVerifikationAn(reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag), vergabenMap, stichtag);
   const strom = pool.find((s) => s.id === id);
   if (!strom) return null;

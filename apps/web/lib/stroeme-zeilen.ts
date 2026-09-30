@@ -6,6 +6,7 @@ import {
   type SperrNutzer,
   type StromSperreAnzeige,
 } from "./stroeme-modell";
+import { kalendertag } from "./datum";
 import { vollstaendigkeit } from "./vollstaendigkeit";
 
 /**
@@ -101,9 +102,8 @@ function belegAus(r: BelegZeile): StromBeleg | null {
     href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
     externNachvollziehbar: r.belegExtern ?? false,
     gueltigBis: r.belegGueltigBis,
-    erhebungsdatum: r.belegErstelltAm
-      ? r.belegErstelltAm.toISOString().slice(0, 10)
-      : null,
+    // PR b: Kalendertag Europe/Berlin — dieselbe Achse wie die Frist-Aufloesung in SQL.
+    erhebungsdatum: r.belegErstelltAm ? kalendertag(r.belegErstelltAm) : null,
     fristMonate: zahlOderNull(r.belegFristMonate),
     kernnotiz: str(m.kernnotiz),
   };

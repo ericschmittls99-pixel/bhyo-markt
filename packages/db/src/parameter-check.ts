@@ -13,6 +13,12 @@
  * 5. Wertebereich: ein Wert ausserhalb min/max wird abgewiesen.
  * 6. Wirksamkeit ab Datum: ein kuenftiger Wert ab X aendert parameter_wert()
  *    fuer Stichtage < X nicht, ab X schon; kein Treffer = Fehler.
+ * 7. Basisdatum = Kalendertag Europe/Berlin (PR b): ein Beleg um 00:30 Berlin
+ *    am Tag einer Friständerung bekommt die NEUE Frist. In UTC liegt derselbe
+ *    Zeitpunkt noch am Vortag (22:30Z/23:30Z) — die alte Ableitung ueber
+ *    ::date in Sitzungszeit haette die alte Frist geliefert. Geprueft wird
+ *    der Ausdruck aus apps/web/lib/stroeme.ts (at time zone) gegen die
+ *    UTC-Variante an einem echten Beleg (zurueckgerollt).
  *
  * Schreibt nichts Bleibendes: jede Probe laeuft in einer Transaktion, die
  * zurueckgerollt wird.
@@ -118,6 +124,30 @@ async function main() {
   console.log("WIRKSAMKEIT " + JSON.stringify(wirk.ergebnis ?? { fehler: wirk.fehler }));
   if (!wirk.ergebnis || wirk.ergebnis.vorher !== 3 || wirk.ergebnis.ab !== 4 || wirk.ergebnis.spaeter !== 4 || wirk.ergebnis.ohne === "kein Fehler") {
     fehler.push("Wirksamkeit ab Datum stimmt nicht (vorher 3, ab 4, spaeter 4, unbekannter Schluessel = Fehler)");
+  }
+
+  // (7) Beleg um 00:30 Berlin am Tag der Friständerung
+  const tag = await probe(async (tx) => {
+    // Aenderung ab morgen (Berlin) — nie rueckwirkend, also nicht heute.
+    const [m] = await tx`select ((now() at time zone 'Europe/Berlin')::date + 1)::text as morgen`;
+    const morgen = m!.morgen as string;
+    await tx`insert into parameter_wert (schluessel, wert, gueltig_ab, begruendung, erstellt_von)
+      values (${S}, 9, ${morgen}::date, 'probe kalendertag', ${wer.id})`;
+    const [b] = await tx`insert into beleg (typ, metadata, erstellt_am)
+      values ('gespraech', ${tx.json({ quellenangabe: "Parameter-Check PR b" })},
+              (${morgen} || ' 00:30')::timestamp at time zone 'Europe/Berlin')
+      returning id`;
+    const [r] = await tx`select
+        (erstellt_am at time zone 'Europe/Berlin')::date::text as tag_berlin,
+        (erstellt_am at time zone 'UTC')::date::text as tag_utc,
+        parameter_wert('verifikationsfrist.' || typ::text, (erstellt_am at time zone 'Europe/Berlin')::date) as frist_berlin,
+        parameter_wert('verifikationsfrist.' || typ::text, (erstellt_am at time zone 'UTC')::date) as frist_utc
+      from beleg where id = ${b!.id}`;
+    return { morgen, tagBerlin: r!.tag_berlin as string, tagUtc: r!.tag_utc as string, fristBerlin: Number(r!.frist_berlin), fristUtc: Number(r!.frist_utc) };
+  });
+  console.log("KALENDERTAG_BERLIN " + JSON.stringify(tag.ergebnis ?? { fehler: tag.fehler }));
+  if (!tag.ergebnis || tag.ergebnis.tagBerlin !== tag.ergebnis.morgen || tag.ergebnis.fristBerlin !== 9 || tag.ergebnis.tagUtc === tag.ergebnis.morgen || tag.ergebnis.fristUtc !== 3) {
+    fehler.push("Basisdatum: Beleg um 00:30 Berlin am Tag der Aenderung muss die neue Frist (9) tragen, in UTC laege er am Vortag (3)");
   }
 
   await sql.end();
