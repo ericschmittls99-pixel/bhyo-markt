@@ -133,14 +133,17 @@ async function main() {
       from beleg`;
   console.log("ZEITZONE_BASISDATUM " + JSON.stringify(tz));
 
-  // AP2.3 PR b (E59), Messung Sektorliste nach Migration 0030: Spalten
-  // id/aktiv, aktive und deaktivierte Sektoren, Akteure je Zustand, der
-  // eindeutige Index auf lower(btrim(label)) und die beiden CHECKs. Vor 0030
-  // fehlen Spalte und Index — dann steht das so da, kein Fehler.
+  // AP2.3 PR b (E59), Messung Sektorliste nach Migration 0030/0031: Spalten
+  // id/aktiv, aktive und deaktivierte Sektoren, Akteure je Zustand, die
+  // Funktion sektor_label_norm, der eindeutige Index darauf, die CHECKs;
+  // Dubletten und reservierte Bezeichnungen unter der E61-Vergleichsform
+  // (Tab/CR/LF am Rand zaehlen mit). Vor 0030/0031 fehlt Struktur — dann
+  // steht das so da, kein Fehler.
   const [sk] = await sql`select
       exists (select 1 from information_schema.columns where table_name = 'sektor' and column_name = 'aktiv') as spalte_aktiv,
       exists (select 1 from information_schema.columns where table_name = 'sektor' and column_name = 'id') as spalte_id,
-      exists (select 1 from pg_indexes where tablename = 'sektor' and indexname = 'sektor_label_lower_idx' and indexdef like '%UNIQUE%' and indexdef like '%lower(btrim(label))%') as unique_index,
+      exists (select 1 from pg_indexes where tablename = 'sektor' and indexname = 'sektor_label_norm_idx' and indexdef like '%UNIQUE%' and indexdef like '%sektor_label_norm(label)%') as unique_index,
+      exists (select 1 from pg_proc where proname = 'sektor_label_norm') as funktion_norm,
       (select array_agg(conname order by conname) from pg_constraint where conrelid = 'sektor'::regclass and contype = 'c')::text as checks`;
   if (sk!.spalte_aktiv) {
     const [z] = await sql`select
@@ -150,7 +153,8 @@ async function main() {
         (select count(*)::int from akteur a join sektor s on s.code = a.sektor where s.aktiv) as akteure_an_aktiven,
         (select count(*)::int from akteur a join sektor s on s.code = a.sektor where not s.aktiv) as akteure_an_inaktiven,
         (select count(*)::int from akteur where sektor is null) as akteure_ohne_sektor,
-        (select count(*)::int from (select lower(btrim(label)) from sektor group by 1 having count(*) > 1) d) as dubletten
+        (select count(*)::int from (select lower(btrim(label, E' \t\r\n')) from sektor group by 1 having count(*) > 1) d) as dubletten,
+        (select count(*)::int from sektor where lower(btrim(label, E' \t\r\n')) in ('abnehmer', 'ohne sektor')) as reservierte_labels
       from sektor`;
     console.log("SEKTOR " + JSON.stringify({ ...sk, ...z }));
   } else {

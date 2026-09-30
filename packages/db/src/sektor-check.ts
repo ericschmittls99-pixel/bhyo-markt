@@ -6,21 +6,21 @@
  * abgefragt — eine Liste, die der Admin aendern darf, kann kein Check
  * festschreiben). Zusicherungen:
  *
- * 1. Struktur (Migration 0030): Spalten id (uuid, unique) und aktiv, der
- *    eindeutige Index auf lower(btrim(label)), die CHECKs fuer Code und
- *    Bezeichnung.
+ * 1. Struktur (Migrationen 0030/0031): Spalten id (uuid, unique) und aktiv,
+ *    die Funktion sektor_label_norm, der eindeutige Index darauf, die CHECKs
+ *    fuer Code, Bezeichnung und reservierte Bezeichnung (E61).
  * 2. Keine Dubletten der Bezeichnung (Schreibweise/Randleerraum egal) — und
  *    der Index greift, beim Anlegen wie beim Umbenennen: ' ENERGIE ',
- *    'eNeRgIe' und '  Energie' neben 'Energie' werden abgewiesen (INSERT),
- *    ebenso das Umbenennen eines anderen Sektors auf ' energie ' (UPDATE).
- * 3. Geschuetzte Werte per DB-CHECK: 'abnehmer' (eine Rolle, 0020) und
+ *    'eNeRgIe', '  Energie' und 'energie\t' (Tabulator, E61) neben 'Energie'
+ *    werden abgewiesen (INSERT), ebenso das Umbenennen eines anderen Sektors
+ *    auf ' energie ' (UPDATE).
+ * 3. Reservierte Werte per DB-CHECK (E61): 'abnehmer' (eine Rolle, 0020) und
  *    'ohne_sektor' (der Filterwert fuer NULL) existieren nicht als Zeile
  *    (nichts zu deaktivieren), lassen sich nicht anlegen (INSERT) und kein
- *    Sektor laesst sich auf sie umbenennen (UPDATE code — der CHECK gilt
- *    fuer beide). Ein Code ausserhalb snake_case und eine leere Bezeichnung
- *    werden ebenso abgewiesen. Gemessen und genannt, nicht erzwungen: ob
- *    die DB eine Bezeichnung 'Abnehmer' / 'ohne Sektor' zulaesst (heute
- *    nur die App-Regel in apps/web/lib/sektor.ts, kein CHECK auf label).
+ *    Sektor laesst sich auf sie umbenennen (UPDATE code). Die Bezeichnungen
+ *    'Abnehmer' und 'ohne Sektor' (Schreibweise/Randleerraum egal) werden
+ *    beim Anlegen und beim Umbenennen abgewiesen. Ein Code ausserhalb
+ *    snake_case und eine leere Bezeichnung ebenso.
  * 4. Kein Akteur traegt einen Sektor, den es nicht gibt — der
  *    Fremdschluessel sichert das, und der Check belegt, dass er greift.
  *    Mindestens ein Sektor ist aktiv (sonst ist die Auswahl leer).
@@ -63,22 +63,24 @@ async function main() {
   const spalten = (await sql`select column_name, data_type from information_schema.columns where table_name = 'sektor'`).map(
     (r) => `${r.column_name}:${r.data_type}`,
   );
-  const [idx] = await sql`select count(*)::int as n from pg_indexes where tablename = 'sektor' and indexname = 'sektor_label_lower_idx' and indexdef like '%UNIQUE%' and indexdef like '%lower(btrim(label))%'`;
+  const [idx] = await sql`select count(*)::int as n from pg_indexes where tablename = 'sektor' and indexname = 'sektor_label_norm_idx' and indexdef like '%UNIQUE%' and indexdef like '%sektor_label_norm(label)%'`;
+  const [fn] = await sql`select count(*)::int as n from pg_proc where proname = 'sektor_label_norm'`;
   const checks = (await sql`select conname from pg_constraint where conrelid = 'sektor'::regclass and contype = 'c' order by conname`).map((r) => r.conname as string);
-  console.log(`STRUKTUR spalten=${JSON.stringify(spalten)} label_index=${idx!.n} checks=${JSON.stringify(checks)}`);
+  console.log(`STRUKTUR spalten=${JSON.stringify(spalten)} funktion=${fn!.n} label_index=${idx!.n} checks=${JSON.stringify(checks)}`);
   const strukturFehler: string[] = [];
   if (!spalten.includes("id:uuid")) strukturFehler.push("Spalte id (uuid) fehlt");
   if (!spalten.includes("aktiv:boolean")) strukturFehler.push("Spalte aktiv (boolean) fehlt");
-  if (idx!.n !== 1) strukturFehler.push("eindeutiger Index sektor_label_lower_idx auf lower(btrim(label)) fehlt");
-  for (const c of ["sektor_code_check", "sektor_label_check"]) if (!checks.includes(c)) strukturFehler.push(`CHECK ${c} fehlt`);
+  if (fn!.n !== 1) strukturFehler.push("Funktion sektor_label_norm fehlt");
+  if (idx!.n !== 1) strukturFehler.push("eindeutiger Index sektor_label_norm_idx auf sektor_label_norm(label) fehlt");
+  for (const c of ["sektor_code_check", "sektor_label_check", "sektor_label_reserviert_check"]) if (!checks.includes(c)) strukturFehler.push(`CHECK ${c} fehlt`);
   if (strukturFehler.length) {
-    console.error("::error::SEKTOR-CHECK VERLETZT (Migration 0030 fehlt): " + strukturFehler.join(" · "));
+    console.error("::error::SEKTOR-CHECK VERLETZT (Migration 0030/0031 fehlt): " + strukturFehler.join(" · "));
     await sql.end();
     process.exit(1);
   }
 
   // (2) Dubletten und Index
-  const [dub] = await sql`select count(*)::int as n from (select lower(btrim(label)) from sektor group by 1 having count(*) > 1) d`;
+  const [dub] = await sql`select count(*)::int as n from (select sektor_label_norm(label) from sektor group by 1 having count(*) > 1) d`;
   const [erster] = await sql`select code, label from sektor order by sortierung, label limit 1`;
   const dublette = await probe(async (tx) => {
     await tx`insert into sektor (code, label) values ('probe_dublette', ${" " + String(erster!.label).toUpperCase() + " "})`;
@@ -93,6 +95,9 @@ async function main() {
     label.split("").map((c, i) => (i % 2 ? c.toUpperCase() : c.toLowerCase())).join(""),
     "  " + label,
     label.toUpperCase() + "   ",
+    // E61: Tabulator/CR/LF am Rand — vorher (0030, btrim ohne Zeichenliste) ging das durch.
+    label.toLowerCase() + "\t",
+    "\r\n" + label,
   ];
   for (const v of varianten) {
     const grund = await probe(async (tx) => {
@@ -101,15 +106,6 @@ async function main() {
     console.log(`DUBLETTE_INSERT ${JSON.stringify(v)} abgewiesen=${grund !== null}`);
     if (grund === null) fehler.push(`Bezeichnung ${JSON.stringify(v)} liess sich neben "${label}" anlegen`);
   }
-  // Befund 30.09.2026 (erster Lauf dieser Probe): btrim() ohne Zeichenliste
-  // entfernt nur Leerzeichen — ein Tabulator am Rand geht am Index vorbei.
-  // Ueber die App kommt er nicht an (trim() in lib/sektor.ts), direkt in der
-  // DB schon. Gemessen und genannt, nicht erzwungen; Entscheidung bei Eric
-  // (0031 mit btrim(label, E' \t\r\n') oder regexp-Normalisierung).
-  const tab = await probe(async (tx) => {
-    await tx`insert into sektor (code, label) values ('probe_variante', ${label.toLowerCase() + "\t"})`;
-  });
-  console.log(`DUBLETTE_INSERT_TAB ${JSON.stringify(label.toLowerCase() + "\t")} abgewiesen=${tab !== null} (nur Messung)`);
   const [zweiter] = await sql`select code from sektor where code <> ${erster!.code as string} order by sortierung, label limit 1`;
   if (zweiter) {
     const grund = await probe(async (tx) => {
@@ -131,12 +127,17 @@ async function main() {
     console.log(`GESCHUETZT_UPDATE_CODE ${erster!.code} -> ${g} abgewiesen=${grund !== null}`);
     if (grund === null) fehler.push(`Umbenennen des Codes auf ${g} kam durch — CHECK gilt nicht fuer UPDATE`);
   }
-  for (const l of ["Abnehmer", "ohne Sektor"]) {
-    const grund = await probe(async (tx) => {
+  // E61: reservierte Bezeichnungen — beim Umbenennen (UPDATE) und beim Anlegen (INSERT).
+  for (const l of ["Abnehmer", "ohne Sektor", "  ABNEHMER\t", "Ohne  Sektor".replace("  ", " ")]) {
+    const update = await probe(async (tx) => {
       await tx`update sektor set label = ${l} where code = ${erster!.code as string}`;
     });
-    // Nur Messung: die Bezeichnung schuetzt heute die App (lib/sektor.ts), nicht die DB.
-    console.log(`LABEL_GESCHUETZT_DB ${JSON.stringify(l)} abgewiesen=${grund !== null}`);
+    const insert = await probe(async (tx) => {
+      await tx`insert into sektor (code, label) values ('probe_reserviert', ${l})`;
+    });
+    console.log(`LABEL_RESERVIERT ${JSON.stringify(l)} update_abgewiesen=${update !== null} insert_abgewiesen=${insert !== null}`);
+    if (update === null) fehler.push(`Umbenennen auf reservierte Bezeichnung ${JSON.stringify(l)} kam durch`);
+    if (insert === null) fehler.push(`Anlegen mit reservierter Bezeichnung ${JSON.stringify(l)} kam durch`);
   }
   // Code- und Label-CHECK beim Anlegen
   for (const [code, label] of [

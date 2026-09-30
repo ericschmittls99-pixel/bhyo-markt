@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { codeAusLabel, DEAKTIVIERT_SUFFIX, GESPERRTE_CODES, pruefeSektorLabel, sektorAnzeige } from "./sektor";
+import { codeAusLabel, DEAKTIVIERT_SUFFIX, GESPERRTE_CODES, labelSchluessel, pruefeSektorLabel, RESERVIERTE_LABELS, sektorAnzeige } from "./sektor";
 
 const BESTAND = [
   { code: "energie", label: "Energie" },
@@ -35,11 +35,24 @@ describe("pruefeSektorLabel", () => {
   it("Code schon vergeben (andere Bezeichnung, gleicher Code)", () => {
     expect(pruefeSektorLabel("Energie!", BESTAND).ok).toBe(false);
   });
-  it("„ohne Sektor“ und „Abnehmer“ sind geschuetzt", () => {
+  it("E61: „ohne Sektor“ und „Abnehmer“ sind als Code und Bezeichnung reserviert — beim Anlegen und beim Umbenennen", () => {
     expect(GESPERRTE_CODES).toEqual(["ohne_sektor", "abnehmer"]);
+    expect(RESERVIERTE_LABELS).toEqual(["abnehmer", "ohne sektor"]);
     expect(pruefeSektorLabel("ohne Sektor", BESTAND).ok).toBe(false);
     expect(pruefeSektorLabel("Ohne  Sektor", BESTAND).ok).toBe(false);
     expect(pruefeSektorLabel("Abnehmer", BESTAND).ok).toBe(false);
+    // Umbenennen: der Code bleibt, die Bezeichnung ist trotzdem reserviert.
+    expect(pruefeSektorLabel("Abnehmer", BESTAND, "energie").ok).toBe(false);
+    expect(pruefeSektorLabel("  ABNEHMER\t", BESTAND, "energie").ok).toBe(false);
+    expect(pruefeSektorLabel("ohne Sektor", BESTAND, "energie").ok).toBe(false);
+  });
+  it("E61: labelSchluessel rechnet wie sektor_label_norm (Leerzeichen, Tab, CR, LF am Rand; Kleinschreibung)", () => {
+    expect(labelSchluessel(" \tEnergie\r\n")).toBe("energie");
+    expect(labelSchluessel("Energie Wirtschaft")).toBe("energie wirtschaft");
+    // Kein trim(): geschuetztes Leerzeichen bleibt, wie in btrim(label, E' \t\r\n').
+    expect(labelSchluessel("\u00a0Energie")).toBe("\u00a0energie");
+    const r = pruefeSektorLabel("energie\t", BESTAND);
+    expect(r.ok).toBe(false);
   });
   it("Umbenennen: der eigene Name zaehlt nicht als Dublette, ein fremder schon; der Code bleibt", () => {
     expect(pruefeSektorLabel("energie", BESTAND, "energie")).toEqual({ ok: true, label: "energie", code: "energie" });
