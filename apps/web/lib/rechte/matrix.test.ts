@@ -47,6 +47,10 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   // AP2.3: Parameter nur admin.
   "parameter.setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "parameter.zuruecknehmen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  "sektor.anlegen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  "sektor.umbenennen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  "sektor.deaktivieren": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  "sektor.reaktivieren": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";

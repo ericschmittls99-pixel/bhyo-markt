@@ -211,6 +211,13 @@
       "when": 1790779126098,
       "tag": "0029_ap23_parameter",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1790783390025,
+      "tag": "0030_ap23_sektoren",
+      "breakpoints": true
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
 import { ZEITZONE } from "@/lib/datum";
+import { DEAKTIVIERT_SUFFIX } from "@/lib/sektor";
 import { withDb, type AppDb } from "@/lib/db";
 import {
   formularZeileZuWerte,
@@ -62,6 +63,10 @@ const belegSelect = {
   belegFristMonate: sql<unknown>`case when ${beleg.typ} in ('gespraech','dokument','webrecherche') then parameter_wert('verifikationsfrist.' || ${beleg.typ}::text, (${beleg.erstelltAm} at time zone ${ZEITZONE})::date) end`,
 };
 
+// AP2.3 PR b: Ein deaktivierter Sektor bleibt an seinen Akteuren und damit im
+// Filter sichtbar, solange er verwendet wird — benannt, nicht stumm.
+const sektorLabelSql = sql<string | null>`case when ${sektor.aktiv} then ${sektor.label} else ${sektor.label} || ${DEAKTIVIERT_SUFFIX} end`;
+
 /**
  * Laedt den Pool eines Tabs (max. 500, neueste zuerst). Mit `nurId` laedt sie
  * genau einen Datensatz — fuer Detail-Deeplinks auf Stroeme jenseits des
@@ -77,7 +82,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           akteurId: biomassestrom.akteurId,
           akteurName: akteur.name,
           sektor: akteur.sektor,
-          sektorLabel: sektor.label,
+          sektorLabel: sektorLabelSql,
           bezeichnung: biomassestrom.bezeichnung,
           kontaktperson: biomassestrom.kontaktperson,
           ort: biomassestrom.ort,
@@ -135,7 +140,7 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         akteurId: outputBedarf.akteurId,
         akteurName: akteur.name,
         sektor: akteur.sektor,
-        sektorLabel: sektor.label,
+        sektorLabel: sektorLabelSql,
         bezeichnung: outputBedarf.bezeichnung,
         kontaktperson: outputBedarf.kontaktperson,
         ort: outputBedarf.ort,

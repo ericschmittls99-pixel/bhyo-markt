@@ -911,6 +911,47 @@ prüft Funktion, CHECK, beide Trigger, Bereich und die Wirksamkeit ab Datum
 gegen die Preview; Beweis „Fälligkeit vor und nach der Umstellung
 identisch" im PR.
 
+**PR b (30.09.2026) — Basisdatum, Sektorliste, Reiter.**
+
+*Basisdatum als Kalendertag Europe/Berlin.* Jede Stelle, an der
+`beleg.erstellt_am` bzw. „heute" zum Datum wird, misst am Kalendertag
+Europe/Berlin (`lib/datum.ts`: `kalendertag`, `heuteBerlin`; in SQL
+`erstellt_am at time zone 'Europe/Berlin'`), passend zum CHECK „nie
+rückwirkend" in `parameter_wert`. Vorher lief ein Teil über die
+UTC-Darstellung: zwischen 00:00 und 02:00 Berlin lag ein Beleg einen Tag zu
+früh und bekam am Tag einer Friständerung die alte Frist. Gemessen vor der
+Umstellung (Preview, 128 Ströme, 40 mit Typ-Frist): kein Beleg mit
+abweichendem UTC-/Berlin-Tag, 0 Abweichungen der Fälligkeit; Probe 7 in
+`parameter-check.ts` hält den Fall „Beleg um 00:30 Berlin am Tag der
+Änderung" dauerhaft fest (neue Frist in Berlin, alte Frist in UTC).
+`reserviert_seit` ist bereits ein Datum; sein Stempel kommt seit PR b aus
+`heuteBerlin()`.
+
+*Sektorliste pflegbar (Migration 0030, Expand).* `sektor` bekommt `id`
+(uuid, Objektbezug fürs Protokoll — `aenderung.entitaet_id` ist uuid, der
+Code bleibt Schlüssel und Fremdschlüssel-Ziel) und `aktiv` (Default true),
+einen eindeutigen Index auf `lower(btrim(label))` (Dubletten vor der
+Migration: keine) und die CHECKs `sektor_code_check` (snake_case ohne
+Umlaute; `ohne_sektor` und `abnehmer` nie ein Sektor) und
+`sektor_label_check`. Aktionen `sektor.anlegen`, `sektor.umbenennen`,
+`sektor.deaktivieren`, `sektor.reaktivieren` (VERWALTEN, protokolliert mit
+den Ereignisarten `sektor_angelegt`, `sektor_umbenannt`,
+`sektor_deaktiviert`, `sektor_reaktiviert`). Der Code entsteht aus der
+Bezeichnung (`codeAusLabel`) und bleibt beim Umbenennen. **Gelöscht wird
+nicht:** Deaktivieren nimmt den Sektor aus der Auswahl (`/api/sektoren`
+liefert alle mit `aktiv`, die Combobox zeigt nur aktive, POST /api/akteure
+nimmt nur aktive an); Akteure behalten ihn, in Ströme-Ansichten und im
+Filter steht er als „… (deaktiviert)", solange er verwendet wird (der
+Filter baut sich aus dem Pool). „ohne Sektor" bleibt der benannte Zustand
+für NULL. Der `sektor-check` prüft seit PR b die Struktur und die Regeln
+(Index und CHECKs greifen, Fremdschlüssel greift, Akteur-Anlage mit/ohne
+Sektor, Akteur an deaktiviertem Sektor bleibt gültig) statt einer festen
+Werteliste — Rot-Nachweis ohne 0030 im PR.
+
+*GET /api/materialarten* und `sucheMaterialarten` sind entfernt (kein
+Aufrufer; Materialarten bleiben bei Migrationen, E59). Reiter in
+einstellungen.: Nutzer · Referenzlisten · Parameter.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
