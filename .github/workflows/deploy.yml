@@ -109,6 +109,13 @@ jobs:
         working-directory: apps/web
         run: pnpm exec tsx scripts/protokoll-check.ts
 
+      # AP2.4 PR a (E62, D6): jede Spalte der vier Tabellen ist genau einmal
+      # eingestuft (fachlich / redaktionell / technisch) — eine neue Spalte
+      # ohne Einstufung ist rot (scripts/feld-check.ts).
+      - name: feld-check (Feldeinstufung)
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/feld-check.ts
+
       # AP2.2 PR b: inbox_eintrag wird nur in lib/inbox geschrieben.
       - name: inbox-check (Inbox-Schreibstelle)
         working-directory: apps/web
@@ -328,6 +335,17 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db sektor-check
+
+      # AP2.4 PR a (E62): Verifikationsmodell — strom_verifikation() steht und
+      # leitet jeden Zustand richtig ab (ungeprueft, in_pruefung, gueltig,
+      # abgelaufen, als_abgelaufen_markiert, pruefdatum_unbekannt), die
+      # Typ-Frist zaehlt ab dem Prueftag, gueltig_bis gilt fuer die oberen
+      # vier Typen, die Markierung wertet die Qualitaet ab (D3).
+      - name: Verifikation-Check (strom_verifikation)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db verifikation-check
 
       # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
       # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,

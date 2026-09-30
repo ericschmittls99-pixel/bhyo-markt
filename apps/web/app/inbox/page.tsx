@@ -104,7 +104,6 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           strom={detail.strom}
           historie={detail.historie}
           begruendung={detail.begruendung}
-          verifizierung={detail.verifizierung}
           modal
           canEdit={canEdit}
           sperrRechte={detail.sperrRechte}

@@ -29,7 +29,6 @@ import {
   type VergabeDaten,
 } from "@/lib/verfuegbarkeit";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
-import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
@@ -90,16 +89,9 @@ export default async function KartePage({
   // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
   // Sidebar und die neue Facette lesen dasselbe Feld.
   const stichtag = heuteBerlin();
-  const bioBasis = reichereVerifikationAn(
-    reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag),
-    vergabenBio,
-    stichtag,
-  );
-  const outBasis = reichereVerifikationAn(
-    reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag),
-    vergabenOut,
-    stichtag,
-  );
+  // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
+  const bioBasis = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
+  const outBasis = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
   // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
   const bio = fuerMich && nutzerId ? reichereFuerMichAn(bioBasis, nutzerId, beteiligtBio) : bioBasis;
   const out = fuerMich && nutzerId ? reichereFuerMichAn(outBasis, nutzerId, beteiligtOut) : outBasis;
@@ -210,15 +202,7 @@ export default async function KartePage({
       (await ladeStroeme("output", detailId))[0] ??
       null;
     detailStrom = nachgeladen
-      ? reichereVerifikationAn(
-          reichereVerfuegbarkeitAn(
-            [nachgeladen],
-            nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut,
-            stichtag,
-          ),
-          nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut,
-          stichtag,
-        )[0]!
+      ? reichereVerfuegbarkeitAn([nachgeladen], nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut, stichtag)[0]!
       : null;
   }
   const detailVergaben = detailStrom
@@ -262,11 +246,6 @@ export default async function KartePage({
       detailVergaben={detailVergaben}
       historie={historie}
       begruendung={begruendung}
-      verifizierung={
-        detailStrom
-          ? verifikationsFaelligkeit(detailStrom.beleg, detailStrom, detailVergaben)
-          : null
-      }
       preisKorridor={
         detailStrom
           ? preisKorridorEinzel(detailStrom, detailStrom.art === "biomasse" ? bio : out, { cluster: CLUSTER_LABEL })

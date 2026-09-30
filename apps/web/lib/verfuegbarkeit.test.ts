@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  reservierungVeraltet,
   istLeereVergabe,
   leiteVerfuegbarkeitAb,
   naechsteReserviertSeit,
@@ -35,7 +36,7 @@ describe("leiteVerfuegbarkeitAb", () => {
       leiteVerfuegbarkeitAb("2031-01-01", { ...strom, reserviertBhyo: true }, [
         v({ vergebenVon: "2026-01-01" }),
       ]),
-    ).toEqual({ status: "abgelaufen", reserviertZusatz: true });
+    ).toEqual({ status: "abgelaufen", reserviertZusatz: true, reservierungVeraltet: false });
   });
 
   it("noch nicht verfuegbar vor Verfuegbarkeitsbeginn (Regel 2)", () => {
@@ -48,6 +49,7 @@ describe("leiteVerfuegbarkeitAb", () => {
     expect(leiteVerfuegbarkeitAb("2027-06-15", strom, [])).toEqual({
       status: "verfuegbar",
       reserviertZusatz: false,
+    reservierungVeraltet: false,
     });
   });
 
@@ -68,7 +70,7 @@ describe("leiteVerfuegbarkeitAb", () => {
     const erg = leiteVerfuegbarkeitAb("2027-06-15", strom, [
       v({ vergebenVon: "2027-01-01", anBhyo: true }),
     ]);
-    expect(erg).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true });
+    expect(erg).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true, reservierungVeraltet: false });
     expect(erg.status).toBe("vergeben_bhyo");
   });
 
@@ -104,7 +106,7 @@ describe("leiteVerfuegbarkeitAb", () => {
       leiteVerfuegbarkeitAb("2027-06-15", { ...strom, reserviertBhyo: true }, [
         v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" }),
       ]),
-    ).toEqual({ status: "vergeben_extern", reserviertZusatz: true });
+    ).toEqual({ status: "vergeben_extern", reserviertZusatz: true, reservierungVeraltet: false });
   });
 
   it("Reservierung erzeugt den Nebentag IMMER, wenn sie nicht selbst Haupttag ist", () => {
@@ -118,20 +120,23 @@ describe("leiteVerfuegbarkeitAb", () => {
     expect(leiteVerfuegbarkeitAb("2026-09-22", reserviert, [])).toEqual({
       status: "noch_nicht_verfuegbar",
       reserviertZusatz: true,
+    reservierungVeraltet: false,
     });
     expect(leiteVerfuegbarkeitAb("2031-01-01", reserviert, [])).toEqual({
       status: "abgelaufen",
       reserviertZusatz: true,
+    reservierungVeraltet: false,
     });
     expect(
       leiteVerfuegbarkeitAb("2028-06-15", reserviert, [
         v({ vergebenVon: "2028-01-01", anBhyo: true }),
       ]),
-    ).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true });
+    ).toEqual({ status: "vergeben_bhyo", reserviertZusatz: true, reservierungVeraltet: false });
     // Selbst Haupttag -> kein Nebentag.
     expect(leiteVerfuegbarkeitAb("2028-06-15", reserviert, [])).toEqual({
       status: "reserviert_bhyo",
       reserviertZusatz: false,
+    reservierungVeraltet: false,
     });
   });
 
@@ -413,5 +418,28 @@ describe("E40: vergabeLabel mit „bis\"", () => {
     expect(vergabeLabel("2027-07-01", null)).toBe("ab 07/2027 (unbefristet)");
     expect(vergabeLabel(null, "2027-06-30")).toBe("bis 06/2027");
     expect(vergabeLabel("2026-03-01", "2026-03-31")).toBe("03/2026");
+  });
+});
+
+// E64 (AP2.4): Nebentag „Reservierung veraltet" — reserviert_seit + Gueltigkeit vor dem Bezug.
+describe("reservierungVeraltet (E64)", () => {
+  const res = { reserviertBhyo: true, reserviertSeit: "2025-09-15", reservierungMonate: 12 };
+  it("veraltet, sobald der Bezug nach reserviert_seit + Monate liegt; davor nicht", () => {
+    expect(reservierungVeraltet("2026-09-15", res)).toBe(false);
+    expect(reservierungVeraltet("2026-09-16", res)).toBe(true);
+    // Fenster (auswertung.): gegen den Beginn des Bezugs.
+    expect(reservierungVeraltet({ von: "2026-01-01", bis: "2026-12-31" }, res)).toBe(false);
+    expect(reservierungVeraltet({ von: "2027-01-01", bis: "2027-12-31" }, res)).toBe(true);
+  });
+  it("ohne Reservierung nie; ohne Parameterwert an einer Reservierung ein Fehler, kein Standard", () => {
+    expect(reservierungVeraltet("2030-01-01", { ...res, reserviertBhyo: false })).toBe(false);
+    expect(reservierungVeraltet("2030-01-01", { ...res, reserviertSeit: null })).toBe(false);
+    expect(() => reservierungVeraltet("2030-01-01", { ...res, reservierungMonate: null })).toThrow(/parameter_wert/);
+  });
+  it("leiteVerfuegbarkeitAb traegt den Nebentag unabhaengig vom Haupttag — die Reservierung zaehlt weiter", () => {
+    const erg = leiteVerfuegbarkeitAb("2027-06-15", { ...strom, ...res }, []);
+    expect(erg).toEqual({ status: "reserviert_bhyo", reserviertZusatz: false, reservierungVeraltet: true });
+    const vergeben = leiteVerfuegbarkeitAb("2027-06-15", { ...strom, ...res }, [v({ vergebenVon: "2027-01-01", vergebenBis: "2028-06-30" })]);
+    expect(vergeben).toMatchObject({ status: "vergeben_extern", reserviertZusatz: true, reservierungVeraltet: true });
   });
 });

@@ -2,7 +2,7 @@
 // Abschnitt 13). Reine Funktion ohne DB-/Netzzugriff: Eingabe rein, Stufe
 // raus. Die Stufe wird nie manuell gesetzt (CLAUDE.md: "Qualitaet A-D wird
 // abgeleitet") — in der DB ist sie eine GENERATED-Spalte ueber die
-// SQL-Funktion qualitaetsstufe(typ, datei_key, link_url) aus Migration 0021;
+// SQL-Funktion qualitaetsstufe(typ, datei_key, link_url, abgelaufen_am) aus Migration 0032;
 // der Paritaetstest (scripts/qualitaet-paritaet.ts) haelt beide deckungsgleich.
 
 /**
@@ -87,6 +87,8 @@ export interface BelegBewertung {
   typ: BelegTyp;
   dateiKey?: string | null;
   linkUrl?: string | null;
+  /** AP2.4 (E62, D3): Ablauf-Markierung des Pruefers (JJJJ-MM-TT) — wertet eine Stufe ab. */
+  abgelaufenAm?: string | null;
 }
 
 function gesetzt(wert?: string | null): boolean {
@@ -124,6 +126,16 @@ export function nachweisVollstaendig(beleg: BelegBewertung): boolean {
  * D ist die Untergrenze; "unbelegt" bleibt dem Strom ohne Beleg vorbehalten (E24).
  */
 export function deriveQualitaet(beleg: BelegBewertung): Qualitaet {
+  const basis = basisStufe(beleg);
+  // E62 D3: Nur die Markierung wertet ab — eine bloss ueberfaellige
+  // Verifikation nicht. D bleibt D (Untergrenze).
+  return gesetzt(beleg.abgelaufenAm) ? EINE_STUFE_TIEFER[basis] : basis;
+}
+
+const EINE_STUFE_TIEFER: Record<Qualitaet, Qualitaet> = { A: "B", B: "C", C: "D", D: "D" };
+
+/** E34-Matrix ohne die D3-Abwertung — Spiegel des CASE in qualitaetsstufe(). */
+function basisStufe(beleg: BelegBewertung): Qualitaet {
   const voll = nachweisVollstaendig(beleg);
   switch (beleg.typ) {
     case "betriebsdaten":

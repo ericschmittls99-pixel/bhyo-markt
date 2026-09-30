@@ -7,6 +7,7 @@ import {
   type StromSperreAnzeige,
 } from "./stroeme-modell";
 import { kalendertag } from "./datum";
+import { istVerifikationsZustand, type VerifikationsErgebnis } from "./verifikation";
 import { vollstaendigkeit } from "./vollstaendigkeit";
 
 /**
@@ -86,10 +87,34 @@ export type BelegZeile = {
   belegExtern: boolean | null;
   belegGueltigBis: string | null;
   belegErstelltAm: Date | null;
-  /** AP2.3: Typ-Frist in Monaten aus parameter_wert() am Erhebungsdatum; null bei den oberen vier. */
-  belegFristMonate?: unknown;
+  belegAbgelaufenAm?: string | null;
   belegMetadata: unknown;
 };
+
+/** AP2.4 (E62): die drei Spalten des Joins auf strom_verifikation(). */
+type VerifikationZeile = {
+  verifikationZustand?: unknown;
+  verifiziertAm?: unknown;
+  verifiziertBis?: unknown;
+};
+
+function zeitpunktOderNull(v: unknown): string | null {
+  if (v == null) return null;
+  if (v instanceof Date) return v.toISOString();
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+
+/** Ohne Join-Treffer (sollte nicht vorkommen) bleibt der Strom unangereichert — kein stummes Raten. */
+function verifikationAus(r: VerifikationZeile): VerifikationsErgebnis | undefined {
+  const zustand = r.verifikationZustand == null ? null : String(r.verifikationZustand);
+  if (!zustand || !istVerifikationsZustand(zustand)) return undefined;
+  return {
+    zustand,
+    verifiziertAm: zeitpunktOderNull(r.verifiziertAm),
+    verifiziertBis: r.verifiziertBis == null ? null : String(r.verifiziertBis).slice(0, 10),
+  };
+}
 
 function belegAus(r: BelegZeile): StromBeleg | null {
   if (!r.belegTyp || !r.belegId) return null;
@@ -104,12 +129,12 @@ function belegAus(r: BelegZeile): StromBeleg | null {
     gueltigBis: r.belegGueltigBis,
     // PR b: Kalendertag Europe/Berlin — dieselbe Achse wie die Frist-Aufloesung in SQL.
     erhebungsdatum: r.belegErstelltAm ? kalendertag(r.belegErstelltAm) : null,
-    fristMonate: zahlOderNull(r.belegFristMonate),
+    abgelaufenAm: r.belegAbgelaufenAm ?? null,
     kernnotiz: str(m.kernnotiz),
   };
 }
 
-type GemeinsameZeile = BelegZeile & {
+type GemeinsameZeile = BelegZeile & VerifikationZeile & {
   id: string;
   akteurId: string | null;
   akteurName: string | null;
@@ -228,6 +253,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     reservierungMonate: zahlOderNull(r.reservierungMonate),
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
+    verifikation: verifikationAus(r),
     sperre: sperreAus(r),
     zuweisungen: zuweisungenAus(r.zuweisungen),
   };
@@ -307,6 +333,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     reservierungMonate: zahlOderNull(r.reservierungMonate),
     erstelltAm: tagBerlin.format(r.createdAt),
     beleg: b,
+    verifikation: verifikationAus(r),
     sperre: sperreAus(r),
     zuweisungen: zuweisungenAus(r.zuweisungen),
   };

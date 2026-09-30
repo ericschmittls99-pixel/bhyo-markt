@@ -11,12 +11,21 @@ export interface ProtokollZeile {
   zeitpunkt: Date;
 }
 
-/** Arten, die als Beteiligung an einem Strom zaehlen (Entscheidung Eric, AP2.2). */
+/**
+ * Arten, die als Beteiligung an einem Strom zaehlen (Entscheidung Eric,
+ * AP2.2; AP2.4 0.4: die strukturierten Statusarten zaehlen mit —
+ * status_gesetzt bleibt fuer den Altbestand).
+ */
 export const BETEILIGUNGS_ARTEN: readonly EreignisArt[] = [
   "angelegt",
   "geaendert",
   "status_gesetzt",
   "verworfen",
+  "in_pruefung_gegeben",
+  "geprueft",
+  "zurueckgegeben",
+  "reaktiviert",
+  "zurueckgesetzt",
 ];
 
 export type Ersteller =

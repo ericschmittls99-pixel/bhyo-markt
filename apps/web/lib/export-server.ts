@@ -7,7 +7,6 @@ import { type Ansicht, type Sicht, filterLabel, leiste, leseSicht } from "./filt
 import { ladeAlleVergaben, ladeRegionOptionen, ladeStroeme } from "./stroeme";
 import { type Strom, facettenOptionen, filterAusSearchParams } from "./stroeme-modell";
 import { type VergabeDaten, reichereVerfuegbarkeitAn } from "./verfuegbarkeit";
-import { reichereVerifikationAn } from "./verifizierung";
 import { fensterAusJahren, leseZeitbezug, zeitbezugText } from "./zeitbezug";
 import { fmtDatum } from "./format";
 
@@ -69,8 +68,9 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     ansicht === "auswertung" ? leseZeitbezug(roh, [...bioRoh, ...outRoh], Number(stichtag.slice(0, 4))) : null;
   const bezug = zeitbezug ? fensterAusJahren(zeitbezug.jahre) : stichtag;
   const verfuegbarkeitBezug = zeitbezug ? zeitbezugText(zeitbezug) : `heute (${fmtDatum(stichtag)})`;
+  // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
   const anreichern = (pool: Strom[], vergaben: Map<string, VergabeDaten[]>) =>
-    reichereVerifikationAn(reichereVerfuegbarkeitAn(pool, vergaben, bezug), vergaben, stichtag);
+    reichereVerfuegbarkeitAn(pool, vergaben, bezug);
   const bio = anreichern(bioRoh, vergabenBio);
   const out = anreichern(outRoh, vergabenOut);
   const rows = [...exportZeilen(bio, roh), ...exportZeilen(out, roh)];

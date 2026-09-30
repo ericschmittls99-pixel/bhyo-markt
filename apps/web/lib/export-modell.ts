@@ -39,7 +39,7 @@ import {
   landAnzeige,
   stofflicherPreis,
 } from "./stroeme-modell";
-import { VERIFIKATION_LABEL, type VerifikationsStatus } from "./verifizierung";
+import { VERIFIKATION_LABEL } from "./verifikation";
 import { type VergabeDaten, verfuegbarkeitPill } from "./verfuegbarkeit";
 
 export type ExportModus = "extern" | "intern";
@@ -287,9 +287,10 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
     key: "verifikation", gruppe: "nachweis",
     kopf: "Verifikation",
     einstufung: KEINE_BELEGANGABE,
-    wert: (s) => (s.verifikation ? VERIFIKATION_LABEL[s.verifikation.status as VerifikationsStatus] : NICHT_ERFASST),
+    wert: (s) => (s.verifikation ? VERIFIKATION_LABEL[s.verifikation.zustand] : NICHT_ERFASST),
   },
-  { key: "faelligkeit", gruppe: "nachweis", kopf: "Fälligkeit", einstufung: KEINE_BELEGANGABE, wert: (s) => csvDatum(s.verifikation?.faelligkeit) ?? "keine Frist" },
+  // E62: „verifiziert bis" statt der alten Gesamtfaelligkeit; ohne Frist benannt.
+  { key: "verifiziert_bis", gruppe: "nachweis", kopf: "Verifiziert bis", einstufung: KEINE_BELEGANGABE, wert: (s) => csvDatum(s.verifikation?.verifiziertBis) ?? "keine Frist" },
   // 9. Markt
   { key: "status", gruppe: "markt", kopf: "Status", einstufung: KEINE_BELEGANGABE, wert: (s) => STATUS_LABEL[s.status] ?? s.status },
   {

@@ -28,8 +28,6 @@ const beleg = (patch: Partial<StromBeleg>): StromBeleg => ({
   externNachvollziehbar: false,
   gueltigBis: null,
   erhebungsdatum: null,
-  // AP2.3: Startwert der Typ-Frist (Gespraech 3) — im Loader aus parameter_wert().
-  fristMonate: 3,
   kernnotiz: null,
   ...patch,
 });
@@ -1079,19 +1077,27 @@ describe("Rechenbasis ø-Preis Outputs: drei Faelle in Kachel und preise-Modul",
   });
 });
 
-describe("verifZeilen", () => {
-  it("sortiert nach Faelligkeit, markiert Ueberfaelliges und liefert hoechstens drei", () => {
-    const z = verifZeilen(alle, "2026-11-01");
-    // o1: gueltigBis 2026-10-01 (ueberfaellig), f2: gespraech +6M = 2027-02-01, f1: vertrag +36M = 2029-03-10
-    expect(z.map((v) => v.id)).toEqual(["o1", "f2", "f1"]);
-    expect(z[0]).toMatchObject({ ueberfaellig: true, datum: "01.10.2026" });
-    expect(z[0]!.sub).toBe("Wasserstoff · Angebot");
-    expect(z[1]!.ueberfaellig).toBe(false);
-    expect(verifZeilen([f1, f2, o1, f1, f2], "2026-11-01")).toHaveLength(3);
+describe("verifZeilen (E62)", () => {
+  const mit = (id: string, zustand: "abgelaufen" | "gueltig" | "pruefdatum_unbekannt" | "in_pruefung" | "ungeprueft", bis: string | null) =>
+    strom({ id, verifikation: { zustand, verifiziertAm: null, verifiziertBis: bis } });
+  it("Abgelaufene zuerst (aelteste zuerst), dann Pruefdatum unbekannt, dann Gueltige nach verifiziert_bis; hoechstens drei", () => {
+    const z = verifZeilen([
+      mit("g2", "gueltig", "2027-06-01"),
+      mit("a2", "abgelaufen", "2026-05-01"),
+      mit("u", "pruefdatum_unbekannt", null),
+      mit("g1", "gueltig", "2027-01-01"),
+      mit("a1", "abgelaufen", "2026-01-01"),
+    ]);
+    expect(z.map((v) => v.id)).toEqual(["a1", "a2", "u"]);
+    expect(z[0]).toMatchObject({ ueberfaellig: true, datum: "01.01.2026" });
+    expect(z[2]).toMatchObject({ ueberfaellig: true, datum: "—" });
+    expect(verifZeilen([mit("g1", "gueltig", "2027-01-01"), mit("g2", "gueltig", "2027-06-01")]).map((v) => [v.id, v.ueberfaellig])).toEqual([
+      ["g1", false],
+      ["g2", false],
+    ]);
   });
-
-  it("ueberspringt Stroeme ohne berechenbare Frist", () => {
-    expect(verifZeilen([strom({ id: "ohne" })], "2026-11-01")).toEqual([]);
+  it("ungeprueft, in Pruefung und nicht angereicherte Stroeme haben keine Frist und fehlen", () => {
+    expect(verifZeilen([mit("i", "in_pruefung", null), mit("e", "ungeprueft", null), strom({ id: "ohne" })])).toEqual([]);
   });
 });
 

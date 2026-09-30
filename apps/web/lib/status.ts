@@ -19,9 +19,26 @@ export const STATUS_PILL: Record<string, { text: string; tone: string }> = {
   verworfen: { text: "verworfen.", tone: "inactive" },
 };
 
+/**
+ * AP2.4 PR a (E62, D4): Uebergaenge der Aktion strom.status_setzen (ab
+ * bearbeiter). „geprueft" steht hier bewusst NICHT — das ist die eigene
+ * Aktion strom.pruefen (pruefer/admin), aus entwurf und in_pruefung.
+ */
 export const ERLAUBTE_UEBERGAENGE: Record<string, string[]> = {
   entwurf: ["in_pruefung"],
-  in_pruefung: ["geprueft", "entwurf"],
+  in_pruefung: ["entwurf"],
   geprueft: ["in_pruefung"],
   verworfen: ["entwurf"],
 };
+
+/** Ausgangsstatus, aus denen ein Pruefer „geprueft" setzen darf (E62). */
+export const PRUEF_AUSGANG: readonly string[] = ["entwurf", "in_pruefung"];
+
+/** Beschriftung der Uebergaenge im Detail-Kopf (E62), Schluessel „von>nach". */
+export const UEBERGANG_LABEL: Record<string, string> = {
+  "entwurf>in_pruefung": "In Prüfung geben",
+  "geprueft>in_pruefung": "In Prüfung geben",
+  "in_pruefung>entwurf": "Zurückgeben",
+  "verworfen>entwurf": "Reaktivieren",
+};
+

@@ -14,7 +14,7 @@ import { SORTIERUNG_STANDARD, type Sortierung, sortiereZeilen } from "./auswertu
 import { saisonZuIndex } from "./saison";
 import { STATUS_LABEL } from "./status";
 import { BELEG_LABEL, STATUS_REIHENFOLGE, type Strom, type StromArt } from "./stroeme-modell";
-import { verifikationsFaelligkeit } from "./verifizierung";
+import { FAELLIGE_ZUSTAENDE, verifikationsRang } from "./verifikation";
 import { potenzialEuroOutput } from "./potenzial";
 
 export type Sicht = "feedstock" | "outputs";
@@ -177,7 +177,9 @@ export interface VerifZeile {
   orb: string;
   titel: string;
   sub: string;
+  /** verifiziert_bis (TT.MM.JJJJ) oder „—" ohne Frist (Pruefdatum unbekannt). */
   datum: string;
+  /** E62: abgelaufen oder Pruefdatum unbekannt — gilt als faellig. */
   ueberfaellig: boolean;
 }
 
@@ -1187,24 +1189,18 @@ export function outputPreisZeilen(pool: Strom[], recs: Strom[]): OutputListen {
   };
 }
 
-export function verifZeilen(
-  recs: Strom[],
-  heuteIso: string,
-  /** Vergaben je Strom (AP1j PR 5): koppelt die Faelligkeit an Ablaufdaten. */
-  vergabenMap: Map<string, VergabeDaten[]> = new Map(),
-): VerifZeile[] {
+export function verifZeilen(recs: Strom[]): VerifZeile[] {
+  // E62: die drei naechsten Verifikationsablaeufe aus strom_verifikation():
+  // Abgelaufene zuerst (aelteste zuerst), dann Pruefdatum unbekannt, dann
+  // Gueltige nach verifiziert_bis. Ungeprueft und in Pruefung haben keine Frist.
   return recs
     .flatMap((s) => {
-      const datum = verifikationsFaelligkeit(
-        s.beleg,
-        s,
-        vergabenMap.get(s.id) ?? [],
-      );
-      return datum ? [{ s, datum }] : [];
+      const rang = verifikationsRang(s.verifikation);
+      return rang ? [{ s, rang }] : [];
     })
-    .sort((a, b) => (a.datum < b.datum ? -1 : 1))
+    .sort((a, b) => (a.rang[0] !== b.rang[0] ? a.rang[0] - b.rang[0] : a.rang[1] < b.rang[1] ? -1 : a.rang[1] > b.rang[1] ? 1 : 0))
     .slice(0, 3)
-    .map(({ s, datum }) => ({
+    .map(({ s }) => ({
       id: s.id,
       art: s.art,
       orb:
@@ -1220,7 +1216,7 @@ export function verifZeilen(
       ]
         .filter(Boolean)
         .join(" · "),
-      datum: fmtDatum(datum),
-      ueberfaellig: datum < heuteIso,
+      datum: s.verifikation?.verifiziertBis ? fmtDatum(s.verifikation.verifiziertBis) : "—",
+      ueberfaellig: !!s.verifikation && FAELLIGE_ZUSTAENDE.includes(s.verifikation.zustand),
     }));
 }

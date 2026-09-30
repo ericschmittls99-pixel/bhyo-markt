@@ -42,4 +42,17 @@ describe("beteiligteAus", () => {
   it("Altbestand neben neuen Ereignissen: nur die neuen zählen", () => {
     expect(beteiligteAus([z("altbestand", A, 0), z("geaendert", B, 1)])).toEqual([B]);
   });
+  // AP2.4 (0.4): die strukturierten Statusarten zaehlen als Beteiligung, die Ablauf-Markierung nicht.
+  it("in_pruefung_gegeben, geprueft, zurueckgegeben, reaktiviert, zurueckgesetzt zählen; als_abgelaufen_markiert nicht", () => {
+    const zeilen = [
+      z("in_pruefung_gegeben", A, 1),
+      z("geprueft", P, 2),
+      z("zurueckgegeben", B, 3),
+      z("reaktiviert", "R", 4),
+      z("zurueckgesetzt", "Z", 5),
+      z("als_abgelaufen_markiert", "M", 6),
+      z("abgelaufen_aufgehoben", "M", 7),
+    ];
+    expect(beteiligteAus(zeilen)).toEqual([A, P, B, "R", "Z"]);
+  });
 });

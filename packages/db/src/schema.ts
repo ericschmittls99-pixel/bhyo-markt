@@ -192,6 +192,13 @@ export const beleg = pgTable("beleg", {
   // folgt als eigene Migration in Schritt 3). Die unteren drei Typen tragen
   // hier nichts; ihre Frist ist die Typ-Frist ab erstellt_am.
   gueltigBis: date("gueltig_bis"),
+  /**
+   * AP2.4 PR a (E62, D3): „als abgelaufen markiert" — eine Eingabe des
+   * Pruefers, nicht ableitbar, deshalb gespeichert. Wirkt auf den
+   * Verifikationszustand (strom_verifikation) und wertet die Qualitaet um
+   * eine Stufe ab (qualitaetsstufe, D bleibt D).
+   */
+  abgelaufenAm: date("abgelaufen_am"),
   // E34: FREIGABE ZUR EXTERNEN VERWENDUNG (Kommunen-PDF, CSV — wirksam ab
   // F6). Seit 0021 KEIN Eingang der Qualitaets-Ableitung mehr; der Name ist
   // historisch. Default false: ohne ausdrueckliche Freigabe bleibt der Beleg
@@ -210,12 +217,13 @@ export const beleg = pgTable("beleg", {
     .defaultNow(),
   // E23/E34: Die Stufe existiert nur als Ableitung — GENERATED aus den
   // Spalten DIESER Zeile ueber die IMMUTABLE SQL-Funktion
-  // qualitaetsstufe(typ, datei_key, link_url) aus Migration 0021 (Spiegel von
+  // qualitaetsstufe(typ, datei_key, link_url, abgelaufen_am) aus Migration
+  // 0032 (E62 D3: Markierung wertet eine Stufe ab; Spiegel von
   // apps/web/lib/qualitaet.ts, Paritaetstest im CI). Ein Schreibversuch
   // scheitert in Postgres; im TS-Typ ist die Spalte durch generatedAlwaysAs
   // aus allen Insert-/Update-Typen heraus.
   qualitaet: qualitaetsStufe("qualitaet").generatedAlwaysAs(
-    sql`qualitaetsstufe(typ, datei_key, link_url)`,
+    sql`qualitaetsstufe(typ, datei_key, link_url, abgelaufen_am)`,
   ),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -734,6 +742,17 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "sektor_umbenannt",
   "sektor_deaktiviert",
   "sektor_reaktiviert",
+  // AP2.4 PR a (E62): jeder Statuswechsel mit eigener Art, strukturiert statt
+  // Freitext — status_gesetzt bleibt nur fuer Altbestand. Dazu die
+  // Verifikation (geprueft; reverifiziert folgt in PR b), das automatische
+  // Ruecksetzen bei fachlicher Aenderung und die Ablauf-Markierung (D3).
+  "in_pruefung_gegeben",
+  "geprueft",
+  "zurueckgegeben",
+  "reaktiviert",
+  "zurueckgesetzt",
+  "als_abgelaufen_markiert",
+  "abgelaufen_aufgehoben",
 ]);
 
 export const aenderung = pgTable(
@@ -783,6 +802,9 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "zugriffsanfrage",
   "freischaltung",
   "zugriff_abgelehnt",
+  // AP2.4 PR a (E62): Pruefauftrag an die Pruefer, Rueckmeldung an den Ausloeser.
+  "pruefauftrag",
+  "pruefung_erledigt",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -843,6 +865,14 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_output_anfrage_uidx")
       .on(t.empfaengerId, t.outputBedarfId, t.ausloeserId)
       .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'zugriffsanfrage' and ${t.outputBedarfId} is not null`),
+    // AP2.4 PR a (E62): Pruefauftrag — je Pruefer und Strom EIN offener Eintrag
+    // (Buendelung); Praedikat wieder ueber inbox_typ_text (neuer Enum-Wert).
+    uniqueIndex("inbox_eintrag_biomasse_pruefauftrag_uidx")
+      .on(t.empfaengerId, t.biomassestromId)
+      .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'pruefauftrag' and ${t.biomassestromId} is not null`),
+    uniqueIndex("inbox_eintrag_output_pruefauftrag_uidx")
+      .on(t.empfaengerId, t.outputBedarfId)
+      .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'pruefauftrag' and ${t.outputBedarfId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)

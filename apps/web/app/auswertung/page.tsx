@@ -40,7 +40,6 @@ import {
   type SearchParamsRoh,
   type Strom,
 } from "@/lib/stroeme-modell";
-import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
@@ -84,8 +83,8 @@ export default async function AuswertungPage({
 
   const jetzt = new Date();
   const heuteIso = kalendertag(jetzt);
-  // E33: Verifikationsstatus einmal je Request, damit der Filter hier greift.
-  const pool = reichereVerifikationAn(poolRoh, vergabenMap, heuteIso);
+  // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
+  const pool = poolRoh;
   const aktuellesJahr = Number(heuteIso.slice(0, 4));
   // E39: Sortierung der Akkordeon-Eintraege (Standard = Modellreihenfolge).
   const sortierung = leseSortierung(ersterWert(sp.awsort) || undefined);
@@ -214,7 +213,7 @@ export default async function AuswertungPage({
           ? outputJahre(recsHeute, aktuellesJahr, vergabenMap, fensterKats)
           : null
       }
-      verif={verifZeilen(recs, heuteIso, vergabenMap)}
+      verif={verifZeilen(recs)}
       facetten={facetten}
       auswahl={auswahl}
       bereich={bereich}
@@ -233,15 +232,6 @@ export default async function AuswertungPage({
       detailStrom={detailStrom}
       historie={historie}
       begruendung={begruendung}
-      verifizierung={
-        detailStrom
-          ? verifikationsFaelligkeit(
-              detailStrom.beleg,
-              detailStrom,
-              vergabenMap.get(detailStrom.id) ?? [],
-            )
-          : null
-      }
       preisKorridor={detailStrom ? preisKorridorEinzel(detailStrom, pool, { cluster: CLUSTER_LABEL }) : null}
     />
   );

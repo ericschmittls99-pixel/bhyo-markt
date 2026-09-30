@@ -80,7 +80,6 @@ export function AuswertungAnsicht({
   detailStrom,
   historie,
   begruendung,
-  verifizierung,
   preisKorridor = null,
 }: {
   kpis: KpiKarte[];
@@ -120,7 +119,6 @@ export function AuswertungAnsicht({
   detailStrom: Strom | null;
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
-  verifizierung: string | null;
   /** E38 */
   preisKorridor?: PreisKorridorEinzelDaten | null;
 }) {
@@ -685,7 +683,7 @@ export function AuswertungAnsicht({
 
   const verifModul = (
     <section className="aw-modul aw-modul--w2">
-      <h3 className="aw-kicker">nächste verifizierung.</h3>
+      <h3 className="aw-kicker">nächste verifikation.</h3>
       <div className="aw-zeilen">
         {verif.map((v) => (
           <button
@@ -698,7 +696,7 @@ export function AuswertungAnsicht({
             <span className="lbl">
               {v.titel} <span className="aw-caption">· {v.sub}</span>
             </span>
-            {v.ueberfaellig && <span className="pill-wert">fällig.</span>}
+            {v.ueberfaellig && <span className="pill-wert">abgelaufen.</span>}
             <span className="aw-caption aw-verifdatum">{v.datum}</span>
           </button>
         ))}
@@ -888,7 +886,6 @@ export function AuswertungAnsicht({
           strom={detailStrom}
           historie={historie}
           begruendung={begruendung}
-          verifizierung={verifizierung}
           preisKorridor={preisKorridor}
           modal={false}
           canEdit={false}

@@ -2,18 +2,22 @@
  * Zustellung: wird von `protokolliere` in DERSELBEN Transaktion aufgerufen.
  * Rollback des Schreibpfads = kein Ereignis = keine Zustellung. Dies ist die
  * einzige Stelle, die inbox_eintrag beim Zustellen schreibt (Upsert) — und
- * die einzige, die Zugriffsanfragen abraeumt (PR c).
+ * die einzige, die Zugriffsanfragen und Pruefauftraege abraeumt.
+ *
+ * AP2.4 PR a (E62): Ein Ereignis kann mehrere Typen ausloesen (Register-
+ * Reihenfolge: Aufgabe/Rueckmeldung vor Hinweis). Wer fuer dasselbe Ereignis
+ * schon bedient wurde, bekommt keinen zweiten Eintrag (D6).
  */
 import { benutzer, biomassestrom, inboxEintrag, outputBedarf } from "@bhyo/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
-import { beteiligteAus } from "@/lib/protokoll/ableitung";
+import { beteiligteAus, type ProtokollZeile } from "@/lib/protokoll/ableitung";
 import { protokollZeilen } from "@/lib/protokoll/server";
 import type { Entitaet, EreignisArt } from "@/lib/protokoll";
 
 import { filtereEmpfaenger } from "./empfaenger";
-import { typFuerArt, type InboxTyp } from "./register";
+import { typenFuerArt, type InboxTyp } from "./register";
 
 export type Schreiber = Pick<AppDb, "insert" | "select" | "update">;
 
@@ -37,11 +41,25 @@ function stromSpalte(entitaet: Entitaet): StromSpalte | null {
   return null;
 }
 
-/** Empfaenger eines Ereignisses laut Register — leer, wenn der Typ nicht zustellt. */
-export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis): Promise<string[]> {
-  const typ = typFuerArt(e.art);
+/** Ereignisarten, die einen Pruefauftrag ausloesen bzw. beenden (E62). */
+const AUFTRAG_ARTEN: readonly EreignisArt[] = ["in_pruefung_gegeben", "zurueckgesetzt"];
+export const AUFTRAG_ABRAEUMEN_BEI: readonly EreignisArt[] = ["geprueft", "zurueckgegeben", "verworfen"];
+
+/**
+ * Wer den Pruefauftrag ausgeloest hat: Urheber des letzten Ereignisses
+ * in_pruefung_gegeben / zurueckgesetzt — rein aus dem Protokoll (E23).
+ */
+export function auftraggeberAus(zeilen: readonly ProtokollZeile[]): string | null {
+  const letzte = [...zeilen]
+    .filter((z) => AUFTRAG_ARTEN.includes(z.art) && z.benutzerId)
+    .sort((a, b) => b.zeitpunkt.getTime() - a.zeitpunkt.getTime())[0];
+  return letzte?.benutzerId ?? null;
+}
+
+/** Empfaenger eines Ereignisses fuer EINEN Typ laut Register — leer, wenn niemand. */
+export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: InboxTyp): Promise<string[]> {
   const spalte = stromSpalte(e.entitaet);
-  if (!typ || !spalte) return [];
+  if (!spalte) return [];
   switch (typ) {
     case "aenderung_eintrag": {
       // Beteiligte aus dem Protokoll (inklusive des gerade geschriebenen Ereignisses).
@@ -72,18 +90,37 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis): Promise
     case "zugriff_abgelehnt":
       // Die betroffene Person — nie der Ausloeser selbst.
       return e.betrifftId && e.betrifftId !== e.ausloeserId ? [e.betrifftId] : [];
+    case "pruefauftrag": {
+      // E62: alle aktiven Pruefer und Admins (admin ⊇ pruefer), ausser dem Ausloeser.
+      const pruefer = await tx
+        .select({ id: benutzer.id })
+        .from(benutzer)
+        .where(and(inArray(benutzer.rolle, ["pruefer", "admin"]), eq(benutzer.aktiv, true)));
+      return pruefer.map((p) => p.id).filter((id) => id !== e.ausloeserId);
+    }
+    case "pruefung_erledigt": {
+      // E62: die Person, die den Auftrag ausgeloest hat — nie der Pruefer selbst, nie Deaktivierte.
+      const auftraggeber = auftraggeberAus(await protokollZeilen(tx, e.entitaet, e.entitaetId));
+      if (!auftraggeber || auftraggeber === e.ausloeserId) return [];
+      const [b] = await tx
+        .select({ id: benutzer.id, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
+        .from(benutzer)
+        .where(eq(benutzer.id, auftraggeber));
+      return b && b.aktiv ? [b.id] : [];
+    }
   }
 }
 
 /**
- * Offene Zugriffsanfragen zu einem Strom erledigen — bei ALLEN Empfaengern
- * (wer handelt, raeumt bei allen ab). Mit `ausloeserId` nur die Anfragen
- * dieser Person (Zuweisen, Ablehnen), ohne alle (Entsperren).
+ * Offene Eintraege eines Typs zu einem Strom erledigen — bei ALLEN Empfaengern
+ * (wer handelt, raeumt bei allen ab). Mit `ausloeserId` nur die Eintraege
+ * dieser Person (Zuweisen, Ablehnen), ohne alle (Entsperren, Pruefen).
  */
-export async function raeumeAnfragenAb(
+export async function raeumeAb(
   tx: Schreiber,
   spalte: StromSpalte,
   stromId: string,
+  typ: "zugriffsanfrage" | "pruefauftrag",
   ausloeserId?: string,
 ): Promise<number> {
   const stromSpalteRef = spalte === "biomassestromId" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId;
@@ -95,12 +132,17 @@ export async function raeumeAnfragenAb(
       and(
         eq(stromSpalteRef, stromId),
         eq(inboxEintrag.zustand, "offen"),
-        sql`${inboxEintrag.typ}::text = 'zugriffsanfrage'`,
+        sql`${inboxEintrag.typ}::text = ${typ}`,
         ausloeserId ? eq(inboxEintrag.ausloeserId, ausloeserId) : undefined,
       ),
     )
     .returning({ id: inboxEintrag.id });
   return geaendert.length;
+}
+
+/** Bisheriger Name fuer die Zugriffsanfragen (PR c) — dieselbe Funktion. */
+export function raeumeAnfragenAb(tx: Schreiber, spalte: StromSpalte, stromId: string, ausloeserId?: string): Promise<number> {
+  return raeumeAb(tx, spalte, stromId, "zugriffsanfrage", ausloeserId);
 }
 
 export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<number> {
@@ -109,51 +151,60 @@ export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<numb
 
   // PR c: Abraeumen VOR dem Zustellen — Zuweisung und Ablehnung erledigen die
   // Anfragen dieser Person, Entsperren alle Anfragen zum Strom (ohne Mitteilung).
-  if (e.art === "zugewiesen" && e.betrifftId) await raeumeAnfragenAb(tx, spalte, e.entitaetId, e.betrifftId);
-  if (e.art === "zugriff_abgelehnt" && e.betrifftId) await raeumeAnfragenAb(tx, spalte, e.entitaetId, e.betrifftId);
-  if (e.art === "entsperrt") await raeumeAnfragenAb(tx, spalte, e.entitaetId);
+  if (e.art === "zugewiesen" && e.betrifftId) await raeumeAb(tx, spalte, e.entitaetId, "zugriffsanfrage", e.betrifftId);
+  if (e.art === "zugriff_abgelehnt" && e.betrifftId) await raeumeAb(tx, spalte, e.entitaetId, "zugriffsanfrage", e.betrifftId);
+  if (e.art === "entsperrt") await raeumeAb(tx, spalte, e.entitaetId, "zugriffsanfrage");
+  // E62: Pruefen, Zurueckgeben und Verwerfen erledigen den Pruefauftrag bei allen Pruefern.
+  if (AUFTRAG_ABRAEUMEN_BEI.includes(e.art)) await raeumeAb(tx, spalte, e.entitaetId, "pruefauftrag");
 
-  const typ = typFuerArt(e.art);
-  if (!typ) return 0;
-  const empfaenger = await empfaengerFuer(tx, e);
+  const typen = typenFuerArt(e.art);
+  if (!typen.length) return 0;
   const jetzt = new Date();
   const zielSpalte = spalte === "biomassestromId" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId;
-  for (const empfaengerId of empfaenger) {
-    const werte = {
-      empfaengerId,
-      ausloeserId: e.ausloeserId,
-      typ,
-      [spalte]: e.entitaetId,
-      ereignisId: e.id,
-      anzahl: 1,
-      erstelltAm: jetzt,
-      aktualisiertAm: jetzt,
-      zustand: "offen" as const,
-      zustandSeit: jetzt,
-      notiz: typ === "zugriffsanfrage" ? (e.text ?? null) : null,
-    };
-    const einfuegen = tx.insert(inboxEintrag).values(werte);
-    const konflikt = buendelung(typ, zielSpalte);
-    if (!konflikt) {
-      await einfuegen;
-      continue;
-    }
-    // Buendelung per DB: Konflikt auf dem partiellen Unique-Index => anzahl + 1,
-    // Ausloeser/Ereignis neu, wieder ungelesen (bei Anfragen auch die Notiz).
-    await einfuegen.onConflictDoUpdate({
-      target: konflikt.target,
-      targetWhere: konflikt.where,
-      set: {
-        anzahl: sql`${inboxEintrag.anzahl} + 1`,
+  // D6: je Ereignis bekommt jede Person hoechstens EINEN Eintrag — der erste Typ der Registerreihenfolge.
+  const bedient = new Set<string>();
+  let gesamt = 0;
+  for (const typ of typen) {
+    const empfaenger = (await empfaengerFuer(tx, e, typ)).filter((id) => !bedient.has(id));
+    for (const empfaengerId of empfaenger) {
+      bedient.add(empfaengerId);
+      gesamt += 1;
+      const werte = {
+        empfaengerId,
         ausloeserId: e.ausloeserId,
+        typ,
+        [spalte]: e.entitaetId,
         ereignisId: e.id,
+        anzahl: 1,
+        erstelltAm: jetzt,
         aktualisiertAm: jetzt,
-        gelesenAm: null,
-        ...(typ === "zugriffsanfrage" ? { notiz: e.text ?? null } : {}),
-      },
-    });
+        zustand: "offen" as const,
+        zustandSeit: jetzt,
+        notiz: typ === "zugriffsanfrage" ? (e.text ?? null) : null,
+      };
+      const einfuegen = tx.insert(inboxEintrag).values(werte);
+      const konflikt = buendelung(typ, zielSpalte);
+      if (!konflikt) {
+        await einfuegen;
+        continue;
+      }
+      // Buendelung per DB: Konflikt auf dem partiellen Unique-Index => anzahl + 1,
+      // Ausloeser/Ereignis neu, wieder ungelesen (bei Anfragen auch die Notiz).
+      await einfuegen.onConflictDoUpdate({
+        target: konflikt.target,
+        targetWhere: konflikt.where,
+        set: {
+          anzahl: sql`${inboxEintrag.anzahl} + 1`,
+          ausloeserId: e.ausloeserId,
+          ereignisId: e.id,
+          aktualisiertAm: jetzt,
+          gelesenAm: null,
+          ...(typ === "zugriffsanfrage" ? { notiz: e.text ?? null } : {}),
+        },
+      });
+    }
   }
-  return empfaenger.length;
+  return gesamt;
 }
 
 /** Buendelungsschluessel je Typ — muss die Praedikate der Indizes in schema.ts spiegeln. */
@@ -169,6 +220,12 @@ function buendelung(typ: InboxTyp, zielSpalte: typeof inboxEintrag.biomassestrom
         target: [inboxEintrag.empfaengerId, zielSpalte, inboxEintrag.ausloeserId],
         // Muss dem Index-Praedikat entsprechen (inbox_typ_text, Migration 0028).
         where: sql`${inboxEintrag.zustand} = 'offen' and inbox_typ_text(${inboxEintrag.typ}) = 'zugriffsanfrage' and ${zielSpalte} is not null`,
+      };
+    case "pruefauftrag":
+      return {
+        target: [inboxEintrag.empfaengerId, zielSpalte],
+        // Index-Praedikat aus Migration 0032 (inbox_typ_text).
+        where: sql`${inboxEintrag.zustand} = 'offen' and inbox_typ_text(${inboxEintrag.typ}) = 'pruefauftrag' and ${zielSpalte} is not null`,
       };
     default:
       return null;

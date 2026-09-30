@@ -14,14 +14,13 @@ import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
 import { ladeAlleVergaben, ladeErsteAenderung, ladeHistorie, ladeStroeme } from "@/lib/stroeme";
 import type { SperrNutzer, Strom, StromArt } from "@/lib/stroeme-modell";
 import { reichereVerfuegbarkeitAn, type VerfuegbarkeitsErgebnis, type VergabeDaten } from "@/lib/verfuegbarkeit";
-import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizierung";
 
 export interface DetailDaten {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
-  verifizierung: string | null;
-  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean; anfragen: boolean };
+  /** E62: Pruefen und Ablauf-Markierung — aus derselben Matrix, nur zum Ausblenden. */
+  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean; anfragen: boolean; pruefen: boolean; abgelaufenMarkieren: boolean };
   /** PR c: laufende Zugriffsanfrage des Betrachtenden zu diesem Strom. */
   anfrage: { am: string } | null;
   zuweisbare: SperrNutzer[];
@@ -46,6 +45,8 @@ export function sperrRechteFuer(zugang: Zugang, strom: Strom): DetailDaten["sper
     entsperren: darf(zugang, "strom.entsperren", sperre),
     zuweisen: darf(zugang, "strom.zuweisen", sperre),
     anfragen: darf(zugang, "strom.zugriff_anfragen", sperre),
+    pruefen: darf(zugang, "strom.pruefen", sperre),
+    abgelaufenMarkieren: darf(zugang, "beleg.abgelaufen_markieren", sperre),
   };
 }
 
@@ -68,7 +69,6 @@ export async function detailDatenAus(
     strom,
     historie,
     begruendung: begruendungAus(ersteAenderung),
-    verifizierung: verifikationsFaelligkeit(strom.beleg, strom, vergaben),
     sperrRechte,
     anfrage,
     zuweisbare,
@@ -87,7 +87,7 @@ export async function ladeDetailDaten(art: StromArt, id: string, zugang: Zugang)
     ladeErsteAenderung(art, id),
   ]);
   const stichtag = heuteBerlin();
-  const pool = reichereVerifikationAn(reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag), vergabenMap, stichtag);
+  const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
   const strom = pool.find((s) => s.id === id);
   if (!strom) return null;
   return detailDatenAus(strom, pool, vergabenMap.get(id) ?? [], zugang, historie, ersteAenderung);

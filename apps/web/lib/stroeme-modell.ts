@@ -3,6 +3,8 @@
 // Filter-/Sortierlogik importieren koennen. Die Loader liegen in lib/stroeme.ts.
 
 import {
+  RESERVIERUNG_VERALTET,
+  RESERVIERUNG_VERALTET_LABEL,
   verfuegbarkeitLabel,
   type VerfuegbarkeitsErgebnis,
   type VerfuegbarkeitsStatus,
@@ -10,7 +12,7 @@ import {
 } from "./verfuegbarkeit";
 import { FILTER, altwertZuNeu, filterDef, sichtAusArt, type Ansicht } from "./filter-modell";
 import { BELEG_LABEL as BELEG_LABEL_E34, BELEG_TYPEN, belegTypRang } from "./qualitaet";
-import { VERIFIKATION_LABEL, type VerifikationsErgebnis } from "./verifizierung";
+import { VERIFIKATION_LABEL, VERIFIKATION_ZUSTAENDE, type VerifikationsErgebnis } from "./verifikation";
 import { trifft } from "./hierarchie";
 import { trifftVergabefenster } from "./vergabe-fenster";
 import { OHNE_SEKTOR, ortsSchluessel } from "./hierarchie-baeume";
@@ -91,13 +93,8 @@ export interface StromBeleg {
   externNachvollziehbar: boolean;
   gueltigBis: string | null;
   erhebungsdatum: string | null;
-  /**
-   * AP2.3 (E60): Typ-Frist in Monaten der unteren drei Typen — aus der
-   * Parameter-Historie am Erhebungsdatum (parameter_wert), nicht aus einer
-   * Konstante. null bei den oberen vier Typen (sie tragen gueltig_bis).
-   * Optional nur im Typ (Fixtures); der Loader setzt es immer.
-   */
-  fristMonate?: number | null;
+  /** AP2.4 (E62, D3): Ablauf-Markierung des Pruefers (JJJJ-MM-TT) oder null. */
+  abgelaufenAm?: string | null;
   kernnotiz: string | null;
 }
 
@@ -164,7 +161,7 @@ export interface Strom {
   verfuegbarkeit?: VerfuegbarkeitsErgebnis;
   /** F5 PR B: Vergabezeilen fuer den Filter "Vergeben ab / bis". */
   vergaben?: VergabeDaten[];
-  /** E33: Gesamtfaelligkeit und Verifikationsstatus — nur gesetzt, wo angereichert. */
+  /** AP2.4 (E62): Verifikationszustand aus strom_verifikation() — der Loader setzt ihn immer. */
   verifikation?: VerifikationsErgebnis;
   /** E44: Sperre am Strom (null = frei) und Zugewiesene — aus dem Loader. */
   sperre?: StromSperreAnzeige | null;
@@ -187,7 +184,7 @@ export interface StroemeFilter {
   status: string[];
   /** Abgeleiteter Verfuegbarkeitsstatus (PR 3), Werte = VerfuegbarkeitsStatus. */
   verfuegbarkeit: string[];
-  /** E33: aktiv | ausgelaufen | keine_frist, gemessen an der Gesamtfaelligkeit. */
+  /** E62: die benannten Verifikationszustaende (lib/verifikation.ts). */
   verifikation: string[];
   belegtyp: string[];
   landkreis: string[];
@@ -331,11 +328,12 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
     case "status":
       return [s.status];
     case "verfuegbarkeit":
-      return s.verfuegbarkeit ? [s.verfuegbarkeit.status] : [];
+      // E64: der Nebentag „Reservierung veraltet" ist als eigener Wert filterbar.
+      return s.verfuegbarkeit ? [s.verfuegbarkeit.status, ...(s.verfuegbarkeit.reservierungVeraltet ? [RESERVIERUNG_VERALTET] : [])] : [];
     case "verifikation":
       // Nicht angereichert = nicht filterbar (kein stummes Raten); angereichert
-      // hat JEDER Strom einen Zustand, auch "keine_frist".
-      return s.verifikation ? [s.verifikation.status] : [];
+      // hat JEDER Strom einen benannten Zustand (E62).
+      return s.verifikation ? [s.verifikation.zustand] : [];
     case "belegtyp":
       return s.beleg ? [s.beleg.typ] : [];
     case "landkreis":
@@ -821,11 +819,14 @@ export function facettenOptionen(
         "noch_nicht_verfuegbar",
         "abgelaufen",
       ] as VerfuegbarkeitsStatus[]
-    ).map((w) => ({ wert: w, label: verfuegbarkeitLabel(art, w) })),
+    )
+      .map((w): { wert: string; label: string } => ({ wert: w, label: verfuegbarkeitLabel(art, w) }))
+      // E64: Nebentag als siebte Option — waehlbar, auch wenn er gerade nicht vorkommt.
+      .concat([{ wert: RESERVIERUNG_VERALTET, label: RESERVIERUNG_VERALTET_LABEL }]),
     belegtyp: fest(BELEG_LABEL),
-    // E33: feste 3er-Liste — der Zustand ist abgeleitet und soll waehlbar
-    // sein, auch wenn er gerade nicht vorkommt.
-    verifikation: fest(VERIFIKATION_LABEL),
+    // E62: feste Liste der benannten Zustaende — abgeleitet und waehlbar, auch
+    // wenn einer gerade nicht vorkommt (laeuft_bald_ab kommt mit PR b dazu).
+    verifikation: VERIFIKATION_ZUSTAENDE.map((w) => ({ wert: w, label: VERIFIKATION_LABEL[w] })),
   };
 
   if (art === "biomasse") {
