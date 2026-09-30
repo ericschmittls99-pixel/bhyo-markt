@@ -92,7 +92,7 @@ async function main() {
   const varianten = [
     label.split("").map((c, i) => (i % 2 ? c.toUpperCase() : c.toLowerCase())).join(""),
     "  " + label,
-    label.toLowerCase() + "\t",
+    label.toUpperCase() + "   ",
   ];
   for (const v of varianten) {
     const grund = await probe(async (tx) => {
@@ -101,6 +101,15 @@ async function main() {
     console.log(`DUBLETTE_INSERT ${JSON.stringify(v)} abgewiesen=${grund !== null}`);
     if (grund === null) fehler.push(`Bezeichnung ${JSON.stringify(v)} liess sich neben "${label}" anlegen`);
   }
+  // Befund 30.09.2026 (erster Lauf dieser Probe): btrim() ohne Zeichenliste
+  // entfernt nur Leerzeichen — ein Tabulator am Rand geht am Index vorbei.
+  // Ueber die App kommt er nicht an (trim() in lib/sektor.ts), direkt in der
+  // DB schon. Gemessen und genannt, nicht erzwungen; Entscheidung bei Eric
+  // (0031 mit btrim(label, E' \t\r\n') oder regexp-Normalisierung).
+  const tab = await probe(async (tx) => {
+    await tx`insert into sektor (code, label) values ('probe_variante', ${label.toLowerCase() + "\t"})`;
+  });
+  console.log(`DUBLETTE_INSERT_TAB ${JSON.stringify(label.toLowerCase() + "\t")} abgewiesen=${tab !== null} (nur Messung)`);
   const [zweiter] = await sql`select code from sektor where code <> ${erster!.code as string} order by sortierung, label limit 1`;
   if (zweiter) {
     const grund = await probe(async (tx) => {
