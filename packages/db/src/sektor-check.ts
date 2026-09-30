@@ -121,7 +121,7 @@ async function main() {
 
   // (3) Geschuetzte Werte: keine Zeile, kein INSERT, kein Umbenennen (UPDATE code) darauf
   const GESCHUETZT = ["abnehmer", "ohne_sektor"];
-  const vorhanden = (await sql`select code from sektor where code = any(${GESCHUETZT})`).map((r) => r.code as string);
+  const vorhanden = (await sql`select code from sektor where code in (${GESCHUETZT[0]!}, ${GESCHUETZT[1]!})`).map((r) => r.code as string);
   console.log(`GESCHUETZT_ALS_ZEILE ${JSON.stringify(vorhanden)}`);
   if (vorhanden.length) fehler.push(`Geschuetzte Codes existieren als Sektor: ${vorhanden.join(", ")}`);
   for (const g of GESCHUETZT) {
