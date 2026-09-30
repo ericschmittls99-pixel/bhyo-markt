@@ -11,6 +11,7 @@ import {
 } from "@bhyo/db/schema";
 import { and, asc, type Column, desc, eq, ilike, or, sql, type SQL } from "drizzle-orm";
 
+import { kalendertag } from "@/lib/datum";
 import { withDb } from "@/lib/db";
 import { geojsonOderNull } from "@/lib/karte-modell";
 
@@ -189,28 +190,22 @@ export function listMaterialarten(
   });
 }
 
-/** Live-Suche fuer die Materialart-Combobox (Label). */
-export function sucheMaterialarten(query: string): Promise<MaterialartOption[]> {
-  const q = query.trim();
-  return withDb((db) => {
-    const base = db
-      .select({ code: materialart.code, label: materialart.label })
-      .from(materialart);
-    const filtered = q ? base.where(ilike(materialart.label, `%${q}%`)) : base;
-    return filtered.orderBy(materialart.label).limit(20);
-  });
-}
-
 export interface SektorOption {
   code: string;
   label: string;
+  /** AP2.3 PR b: deaktivierte Sektoren sind nicht waehlbar, bleiben aber als Label lesbar. */
+  aktiv: boolean;
 }
 
-/** Die Sektoren der Referenztabelle (0020) in Listenreihenfolge — Quelle fuer Auswahl UND Pruefung. */
+/**
+ * Die Sektoren der Referenztabelle in Listenreihenfolge — alle, mit
+ * `aktiv`. Quelle fuer Auswahl (nur aktive), Anzeige-Label (alle) und die
+ * Pruefung der Akteur-Anlage (nur aktive).
+ */
 export function ladeSektoren(): Promise<SektorOption[]> {
   return withDb((db) =>
     db
-      .select({ code: sektor.code, label: sektor.label })
+      .select({ code: sektor.code, label: sektor.label, aktiv: sektor.aktiv })
       .from(sektor)
       .orderBy(asc(sektor.sortierung), asc(sektor.label)),
   );
@@ -412,9 +407,7 @@ function belegDetail(r: BelegRow): DetailBeleg | null {
     href: r.belegDateiKey ? `/api/belege/${r.belegDateiKey}` : r.belegLinkUrl,
     externNachvollziehbar: r.belegExtern ?? false,
     gueltigBis: r.belegGueltigBis,
-    erhebungsdatum: r.belegErstelltAm
-      ? r.belegErstelltAm.toISOString().slice(0, 10)
-      : null,
+    erhebungsdatum: r.belegErstelltAm ? kalendertag(r.belegErstelltAm) : null,
   };
 }
 

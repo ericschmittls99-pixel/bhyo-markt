@@ -12,6 +12,7 @@ import {
   text,
   ValidierungsFehler,
 } from "@/lib/beleg-server";
+import { heuteBerlin } from "@/lib/datum";
 import { withDb, type AppDb } from "@/lib/db";
 import {
   herkunftOderNull,
@@ -123,8 +124,9 @@ export async function stromSpeichern(
     });
   }
   const reserviertBhyo = formData.get("reserviert_bhyo") === "on";
-  // Serverseitiger Stichtag fuer den Reservierungs-Stempel (Migration 0010).
-  const heute = new Date().toISOString().slice(0, 10);
+  // Serverseitiger Stichtag fuer den Reservierungs-Stempel (Migration 0010) —
+  // Kalendertag Europe/Berlin, wie das Basisdatum der Fristen (PR b).
+  const heute = heuteBerlin();
 
   const feldFehler = {
     ...validiereFormular(art, eingaben, { neu: id == null }),

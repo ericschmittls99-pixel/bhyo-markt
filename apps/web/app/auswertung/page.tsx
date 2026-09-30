@@ -23,6 +23,7 @@ import {
   type FensterKategorie,
 } from "@/lib/fenster";
 import { leseSortierung } from "@/lib/auswertung-sortierung";
+import { kalendertag } from "@/lib/datum";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import {
   ladeAlleVergaben,
@@ -82,7 +83,7 @@ export default async function AuswertungPage({
   ]);
 
   const jetzt = new Date();
-  const heuteIso = jetzt.toISOString().slice(0, 10);
+  const heuteIso = kalendertag(jetzt);
   // E33: Verifikationsstatus einmal je Request, damit der Filter hier greift.
   const pool = reichereVerifikationAn(poolRoh, vergabenMap, heuteIso);
   const aktuellesJahr = Number(heuteIso.slice(0, 4));

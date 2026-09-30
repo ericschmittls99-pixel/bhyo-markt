@@ -25,7 +25,9 @@ export type Entitaet =
   | "region"
   | "analyse_lauf"
   /** AP2.3: Parameterwert (Verlaufszeile) — ueberdauert eine Ruecknahme. */
-  | "parameter_wert";
+  | "parameter_wert"
+  /** AP2.3 PR b: Sektor der Referenzliste (sektor.id; der Code ist kein uuid). */
+  | "sektor";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;
@@ -61,6 +63,10 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   zugriff_abgelehnt: "Zugriffsanfrage abgelehnt",
   parameter_gesetzt: "Parameter gesetzt",
   parameter_zurueckgenommen: "Parameteränderung zurückgenommen",
+  sektor_angelegt: "Sektor angelegt",
+  sektor_umbenannt: "Sektor umbenannt",
+  sektor_deaktiviert: "Sektor deaktiviert",
+  sektor_reaktiviert: "Sektor reaktiviert",
   zuweisung_entfernt: "Zuweisung entfernt",
   benutzer_angelegt: "Benutzer angelegt",
   rolle_gesetzt: "Rolle gesetzt",

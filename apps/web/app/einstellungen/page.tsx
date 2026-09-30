@@ -5,8 +5,10 @@ import Link from "next/link";
 
 import { BenutzerVerwaltung } from "@/components/einstellungen/BenutzerVerwaltung";
 import { ParameterVerwaltung } from "@/components/einstellungen/ParameterVerwaltung";
-import { heuteBerlin } from "@/lib/parameter";
+import { ReferenzlistenVerwaltung } from "@/components/einstellungen/ReferenzlistenVerwaltung";
+import { heuteBerlin, kalendertag } from "@/lib/datum";
 import { ladeParameterUebersicht } from "@/lib/parameter-server";
+import { ladeSektorUebersicht } from "@/lib/sektor-server";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { withDb } from "@/lib/db";
 import { darf } from "@/lib/rechte";
@@ -21,9 +23,10 @@ export const dynamic = "force-dynamic";
  */
 type SearchParams = Record<string, string | string[] | undefined>;
 
-/** AP2.3 (E59): Reiter Nutzer · Parameter (Referenzlisten folgen in PR b); nur admin. */
+/** AP2.3 (E59): Reiter Nutzer · Referenzlisten · Parameter; nur admin. */
 const REITER = [
   ["nutzer", "Nutzer"],
+  ["referenzlisten", "Referenzlisten"],
   ["parameter", "Parameter"],
 ] as const;
 type Reiter = (typeof REITER)[number][0];
@@ -31,7 +34,7 @@ type Reiter = (typeof REITER)[number][0];
 export default async function EinstellungenPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const reiterRoh = Array.isArray(sp.reiter) ? sp.reiter[0] : sp.reiter;
-  const reiter: Reiter = reiterRoh === "parameter" ? "parameter" : "nutzer";
+  const reiter: Reiter = REITER.find(([w]) => w === reiterRoh)?.[0] ?? "nutzer";
   const zugang = await aktuellerZugang();
   const istAdmin = zugang.art === "erlaubt" && darf(zugang, "benutzer.anlegen");
 
@@ -62,6 +65,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
   );
 
   const parameter = reiter === "parameter" ? await withDb((db) => ladeParameterUebersicht(db, heuteBerlin())) : [];
+  const sektoren = reiter === "referenzlisten" ? await withDb((db) => ladeSektorUebersicht(db)) : [];
 
   return (
     <main className="einst">
@@ -74,6 +78,8 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
       </div>
       {reiter === "parameter" ? (
         <ParameterVerwaltung parameter={parameter} heute={heuteBerlin()} />
+      ) : reiter === "referenzlisten" ? (
+        <ReferenzlistenVerwaltung sektoren={sektoren} />
       ) : (
       <BenutzerVerwaltung
         benutzer={liste.map((b) => ({
@@ -82,7 +88,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
           name: b.name,
           rolle: b.rolle,
           aktiv: b.aktiv,
-          erstelltAm: b.erstelltAm.toISOString().slice(0, 10),
+          erstelltAm: kalendertag(b.erstelltAm),
         }))}
         ichSelbst={zugang.email}
       />

@@ -46,6 +46,11 @@ export const AKTIONEN = [
   // Parameter mit Verlauf (parameter-actions.ts, AP2.3 PR a / E60): nur admin
   "parameter.setzen",
   "parameter.zuruecknehmen",
+  // Sektorliste (sektor-actions.ts, AP2.3 PR b / E59): nur admin; nie loeschen
+  "sektor.anlegen",
+  "sektor.umbenennen",
+  "sektor.deaktivieren",
+  "sektor.reaktivieren",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -80,6 +85,10 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "inbox.ablehnen": ALLE,
   "parameter.setzen": VERWALTEN,
   "parameter.zuruecknehmen": VERWALTEN,
+  "sektor.anlegen": VERWALTEN,
+  "sektor.umbenennen": VERWALTEN,
+  "sektor.deaktivieren": VERWALTEN,
+  "sektor.reaktivieren": VERWALTEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */

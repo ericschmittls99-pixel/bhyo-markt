@@ -19,13 +19,6 @@ export function istSeitEinfuehrung(gueltigAb: string): boolean {
   return gueltigAb === "-infinity" || gueltigAb.startsWith("-infinity");
 }
 
-/** Heutiges Datum in Europe/Berlin als JJJJ-MM-TT — die Regel „nie rueckwirkend" misst daran. */
-export function heuteBerlin(jetzt: Date = new Date()): string {
-  const teile = new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Berlin", year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(jetzt);
-  const t = (typ: string) => teile.find((p) => p.type === typ)!.value;
-  return `${t("year")}-${t("month")}-${t("day")}`;
-}
-
 export type ParameterAblehnung =
   | { grund: "unbekannt"; text: string }
   | { grund: "wert"; text: string }

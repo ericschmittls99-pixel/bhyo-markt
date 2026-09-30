@@ -329,12 +329,33 @@ export const akteur = pgTable("akteur", {
  * Ein neuer Sektor braucht kuenftig eine Migration — wie bei Materialarten
  * und Produkten.
  */
-export const sektor = pgTable("sektor", {
-  code: text("code").primaryKey(),
-  label: text("label").notNull(),
-  /** Reihenfolge in Auswahllisten; gleiche Werte alphabetisch. */
-  sortierung: integer("sortierung").notNull().default(0),
-});
+export const sektor = pgTable(
+  "sektor",
+  {
+    code: text("code").primaryKey(),
+    label: text("label").notNull(),
+    /** Reihenfolge in Auswahllisten; gleiche Werte alphabetisch. */
+    sortierung: integer("sortierung").notNull().default(0),
+    /**
+     * AP2.3 PR b (E59): Sektoren pflegt der Admin in einstellungen.
+     * `id` ist der Objektbezug fuers Ereignisprotokoll (aenderung.entitaet_id
+     * ist uuid; der Code bleibt Schluessel und Fremdschluessel-Ziel).
+     * Geloescht wird nicht: `aktiv = false` nimmt den Sektor aus der Auswahl,
+     * Akteure behalten ihn und zeigen ihn als „(deaktiviert)".
+     */
+    id: uuid("id").notNull().unique().defaultRandom(),
+    aktiv: boolean("aktiv").notNull().default(true),
+  },
+  (t) => [
+    // Eine Bezeichnung einmal, ohne Ruecksicht auf Schreibweise und Randleerraum.
+    uniqueIndex("sektor_label_lower_idx").on(sql`lower(btrim(${t.label}))`),
+    // Codes wie alle Enum-Werte: snake_case ohne Umlaute. 'ohne_sektor' ist der
+    // benannte Filterwert fuer NULL (lib/hierarchie-baeume.ts), 'abnehmer'
+    // eine Rolle (0020) — beide duerfen nie ein Sektor werden.
+    check("sektor_code_check", sql`${t.code} ~ '^[a-z0-9_]+$' and ${t.code} not in ('ohne_sektor', 'abnehmer')`),
+    check("sektor_label_check", sql`length(btrim(${t.label})) > 0`),
+  ],
+);
 
 /**
  * Biomassestrom eines Akteurs mit eigenem Standort. KEINE manuell zugewiesene
@@ -703,6 +724,11 @@ export const ereignisArt = pgEnum("ereignis_art", [
   // AP2.3 PR a: Parameter mit Verlauf.
   "parameter_gesetzt",
   "parameter_zurueckgenommen",
+  // AP2.3 PR b: Sektorliste (Referenzliste) pflegbar.
+  "sektor_angelegt",
+  "sektor_umbenannt",
+  "sektor_deaktiviert",
+  "sektor_reaktiviert",
 ]);
 
 export const aenderung = pgTable(

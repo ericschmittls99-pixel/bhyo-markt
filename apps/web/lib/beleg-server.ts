@@ -131,6 +131,9 @@ export async function erstelleBeleg(
       externNachvollziehbar: d.externNachvollziehbar,
       metadata: d.metadata,
       gueltigBis: d.gueltigBis,
+      // Erhebungsdatum als 00:00Z gespeichert: in Europe/Berlin ist das
+      // 01:00/02:00 desselben Tages — der Kalendertag (lib/datum.ts) bleibt
+      // der eingegebene, in UTC wie in Berlin.
       erstelltAm: new Date(d.erhebungsdatum),
     })
     .returning({ id: beleg.id });

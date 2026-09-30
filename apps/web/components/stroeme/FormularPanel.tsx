@@ -17,6 +17,7 @@ import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { SeasonBarsEdit } from "@/components/stroeme/SeasonBarsEdit";
 import { SuchCombobox } from "@/components/stroeme/SuchCombobox";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
+import { heuteBerlin } from "@/lib/datum";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import { fmtFaktor, fmtDatum, fmtMonat, fmtMenge } from "@/lib/format";
 import {
@@ -227,8 +228,9 @@ export function FormularPanel({
   const entferneVergabe = (i: number) =>
     setVergaben((v) => v.filter((_, j) => j !== i));
 
-  // Live-Ableitung wie die Qualitaets-Box: reine Anzeige, heute vom Client.
-  const heute = new Date().toISOString().slice(0, 10);
+  // Live-Ableitung wie die Qualitaets-Box: reine Anzeige, heute vom Client
+  // (Kalendertag Europe/Berlin, wie der Server-Stichtag).
+  const heute = heuteBerlin();
   const verfuegbarkeit =
     vonMonat && bisMonat
       ? leiteVerfuegbarkeitAb(

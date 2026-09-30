@@ -6,7 +6,8 @@ import { revalidatePath } from "next/cache";
 
 import { withDb } from "@/lib/db";
 import { istEindeutigkeitsVerletzung } from "@/lib/db-fehler";
-import { heuteBerlin, pruefeParameterEingabe } from "@/lib/parameter";
+import { heuteBerlin } from "@/lib/datum";
+import { pruefeParameterEingabe } from "@/lib/parameter";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { AktionErgebnis } from "@/lib/stroeme-actions";

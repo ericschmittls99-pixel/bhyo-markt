@@ -708,7 +708,7 @@ user) mit „Alle anzeigen"; auf der Karte als Hinweiszeile.
 ## einstellungen.: Reiter und Parameter (AP2.3, E59/E60, 30.09.2026)
 
 Reiter als Segment-Schalter (`seg`, Links mit `aria-selected`) über dem
-Inhalt: Nutzer · Parameter (PR b: Referenzlisten dazwischen). Der Reiter
+Inhalt: Nutzer · Referenzlisten · Parameter (PR b). Der Reiter
 „Parameter" gruppiert nach Präfix des Schlüssels („verifikationsfristen.")
 in der bekannten `einst-tabelle`: Bezeichnung mit Schlüssel als
 Mono-Caption, aktueller Wert mit Einheit, „gilt seit" („seit Einführung"
@@ -719,3 +719,18 @@ gültig ab, von mit Avatar, am, Begründung; Startwerte zeigen „Migration").
 Dialog „Ändern" im `modal`-Muster: Zahl (min/max), Datum (ab heute),
 Begründung (Pflicht), Info-Zeile „Gilt für Einträge mit Stichtag ab diesem
 Datum. Bestehende Fälligkeiten bleiben unverändert.", Abbrechen/Speichern.
+
+### Referenzlisten: Sektoren (PR b, 30.09.2026)
+
+Gleiches Muster wie die Benutzerverwaltung: Kopf „sektoren." mit einem
+erklärenden Satz, Anlege-Zeile (`einst-anlegen`: nur die Bezeichnung, der
+Code wird abgeleitet und als Mono-Caption unter dem Namen gezeigt), dann die
+`einst-tabelle` mit Sektor · Verwendungen (Zahl der Akteure, „—" bei null)
+· Status (zurückgenommene Pille `pill--muted`: „aktiv" / „deaktiviert",
+keine Ampelfarbe) · Aktionen („Umbenennen" als Ghost-Button, der die Zeile
+in ein Feld mit Speichern/Abbrechen wandelt; „Deaktivieren" bzw.
+„Reaktivieren" als Button). Deaktivierte Zeilen werden gedimmt
+(`einst-inaktiv`), nicht durchgestrichen — der Eintrag gilt an seinen
+Akteuren weiter. Fußzeile: „Gelöscht wird nicht." In Auswahllisten
+(Akteur-Combobox) erscheinen nur aktive Sektoren; ein deaktivierter steht
+an Akteuren, in Ströme-Ansichten und im Filter als „Name (deaktiviert)".

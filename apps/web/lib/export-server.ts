@@ -1,3 +1,4 @@
+import { kalendertag } from "./datum";
 import { CLUSTER_LABEL } from "./farben";
 import { filterKlartext } from "./export-filtertext";
 import { type ExportKontext, exportModus } from "./export-modell";
@@ -60,7 +61,7 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     sicht !== "feedstock" ? ladeAlleVergaben("output") : Promise.resolve(leereMap),
     ladeRegionOptionen(),
   ]);
-  const stichtag = jetzt.toISOString().slice(0, 10);
+  const stichtag = kalendertag(jetzt);
   // E41: Aus auswertung. gilt der Verfuegbarkeitsstatus gegen das gewaehlte
   // Jahr bzw. den Zeitraum (dieselbe Ableitung wie die Seite, lib/zeitbezug);
   // aus stroeme./karte. gegen heute. Die Metazeile nennt den Bezug.

@@ -35,7 +35,8 @@ export async function POST(req: Request) {
   if (!name) {
     return Response.json({ error: "Name ist Pflicht" }, { status: 400 });
   }
-  const codes = (await ladeSektoren()).map((s) => s.code);
+  // Nur ein aktiver Sektor ist waehlbar (AP2.3 PR b).
+  const codes = (await ladeSektoren()).filter((s) => s.aktiv).map((s) => s.code);
   const eingabe = sektorAusEingabe(body?.sektor, codes);
   if (!eingabe.ok) {
     return Response.json({ error: eingabe.fehler }, { status: 400 });

@@ -2,6 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { sektorAnzeige } from "@/lib/sektor";
+
 interface AkteurOption {
   id: string;
   name: string;
@@ -12,6 +14,7 @@ interface AkteurOption {
 interface SektorOption {
   code: string;
   label: string;
+  aktiv: boolean;
 }
 
 /**
@@ -56,9 +59,12 @@ export function AkteurCombobox({
     };
   }, []);
 
-  /** Label zum Code; ein unbekannter Code (Altbestand) bleibt sichtbar. */
-  const sektorLabel = (code: string | null) =>
-    code ? (sektoren.find((s) => s.code === code)?.label ?? code) : null;
+  /** Label zum Code; ein deaktivierter Sektor bleibt benannt, ein unbekannter Code (Altbestand) sichtbar. */
+  const sektorLabel = (code: string | null) => {
+    if (!code) return null;
+    const s = sektoren.find((x) => x.code === code);
+    return s ? sektorAnzeige(s.label, s.aktiv) : code;
+  };
 
   useEffect(() => {
     if (gewaehlt) return;
@@ -191,11 +197,13 @@ export function AkteurCombobox({
                     onChange={(e) => setSektor(e.target.value)}
                   >
                     <option value="">ohne Sektor</option>
-                    {sektoren.map((s) => (
-                      <option key={s.code} value={s.code}>
-                        {s.label}
-                      </option>
-                    ))}
+                    {sektoren
+                      .filter((s) => s.aktiv)
+                      .map((s) => (
+                        <option key={s.code} value={s.code}>
+                          {s.label}
+                        </option>
+                      ))}
                   </select>
                 </span>
                 <button

@@ -3,6 +3,7 @@ import { cookies } from "next/headers";
 import { KarteAnsicht } from "@/components/karte/KarteAnsicht";
 import type { KarteRegion } from "@/components/karte/KarteMap";
 import type { FacettenChipDef } from "@/components/stroeme/FacettenChips";
+import { heuteBerlin } from "@/lib/datum";
 import { CLUSTER_LABEL, OUTPUT_LABEL } from "@/lib/farben";
 import { stromZuPunkt, type KartePunkt } from "@/lib/karte-modell";
 import { listRegionGebiete } from "@/lib/register";
@@ -88,7 +89,7 @@ export default async function KartePage({
 
   // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
   // Sidebar und die neue Facette lesen dasselbe Feld.
-  const stichtag = new Date().toISOString().slice(0, 10);
+  const stichtag = heuteBerlin();
   const bioBasis = reichereVerifikationAn(
     reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag),
     vergabenBio,
