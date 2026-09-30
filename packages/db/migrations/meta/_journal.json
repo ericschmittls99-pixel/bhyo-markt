@@ -218,6 +218,13 @@
       "when": 1790783390025,
       "tag": "0030_ap23_sektoren",
       "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1790793325674,
+      "tag": "0031_e61_sektor_label",
+      "breakpoints": true
     }
   ]
 }

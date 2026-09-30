@@ -952,27 +952,38 @@ Werteliste — Rot-Nachweis ohne 0030 im PR.
 Aufrufer; Materialarten bleiben bei Migrationen, E59). Reiter in
 einstellungen.: Nutzer · Referenzlisten · Parameter.
 
-**Neue Entscheidung, Nummer offen — geschützte Werte der Sektorliste
-(Rückfrage Eric, 30.09.2026).** `ohne_sektor` und `abnehmer` dürfen nie ein
-Sektor-Code werden (CHECK `sektor_code_check`, gilt für INSERT und UPDATE).
-Das ist eine **fachliche** Kopplung, keine technische: Kein Programmpfad
-liest den Code `abnehmer` (Suche über apps/, packages/, docs/ am
-30.09.2026: nur `lib/sektor.ts`, der `sektor-check` und dieser Log). Grund
-ist die Entscheidung zu Migration 0020 (Abschnitt „Sektor als
+**E61 — Reservierte Werte der Sektorliste (30.09.2026).** `ohne_sektor`
+und `abnehmer` sind als Code, „ohne Sektor" und „Abnehmer" als Bezeichnung
+reserviert. Das ist eine **fachliche** Kopplung, keine technische: Kein
+Programmpfad liest den Code `abnehmer` (Suche über apps/, packages/, docs/
+am 30.09.2026: nur `lib/sektor.ts`, der `sektor-check` und dieser Log).
+Grund ist die Entscheidung zu Migration 0020 (Abschnitt „Sektor als
 Referenzdaten", Punkt 2): `abnehmer` war mit 50 Akteuren der häufigste
 Freitext-„Sektor", ist aber eine **Rolle**, die sich vollständig aus den
 Strömen ableitet (E23) — als Wert einer Auswahlliste bedeutete er etwas
-anderes als alle übrigen Einträge und wurde deshalb geleert. Der Schutz
-verhindert, dass ein Admin ihn über die Referenzliste wieder einführt.
-`ohne_sektor` ist der benannte Filterwert für NULL
+anderes als alle übrigen Einträge und wurde deshalb geleert. Die
+Reservierung verhindert, dass ein Admin ihn über die Referenzliste wieder
+einführt. `ohne_sektor` ist der benannte Filterwert für NULL
 (`lib/hierarchie-baeume.ts`, OHNE_SEKTOR); ein echter Sektor mit diesem
-Code kollidierte mit dem Filter. **Reichweite heute:** der DB-CHECK schützt
-den *Code*; die *Bezeichnung* („Abnehmer", „ohne Sektor") prüft nur die App
-(`pruefeSektorLabel`, beim Anlegen über den abgeleiteten Code, beim
-Umbenennen nur „ohne Sektor"). Ob die Bezeichnung zusätzlich per CHECK
-geschützt wird, ist Teil dieser offenen Entscheidung; der `sektor-check`
-misst und nennt den DB-Stand (`LABEL_GESCHUETZT_DB`), ohne ihn zu
-erzwingen.
+Code oder dieser Bezeichnung kollidierte mit dem Filter.
+
+**Umsetzung (Migration 0031):** Die Vergleichsform der Bezeichnung ist
+**eine** Funktion, `sektor_label_norm(label) = lower(btrim(label, Leer/
+Tab/CR/LF))` (IMMUTABLE); sie trägt den eindeutigen Index
+`sektor_label_norm_idx` (ersetzt `sektor_label_lower_idx` aus 0030, dessen
+`btrim` ohne Zeichenliste nur Leerzeichen entfernte — Befund des
+`sektor-check` in PR #136: ein Tabulator am Rand ging am Index vorbei) und
+den CHECK `sektor_label_reserviert_check` (`not in ('abnehmer', 'ohne
+sektor')`). Codes schützt weiterhin `sektor_code_check`. Die App rechnet
+dieselbe Form (`labelSchluessel` in `lib/sektor.ts`, bewusst kein `trim()`,
+das mehr Zeichen nimmt) und lehnt Dubletten und reservierte Bezeichnungen
+beim Anlegen **und** beim Umbenennen mit Meldung ab; die Wahrheit sind Index
+und CHECK. Vorprüfung in der Migration: Kollisionen unter der neuen
+Vergleichsform und reservierte Bezeichnungen brechen sie mit der Liste ab
+(gemessen vor der Migration: Production 8 Sektoren aus 0020, Preview 9 —
+keine). Der `sektor-check` erzwingt beide Befunde als Proben (Tabulator/CR/
+LF am Rand abgewiesen; „Abnehmer" und „ohne Sektor" in jeder Schreibweise
+beim Anlegen und Umbenennen abgewiesen) — vor 0031 rot, danach grün.
 
 ## Noch offen – nicht raten
 

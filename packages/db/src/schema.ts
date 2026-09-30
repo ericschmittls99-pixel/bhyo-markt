@@ -347,13 +347,18 @@ export const sektor = pgTable(
     aktiv: boolean("aktiv").notNull().default(true),
   },
   (t) => [
-    // Eine Bezeichnung einmal, ohne Ruecksicht auf Schreibweise und Randleerraum.
-    uniqueIndex("sektor_label_lower_idx").on(sql`lower(btrim(${t.label}))`),
+    // E61 (0031): Eine Bezeichnung einmal — Vergleichsform ist die SQL-Funktion
+    // sektor_label_norm (lower + btrim inkl. Tab/CR/LF); apps/web/lib/sektor.ts
+    // (labelSchluessel) rechnet dieselbe Form, damit App und DB gleich urteilen.
+    uniqueIndex("sektor_label_norm_idx").on(sql`sektor_label_norm(${t.label})`),
     // Codes wie alle Enum-Werte: snake_case ohne Umlaute. 'ohne_sektor' ist der
     // benannte Filterwert fuer NULL (lib/hierarchie-baeume.ts), 'abnehmer'
     // eine Rolle (0020) — beide duerfen nie ein Sektor werden.
     check("sektor_code_check", sql`${t.code} ~ '^[a-z0-9_]+$' and ${t.code} not in ('ohne_sektor', 'abnehmer')`),
     check("sektor_label_check", sql`length(btrim(${t.label})) > 0`),
+    // E61: „Abnehmer" (eine Rolle, E23) und „ohne Sektor" (der Zustand ohne
+    // Zuordnung) sind als Bezeichnung reserviert — wie ihre Codes oben.
+    check("sektor_label_reserviert_check", sql`sektor_label_norm(${t.label}) not in ('abnehmer', 'ohne sektor')`),
   ],
 );
 

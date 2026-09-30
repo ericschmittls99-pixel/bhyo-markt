@@ -10,11 +10,17 @@ export const LABEL_MAX = 60;
 /** Anhang in Auswahllisten und Filtern fuer einen deaktivierten Sektor. */
 export const DEAKTIVIERT_SUFFIX = " (deaktiviert)";
 /**
- * Nie ein Sektor-Code: `ohne_sektor` ist der benannte Filterwert fuer NULL
- * (lib/hierarchie-baeume.ts), `abnehmer` eine Rolle (Migration 0020). Der
- * CHECK sektor_code_check in der Datenbank nennt dieselben beiden.
+ * E61: Nie ein Sektor-Code: `ohne_sektor` ist der benannte Filterwert fuer
+ * NULL (lib/hierarchie-baeume.ts), `abnehmer` eine Rolle (E23, Migration
+ * 0020). Der CHECK sektor_code_check in der Datenbank nennt dieselben beiden.
  */
 export const GESPERRTE_CODES: readonly string[] = [OHNE_SEKTOR, "abnehmer"];
+/**
+ * E61: Auch als Bezeichnung reserviert — in der Vergleichsform von
+ * labelSchluessel(); der CHECK sektor_label_reserviert_check (0031) nennt
+ * dieselben beiden.
+ */
+export const RESERVIERTE_LABELS: readonly string[] = ["abnehmer", "ohne sektor"];
 
 export interface SektorEintrag {
   code: string;
@@ -36,9 +42,14 @@ export function codeAusLabel(label: string): string {
     .replace(/^_+|_+$/g, "");
 }
 
-/** Vergleichsform der Bezeichnung — dieselbe wie der Index (lower(btrim)). */
+/**
+ * Vergleichsform der Bezeichnung — dieselbe Rechnung wie die SQL-Funktion
+ * sektor_label_norm (0031): Leerzeichen, Tab, CR und LF am Rand weg, dann
+ * Kleinschreibung. Index und CHECKs in der Datenbank und diese Vorpruefung
+ * urteilen damit gleich (E61). Kein trim(): das nimmt mehr Zeichen als btrim.
+ */
 export function labelSchluessel(label: string): string {
-  return label.trim().toLowerCase();
+  return label.replace(/^[ \t\r\n]+|[ \t\r\n]+$/g, "").toLowerCase();
 }
 
 export type SektorPruefung = { ok: true; label: string; code: string } | { ok: false; text: string };
@@ -53,8 +64,8 @@ export function pruefeSektorLabel(roh: string, bestehende: readonly SektorEintra
   if (label.length > LABEL_MAX) return { ok: false, text: `Bezeichnung höchstens ${LABEL_MAX} Zeichen.` };
   const code = eigenerCode ?? codeAusLabel(label);
   if (!code) return { ok: false, text: "Aus der Bezeichnung lässt sich kein Code bilden (Buchstaben oder Ziffern nötig)." };
-  if (GESPERRTE_CODES.includes(code) || labelSchluessel(label) === "ohne sektor") {
-    return { ok: false, text: "„ohne Sektor“ ist der Zustand ohne Zuordnung und „Abnehmer“ eine Rolle — beides ist kein Sektor." };
+  if (GESPERRTE_CODES.includes(code) || RESERVIERTE_LABELS.includes(labelSchluessel(label))) {
+    return { ok: false, text: "„ohne Sektor“ ist der Zustand ohne Zuordnung und „Abnehmer“ eine Rolle — beides ist kein Sektor (E61)." };
   }
   const gleich = bestehende.find((s) => s.code !== eigenerCode && labelSchluessel(s.label) === labelSchluessel(label));
   if (gleich) return { ok: false, text: `„${gleich.label}“ gibt es schon.` };
