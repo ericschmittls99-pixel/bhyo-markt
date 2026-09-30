@@ -32,6 +32,10 @@ import { reichereVerifikationAn, verifikationsFaelligkeit } from "@/lib/verifizi
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
+import { withDb } from "@/lib/db";
+import { FUER_MICH_LEER, fuerMichAktiv, reichereFuerMichAn, zeigeFuerMich } from "@/lib/fuer-mich";
+import { ladeBeteiligungen } from "@/lib/fuer-mich-server";
+import { aktuellerZugang } from "@/lib/rechte/wache";
 
 export const dynamic = "force-dynamic";
 
@@ -59,8 +63,16 @@ export default async function KartePage({
     : sichtRoh === "outputs" ? ("outputs" as const)
     : ("alle" as const);
 
+  // E56: Zugang fuer den Schalter „Für mich"; Betrachter ohne Schalter und ohne Wirkung.
+  const zugang = await aktuellerZugang();
+  const fuerMichSichtbar = zeigeFuerMich(zugang);
+  if (!fuerMichSichtbar) filter.fuer = "";
+  const fuerMich = fuerMichAktiv(filter.fuer);
+  const nutzerId = zugang.art === "erlaubt" ? zugang.id : null;
+  const leereMenge = Promise.resolve(new Set<string>());
+
   const leereMap = new Map<string, VergabeDaten[]>();
-  const [bioRoh, outRoh, regionen, umrisse, ui, vergabenBio, vergabenOut] =
+  const [bioRoh, outRoh, regionen, umrisse, ui, vergabenBio, vergabenOut, beteiligtBio, beteiligtOut] =
     await Promise.all([
       sicht !== "outputs" ? ladeStroeme("biomasse") : Promise.resolve([] as Strom[]),
       sicht !== "feedstock" ? ladeStroeme("output") : Promise.resolve([] as Strom[]),
@@ -69,21 +81,27 @@ export default async function KartePage({
       cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
       sicht !== "outputs" ? ladeAlleVergaben("biomasse") : Promise.resolve(leereMap),
       sicht !== "feedstock" ? ladeAlleVergaben("output") : Promise.resolve(leereMap),
+      // E56: Beteiligung als EINE Menge je Art — nur wenn der Schalter steht.
+      fuerMich && nutzerId && sicht !== "outputs" ? withDb((db) => ladeBeteiligungen(db, nutzerId, "biomasse")) : leereMenge,
+      fuerMich && nutzerId && sicht !== "feedstock" ? withDb((db) => ladeBeteiligungen(db, nutzerId, "output")) : leereMenge,
     ]);
 
   // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
   // Sidebar und die neue Facette lesen dasselbe Feld.
   const stichtag = new Date().toISOString().slice(0, 10);
-  const bio = reichereVerifikationAn(
+  const bioBasis = reichereVerifikationAn(
     reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag),
     vergabenBio,
     stichtag,
   );
-  const out = reichereVerifikationAn(
+  const outBasis = reichereVerifikationAn(
     reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag),
     vergabenOut,
     stichtag,
   );
+  // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
+  const bio = fuerMich && nutzerId ? reichereFuerMichAn(bioBasis, nutzerId, beteiligtBio) : bioBasis;
+  const out = fuerMich && nutzerId ? reichereFuerMichAn(outBasis, nutzerId, beteiligtOut) : outBasis;
 
   // Exklusiv filtern (Beschluss 22.09.2026): cluster blendet Outputs aus,
   // gruppe blendet Feedstock aus — sonst bleibt die fremde Art ungefiltert
@@ -96,6 +114,8 @@ export default async function KartePage({
     bioErg.nichtBeruecksichtigt,
     outErg.nichtBeruecksichtigt,
   ).map(nichtBeruecksichtigtText);
+  // E56: benannter Leerzustand auf der Karte (es gibt keine Liste, also als Hinweiszeile).
+  if (fuerMich && pool.length === 0) hinweise.unshift(FUER_MICH_LEER);
   const punkte = pool
     .map(stromZuPunkt)
     .filter((p): p is KartePunkt => p != null);
@@ -233,6 +253,8 @@ export default async function KartePage({
       zurueckgehalten={lst.zurueckgehalten.map((f) => f.label)}
       hinweise={hinweise}
       sicht={sicht}
+      fuerMich={fuerMich}
+      zeigeFuerMich={fuerMichSichtbar}
       detailPunkt={detailPunkt}
       detailStrom={detailStrom}
       detailVerfuegbarkeit={detailStrom?.verfuegbarkeit ?? null}

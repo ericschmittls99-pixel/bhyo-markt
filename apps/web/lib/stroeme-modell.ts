@@ -160,6 +160,8 @@ export interface Strom {
   /** E44: Sperre am Strom (null = frei) und Zugewiesene — aus dem Loader. */
   sperre?: StromSperreAnzeige | null;
   zuweisungen?: SperrNutzer[];
+  /** E56: von mir gesperrt, mir zugewiesen oder beteiligt — nur gesetzt, wo angereichert (lib/fuer-mich.ts). */
+  fuerMich?: boolean;
   erstelltAm: string;
   beleg: StromBeleg | null;
   vollstaendigkeit: number;
@@ -207,6 +209,8 @@ export interface StroemeFilter {
   vonAb: string;
   /** Erstellt am (JJJJ-MM-TT): exakter Tag. */
   erstellt: string;
+  /** E56: "" = Alle, "mich" = Für mich. */
+  fuer: string;
 }
 
 export const LEERER_FILTER: StroemeFilter = {
@@ -241,6 +245,7 @@ export const LEERER_FILTER: StroemeFilter = {
   vergabeZustand: "",
   vonAb: "",
   erstellt: "",
+  fuer: "",
 };
 
 /** Facetten-Schluessel in Chip-Reihenfolge des Mockups. */
@@ -469,6 +474,9 @@ function bereichsPruefer(key: string): Pruefer {
 type Pruefer = (s: Strom, f: StroemeFilter, q: string) => boolean;
 
 const ANWENDUNG: Record<string, Pruefer> = {
+  // E56: "Für mich" wirkt nur, wenn der Schalter steht; das Flag kommt aus
+  // lib/fuer-mich.ts (mengenbasiert angereichert, kein Nachladen je Zeile).
+  fuerMich: (s, f) => f.fuer !== "mich" || s.fuerMich === true,
   q: (s, _f, q) => {
     if (!q) return true;
     const hay = [

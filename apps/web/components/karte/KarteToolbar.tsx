@@ -7,6 +7,7 @@ import {
   FacettenChips,
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
+import { FuerMichSchalter } from "@/components/stroeme/FuerMichSchalter";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { farbeFuer } from "@/lib/farben";
@@ -41,6 +42,8 @@ export function KarteToolbar({
   zurueckgehalten,
   hinweise,
   sicht,
+  fuerMich = false,
+  zeigeFuerMich = false,
   offenInitial,
   irgendeinFilter,
   onTreffer,
@@ -59,6 +62,9 @@ export function KarteToolbar({
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
   hinweise: string[];
   sicht: "alle" | "feedstock" | "outputs";
+  /** E56: Schalter „Alle | Für mich". */
+  fuerMich?: boolean;
+  zeigeFuerMich?: boolean;
   offenInitial: boolean;
   irgendeinFilter: boolean;
   onTreffer: (t: KarteTreffer) => void;
@@ -191,6 +197,7 @@ export function KarteToolbar({
             </button>
           ))}
         </div>
+        {zeigeFuerMich && <FuerMichSchalter aktiv={fuerMich} onWahl={(mich) => setze({ fuer: mich ? "mich" : null })} />}
 
         <button
           type="button"

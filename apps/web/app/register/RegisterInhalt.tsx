@@ -39,6 +39,8 @@ import { detailDatenAus } from "@/lib/detail-daten";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { withDb } from "@/lib/db";
+import { FUER_MICH_LEER, fuerMichAktiv, reichereFuerMichAn, zeigeFuerMich } from "@/lib/fuer-mich";
+import { ladeBeteiligungen } from "@/lib/fuer-mich-server";
 import { artAusSicht, filterHinweis, filterLabel, leiste, leseSicht } from "@/lib/filter-modell";
 import { baeumeAus, hierarchienFuer } from "@/lib/leiste-hierarchien";
 
@@ -83,11 +85,22 @@ export async function RegisterInhalt({
     : "erstellt";
   const richtung = ersterWert(sp.richtung) === "auf" ? ("auf" as const) : ("ab" as const);
 
-  const [poolRoh, vergabenMap, regionen, ui] = await Promise.all([
+  // F8/E30: Der Zugang entscheidet ueber Schreibrecht (Ausblenden) und den
+  // Schalter „Für mich" (E56) — die tragende Pruefung sitzt in der Wache.
+  const zugang = await aktuellerZugang();
+  // E56: Betrachter koennen nicht beteiligt sein — kein Schalter, und der
+  // Parameter wirkt nicht (ein Filter ohne Wirkung wird nicht angezeigt).
+  const fuerMichSichtbar = zeigeFuerMich(zugang);
+  if (!fuerMichSichtbar) filter.fuer = "";
+  const fuerMich = fuerMichAktiv(filter.fuer);
+
+  const [poolRoh, vergabenMap, regionen, ui, beteiligt] = await Promise.all([
     ladeStroeme(art),
     ladeAlleVergaben(art),
     ladeRegionOptionen(),
     cookies().then((c) => parseUiState(c.get(UI_COOKIE)?.value)),
+    // E56: Beteiligung als EINE Menge aus dem Protokoll — nur wenn der Schalter steht.
+    fuerMich && zugang.art === "erlaubt" ? withDb((db) => ladeBeteiligungen(db, zugang.id, art)) : Promise.resolve(new Set<string>()),
   ]);
 
   // AP1j PR 3: Verfuegbarkeitsstatus EINMAL je Request an den Pool anreichern
@@ -95,11 +108,13 @@ export async function RegisterInhalt({
   // lesen alle dasselbe Feld.
   const stichtag = new Date().toISOString().slice(0, 10);
   // E33: Faelligkeit und Verifikationsstatus ebenso einmal je Request.
-  const pool = reichereVerifikationAn(
+  const poolBasis = reichereVerifikationAn(
     reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag),
     vergabenMap,
     stichtag,
   );
+  // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
+  const pool = fuerMich && zugang.art === "erlaubt" ? reichereFuerMichAn(poolBasis, zugang.id, beteiligt) : poolBasis;
 
   const { stroeme: gefiltert, nichtBeruecksichtigt } = filterStroemeMitBericht(
     pool,
@@ -135,7 +150,6 @@ export async function RegisterInhalt({
   // F8/E30: Schreibrecht kommt aus der Rolle, nicht mehr hart aus `true`.
   // Das blendet nur aus — die tragende Pruefung sitzt in der Wache, die jede
   // Server-Action und jede schreibende Route aufruft.
-  const zugang = await aktuellerZugang();
   // E42: dieselbe Matrix wie die Wache — hier nur zum Ausblenden. Rollenstufe
   // (Anlegen-Knopf, Bearbeiten-Knoepfe); die Objektstufe (Sperre) kommt unten
   // je Detail dazu — darf() ohne Objekt waere fuer strom.bearbeiten bewusst false.
@@ -191,7 +205,7 @@ export async function RegisterInhalt({
 
   return (
     <div className="st-seite">
-      <Toolbar sicht={sicht} q={filter.q} canEdit={canEdit} />
+      <Toolbar sicht={sicht} q={filter.q} canEdit={canEdit} fuerMich={fuerMich} zeigeFuerMich={fuerMichSichtbar} />
       <FilterSortZeile
         art={art}
         countText={countText}
@@ -212,7 +226,13 @@ export async function RegisterInhalt({
 
       <div className="st-inhalt">
         {stroeme.length === 0 ? (
-          irgendeinFilter ? (
+          fuerMich ? (
+            <EmptyState icon="user" titel={FUER_MICH_LEER} beschreibung="Ströme, die du gesperrt hast, die dir zugewiesen sind oder an denen du beteiligt bist, erscheinen hier.">
+              <Link className="btn btn--sm" href={resetHref}>
+                Alle anzeigen
+              </Link>
+            </EmptyState>
+          ) : irgendeinFilter ? (
             <EmptyState
               icon="funnel"
               titel="keine treffer."

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
+import { FuerMichSchalter } from "@/components/stroeme/FuerMichSchalter";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 
 /**
@@ -14,11 +15,17 @@ export function Toolbar({
   sicht,
   q,
   canEdit,
+  fuerMich = false,
+  zeigeFuerMich = false,
 }: {
   /** E32: Stromart heisst ueberall `sicht`. */
   sicht: "feedstock" | "outputs";
   q: string;
   canEdit: boolean;
+  /** E56: Schalter „Alle | Für mich" — Zustand aus der URL (fuer=mich). */
+  fuerMich?: boolean;
+  /** E56: nur fuer Nicht-Betrachter (ein Filter ohne Wirkung wird nicht angezeigt). */
+  zeigeFuerMich?: boolean;
 }) {
   const { setze } = useUrlZustand();
   const [wert, setWert] = useState(q);
@@ -60,6 +67,7 @@ export function Toolbar({
           Outputs
         </Link>
       </div>
+      {zeigeFuerMich && <FuerMichSchalter aktiv={fuerMich} onWahl={(mich) => setze({ fuer: mich ? "mich" : null })} />}
       <div className="search">
         <i className="ph ph-magnifying-glass" aria-hidden />
         <input

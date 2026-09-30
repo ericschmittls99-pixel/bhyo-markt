@@ -59,7 +59,14 @@ export type FilterTyp =
    * „nicht vergeben" — ihn als Bereich auszugeben hiesse, den Unterschied
    * zu verwischen.
    */
-  | "zeitfenster";
+  | "zeitfenster"
+  /**
+   * E56: Ein Segment-Schalter mit genau einem Parameter und einem
+   * benannten Wert („Für mich" = fuer=mich). Kein Chip: Der Schalter steht
+   * in der Kopfzeile; im Modell ist er trotzdem ein Filter (E32: Zurücksetzen,
+   * Zurückhalten, Export).
+   */
+  | "schalter";
 
 export interface FilterDef {
   /** Logischer Name; bei einfachen Filtern zugleich der URL-Parameter. */
@@ -276,6 +283,20 @@ export const FILTER: readonly FilterDef[] = [
     ansichten: ALLE_ANSICHTEN,
     arten: BEIDE,
     gruppe: "weitere",
+  },
+  {
+    // E56 (29.09.2026): „Für mich" — von mir gesperrt ODER mir zugewiesen ODER
+    // ich bin beteiligt (Protokoll: angelegt, geaendert, status_gesetzt,
+    // verworfen; dieselbe Ableitung wie beteiligte() aus AP2.2). Nur in
+    // stroeme. und karte.; in auswertung. bleibt er gemerkt und wird als
+    // zurueckgehalten ausgewiesen (E32). Betrachter sehen den Schalter nicht.
+    key: "fuerMich",
+    label: "Für mich",
+    typ: "schalter",
+    params: ["fuer"],
+    ansichten: ["stroeme", "karte"],
+    arten: BEIDE,
+    gruppe: "haupt",
   },
   {
     key: "vonAb",
@@ -503,7 +524,7 @@ export const BEREICH_REIHENFOLGE: readonly string[] = ["vonAb", "erstellt", "vol
 
 function bereichParamsVon(geltend: FilterDef[]): string[] {
   const alle = geltend
-    .filter((f) => !["facette", "hierarchie", "text"].includes(f.typ))
+    .filter((f) => !["facette", "hierarchie", "text", "schalter"].includes(f.typ))
     .flatMap((f) => f.params);
   const vorn = BEREICH_REIHENFOLGE.filter((p) => alle.includes(p));
   return [...vorn, ...alle.filter((p) => !vorn.includes(p))];
@@ -559,7 +580,9 @@ export function leiste(
     for (const p of def.params) {
       if (def.typ === "facette" || def.typ === "hierarchie") {
         auswahl[p] = (werte[p] as string[]) ?? [];
-      } else {
+      } else if (def.typ !== "schalter") {
+        // E56: Schalter stehen in der Kopfzeile, nicht in der Filterzeile —
+        // sie zaehlen nicht zur Filter-Pille, wohl aber zu irgendeinFilter.
         bereich[p] = (werte[p] as string) ?? "";
       }
     }

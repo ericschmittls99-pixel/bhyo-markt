@@ -54,6 +54,8 @@ export function KarteAnsicht({
   zurueckgehalten,
   hinweise,
   sicht,
+  fuerMich = false,
+  zeigeFuerMich = false,
   detailPunkt,
   detailStrom,
   detailVerfuegbarkeit,
@@ -81,6 +83,9 @@ export function KarteAnsicht({
   /** F5 PR B: nicht beruecksichtigte Stroeme, fertige Saetze (LeistenHinweise). */
   hinweise: string[];
   sicht: "alle" | "feedstock" | "outputs";
+  /** E56: Schalter „Alle | Für mich" (URL fuer=mich), nur fuer Nicht-Betrachter. */
+  fuerMich?: boolean;
+  zeigeFuerMich?: boolean;
   detailPunkt: KartePunkt | null;
   detailStrom: Strom | null;
   detailVerfuegbarkeit: VerfuegbarkeitsErgebnis | null;
@@ -194,6 +199,8 @@ export function KarteAnsicht({
         zurueckgehalten={zurueckgehalten}
         hinweise={hinweise}
         sicht={sicht}
+        fuerMich={fuerMich}
+        zeigeFuerMich={zeigeFuerMich}
         offenInitial={filterOffenInitial}
         irgendeinFilter={irgendeinFilter}
         onTreffer={trefferWaehlen}

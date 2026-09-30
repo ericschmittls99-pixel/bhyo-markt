@@ -847,6 +847,30 @@ wird stattdessen ersetzt:** neuen Wert anlegen (ADD VALUE), Daten
 migrieren, alten Wert nicht mehr verwenden (Code und Register), Altzeilen
 bleiben lesbar.
 
+## 28. Filter „Für mich" (E56, 29.09.2026)
+
+**Segment-Schalter „Alle | Für mich"** oben in ströme. und karte., Standard
+„Alle", Zustand in der URL (`fuer=mich`) wie jeder andere Filter (E32,
+Filtertyp `schalter`: kein Chip, steht in der Kopfzeile; Zurücksetzen leert
+ihn, in auswertung. bleibt er gemerkt und wird als zurückgehalten
+ausgewiesen). **„Für mich"** = der Strom ist von mir gesperrt ODER mir
+zugewiesen ODER ich bin beteiligt — beteiligt im Sinne von `beteiligte()`
+aus AP2.2 (Protokoll-Arten angelegt, geaendert, status_gesetzt, verworfen).
+Sperre und Zuweisungen stehen am geladenen Strom; die Beteiligung kommt als
+**eine Menge** aus dem Protokoll (`ladeBeteiligungen`, SELECT DISTINCT je
+Art), das Flag wird einmal je Request am Pool angereichert — kein Nachladen
+je Zeile. **Messung vor der Umsetzung** (EXPLAIN ANALYZE auf der Preview,
+73 Feedstock, 29 Protokollzeilen): Seq Scan mit gehashten Subplans, 1,9 ms;
+kein Index nötig. Erneut messen, wenn `aenderung` über etwa 10.000 Zeilen
+wächst (Kandidat: Index auf `benutzer_id`).
+
+**Betrachter** können nicht beteiligt sein (sie schreiben nichts, werden
+nicht zugewiesen, sperren nicht): Für sie gibt es den Schalter nicht, und
+der Parameter wirkt nicht — ein Filter ohne Wirkung wird nicht angezeigt.
+**Leerzustand** benannt: „Keine Einträge, an denen du beteiligt bist." (in
+ströme. als Leerzustand, in karte. als Hinweiszeile). Der Export nennt in
+der aktiven Filterzeile „Für mich".
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
