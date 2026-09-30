@@ -1,0 +1,22 @@
+# TEMPORAER: dieselbe Messung (nur SELECT) gegen die Preview. Wird vor dem Merge geloescht.
+name: tmp Messung Preview
+on:
+  push:
+    branches: [leseweg-parameter-messung]
+jobs:
+  messen:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Messung Preview (nur lesen)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db protokoll-messung
