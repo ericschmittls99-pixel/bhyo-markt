@@ -108,6 +108,31 @@ async function main() {
     console.log("INBOX Tabelle fehlt (vor 0027)");
   }
 
+  // AP2.3 (E60): Parameter mit Verlauf — Definitionen, Startwerte, heutiger Wert je Schluessel.
+  const [paramTabelle] = await sql`select count(*)::int as n from information_schema.tables where table_name = 'parameter_wert'`;
+  if (paramTabelle!.n === 1) {
+    const defs = await sql`
+      select d.schluessel, d.einheit,
+             (select count(*)::int from parameter_wert w where w.schluessel = d.schluessel) as werte,
+             (select count(*)::int from parameter_wert w where w.schluessel = d.schluessel and w.gueltig_ab = '-infinity') as startwerte,
+             parameter_wert(d.schluessel, current_date) as heute
+        from parameter_definition d order by d.schluessel`;
+    const [pz] = await sql`select count(*)::int as definitionen from parameter_definition`;
+    console.log("PARAMETER " + JSON.stringify({ definitionen: pz!.definitionen, schluessel: defs.map((d) => `${d.schluessel}=${d.heute} ${d.einheit} (werte ${d.werte}, seit_einfuehrung ${d.startwerte})`) }));
+  } else {
+    console.log("PARAMETER Tabelle fehlt (vor 0029)");
+  }
+
+  // AP2.3 PR b, Messung Zeitzone des Basisdatums: Belege, deren Kalendertag in
+  // UTC von dem in Europe/Berlin abweicht (erstellt_am zwischen 22:00 und
+  // 24:00 UTC bzw. 23:00 im Winter). reserviert_seit ist ein date — kein Zeitanteil.
+  const [tz] = await sql`
+    select count(*)::int as belege,
+           count(*) filter (where (erstellt_am at time zone 'UTC')::date <> (erstellt_am at time zone 'Europe/Berlin')::date)::int as utc_ungleich_berlin,
+           count(*) filter (where typ in ('gespraech','dokument','webrecherche') and (erstellt_am at time zone 'UTC')::date <> (erstellt_am at time zone 'Europe/Berlin')::date)::int as davon_typfrist
+      from beleg`;
+  console.log("ZEITZONE_BASISDATUM " + JSON.stringify(tz));
+
   const beispiele = await sql`
     select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n
       from aenderung group by 1, 2 order by 3 desc limit 15`;
