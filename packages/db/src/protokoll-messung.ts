@@ -133,6 +133,30 @@ async function main() {
       from beleg`;
   console.log("ZEITZONE_BASISDATUM " + JSON.stringify(tz));
 
+  // AP2.3 PR b (E59), Messung Sektorliste nach Migration 0030: Spalten
+  // id/aktiv, aktive und deaktivierte Sektoren, Akteure je Zustand, der
+  // eindeutige Index auf lower(btrim(label)) und die beiden CHECKs. Vor 0030
+  // fehlen Spalte und Index — dann steht das so da, kein Fehler.
+  const [sk] = await sql`select
+      exists (select 1 from information_schema.columns where table_name = 'sektor' and column_name = 'aktiv') as spalte_aktiv,
+      exists (select 1 from information_schema.columns where table_name = 'sektor' and column_name = 'id') as spalte_id,
+      exists (select 1 from pg_indexes where tablename = 'sektor' and indexname = 'sektor_label_lower_idx' and indexdef like '%UNIQUE%' and indexdef like '%lower(btrim(label))%') as unique_index,
+      (select array_agg(conname order by conname) from pg_constraint where conrelid = 'sektor'::regclass and contype = 'c')::text as checks`;
+  if (sk!.spalte_aktiv) {
+    const [z] = await sql`select
+        count(*)::int as sektoren,
+        count(*) filter (where aktiv)::int as aktiv,
+        count(*) filter (where not aktiv)::int as inaktiv,
+        (select count(*)::int from akteur a join sektor s on s.code = a.sektor where s.aktiv) as akteure_an_aktiven,
+        (select count(*)::int from akteur a join sektor s on s.code = a.sektor where not s.aktiv) as akteure_an_inaktiven,
+        (select count(*)::int from akteur where sektor is null) as akteure_ohne_sektor,
+        (select count(*)::int from (select lower(btrim(label)) from sektor group by 1 having count(*) > 1) d) as dubletten
+      from sektor`;
+    console.log("SEKTOR " + JSON.stringify({ ...sk, ...z }));
+  } else {
+    console.log("SEKTOR " + JSON.stringify({ ...sk, hinweis: "vor 0030" }));
+  }
+
   const beispiele = await sql`
     select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n
       from aenderung group by 1, 2 order by 3 desc limit 15`;
