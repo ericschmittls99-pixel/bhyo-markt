@@ -3,7 +3,8 @@
 # SELECT. Wird vor dem Merge geloescht.
 name: tmp Fristen-Paritaet
 on:
-  workflow_dispatch:
+  push:
+    branches: [ap23-parameter]
 jobs:
   paritaet:
     runs-on: ubuntu-24.04
