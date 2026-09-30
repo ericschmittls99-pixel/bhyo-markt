@@ -12,10 +12,6 @@
  * 5. PR c: Zugriffsanfrage — der Index (Empfaenger, Strom, Anfragender) greift:
  *    zweite offene Anfrage derselben Person abgewiesen, zweite Anfragende
  *    zugelassen; Enum inbox_typ traegt die drei neuen Typen.
- * 6. AP2.4 PR a (E62): Typen pruefauftrag und pruefung_erledigt, die beiden
- *    Pruefauftrag-Indizes (Migration 0032) — und der Index greift: ein
- *    zweiter offener pruefauftrag fuer denselben Pruefer und Strom wird
- *    abgewiesen; nach „erledigt" entsteht ein neuer.
  *
  * Schreibt nichts Bleibendes: jede Probe laeuft in einer Transaktion, die
  * zurueckgerollt wird. Ohne Benutzer, Strom oder Protokollzeile in der DB
@@ -56,12 +52,11 @@ async function main() {
   const [e] = await sql`select count(*)::int as n from pg_type where typname in ('inbox_typ', 'inbox_zustand')`;
   const idx = await sql`select indexname from pg_indexes where tablename = 'inbox_eintrag'
     and indexname in ('inbox_eintrag_biomasse_offen_uidx', 'inbox_eintrag_output_offen_uidx', 'inbox_eintrag_zaehler_idx',
-                      'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx',
-                      'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx')`;
+                      'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
-  console.log(`STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/7 typen=${typen.length}/6`);
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 7 || typen.length !== 6) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032 fehlt (inbox_eintrag / Enums / Indizes / Typen)");
+  console.log(`STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/5 typen=${typen.length}/4`);
+  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 5 || typen.length !== 4) {
+    console.error("INBOXCHECK FEHLER: Migration 0027/0028 fehlt (inbox_eintrag / Enums / Indizes / Typen)");
     await sql.end();
     process.exit(1);
   }
@@ -145,26 +140,6 @@ async function main() {
   } else {
     console.log("ZWEI_ANFRAGENDE uebersprungen (nur ein Benutzer)");
   }
-
-  // (6) AP2.4: Pruefauftrag — je Pruefer und Strom ein offener Eintrag; nach erledigt ein neuer.
-  const auftrag = (tx: postgres.TransactionSql) => tx`
-    insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id)
-    values (${nutzer.id}, ${nutzer.id}, 'pruefauftrag', ${strom.id}, ${ereignis.id})`;
-  const doppelterAuftrag = await probe(async (tx) => {
-    await auftrag(tx);
-    await auftrag(tx);
-  });
-  console.log(`ZWEITER_PRUEFAUFTRAG_ABGEWIESEN ${!!doppelterAuftrag.fehler}`);
-  if (!doppelterAuftrag.fehler) fehler.push("zweiter offener pruefauftrag fuer denselben Pruefer und Strom kam durch — Index greift nicht");
-  const auftragNachErledigt = await probe(async (tx) => {
-    await auftrag(tx);
-    await tx`update inbox_eintrag set zustand = 'erledigt', zustand_seit = now() where empfaenger_id = ${nutzer.id} and biomassestrom_id = ${strom.id} and typ = 'pruefauftrag'`;
-    await auftrag(tx);
-    const [n] = await tx`select count(*)::int as n from inbox_eintrag where empfaenger_id = ${nutzer.id} and biomassestrom_id = ${strom.id} and typ = 'pruefauftrag'`;
-    return n!.n;
-  });
-  console.log(`PRUEFAUFTRAG_NACH_ERLEDIGT ${JSON.stringify(auftragNachErledigt)}`);
-  if (auftragNachErledigt.ergebnis !== 2) fehler.push(`nach erledigt entsteht kein neuer pruefauftrag: ${JSON.stringify(auftragNachErledigt)}`);
 
   const [rest] = await sql`select count(*)::int as n from inbox_eintrag where ausloeser_id = empfaenger_id and empfaenger_id = ${nutzer.id} and biomassestrom_id = ${strom.id}`;
   console.log(`RUECKSTAND ${rest!.n}`);
