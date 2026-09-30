@@ -10,10 +10,17 @@
  *    eindeutige Index auf lower(btrim(label)), die CHECKs fuer Code und
  *    Bezeichnung.
  * 2. Keine Dubletten der Bezeichnung (Schreibweise/Randleerraum egal) — und
- *    der Index greift: ' ENERGIE ' neben 'Energie' wird abgewiesen.
- * 3. Der Code-CHECK greift: 'abnehmer' (eine Rolle, 0020), 'ohne_sektor'
- *    (der Filterwert fuer NULL) und ein Code ausserhalb snake_case werden
- *    abgewiesen; eine leere Bezeichnung ebenso.
+ *    der Index greift, beim Anlegen wie beim Umbenennen: ' ENERGIE ',
+ *    'eNeRgIe' und '  Energie' neben 'Energie' werden abgewiesen (INSERT),
+ *    ebenso das Umbenennen eines anderen Sektors auf ' energie ' (UPDATE).
+ * 3. Geschuetzte Werte per DB-CHECK: 'abnehmer' (eine Rolle, 0020) und
+ *    'ohne_sektor' (der Filterwert fuer NULL) existieren nicht als Zeile
+ *    (nichts zu deaktivieren), lassen sich nicht anlegen (INSERT) und kein
+ *    Sektor laesst sich auf sie umbenennen (UPDATE code — der CHECK gilt
+ *    fuer beide). Ein Code ausserhalb snake_case und eine leere Bezeichnung
+ *    werden ebenso abgewiesen. Gemessen und genannt, nicht erzwungen: ob
+ *    die DB eine Bezeichnung 'Abnehmer' / 'ohne Sektor' zulaesst (heute
+ *    nur die App-Regel in apps/web/lib/sektor.ts, kein CHECK auf label).
  * 4. Kein Akteur traegt einen Sektor, den es nicht gibt — der
  *    Fremdschluessel sichert das, und der Check belegt, dass er greift.
  *    Mindestens ein Sektor ist aktiv (sonst ist die Auswahl leer).
@@ -79,8 +86,50 @@ async function main() {
   console.log(`LABEL dubletten=${dub!.n} index_greift=${dublette !== null}`);
   if (dub!.n > 0) fehler.push(`${dub!.n} Bezeichnungen doppelt (Schreibweise egal)`);
   if (dublette === null) fehler.push("Eine Bezeichnung liess sich ein zweites Mal anlegen — Index greift nicht");
+  // Weitere Schreibweisen beim Anlegen — und das Umbenennen (UPDATE) eines
+  // anderen Sektors auf eine vorhandene Bezeichnung.
+  const label = String(erster!.label);
+  const varianten = [
+    label.split("").map((c, i) => (i % 2 ? c.toUpperCase() : c.toLowerCase())).join(""),
+    "  " + label,
+    label.toLowerCase() + "\t",
+  ];
+  for (const v of varianten) {
+    const grund = await probe(async (tx) => {
+      await tx`insert into sektor (code, label) values ('probe_variante', ${v})`;
+    });
+    console.log(`DUBLETTE_INSERT ${JSON.stringify(v)} abgewiesen=${grund !== null}`);
+    if (grund === null) fehler.push(`Bezeichnung ${JSON.stringify(v)} liess sich neben "${label}" anlegen`);
+  }
+  const [zweiter] = await sql`select code from sektor where code <> ${erster!.code as string} order by sortierung, label limit 1`;
+  if (zweiter) {
+    const grund = await probe(async (tx) => {
+      await tx`update sektor set label = ${" " + label.toUpperCase() + " "} where code = ${zweiter.code as string}`;
+    });
+    console.log(`DUBLETTE_UPDATE ${zweiter.code} -> ${JSON.stringify(" " + label.toUpperCase() + " ")} abgewiesen=${grund !== null}`);
+    if (grund === null) fehler.push(`Umbenennen von ${zweiter.code} auf die Bezeichnung von ${erster!.code} kam durch`);
+  }
 
-  // (3) Code- und Label-CHECK
+  // (3) Geschuetzte Werte: keine Zeile, kein INSERT, kein Umbenennen (UPDATE code) darauf
+  const GESCHUETZT = ["abnehmer", "ohne_sektor"];
+  const vorhanden = (await sql`select code from sektor where code = any(${GESCHUETZT})`).map((r) => r.code as string);
+  console.log(`GESCHUETZT_ALS_ZEILE ${JSON.stringify(vorhanden)}`);
+  if (vorhanden.length) fehler.push(`Geschuetzte Codes existieren als Sektor: ${vorhanden.join(", ")}`);
+  for (const g of GESCHUETZT) {
+    const grund = await probe(async (tx) => {
+      await tx`update sektor set code = ${g} where code = ${erster!.code as string}`;
+    });
+    console.log(`GESCHUETZT_UPDATE_CODE ${erster!.code} -> ${g} abgewiesen=${grund !== null}`);
+    if (grund === null) fehler.push(`Umbenennen des Codes auf ${g} kam durch — CHECK gilt nicht fuer UPDATE`);
+  }
+  for (const l of ["Abnehmer", "ohne Sektor"]) {
+    const grund = await probe(async (tx) => {
+      await tx`update sektor set label = ${l} where code = ${erster!.code as string}`;
+    });
+    // Nur Messung: die Bezeichnung schuetzt heute die App (lib/sektor.ts), nicht die DB.
+    console.log(`LABEL_GESCHUETZT_DB ${JSON.stringify(l)} abgewiesen=${grund !== null}`);
+  }
+  // Code- und Label-CHECK beim Anlegen
   for (const [code, label] of [
     ["abnehmer", "Abnehmer"],
     ["ohne_sektor", "Ohne Sektor"],

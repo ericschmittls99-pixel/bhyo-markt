@@ -952,6 +952,28 @@ Werteliste — Rot-Nachweis ohne 0030 im PR.
 Aufrufer; Materialarten bleiben bei Migrationen, E59). Reiter in
 einstellungen.: Nutzer · Referenzlisten · Parameter.
 
+**Neue Entscheidung, Nummer offen — geschützte Werte der Sektorliste
+(Rückfrage Eric, 30.09.2026).** `ohne_sektor` und `abnehmer` dürfen nie ein
+Sektor-Code werden (CHECK `sektor_code_check`, gilt für INSERT und UPDATE).
+Das ist eine **fachliche** Kopplung, keine technische: Kein Programmpfad
+liest den Code `abnehmer` (Suche über apps/, packages/, docs/ am
+30.09.2026: nur `lib/sektor.ts`, der `sektor-check` und dieser Log). Grund
+ist die Entscheidung zu Migration 0020 (Abschnitt „Sektor als
+Referenzdaten", Punkt 2): `abnehmer` war mit 50 Akteuren der häufigste
+Freitext-„Sektor", ist aber eine **Rolle**, die sich vollständig aus den
+Strömen ableitet (E23) — als Wert einer Auswahlliste bedeutete er etwas
+anderes als alle übrigen Einträge und wurde deshalb geleert. Der Schutz
+verhindert, dass ein Admin ihn über die Referenzliste wieder einführt.
+`ohne_sektor` ist der benannte Filterwert für NULL
+(`lib/hierarchie-baeume.ts`, OHNE_SEKTOR); ein echter Sektor mit diesem
+Code kollidierte mit dem Filter. **Reichweite heute:** der DB-CHECK schützt
+den *Code*; die *Bezeichnung* („Abnehmer", „ohne Sektor") prüft nur die App
+(`pruefeSektorLabel`, beim Anlegen über den abgeleiteten Code, beim
+Umbenennen nur „ohne Sektor"). Ob die Bezeichnung zusätzlich per CHECK
+geschützt wird, ist Teil dieser offenen Entscheidung; der `sektor-check`
+misst und nennt den DB-Stand (`LABEL_GESCHUETZT_DB`), ohne ihn zu
+erzwingen.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
