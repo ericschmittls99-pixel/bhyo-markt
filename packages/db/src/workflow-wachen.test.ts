@@ -12,7 +12,7 @@
  * `needs.ziel-wache.result` liefe der Deploy trotz roter Wache weiter, und
  * `needs` allein waere wirkungslos.
  */
-import { readFileSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 import { describe, expect, it } from "vitest";
 
@@ -146,5 +146,46 @@ describe("deploy.yml: Leseweg nach dem main-Deploy", () => {
   });
   it("fuehrt Zielnachweis, Abweichungsliste und Messung aus", () => {
     for (const s of ["lese-diagnose", "beleg-abweichung", "protokoll-messung"]) expect(job).toContain(`pnpm --filter @bhyo/db ${s}`);
+  });
+});
+
+// Haertung (30.09.2026): Environments getrennt — Leseweg nur mit der Leserolle
+// in production-lesend, Restore nur in neon-restore, RESTORE_DATABASE_URL ist
+// entfallen (restore-test.yml entfernt).
+describe("Environments: Leseweg und Restore getrennt", () => {
+  const ordner = new URL("../../../.github/workflows/", import.meta.url);
+  const lies = (name: string) =>
+    readFileSync(new URL(name, ordner), "utf8")
+      .split("\n")
+      .filter((z) => !/^\s*#/.test(z))
+      .join("\n");
+  const restore = lies("restore-woechentlich.yml");
+  const alle = readdirSync(ordner).filter((n) => n.endsWith(".yml")).map((n) => [n, lies(n)] as const);
+
+  it("restore-woechentlich laeuft nur in neon-restore und nutzt dort nur die Neon-Secrets", () => {
+    expect(restore).toContain("environment: neon-restore");
+    expect(restore).not.toContain("production-lesend");
+    expect(restore).not.toMatch(/environment: production\s*$/m);
+    for (const s of ["NEON_API_KEY", "NEON_PROJECT_ID", "NEON_PARENT_BRANCH_ID"]) expect(restore).toContain(`secrets.${s}`);
+    expect(restore).not.toContain("DATABASE_URL_PRODUCTION");
+  });
+  it("restore-test.yml existiert nicht mehr, kein Workflow nutzt das Secret RESTORE_DATABASE_URL", () => {
+    expect(alle.map(([n]) => n)).not.toContain("restore-test.yml");
+    for (const [name, inhalt] of alle) expect(inhalt, name).not.toContain("secrets.RESTORE_DATABASE_URL");
+  });
+  it("die Neon-Secrets liegen nur in neon-restore — kein anderer Workflow greift darauf zu", () => {
+    for (const [name, inhalt] of alle) {
+      if (name === "restore-woechentlich.yml") continue;
+      expect(inhalt, name).not.toMatch(/secrets\.NEON_/);
+    }
+  });
+  it("Leseweg (lese-diagnose.yml, deploy.yml) nur mit der Leserolle in production-lesend", () => {
+    for (const name of ["lese-diagnose.yml", "deploy.yml"]) {
+      const inhalt = lies(name);
+      const ab = inhalt.indexOf("environment: production-lesend");
+      expect(ab, name).toBeGreaterThan(-1);
+      expect(inhalt, name).not.toMatch(/secrets\.NEON_/);
+      expect(inhalt, name).not.toContain("secrets.RESTORE_DATABASE_URL");
+    }
   });
 });

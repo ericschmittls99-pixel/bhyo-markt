@@ -91,16 +91,18 @@ nur die Schlüssel. Ob die Lifecycle-Regel (30 Tage) am Bucket gesetzt ist,
 lässt sich aus dem Repo nicht ablesen; der Restore-Workflow listet den
 Bucket-Inhalt, daran sieht man die Aufbewahrung.
 
-**Restore-Nachweis als Workflow** (`.github/workflows/restore-test.yml`,
-manuell): holt den neuesten Dump aus R2, spielt ihn mit `scripts/restore-test.sh`
-in einen Neon-Scratch-Branch (Secret `RESTORE_DATABASE_URL` im Environment
-`production-lesend`; Production und Preview als Ziel werden abgewiesen) und
-zählt mit `packages/db/src/restore-zaehlung.ts` **jede Tabelle** aus
-`information_schema` gegen Production über die Leserolle, dazu
-Migrationsstand, PostGIS und Enum-Werte. Fehlende Tabellen oder abweichender
-Migrationsstand brechen ab; abweichende Zeilenzahlen werden ausgewiesen (der
-Dump ist von 02:00 UTC). Vorbedingung: Eric legt den Branch an und setzt das
-Secret. Ergebnis kommt hierher.
+**Restore-Nachweis als Workflow** (`.github/workflows/restore-woechentlich.yml`,
+montags 03:00 UTC und manuell, Environment `neon-restore`): legt per Neon-API
+einen Wegwerf-Branch aus Production an, holt den neuesten Dump aus R2, spielt
+ihn mit `scripts/restore-test.sh` in eine leere Datenbank dieses Branches
+(Production und Preview als Ziel werden abgewiesen) und zählt mit
+`packages/db/src/restore-zaehlung.ts` **jede Tabelle** gegen das
+Zählprotokoll desselben Dumps, dazu PostGIS; ein fehlendes Protokoll ist rot.
+Der Branch wird immer gelöscht. Der frühere `restore-test.yml` mit
+dauerhaftem Scratch-Branch (Secret `RESTORE_DATABASE_URL`) ist am 30.09.2026
+entfallen — er wies nichts nach, was dieser Lauf nicht auch nachweist
+(Vergleich der Prüfschritte im PR „Härtung Teil 2"). Environments und
+Regel „nur main": `docs/betrieb.md`.
 
 **Ergebnis 28.09.2026:** Lauf 36403513802 — Dump `bhyogenics-2026-09-28.dump`
 in eine frische Datenbank auf dem Scratch-Branch, 17 Tabellen, 0

@@ -73,3 +73,29 @@ Die Prüfungen auf den „letzten aktiven Admin" (`rolleSetzen`,
 den aktuellen Stand vor dem Schreiben — auch sie sind auf einen Cache-
 freien Lesepfad angewiesen. Das ist der zweite Grund, den Cache ganz
 abzuschalten statt einzelne Abfragen zu markieren.
+
+## GitHub-Environments: Aufteilung und Regel „nur main" (Härtung, 30.09.2026)
+
+| Environment | Secrets (nur Namen, Zielstand nach Schritt 6 der Härtung) | Nutzer |
+|---|---|---|
+| `production` | DATABASE_URL_PRODUCTION | migrate-production.yml (schreibend, nur von main; ziel-wache davor) |
+| `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy) |
+| `neon-restore` | NEON_API_KEY, NEON_PROJECT_ID, NEON_PARENT_BRANCH_ID | restore-woechentlich.yml (montags 03:00 UTC und manuell) |
+
+**Regel „nur main" auf allen dreien** (custom branch policy `main`, per
+API gesetzt 30.09.2026; Rot-Nachweis: Dispatch von einem Wegwerf-Branch
+ohne Runner abgewiesen). **Folge:** Production-Messungen laufen nur von
+main; eine neue Messung wird erst gemergt (nur lesend), dann gestartet. Ein
+Diagnose-Workflow ohne dauerhafte Wirkung wird nicht angelegt (Entscheidung
+Eric). Wer Schreibrechte am Repo hat, kommt über einen Merge nach main an
+die Secrets — das ist die bewusst verbleibende Grenze; Merges laufen über
+`scripts/merge-sicher.sh` nach Freigabe.
+
+**Neon-Key:** `NEON_API_KEY` in neon-restore ist ein Organisations-Key,
+projektbezogen auf das Projekt bhyogenics (Eric, 30.09.2026). Der frühere
+persönliche Account-Key wird nach dem grünen Nachweislauf von Eric
+widerrufen. Was der Key können muss, belegt der
+Nachweislauf von restore-woechentlich (Branch anlegen, Endpoints und Rollen
+lesen, Connection-URI, Branch löschen). `RESTORE_DATABASE_URL` ist mit
+restore-test.yml entfallen. `packages/db/src/workflow-wachen.test.ts` hält
+die Zuordnung Workflow → Environment → Secret fest.
