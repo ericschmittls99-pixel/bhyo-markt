@@ -78,7 +78,6 @@ export const FELD_EINSTUFUNG: Record<FeldTabelle, Record<string, FeldKlasse>> = 
     metadata: "fachlich",
     erstellt_am: "fachlich",
     qualitaet: "technisch",
-    abgelaufen_am: "fachlich",
     created_at: "technisch",
   },
   vergabe_zeitraum: {
