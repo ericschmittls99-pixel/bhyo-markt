@@ -70,6 +70,7 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   zurueckgesetzt: "Zurückgesetzt in Prüfung (fachliche Änderung)",
   als_abgelaufen_markiert: "Beleg als abgelaufen markiert",
   abgelaufen_aufgehoben: "Ablauf-Markierung aufgehoben",
+  reverifiziert: "Erneut verifiziert",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",

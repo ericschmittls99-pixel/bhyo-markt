@@ -166,8 +166,9 @@ describe("zustellen — Pruefauftrag (E62)", () => {
     ];
     const { tx, upserts, updates } = attrappe2([protokoll, [benutzer[1]], protokoll, benutzer]);
     const n = await zustellen(tx, { id: EREIGNIS, art: "geprueft", entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER });
-    expect(updates).toHaveLength(1);
-    expect(updates[0]!.set.zustand).toBe("erledigt");
+    // Pruefauftrag + die beiden Ablauf-Hinweise des Jobs (PR b) — alle erledigt.
+    expect(updates).toHaveLength(3);
+    for (const u of updates) expect(u.set.zustand).toBe("erledigt");
     expect(n).toBe(2);
     expect(upserts.map((u) => [u.werte.typ, u.werte.empfaengerId])).toEqual([
       ["pruefung_erledigt", BEARBEITER],
@@ -182,8 +183,28 @@ describe("zustellen — Pruefauftrag (E62)", () => {
     for (const art of ["zurueckgegeben", "verworfen"] as const) {
       const a = attrappe2([[], []]);
       await zustellen(a.tx, { id: EREIGNIS, art, entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER });
-      expect(a.updates.map((u) => u.set.zustand)).toEqual(["erledigt"]);
+      // verworfen raeumt auch die Ablauf-Hinweise ab (PR b); zurueckgegeben nur den Auftrag.
+      expect(a.updates.map((u) => u.set.zustand)).toEqual(art === "verworfen" ? ["erledigt", "erledigt", "erledigt"] : ["erledigt"]);
     }
+  });
+  it("PR b: reverifiziert raeumt die Ablauf-Hinweise bei allen ab und informiert die Beteiligten; als_abgelaufen_markiert raeumt nur ab", async () => {
+    const protokoll = [
+      { art: "angelegt", benutzerId: ERSTELLER, zeitpunkt: new Date(1) },
+      { art: "geprueft", benutzerId: AUSLOESER, zeitpunkt: new Date(2) },
+      { art: "reverifiziert", benutzerId: AUSLOESER, zeitpunkt: new Date(3) },
+    ];
+    const benutzer = [
+      { id: ERSTELLER, rolle: "bearbeiter", aktiv: true },
+      { id: AUSLOESER, rolle: "pruefer", aktiv: true },
+    ];
+    const a = attrappe2([protokoll, benutzer]);
+    const n = await zustellen(a.tx, { id: EREIGNIS, art: "reverifiziert", entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER });
+    expect(a.updates.map((u) => u.set.zustand)).toEqual(["erledigt", "erledigt"]);
+    expect(n).toBe(1);
+    expect(a.upserts.map((u) => [u.werte.typ, u.werte.empfaengerId])).toEqual([["aenderung_eintrag", ERSTELLER]]);
+    const b = attrappe2([[], []]);
+    expect(await zustellen(b.tx, { id: EREIGNIS, art: "als_abgelaufen_markiert", entitaet: "output_bedarf", entitaetId: STROM, ausloeserId: AUSLOESER })).toBe(0);
+    expect(b.updates.map((u) => u.set.zustand)).toEqual(["erledigt", "erledigt"]);
   });
   it("auftraggeberAus: Urheber des letzten in_pruefung_gegeben/zurueckgesetzt", () => {
     expect(

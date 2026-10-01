@@ -762,3 +762,28 @@ Abläufe nach `verifiziert bis`, Abgelaufene zuerst mit Wert-Pille
 „abgelaufen.". **Inbox:** „… bittet um Prüfung von …" (Prüfauftrag, Aufgabe,
 nicht in „Alle erledigt") und „… hat … geprüft" (Rückmeldung, Hinweis).
 
+
+## Ablauf-Hinweise, erneut verifizieren, neue Zustände (AP2.4 PR b, E63, 01.10.2026)
+
+**Zustands-Pille** bekommt zwei Zustände: „läuft ab am TT.MM.JJJJ." (active,
+Lime — der Vorlauf aus `verifikation.vorlauf_tage`) und „ohne beleg."
+(inactive — geprüfter Altbestand ohne Beleg; Prüfen ohne Beleg weist der
+Server ab). Der **Filter „Verifikation"** nennt jetzt acht Zustände in dieser
+Reihenfolge: ungeprüft · in Prüfung · gültig · läuft bald ab · abgelaufen ·
+als abgelaufen markiert · Prüfdatum unbekannt · ohne Beleg.
+
+**Beleg-Block:** unter der Zeile „Verifikation" die Aktionszeile
+(`ov-verif-aktionen`) mit **„Erneut verifizieren"** (Button mit
+`ph-arrows-clockwise`, nur Prüfer, nur an geprüften Strömen, nicht bei
+markiertem Beleg) neben dem Ghost-Button „Als abgelaufen markieren" /
+„Markierung aufheben". Die D3-Regeln meldet der Server als Toast („Gültig
+bis ist erreicht — …", „… erst die Markierung aufheben.").
+
+**Inbox:** Hinweise des täglichen Jobs haben keinen Urheber — statt des
+Avatars steht ein Kalender-Zeichen (`ib-system`, `ph-calendar-check`,
+Avatar-Größe s, gedämpft). Texte: „Verifikation von B-000012 Papierschlamm
+läuft am 08.10.2026 ab", „… ist seit 01.10.2026 abgelaufen", „Prüfdatum von
+… unbekannt – bitte verifizieren". Sie sind Aufgaben (nicht in „Alle
+erledigt"); offene Zeilen zeigen für Prüfer den Primär-Button **„Erneut
+verifizieren"** vor Erledigt/Verwerfen. **Parameter-Seite:** Gruppe
+„Verifikation" mit „Vorlauf Ablauf-Hinweis" in Tagen (`7 Tage`).

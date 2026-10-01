@@ -35,5 +35,8 @@ describe("Anzeige", () => {
   it("Wert mit Einheit", () => {
     expect(wertMitEinheit(3, "monate")).toBe("3 Monate");
     expect(wertMitEinheit(1, "monate")).toBe("1 Monat");
+    // PR b: Vorlauf in Tagen (verifikation.vorlauf_tage).
+    expect(wertMitEinheit(7, "tage")).toBe("7 Tage");
+    expect(wertMitEinheit(1, "tage")).toBe("1 Tag");
   });
 });

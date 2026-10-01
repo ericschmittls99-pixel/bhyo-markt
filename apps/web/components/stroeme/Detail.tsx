@@ -23,7 +23,7 @@ import {
   formatSpanne,
 } from "@/lib/format";
 import { ERLAUBTE_UEBERGAENGE, PRUEF_AUSGANG, STATUS_LABEL, STATUS_PILL, UEBERGANG_LABEL } from "@/lib/status";
-import { belegAbgelaufenAufheben, belegAbgelaufenMarkieren, statusSetzen, stromPruefen, stromVerwerfen } from "@/lib/stroeme-actions";
+import { belegAbgelaufenAufheben, belegAbgelaufenMarkieren, statusSetzen, stromPruefen, stromReverifizieren, stromVerwerfen } from "@/lib/stroeme-actions";
 import { stromEntsperren, stromSperren, stromZuweisen, zugriffAnfragen, zuweisungEntfernen } from "@/lib/sperre-actions";
 import { NOTIZ_MAX } from "@/lib/inbox/notiz";
 import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
@@ -107,6 +107,8 @@ export function Detail({
     pruefen?: boolean;
     /** E62 D3: Beleg als abgelaufen markieren / Markierung aufheben — pruefer/admin. */
     abgelaufenMarkieren?: boolean;
+    /** PR b (E63): erneut verifizieren — pruefer/admin, an geprueften Stroemen mit Beleg. */
+    reverifizieren?: boolean;
   } | null;
   /** PR c: laufende Zugriffsanfrage des Betrachtenden — dann „Angefragt am …" statt Knopf. */
   anfrage?: { am: string } | null;
@@ -171,6 +173,17 @@ export function Detail({
       const erg = await stromPruefen(s.art, s.id);
       if (erg.ok) {
         zeigeToast("Als geprüft gesetzt");
+        router.refresh();
+      } else zeigeToast(erg.fehler ?? "Speichern fehlgeschlagen.");
+    });
+  }
+
+  // PR b (E63): erneut verifizieren — neuer Prueftag, Hinweise erledigt; D3-Regeln meldet der Server.
+  function reverifizieren() {
+    startTransition(async () => {
+      const erg = await stromReverifizieren(s.art, s.id);
+      if (erg.ok) {
+        zeigeToast("Erneut verifiziert – neue Frist ab heute");
         router.refresh();
       } else zeigeToast(erg.fehler ?? "Speichern fehlgeschlagen.");
     });
@@ -753,18 +766,29 @@ export function Detail({
                       ) : null
                     }
                   />
-                  {darfBearbeiten && sperrRechte?.abgelaufenMarkieren && (
+                  {darfBearbeiten && (sperrRechte?.abgelaufenMarkieren || sperrRechte?.reverifizieren) && (
                     <Kv
                       label=""
                       wert={
-                        <button
-                          type="button"
-                          className="btn btn--ghost btn--sm"
-                          disabled={pending}
-                          onClick={() => abgelaufen(!s.beleg!.abgelaufenAm)}
-                        >
-                          {s.beleg.abgelaufenAm ? "Markierung aufheben" : "Als abgelaufen markieren"}
-                        </button>
+                        <span className="ov-verif-aktionen">
+                          {/* PR b: nur an geprueften Stroemen; die D3-Regeln (gueltig_bis erreicht, markiert) prueft der Server. */}
+                          {sperrRechte?.reverifizieren && s.status === "geprueft" && !s.beleg.abgelaufenAm && (
+                            <button type="button" className="btn btn--sm" disabled={pending} onClick={reverifizieren}>
+                              <i className="ph ph-arrows-clockwise" aria-hidden />
+                              Erneut verifizieren
+                            </button>
+                          )}
+                          {sperrRechte?.abgelaufenMarkieren && (
+                            <button
+                              type="button"
+                              className="btn btn--ghost btn--sm"
+                              disabled={pending}
+                              onClick={() => abgelaufen(!s.beleg!.abgelaufenAm)}
+                            >
+                              {s.beleg.abgelaufenAm ? "Markierung aufheben" : "Als abgelaufen markieren"}
+                            </button>
+                          )}
+                        </span>
                       }
                     />
                   )}

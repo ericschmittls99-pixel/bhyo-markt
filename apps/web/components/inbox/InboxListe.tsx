@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar } from "@/components/Avatar";
 import { inboxAblehnen, inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen } from "@/lib/inbox/actions";
 import { stromZuweisen } from "@/lib/sperre-actions";
+import { stromReverifizieren } from "@/lib/stroeme-actions";
 import type { InboxZeile } from "@/lib/inbox/server";
 
 export type Zeile = InboxZeile & { zeit: string };
@@ -18,7 +19,18 @@ const ZUSTAND_LABEL = { erledigt: "erledigt", verworfen: "verworfen" } as const;
  * Verwerfen wirken sofort; „Als ungelesen markieren" sitzt im Menü. Die
  * tragende Prüfung (nur der Empfänger) sitzt in den Aktionen.
  */
-export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "offen" | "erledigt" }) {
+const HINWEIS_TYPEN: readonly string[] = ["verifikation_laeuft_ab", "verifikation_abgelaufen"];
+
+export function InboxListe({
+  zeilen,
+  zustand,
+  darfReverifizieren = false,
+}: {
+  zeilen: Zeile[];
+  zustand: "offen" | "erledigt";
+  /** PR b: Rollenstufe strom.reverifizieren (pruefer/admin) — nur zum Einblenden, serverseitig erneut geprueft. */
+  darfReverifizieren?: boolean;
+}) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [laeuft, starte] = useTransition();
@@ -79,7 +91,14 @@ export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "off
         {zeilen.map((z) => (
           <li key={z.id} className={`ib-zeile${!z.gelesen && z.zustand === "offen" ? " ib-ungelesen" : ""}`}>
             <span className="ib-punkt" aria-label={!z.gelesen && z.zustand === "offen" ? "ungelesen" : undefined} />
-            <Avatar nutzer={z.ausloeser} groesse="s" />
+            {z.ausloeser ? (
+              <Avatar nutzer={z.ausloeser} groesse="s" />
+            ) : (
+              // PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen statt Avatar.
+              <span className="avatar avatar--s ib-system" aria-label="Täglicher Hinweis" title="Täglicher Hinweis">
+                <i className="ph ph-calendar-check" aria-hidden />
+              </span>
+            )}
             <span className="ib-textblock">
               <button type="button" className="ib-text" onClick={() => oeffnen(z)}>
                 {z.text}
@@ -97,13 +116,24 @@ export function InboxListe({ zeilen, zustand }: { zeilen: Zeile[]; zustand: "off
                 <i className="ph ph-arrow-square-out" aria-hidden />
               </button>
               {/* PR c: Zugriffsanfrage — Zuweisen (dieselbe Aktion strom.zuweisen) oder Ablehnen. */}
-              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && (
+              {/* PR b: Ablauf-Hinweis — „Erneut verifizieren" (nur Pruefer; serverseitig strom.reverifizieren). */}
+              {z.zustand === "offen" && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
+                <button
+                  type="button"
+                  className="btn btn--primary btn--sm"
+                  disabled={laeuft}
+                  onClick={() => fuehreAus(() => stromReverifizieren(z.strom.art, z.strom.id))}
+                >
+                  Erneut verifizieren
+                </button>
+              )}
+              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && z.ausloeser && (
                 <>
                   <button
                     type="button"
                     className="btn btn--primary btn--sm"
                     disabled={laeuft}
-                    onClick={() => fuehreAus(() => stromZuweisen(z.strom.art, z.strom.id, z.ausloeser.id))}
+                    onClick={() => fuehreAus(() => stromZuweisen(z.strom.art, z.strom.id, z.ausloeser!.id))}
                   >
                     Zuweisen
                   </button>

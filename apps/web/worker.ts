@@ -1,0 +1,58 @@
+/**
+ * AP2.4 PR b (E63): Eigener Worker-Einstieg um den OpenNext-Handler herum —
+ * einzig fuer den Cron (scheduled). fetch bleibt der generierte Handler.
+ * Muster: https://opennext.js.org/cloudflare/howtos/custom-worker
+ *
+ * Der Cron feuert um 03:00 und 04:00 UTC (wrangler.jsonc); weiter geht es
+ * nur um 05:00 Berlin (lib/jobs/zeit.ts). Der Job bekommt Datenbank und
+ * Zeitpunkt hereingereicht und protokolliert sich selbst in job_lauf.
+ */
+// @ts-ignore `.open-next/worker.js` entsteht beim Build (opennextjs-cloudflare build).
+import { default as handler } from "./.open-next/worker.js";
+import { createSql } from "@bhyo/db";
+import * as schema from "@bhyo/db/schema";
+import { drizzle } from "drizzle-orm/postgres-js";
+
+import { fuehreVerifikationsJobAus } from "./lib/jobs/verifikation";
+import { JOB_STUNDE_BERLIN, istBerlinStunde } from "./lib/jobs/zeit";
+
+interface Umgebung {
+  HYPERDRIVE?: { connectionString: string };
+  ENVIRONMENT?: string;
+}
+interface CronEreignis {
+  scheduledTime: number;
+  cron: string;
+}
+interface Kontext {
+  waitUntil(p: Promise<unknown>): void;
+}
+
+async function lauf(env: Umgebung, jetzt: Date): Promise<void> {
+  const cs = env.HYPERDRIVE?.connectionString;
+  if (!cs) {
+    console.error("JOB verifikation: HYPERDRIVE-Bindung fehlt");
+    return;
+  }
+  // Kurzlebige Verbindung wie withDb (lib/db.ts), hier ohne Request-Kontext.
+  const sql = createSql(cs);
+  const db = drizzle(sql, { schema });
+  try {
+    const ergebnis = await fuehreVerifikationsJobAus(db, jetzt);
+    console.log(`JOB verifikation ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(ergebnis)}`);
+  } finally {
+    await sql.end().catch(() => {});
+  }
+}
+
+export default {
+  fetch: handler.fetch,
+  async scheduled(ereignis: CronEreignis, env: Umgebung, ctx: Kontext) {
+    const jetzt = new Date(ereignis.scheduledTime);
+    if (!istBerlinStunde(jetzt, JOB_STUNDE_BERLIN)) {
+      console.log(`JOB verifikation: ${jetzt.toISOString()} ist nicht ${JOB_STUNDE_BERLIN}:00 Berlin — nichts zu tun`);
+      return;
+    }
+    ctx.waitUntil(lauf(env, jetzt));
+  },
+};

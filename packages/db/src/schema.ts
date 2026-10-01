@@ -753,6 +753,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "zurueckgesetzt",
   "als_abgelaufen_markiert",
   "abgelaufen_aufgehoben",
+  // AP2.4 PR b (E63): erneute Verifikation ohne Statuswechsel — neuer Prueftag.
+  "reverifiziert",
 ]);
 
 export const aenderung = pgTable(
@@ -805,6 +807,9 @@ export const inboxTyp = pgEnum("inbox_typ", [
   // AP2.4 PR a (E62): Pruefauftrag an die Pruefer, Rueckmeldung an den Ausloeser.
   "pruefauftrag",
   "pruefung_erledigt",
+  // AP2.4 PR b (E63): Hinweise des taeglichen Jobs, zustandsbasiert (lib/inbox/hinweise.ts).
+  "verifikation_laeuft_ab",
+  "verifikation_abgelaufen",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -823,16 +828,20 @@ export const inboxEintrag = pgTable(
     empfaengerId: uuid("empfaenger_id")
       .notNull()
       .references(() => benutzer.id),
-    ausloeserId: uuid("ausloeser_id")
-      .notNull()
-      .references(() => benutzer.id),
+    /** NULL nur bei den Hinweisen des Jobs (PR b, CHECK inbox_eintrag_urheber_check). */
+    ausloeserId: uuid("ausloeser_id").references(() => benutzer.id),
     typ: inboxTyp("typ").notNull(),
     biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
     outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
-    /** Letztes Ereignis des Buendels (Protokoll). */
-    ereignisId: uuid("ereignis_id")
-      .notNull()
-      .references(() => aenderung.id),
+    /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
+    ereignisId: uuid("ereignis_id").references(() => aenderung.id),
+    /**
+     * AP2.4 PR b (E63): Bezugsdatum eines Job-Hinweises = verifiziert_bis am
+     * Lauftag (NULL bei Pruefdatum unbekannt). Idempotenz: je Empfaenger,
+     * Typ, Strom und Bezugsdatum EIN Eintrag, dauerhaft — ein zweiter Lauf
+     * erzeugt nichts, eine neue Verifikation ergibt ein neues Bezugsdatum.
+     */
+    bezugsdatum: date("bezugsdatum"),
     anzahl: integer("anzahl").notNull().default(1),
     erstelltAm: timestamp("erstellt_am", { withTimezone: true }).notNull().defaultNow(),
     aktualisiertAm: timestamp("aktualisiert_am", { withTimezone: true }).notNull().defaultNow(),
@@ -848,6 +857,12 @@ export const inboxEintrag = pgTable(
       sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}) = 1`,
     ),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
+    // PR b: Nur die Job-Hinweise kommen ohne Urheber und Ereignis; jeder andere
+    // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
+    check(
+      "inbox_eintrag_urheber_check",
+      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
+    ),
     uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
       .on(t.empfaengerId, t.biomassestromId)
       .where(sql`${t.zustand} = 'offen' and ${t.typ} = 'aenderung_eintrag' and ${t.biomassestromId} is not null`),
@@ -873,6 +888,17 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_output_pruefauftrag_uidx")
       .on(t.empfaengerId, t.outputBedarfId)
       .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'pruefauftrag' and ${t.outputBedarfId} is not null`),
+    // AP2.4 PR b (E63): Job-Hinweise — je Empfaenger, Typ, Strom und
+    // Bezugsdatum genau ein Eintrag, ueber alle Zustaende (Idempotenz des
+    // taeglichen Laufs). In der Migration mit NULLS NOT DISTINCT, damit das
+    // leere Bezugsdatum (Pruefdatum unbekannt) nur einmal zustellt — das kann
+    // der Schema-Builder nicht ausdruecken; die SQL-Datei ist massgeblich.
+    uniqueIndex("inbox_eintrag_biomasse_hinweis_uidx")
+      .on(t.empfaengerId, t.typ, t.biomassestromId, t.bezugsdatum)
+      .where(sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and ${t.biomassestromId} is not null`),
+    uniqueIndex("inbox_eintrag_output_hinweis_uidx")
+      .on(t.empfaengerId, t.typ, t.outputBedarfId, t.bezugsdatum)
+      .where(sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and ${t.outputBedarfId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)
@@ -966,5 +992,33 @@ export const benutzer = pgTable(
     // darueber entscheiden, ob jemand hereinkommt. Die Datenbank erzwingt
     // Kleinschreibung, die Anwendung normalisiert vor dem Vergleich.
     check("benutzer_email_lower_check", sql`${t.email} = lower(${t.email})`),
+  ],
+);
+
+/**
+ * AP2.4 PR b (E63): Protokoll des taeglichen Jobs. Je Job und Stichtag
+ * (Kalendertag Berlin) genau ein Lauf — der Cron feuert um 03:00 und 04:00
+ * UTC, nur der Lauf um 05:00 Berlin laeuft weiter; UNIQUE(job, stichtag)
+ * macht den Start idempotent. Die Job-Wache (GitHub, 06:00 Berlin, nur
+ * lesend) ist rot, wenn fuer heute kein Lauf mit ergebnis = ok steht.
+ */
+export const jobLauf = pgTable(
+  "job_lauf",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    job: text("job").notNull(),
+    stichtag: date("stichtag").notNull(),
+    gestartetAm: timestamp("gestartet_am", { withTimezone: true }).notNull().defaultNow(),
+    beendetAm: timestamp("beendet_am", { withTimezone: true }),
+    /** laeuft | ok | fehler */
+    ergebnis: text("ergebnis").notNull().default("laeuft"),
+    /** Zugestellte Hinweise (ok) — null, solange der Lauf laeuft oder scheiterte. */
+    anzahl: integer("anzahl"),
+    /** Fehlertext (ergebnis = fehler). */
+    fehler: text("fehler"),
+  },
+  (t) => [
+    unique("job_lauf_job_stichtag_unique").on(t.job, t.stichtag),
+    check("job_lauf_ergebnis_check", sql`${t.ergebnis} in ('laeuft', 'ok', 'fehler')`),
   ],
 );

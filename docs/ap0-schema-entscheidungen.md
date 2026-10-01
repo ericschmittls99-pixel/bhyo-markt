@@ -1061,7 +1061,9 @@ allen, sobald jemand prüft, zurückgibt oder verwirft) und
 Rücksetzung ausgelöst hat, nicht wenn sie selbst prüft). Ein Ereignis kann
 mehrere Typen auslösen; **keine Doppel-Einträge (D6):** wer für dasselbe
 Ereignis einen pruefauftrag oder pruefung_erledigt bekommt, bekommt keinen
-aenderung_eintrag.
+aenderung_eintrag. **Empfänger des Prüfauftrags sind pruefer und admin**
+(Rangfolge E42, admin ⊇ pruefer; bestätigt Eric 01.10.2026 bei der Abnahme
+von PR a).
 
 **E64 — Reservierung veraltet.** Das Veralten der Reservierung ist ein
 Nebentag „Reservierung veraltet" in der Verfügbarkeit, abgeleitet aus
@@ -1072,6 +1074,84 @@ reserviert, der Nebentag heißt nur „bitte erneuern". Filterbar im
 Verfügbarkeits-Filter als siebte Option (E32). Verfügbarkeitsende und
 Vergabe-Enden deckt der Verfügbarkeits-Filter bereits ab (abgelaufen,
 vergeben).
+
+## 31. AP2.4 PR b: Beleg-Pflicht, täglicher Job, Ablauf-Hinweise, erneut verifizieren (E63), 01.10.2026
+
+**Beleg-Pflicht beim Prüfen (Entscheidung Eric 01.10.2026).** `strom.pruefen`
+und `strom.reverifizieren` setzen einen Beleg voraus; ohne Beleg weist der
+Server am Eingang der Transaktion ab: „Ohne Beleg kann nicht geprüft
+werden." (Test, einmal rot). Bestehende geprüfte Ströme ohne Beleg tragen
+den **benannten Zustand `ohne_beleg`** in `strom_verifikation()` (E24) —
+keine Frist, keine Ablauf-Hinweise, kein Rang in „nächste Verifikation"; der
+Weg zurück führt über einen Beleg (fachliche Änderung → Rücksetzen →
+Prüfung). „Prüfdatum unbekannt" meint seit PR b nur noch: geprüft mit Beleg,
+aber ohne erkennbares Prüfereignis (Altbestand). **Vorher gemessen** (Leseweg,
+01.10.2026): Preview 0 geprüfte Ströme ohne Beleg (86 ohne Prüfereignis),
+Production 0 (keine Ströme).
+
+**Parameter `verifikation.vorlauf_tage` = 7** (Migration 0033, Einheit Tage,
+1–90, Startwert seit Einführung, Ursprung E63). `strom_verifikation()`
+liefert `laeuft_bald_ab`, wenn verifiziert_bis − Vorlauf ≤ Stichtag ≤
+verifiziert_bis; „abgelaufen" bleibt ab dem Folgetag von verifiziert_bis
+(PR a, abgenommen) — der Ablauf-Hinweis kommt also am ersten Tag nach
+verifiziert_bis.
+
+**Erneut verifizieren (`strom.reverifizieren`, pruefer/admin, Objektregel wie
+Bearbeiten).** Nur an geprüften Strömen mit Beleg; kein Statuswechsel, das
+Ereignis `reverifiziert` ist der neue Prüftag (zählt als Beteiligung, löst
+aenderung_eintrag aus). D3-Regeln serverseitig: Beleg als abgelaufen
+markiert → erst Markierung aufheben; bei den gueltig_bis-Typen mit
+erreichtem Datum (gueltig_bis ≤ heute) → nur neues gueltig_bis nach heute,
+Belegtypwechsel (fachliche Änderung → Rücksetzen → Prüfweg) oder Markierung.
+Knopf im Beleg-Block des Details und am Hinweis in der Inbox.
+
+**Täglicher Job (Cloudflare Cron).** `wrangler.jsonc`: Cron 03:00 und 04:00
+UTC; eigener Worker-Einstieg `apps/web/worker.ts` um den OpenNext-Handler
+(`fetch` unverändert, `scheduled` neu). Weiter geht es nur um **05:00
+Berlin** (`lib/jobs/zeit.ts`, Test um beide Umstellungstage, genau ein
+Treffer je Tag). Tabelle `job_lauf` (job, stichtag Berlin, gestartet_am,
+beendet_am, ergebnis laeuft|ok|fehler, anzahl, fehler) mit UNIQUE(job,
+stichtag): der Start ist idempotent, ein zweiter Aufruf desselben Tages
+findet den Lauf vor und tut nichts. Der Job hat keinen Request-Kontext und
+keine Identität — er bekommt Datenbank und Zeitpunkt hereingereicht.
+
+**Ablauf-Hinweise, zustandsbasiert (lib/inbox/hinweise.ts).** Der Job sieht
+am Stichtag auf `strom_verifikation()`: `laeuft_bald_ab` →
+`verifikation_laeuft_ab` (Bezugsdatum = verifiziert_bis), `abgelaufen` →
+`verifikation_abgelaufen` (Bezugsdatum = verifiziert_bis),
+`pruefdatum_unbekannt` → `verifikation_abgelaufen` ohne Bezugsdatum, an alle
+Prüfer. `als_abgelaufen_markiert` (D3) und `ohne_beleg` bekommen nichts.
+Empfänger: der Prüfer des letzten geprueft/reverifiziert; ist er kein
+Prüfer/Admin mehr oder deaktiviert, alle aktiven Prüfer und Admins.
+**Idempotenz in der Datenbank:** je Empfänger, Typ, Strom und Bezugsdatum
+genau ein Eintrag, über alle Zustände (Unique-Index NULLS NOT DISTINCT; ON
+CONFLICT DO NOTHING) — ein zweiter Lauf erzeugt nichts, ausgefallene Tage
+holen sich ohne Sonderlogik nach, eine neue Verifikation ergibt ein neues
+Bezugsdatum. Der Index trägt den Empfänger (Abweichung vom Auftragstext
+„typ, strom, bezugsdatum"): sonst blockierte der Hinweis eines später
+deaktivierten Prüfers den Fallback an die übrigen. Mit dem Ablauf-Hinweis
+wird der Vorab-Hinweis desselben Bezugsdatums erledigt (nicht „läuft am X
+ab" neben „seit X abgelaufen"). Die Hinweise haben **keinen Urheber und kein
+Ereignis**: `inbox_eintrag.ausloeser_id` und `ereignis_id` sind NULL-fähig,
+der CHECK `inbox_eintrag_urheber_check` verlangt beides für jeden anderen
+Typ; die Liste zeigt statt Avatar ein Kalender-Zeichen. Hinweise sind
+Aufgaben (nicht in „Alle erledigt"), Aktionen gelesen/ungelesen/erledigt/
+verwerfen und „Erneut verifizieren" (Prüfer). Abgeräumt bei allen nach
+geprueft, reverifiziert, in_pruefung_gegeben, zurueckgesetzt, verworfen,
+als_abgelaufen_markiert (Zustellung, dieselbe Transaktion).
+
+**Job-Wache (`job-wache.yml`).** Täglich 06:00 Berlin (Cron 04:00 und 05:00
+UTC, Prüfung nur in der Berliner Stunde 6), Environment production-lesend
+(nur main), nur SELECT: rot, wenn für heute kein `job_lauf` mit ergebnis =
+ok steht; manuell mit Stichtag (Rot-Nachweis). `job_lauf` ist für bhyo_leser
+über die Standardrechte von neondb_owner lesbar (Leseweg, STANDARDRECHTE).
+
+**Nachweise im CI:** `verifikation-check` (ohne_beleg, reverifiziert als
+Prüftag, Vorlauf innen/außen/am Tag/Folgetag, Hinweis-Unique mit und ohne
+Bezugsdatum, Urheber-CHECK, job_lauf-Unique und -CHECK) und `job-probe`
+(zweiter Lauf erzeugt nichts, Nachholen am späteren Stichtag, Empfänger-
+Fallback, D3/ohne Beleg ohne Hinweis) — beide gegen die Preview, jede Probe
+zurückgerollt.
 
 ## Noch offen – nicht raten
 

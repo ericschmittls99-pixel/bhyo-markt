@@ -55,6 +55,7 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "strom.pruefen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "beleg.abgelaufen_markieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "beleg.abgelaufen_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  "strom.reverifizieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -162,7 +163,7 @@ describe("E44 Sperre: jeder fachliche Schreibpfad", () => {
 
 // AP2.4 PR a (E62): Pruefen und Ablauf-Markierung — Rollenstufe pruefer/admin,
 // Objektstufe wie das Bearbeiten (am gesperrten Strom nur Inhaber, Zugewiesene, admin).
-const PRUEF_PFADE: Aktion[] = ["strom.pruefen", "beleg.abgelaufen_markieren", "beleg.abgelaufen_aufheben"];
+const PRUEF_PFADE: Aktion[] = ["strom.pruefen", "beleg.abgelaufen_markieren", "beleg.abgelaufen_aufheben", "strom.reverifizieren"];
 const PRUEF_ERWARTUNG: Record<Rolle, Record<"frei" | "inhaber" | "zugewiesen" | "fremd", boolean>> = {
   betrachter: { frei: false, inhaber: false, zugewiesen: false, fremd: false },
   bearbeiter: { frei: false, inhaber: false, zugewiesen: false, fremd: false },

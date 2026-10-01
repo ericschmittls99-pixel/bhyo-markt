@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {}, push: () => {} }),
   useSearchParams: () => new URLSearchParams(),
 }));
+vi.mock("@/lib/stroeme-actions", () => ({ stromReverifizieren: async () => ({ ok: true }) }));
 vi.mock("@/lib/inbox/actions", () => ({
   inboxGelesen: async () => ({ ok: true }),
   inboxUngelesen: async () => ({ ok: true }),
@@ -38,6 +39,7 @@ const zeile = (extra: Partial<Zeile>): Zeile => ({
   belegNr: "B-000012",
   bezeichnung: "Papierschlamm",
   notiz: null,
+  bezugsdatum: null,
   text: "Bernd Bearbeiter hat B-000012 Papierschlamm geändert",
   zeit: "vor 5 Min.",
   ...extra,

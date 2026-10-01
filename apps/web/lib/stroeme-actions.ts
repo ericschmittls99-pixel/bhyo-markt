@@ -36,6 +36,12 @@ async function wechsleStatus(
   neu: string,
   erlaubtAus: (status: string) => boolean,
   artFuer: (status: string) => EreignisArt,
+  /**
+   * AP2.4 PR b: fachliche Vorbedingung am Eingang, in der Transaktion, VOR
+   * dem Schreiben — wirft mit der Meldung fuer die Oberflaeche (Beleg-Pflicht
+   * beim Pruefen, Entscheidung Eric 01.10.2026).
+   */
+  vorbedingung?: (zeile: { status: string; belegId: string | null }) => void,
 ): Promise<AktionErgebnis> {
   const email = zugang.email;
   if (!(neu in STATUS_LABEL)) return { ok: false, fehler: "Unbekannter Status." };
@@ -50,11 +56,12 @@ async function wechsleStatus(
         await pruefeStromSperre(tx, zugang, aktion, art, id);
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
         const [zeile] = await tx
-          .select({ status: tabelle.status })
+          .select({ status: tabelle.status, belegId: tabelle.belegId })
           .from(tabelle)
           .where(eq(tabelle.id, id))
           .limit(1);
         if (!zeile) throw new Error("Datensatz nicht gefunden.");
+        vorbedingung?.(zeile);
         if (zeile.status === neu)
           throw new Error(`Der Strom ist bereits „${STATUS_LABEL[neu]}".`);
         if (!erlaubtAus(zeile.status))
@@ -127,10 +134,14 @@ export async function stromVerwerfen(
   return wechsleStatus(wache.zugang, "strom.verwerfen", art, id, "verworfen", () => true, () => "verworfen");
 }
 
+/** Meldung der Beleg-Pflicht (PR b, Entscheidung Eric 01.10.2026) — Pruefen und erneut Verifizieren. */
+const OHNE_BELEG = "Ohne Beleg kann nicht geprüft werden.";
+
 /**
  * AP2.4 PR a (E62, D4): „geprueft" setzen — nur pruefer/admin, aus entwurf
  * (direkt) und in_pruefung. Das Ereignis geprueft ist der Pruefzeitpunkt, an
- * dem strom_verifikation() die Frist rechnet.
+ * dem strom_verifikation() die Frist rechnet. PR b: ohne Beleg abgewiesen —
+ * bestehende geprüfte Ströme ohne Beleg tragen den Zustand ohne_beleg.
  */
 export async function stromPruefen(art: StromArt, id: string): Promise<AktionErgebnis> {
   const wache = await rechtFuerAction("strom.pruefen");
@@ -143,7 +154,72 @@ export async function stromPruefen(art: StromArt, id: string): Promise<AktionErg
     "geprueft",
     (status) => PRUEF_AUSGANG.includes(status),
     () => "geprueft",
+    (zeile) => {
+      if (!zeile.belegId) throw new Error(OHNE_BELEG);
+    },
   );
+}
+
+/** Belegtypen, deren Frist gueltig_bis ist (strom_verifikation(), Migration 0032). */
+const TYPEN_MIT_GUELTIG_BIS: readonly string[] = ["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"];
+
+/**
+ * AP2.4 PR b (E63): erneut verifizieren — nur pruefer/admin, nur an einem
+ * geprüften Strom mit Beleg. Kein Statuswechsel: das Ereignis reverifiziert
+ * ist der neue Prueftag, ab dem strom_verifikation() die Typ-Frist rechnet;
+ * die Hinweise des Jobs zu diesem Strom werden in der Zustellung abgeraeumt.
+ *
+ * D3-Regeln: Ist der Beleg als abgelaufen markiert, geht es erst nach dem
+ * Aufheben. Ist bei den gueltig_bis-Typen das Datum erreicht, hilft keine
+ * Bestaetigung — nur ein neues gueltig_bis nach heute oder ein anderer
+ * Belegtyp (fachliche Aenderung → Ruecksetzen → normaler Pruefweg) oder die
+ * Markierung „abgelaufen".
+ */
+export async function stromReverifizieren(art: StromArt, id: string): Promise<AktionErgebnis> {
+  const wache = await rechtFuerAction("strom.reverifizieren");
+  if ("fehler" in wache) return wache;
+  const { zugang } = wache;
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        await pruefeStromSperre(tx, zugang, "strom.reverifizieren", art, id);
+        const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
+        const [zeile] = await tx
+          .select({ status: tabelle.status, belegId: tabelle.belegId })
+          .from(tabelle)
+          .where(eq(tabelle.id, id))
+          .limit(1);
+        if (!zeile) throw new Error("Datensatz nicht gefunden.");
+        if (!zeile.belegId) throw new Error(OHNE_BELEG);
+        if (zeile.status !== "geprueft")
+          throw new Error(`Erneut verifizieren geht nur an geprüften Strömen — dieser ist „${STATUS_LABEL[zeile.status]}".`);
+        const [b] = await tx
+          .select({ typ: beleg.typ, gueltigBis: beleg.gueltigBis, abgelaufenAm: beleg.abgelaufenAm })
+          .from(beleg)
+          .where(eq(beleg.id, zeile.belegId))
+          .limit(1);
+        if (!b) throw new Error("Der Beleg wurde nicht gefunden.");
+        if (b.abgelaufenAm) throw new Error("Der Beleg ist als abgelaufen markiert — bitte erst die Markierung aufheben.");
+        if (TYPEN_MIT_GUELTIG_BIS.includes(b.typ) && (!b.gueltigBis || b.gueltigBis <= heuteBerlin()))
+          throw new Error(
+            "Gültig bis ist erreicht — bitte ein neues Gültig-bis nach heute eintragen, den Belegtyp wechseln oder den Beleg als abgelaufen markieren.",
+          );
+        await tx.update(tabelle).set({ updatedAt: new Date() }).where(eq(tabelle.id, id));
+        await protokolliere(tx, {
+          art: "reverifiziert",
+          entitaet: art === "biomasse" ? "biomassestrom" : "output_bedarf",
+          id,
+          benutzerId: zugang.id,
+          benutzerEmail: zugang.email,
+        });
+      }),
+    );
+  } catch (e) {
+    return { ok: false, fehler: e instanceof Error ? e.message : "Speichern fehlgeschlagen." };
+  }
+  revalidatePath("/register");
+  revalidatePath("/inbox");
+  return { ok: true };
 }
 
 /**

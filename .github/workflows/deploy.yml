@@ -347,6 +347,16 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db verifikation-check
 
+      # AP2.4 PR b (E63): Probe des Verifikations-Jobs gegen die Preview —
+      # Idempotenz (zweiter Lauf erzeugt nichts), Nachholen am spaeteren
+      # Stichtag, Empfaenger-Fallback, D3/ohne Beleg ohne Hinweis. Eine
+      # zurueckgerollte Transaktion, nichts bleibt liegen.
+      - name: Job-Probe (Verifikations-Hinweise)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter web exec tsx scripts/job-probe.ts
+
       # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
       # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,
       # Seed-Insert) geht fuer alle Typen durch, mit der Stufe der Matrix.

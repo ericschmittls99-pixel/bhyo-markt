@@ -31,6 +31,7 @@
     "beleg-check": "tsx src/beleg-check.ts",
     "verifikation-check": "tsx src/verifikation-check.ts",
     "beleg-frist-check": "tsx src/beleg-frist-check.ts",
+    "job-wache": "tsx src/job-wache.ts",
     "lese-diagnose": "tsx src/lese-diagnose.ts",
     "protokoll-messung": "tsx src/protokoll-messung.ts",
     "restore-zaehlung": "tsx src/restore-zaehlung.ts",

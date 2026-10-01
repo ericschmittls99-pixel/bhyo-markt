@@ -3,7 +3,8 @@
  * im Deploy-CI gegen die echte Preview-DB. Zusicherungen:
  *
  * 1. Tabellen, Funktion parameter_wert() und beide Trigger stehen (0029);
- *    vier Startwerte mit gueltig_ab = '-infinity'; jeder Schluessel ist heute
+ *    fuenf Startwerte mit gueltig_ab = '-infinity' (vier Fristen aus 0029,
+ *    verifikation.vorlauf_tage aus 0033, AP2.4 PR b); jeder Schluessel ist heute
  *    aufloesbar.
  * 2. Nie rueckwirkend: eine Zeile mit gueltig_ab = gestern wird vom CHECK
  *    abgewiesen.
@@ -66,8 +67,12 @@ async function main() {
   const heute = await sql`select schluessel, parameter_wert(schluessel, current_date) as heute from parameter_definition order by schluessel`;
   console.log("STARTWERTE " + JSON.stringify(start.map((z) => `${z.schluessel}=${z.wert}`)));
   console.log("HEUTE " + JSON.stringify(heute.map((z) => `${z.schluessel}=${z.heute}`)));
-  if (start.length !== 4) fehler.push(`${start.length} Startwerte statt 4`);
-  if (heute.length !== 4) fehler.push("nicht jeder Schluessel ist heute aufloesbar");
+  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage"];
+  const fehlendeStart = ERWARTET.filter((k) => !start.some((z) => z.schluessel === k));
+  if (start.length !== ERWARTET.length || fehlendeStart.length) fehler.push(`${start.length} Startwerte statt ${ERWARTET.length} (fehlend: ${fehlendeStart.join(", ") || "–"})`);
+  if (heute.length !== ERWARTET.length) fehler.push("nicht jeder Schluessel ist heute aufloesbar");
+  const vorlauf = heute.find((z) => z.schluessel === "verifikation.vorlauf_tage");
+  if (!vorlauf || Number(vorlauf.heute) !== 7) fehler.push(`verifikation.vorlauf_tage heute ${vorlauf?.heute} statt 7 (Startwert E63)`);
 
   const [wer] = await sql`select id from benutzer order by email limit 1`;
   if (!wer) {

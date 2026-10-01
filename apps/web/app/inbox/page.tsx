@@ -96,7 +96,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           />
         </div>
       ) : (
-        <InboxListe zeilen={zeilen} zustand={zustand} />
+        <InboxListe zeilen={zeilen} zustand={zustand} darfReverifizieren={darfRolle(zugang, "strom.reverifizieren")} />
       )}
 
       {detail && (

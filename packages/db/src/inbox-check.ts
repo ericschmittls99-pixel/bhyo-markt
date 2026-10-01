@@ -12,6 +12,9 @@
  * 5. PR c: Zugriffsanfrage — der Index (Empfaenger, Strom, Anfragender) greift:
  *    zweite offene Anfrage derselben Person abgewiesen, zweite Anfragende
  *    zugelassen; Enum inbox_typ traegt die drei neuen Typen.
+ * 7. AP2.4 PR b (E63): Typen verifikation_laeuft_ab und verifikation_abgelaufen,
+ *    die beiden Hinweis-Indizes (NULLS NOT DISTINCT), Spalte bezugsdatum,
+ *    ausloeser_id und ereignis_id NULL-faehig, CHECK inbox_eintrag_urheber_check.
  * 6. AP2.4 PR a (E62): Typen pruefauftrag und pruefung_erledigt, die beiden
  *    Pruefauftrag-Indizes (Migration 0032) — und der Index greift: ein
  *    zweiter offener pruefauftrag fuer denselben Pruefer und Strom wird
@@ -57,11 +60,19 @@ async function main() {
   const idx = await sql`select indexname from pg_indexes where tablename = 'inbox_eintrag'
     and indexname in ('inbox_eintrag_biomasse_offen_uidx', 'inbox_eintrag_output_offen_uidx', 'inbox_eintrag_zaehler_idx',
                       'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx',
-                      'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx')`;
+                      'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx',
+                      'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
-  console.log(`STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/7 typen=${typen.length}/6`);
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 7 || typen.length !== 6) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032 fehlt (inbox_eintrag / Enums / Indizes / Typen)");
+  // PR b (0033): Hinweise ohne Urheber/Ereignis, Bezugsdatum, Urheber-CHECK.
+  const [nullbar] = await sql`select count(*)::int as n from information_schema.columns
+    where table_name = 'inbox_eintrag' and column_name in ('ausloeser_id', 'ereignis_id') and is_nullable = 'YES'`;
+  const [bz] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'bezugsdatum'`;
+  const [uc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_urheber_check'`;
+  console.log(
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/8 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n}`,
+  );
+  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 9 || typen.length !== 8 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1) {
+    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten)");
     await sql.end();
     process.exit(1);
   }

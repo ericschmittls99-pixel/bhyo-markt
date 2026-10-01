@@ -44,6 +44,22 @@ function stromSpalte(entitaet: Entitaet): StromSpalte | null {
 /** Ereignisarten, die einen Pruefauftrag ausloesen bzw. beenden (E62). */
 const AUFTRAG_ARTEN: readonly EreignisArt[] = ["in_pruefung_gegeben", "zurueckgesetzt"];
 export const AUFTRAG_ABRAEUMEN_BEI: readonly EreignisArt[] = ["geprueft", "zurueckgegeben", "verworfen"];
+/** PR b (E63): Typen der Job-Hinweise (lib/inbox/hinweise.ts). */
+export const HINWEIS_TYPEN = ["verifikation_laeuft_ab", "verifikation_abgelaufen"] as const satisfies readonly InboxTyp[];
+/**
+ * PR b: Ereignisse, nach denen ein Ablauf-Hinweis zu diesem Strom gegenstandslos
+ * ist — neuer Prueftag (geprueft, reverifiziert), Strom nicht mehr geprueft
+ * (in Pruefung gegeben, zurueckgesetzt, verworfen) oder Beleg markiert (D3:
+ * keine Erinnerungen mehr). Die Hinweise werden bei ALLEN Empfaengern erledigt.
+ */
+export const HINWEIS_ABRAEUMEN_BEI: readonly EreignisArt[] = [
+  "geprueft",
+  "reverifiziert",
+  "in_pruefung_gegeben",
+  "zurueckgesetzt",
+  "verworfen",
+  "als_abgelaufen_markiert",
+];
 
 /**
  * Wer den Pruefauftrag ausgeloest hat: Urheber des letzten Ereignisses
@@ -98,6 +114,10 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
         .where(and(inArray(benutzer.rolle, ["pruefer", "admin"]), eq(benutzer.aktiv, true)));
       return pruefer.map((p) => p.id).filter((id) => id !== e.ausloeserId);
     }
+    case "verifikation_laeuft_ab":
+    case "verifikation_abgelaufen":
+      // PR b: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
+      return [];
     case "pruefung_erledigt": {
       // E62: die Person, die den Auftrag ausgeloest hat — nie der Pruefer selbst, nie Deaktivierte.
       const auftraggeber = auftraggeberAus(await protokollZeilen(tx, e.entitaet, e.entitaetId));
@@ -120,7 +140,7 @@ export async function raeumeAb(
   tx: Schreiber,
   spalte: StromSpalte,
   stromId: string,
-  typ: "zugriffsanfrage" | "pruefauftrag",
+  typ: "zugriffsanfrage" | "pruefauftrag" | (typeof HINWEIS_TYPEN)[number],
   ausloeserId?: string,
 ): Promise<number> {
   const stromSpalteRef = spalte === "biomassestromId" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId;
@@ -156,6 +176,8 @@ export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<numb
   if (e.art === "entsperrt") await raeumeAb(tx, spalte, e.entitaetId, "zugriffsanfrage");
   // E62: Pruefen, Zurueckgeben und Verwerfen erledigen den Pruefauftrag bei allen Pruefern.
   if (AUFTRAG_ABRAEUMEN_BEI.includes(e.art)) await raeumeAb(tx, spalte, e.entitaetId, "pruefauftrag");
+  // PR b: Ablauf-Hinweise des Jobs sind nach diesen Ereignissen gegenstandslos.
+  if (HINWEIS_ABRAEUMEN_BEI.includes(e.art)) for (const typ of HINWEIS_TYPEN) await raeumeAb(tx, spalte, e.entitaetId, typ);
 
   const typen = typenFuerArt(e.art);
   if (!typen.length) return 0;

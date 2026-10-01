@@ -226,7 +226,16 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
     expect(ids([])).toEqual(["a", "x", "k", "r"]);
     // E62: feste Liste der benannten Zustaende (laeuft_bald_ab kommt mit PR b).
     const opt = facettenOptionen("biomasse", [], [], {});
-    expect(opt.verifikation!.map((o) => o.wert)).toEqual(["ungeprueft", "in_pruefung", "gueltig", "abgelaufen", "als_abgelaufen_markiert", "pruefdatum_unbekannt"]);
+    expect(opt.verifikation!.map((o) => o.wert)).toEqual([
+      "ungeprueft",
+      "in_pruefung",
+      "gueltig",
+      "laeuft_bald_ab",
+      "abgelaufen",
+      "als_abgelaufen_markiert",
+      "pruefdatum_unbekannt",
+      "ohne_beleg",
+    ]);
   });
 
   it("facettenOptionen liefert die feste 6er-Liste mit Art-Labels — plus den E64-Nebentag", () => {

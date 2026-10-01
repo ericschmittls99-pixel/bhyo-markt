@@ -1,7 +1,12 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "bhyo-markt",
-  "main": ".open-next/worker.js",
+  // AP2.4 PR b: eigener Einstieg um den OpenNext-Handler (Cron), siehe worker.ts.
+  "main": "./worker.ts",
+  // Cron 03:00 und 04:00 UTC — der Handler laeuft nur um 05:00 Berlin weiter
+  // (lib/jobs/zeit.ts), also genau einmal taeglich, auch ueber die Zeitumstellung.
+  // Inheritable: gilt ebenso fuer env.preview.
+  "triggers": { "crons": ["0 3 * * *", "0 4 * * *"] },
   "compatibility_date": "2026-08-26",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
