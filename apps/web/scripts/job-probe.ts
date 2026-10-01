@@ -10,6 +10,10 @@
  *  3. Empfaenger: der Pruefer des letzten geprueft-Ereignisses; ist er
  *     deaktiviert, alle aktiven Pruefer/Admins (Fallback).
  *  4. D3: als abgelaufen markiert → kein Hinweis; ohne Beleg → kein Hinweis.
+ *  5. AP2.5 (E66): verwaister Akteur (kein Strom) aelter als
+ *     akteur.verwaist_hinweis_monate → akteur_verwaist an alle aktiven
+ *     Admins, zweiter Lauf nichts; bekommt er einen Strom, ist der Hinweis
+ *     erledigt. Ein junger verwaister Akteur bekommt nichts.
  *
  * Laeuft mit tsx (Pfadalias @/ wird nicht gebraucht: relative Importe).
  */
@@ -110,6 +114,23 @@ async function main() {
       await tx.execute(sql`update biomassestrom set beleg_id = null where id = ${strom.id}`);
       const lauf7 = await stelleVerifikationsHinweiseZu(tx, heute);
       pruefe("4b ohne Beleg: kein Hinweis", lauf7.abgelaufen === 0 && lauf7.laeuftAb === 0, lauf7);
+
+      // 5. AP2.5 (E66): Verwaist-Hinweis an die Admins — alt → Hinweis, jung → nichts, Strom → erledigt.
+      const admins = (await tx.execute<{ id: string }>(sql`select id from benutzer where aktiv and rolle = 'admin'`)) as unknown as { id: string }[];
+      const altId = "00000000-0000-4000-8000-00000000a25a";
+      const jungId = "00000000-0000-4000-8000-00000000a25b";
+      await tx.execute(sql`insert into akteur (id, name, sektor, status, created_at) values
+        (${altId}, 'Job-Probe verwaist alt', 'ohne_sektor', 'entwurf', now() - interval '8 months'),
+        (${jungId}, 'Job-Probe verwaist jung', 'ohne_sektor', 'entwurf', now() - interval '1 month')`);
+      const lauf8 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const verwaistZeilen = (await tx.execute(sql`select empfaenger_id, akteur_id, zustand::text as zustand from inbox_eintrag where akteur_id in (${altId}, ${jungId})`)) as unknown as { empfaenger_id: string; akteur_id: string; zustand: string }[];
+      pruefe("5a verwaist 8 Monate: Hinweis an alle aktiven Admins, junger Akteur nichts", lauf8.verwaist === admins.length && verwaistZeilen.every((z) => z.akteur_id === altId) && verwaistZeilen.length === admins.length, { lauf8, admins: admins.length, zeilen: verwaistZeilen.length });
+      const lauf9 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("5b zweiter Lauf: kein weiterer Verwaist-Hinweis", lauf9.verwaist === 0 && lauf9.verwaistErledigt === 0, lauf9);
+      await tx.execute(sql`update biomassestrom set akteur_id = ${altId} where id = ${strom.id}`);
+      const lauf10 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const nach10 = (await tx.execute(sql`select count(*)::int as offen from inbox_eintrag where akteur_id = ${altId} and zustand = 'offen'`)) as unknown as { offen: number }[];
+      pruefe("5c Akteur hat wieder einen Strom: Verwaist-Hinweise erledigt", lauf10.verwaistErledigt === admins.length && Number(nach10[0]!.offen) === 0, { lauf10, offen: nach10[0]!.offen });
 
       throw new Error(ROLLBACK);
     });

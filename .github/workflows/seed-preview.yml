@@ -26,3 +26,10 @@ jobs:
         env:
           SEED_DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web seed:preview
+      # AP2.5 PR a1 (E66): Akteur-Testdaten (Sitz des Bestands, 40+ Akteure mit
+      # Dubletten-Kandidaten, Verwaisten, Unvollstaendigen, ohne Sektor) — nach
+      # dem Strom-Seed, derselbe Schutz (nur SEED_DATABASE_URL_PREVIEW).
+      - name: Seed Akteure (AP2.5)
+        env:
+          SEED_DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter web seed:akteure

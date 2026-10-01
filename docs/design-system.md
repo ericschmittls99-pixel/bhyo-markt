@@ -804,3 +804,24 @@ Text „Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren"".
 Aufgaben sind Aufgaben (nicht in „Alle erledigt"); Aktionen Öffnen, Erledigt,
 Verwerfen, als ungelesen markieren. Sie werden automatisch erledigt, sobald
 der Strom geprüft, erneut verifiziert oder verworfen ist.
+
+## akteure. — Liste, Detail, Sitz (AP2.5 PR a1, E66, 01.10.2026)
+
+**Navigation:** Bereich **akteure.** (`ph-buildings`) zwischen planer. und
+import.; der Reiter „Kontaktpersonen" steht schon im Segment, ausgegraut bis
+PR b. **Liste:** Kopfzeile mit Suche (Name, Ort, PLZ) und Zähltext, darunter
+die Facetten-Chips des Filtermodells (Sektor / Akteur, Zustand) in derselben
+Hülle wie stroeme.; Tabelle `einst-tabelle` mit Akteur, Sektor, Sitz, Kreis,
+Ströme („n · m mit Beleg") und den Zustands-Pillen `pill--muted`:
+„unvollständig", „ohne Beleg", „verwaist" — oder „vollständig". Keine Ampel.
+**Detail:** Titel mit Sektor-Pille (`pill--accent`) und Zustands-Pillen, zwei
+Spalten: **stammdaten.** (Anzeige als `kv`, „Bearbeiten" ab bearbeiter →
+Formular mit Name, Sektor-Auswahl inkl. „ohne Sektor", AdresseBlock für den
+Sitz; „Löschen (verwaist)" nur für Admins mit Inline-Bestätigung) und **sitz
+und standorte.** (Karte `ak-karte`, Sitz-Pin Waldgrün, Strom-Standorte Navy,
+Popups mit Bezeichnung; darunter die Tabelle belege und ströme. mit Link ins
+Detail). **Beleg-Formular:** Die Inline-Anlage im Akteur-Feld bekommt die
+Sitz-Felder Straße · Nr. · PLZ * · Ort * (`akteur-neu-sitz`), vorbefüllt aus
+dem Strom-Standort; der Knopf „… neu anlegen" bleibt gesperrt, bis PLZ, Ort
+und ein Pin da sind. **einstellungen. → Referenzlisten:** die Systemzeile
+„ohne Sektor" trägt die Pille „Systemzeile" statt der Aktionen.
