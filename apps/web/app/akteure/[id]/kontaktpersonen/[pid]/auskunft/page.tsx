@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur } from "@/lib/akteure";
 import { withDb } from "@/lib/db";
-import { fmtDatumZeit } from "@/lib/format";
+import { fmtDatum, fmtDatumZeit } from "@/lib/format";
 import { ladeKontaktperson, ladeKontaktpersonEreignisse } from "@/lib/kontaktpersonen";
 import { STANDARDTEXT } from "@/lib/protokoll";
 import { darfRolle } from "@/lib/rechte";
@@ -43,7 +43,7 @@ export default async function AuskunftSeite({ params }: { params: Promise<{ id: 
     ["Akteur", `${akteur.name} (${akteur.id})`],
     ["Angelegt", fmtDatumZeit(person.erstelltAm)],
     ["Zuletzt geändert", fmtDatumZeit(person.geaendertAm)],
-    ["Letzte Aktivität", person.letzteAktivitaet],
+    ["Letzte Aktivität", person.letzteAktivitaet ? fmtDatum(person.letzteAktivitaet) : null],
     ["Kennung", person.id],
   ];
   return (

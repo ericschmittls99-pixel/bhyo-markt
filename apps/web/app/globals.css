@@ -5518,3 +5518,4 @@ table.st-tabelle tbody tr:focus-visible {
 .kp-notiz-hinweis { font-size: 12px; }
 .kp-notiz { white-space: pre-wrap; max-width: 320px; }
 .kp-auskunft th { text-align: left; padding-right: 16px; }
+.kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
