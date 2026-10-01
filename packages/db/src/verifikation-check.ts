@@ -28,6 +28,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -77,7 +79,11 @@ async function main() {
   console.log(
     `STRUKTUR funktion=${fn!.n} abgelaufen_am=${sp!.n} qualitaetsstufe4=${q!.n} arten_fehlend=${JSON.stringify(fehlend)} typen_fehlend=${JSON.stringify(typenFehlend)} job_lauf=${jl!.n} hinweis_indizes=${hx!.n} vorlauf_parameter=${vl!.n}`,
   );
-  if (fn!.n !== 1 || sp!.n !== 1 || q!.n !== 1 || fehlend.length || typenFehlend.length || jl!.n !== 1 || hx!.n !== 2 || vl!.n !== 1) {
+  // Journal-Vergleich (Eric 01.10.2026): Zaehler exakt bei gleichem Journal, mindestens wenn die DB voraus ist.
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  const hinweisIdx = zaehlerPasst("hinweis_indizes", hx!.n, 2, journal.modus === "mindest" ? "mindest" : "exakt");
+  if (journal.modus === "rot" || fn!.n !== 1 || sp!.n !== 1 || q!.n !== 1 || fehlend.length || typenFehlend.length || jl!.n !== 1 || hinweisIdx || vl!.n !== 1) {
     console.error("::error::VERIFIKATION-CHECK VERLETZT (Migration 0032/0033 fehlt): Funktion / Spalte / qualitaetsstufe / Ereignisarten / Inbox-Typen / job_lauf / Hinweis-Indizes / Parameter");
     await sql.end();
     process.exit(1);

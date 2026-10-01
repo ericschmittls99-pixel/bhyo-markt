@@ -189,3 +189,20 @@ describe("Environments: Leseweg und Restore getrennt", () => {
     }
   });
 });
+
+// Regel Eric 01.10.2026: Entwuerfe (draft) bekommen keinen Preview-Deploy und keine
+// Migration — nur der naechste zu mergende PR migriert die geteilte Preview.
+describe("deploy.yml: Entwuerfe deployen nicht auf die Preview", () => {
+  it("der deploy-Job (Migration + Preview-Deploy) ist fuer Entwuerfe ausgeschlossen", () => {
+    const deployJob = workflow.slice(workflow.indexOf("\n  deploy:\n"), workflow.indexOf("\n  lese-diagnose:\n"));
+    expect(deployJob).toMatch(/github\.event\.pull_request\.draft == false/);
+  });
+  it("ready_for_review loest den Lauf aus, damit der fertige PR die Preview bekommt", () => {
+    expect(workflow).toMatch(/pull_request:\n\s+types: \[opened, synchronize, reopened, ready_for_review\]/);
+  });
+  it("Migration und Preview-Deploy liegen im deploy-Job — nirgends sonst", () => {
+    expect(workflow.indexOf("Migrate Preview-DB")).toBeGreaterThan(workflow.indexOf("\n  deploy:\n"));
+    expect(workflow.indexOf("wrangler deploy --env preview")).toBeGreaterThan(workflow.indexOf("\n  deploy:\n"));
+    expect(workflow.indexOf("Migrate Preview-DB")).toBeLessThan(workflow.indexOf("\n  lese-diagnose:\n"));
+  });
+});

@@ -29,6 +29,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -77,11 +79,22 @@ async function main() {
   const [ac] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_aufgabe_check'`;
   // AP2.5 PR a1 (0035): Objektbezug Akteur (akteur_id, ON DELETE CASCADE), Typ akteur_verwaist, Idempotenz-Index.
   const [ak] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'akteur_id'`;
+  // Journal-Vergleich (Eric 01.10.2026): exakt bei gleichem Journal, Mindestvergleich nur
+  // wenn die DB nachweislich voraus ist (geteilte Preview, gestapelte PRs); sonst rot.
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  if (journal.modus === "rot") {
+    console.error(`INBOXCHECK FEHLER: ${journal.grund}`);
+    await sql.end();
+    process.exit(1);
+  }
+  const modus = journal.modus;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/10 typen=${typen.length}/10 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n}`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/10 typen=${typen.length}/10 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} (${modus})`,
   );
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 10 || typen.length !== 10 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur)");
+  const zaehler = [zaehlerPasst("indizes", idx.length, 10, modus), zaehlerPasst("typen", typen.length, 10, modus)].filter(Boolean);
+  if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1) {
+    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur) ${zaehler.join(" · ")}`);
     await sql.end();
     process.exit(1);
   }
