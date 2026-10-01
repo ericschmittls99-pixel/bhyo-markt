@@ -39,10 +39,13 @@ export function AdresseBlock({
   initial,
   akteurId,
   fehler,
+  hinweisOhnePin = "Ohne Pin erscheint der Strom nicht auf der Karte — Adresse suchen oder Pin in der Karte oben setzen.",
 }: {
   initial?: Partial<AdresseWerte> | null;
   akteurId: string | null;
   fehler?: string;
+  /** AP2.5: Hinweis ohne Pin — Standort (Strom) oder Sitz (Akteur); derselbe Block, dieselbe Karte. */
+  hinweisOhnePin?: string;
 }) {
   const [w, setW] = useState<AdresseWerte>({
     strasse: initial?.strasse ?? "",
@@ -325,10 +328,7 @@ export function AdresseBlock({
       {(!w.lat || !w.lng) && (
         <div className="hinweis-box">
           <i className="ph ph-map-pin" aria-hidden />
-          <span>
-            Ohne Pin erscheint der Strom nicht auf der Karte — Adresse suchen
-            oder Pin in der Karte oben setzen.
-          </span>
+          <span>{hinweisOhnePin}</span>
         </div>
       )}
       <input type="hidden" name="lat" value={w.lat} />

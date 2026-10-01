@@ -134,7 +134,10 @@ export function AkteurStammdaten({
           </select>
         </span>
       </label>
-      <p className="ov-note">Sitz des Akteurs — PLZ und Ort sind Pflicht; der Pin kommt aus der Adresssuche und bestimmt den Kreis (E25).</p>
+      <p className="ov-note">
+        Sitz des Akteurs — PLZ, Ort und Pin sind Pflicht. Der Pin kommt aus der Adresssuche, von einem Standort dieses Akteurs
+        („Adresse von bestehendem Standort übernehmen") oder per Klick in die Karte; er bestimmt den Kreis (E25).
+      </p>
       <AdresseBlock
         initial={{
           strasse: akteur.sitzStrasse ?? "",
@@ -146,6 +149,7 @@ export function AkteurStammdaten({
         }}
         akteurId={akteur.id}
         fehler={fehler ?? undefined}
+        hinweisOhnePin="Ohne Pin ist der Kreis des Sitzes nicht bestimmbar — Adresse suchen, vom Standort übernehmen oder Pin in der Karte setzen."
       />
       <div className="ak-aktionen">
         <button type="submit" className="btn btn--primary btn--sm" disabled={pending}>

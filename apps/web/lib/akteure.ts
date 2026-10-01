@@ -25,6 +25,7 @@ interface Roh {
   sitz_lat: number | string | null;
   kreis_ars: string | null;
   kreis_name: string | null;
+  region_ids: unknown;
   stroeme: number | string;
   mit_beleg: number | string;
   verwaist_seit: string | null;
@@ -47,6 +48,7 @@ function zeileAus(r: Roh): AkteurZeile {
     sitzLat: num(r.sitz_lat),
     kreisArs: r.kreis_ars,
     kreisName: r.kreis_name,
+    regionIds: Array.isArray(r.region_ids) ? r.region_ids.map(String) : typeof r.region_ids === "string" ? (JSON.parse(r.region_ids) as string[]) : [],
     stroeme: Number(r.stroeme),
     mitBeleg: Number(r.mit_beleg),
     verwaistSeit: r.verwaist_seit,
@@ -72,6 +74,8 @@ const ABFRAGE = sql`
          a.sitz_strasse, a.sitz_hausnummer, a.sitz_plz, a.sitz_ort,
          ST_X(a.sitz_geom::geometry) as sitz_lng, ST_Y(a.sitz_geom::geometry) as sitz_lat,
          v.kreis_ars, v.kreis_name,
+         -- „Sitz in Region": dieselbe raeumliche Ableitung wie beim Strom-Standort (lib/stroeme.ts).
+         coalesce((select json_agg(r.id::text order by r.name) from region r where a.sitz_geom is not null and ST_Contains(r.gebiet, a.sitz_geom)), '[]'::json) as region_ids,
          coalesce(z.stroeme, 0) as stroeme, coalesce(z.mit_beleg, 0) as mit_beleg,
          case when coalesce(z.stroeme, 0) = 0
               then (coalesce(p.zeitpunkt, a.created_at) at time zone 'Europe/Berlin')::date::text end as verwaist_seit,

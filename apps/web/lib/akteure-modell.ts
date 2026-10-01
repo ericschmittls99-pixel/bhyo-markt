@@ -1,7 +1,7 @@
 /**
  * AP2.5 PR a1 (E66): das Akteur-Modell fuer akteure. — Zustaende abgeleitet,
  * nie gespeichert (E23), benannt (E24):
- *   unvollstaendig  = Sitz ohne Adresse (keine Strasse) oder ohne Pin
+ *   unvollstaendig  = Sitz ohne Adresse (keine Strasse) — E66: „Unvollständig heißt: keine Adresse"
  *   ohne_beleg      = Stroeme vorhanden, aber keiner mit Beleg
  *   verwaist        = kein Strom verweist auf den Akteur (E48)
  * Filter und Facetten gehen durch das Filtermodell (E32, Ansicht „akteure").
@@ -31,6 +31,8 @@ export interface AkteurZeile {
   sitzLat: number | null;
   kreisArs: string | null;
   kreisName: string | null;
+  /** Regionen, deren Gebiet den Sitz enthaelt (ST_Contains, wie beim Strom-Standort). */
+  regionIds: string[];
   stroeme: number;
   mitBeleg: number;
   /** JJJJ-MM-TT, seit wann der Akteur verwaist ist (Protokoll, sonst Anlage); null wenn nicht verwaist. */
@@ -40,7 +42,7 @@ export interface AkteurZeile {
 
 export function zustaendeAus(a: AkteurZeile): AkteurZustand[] {
   const z: AkteurZustand[] = [];
-  if (!a.sitzStrasse || a.sitzLng == null || a.sitzLat == null) z.push("unvollstaendig");
+  if (!a.sitzStrasse) z.push("unvollstaendig");
   if (a.stroeme > 0 && a.mitBeleg === 0) z.push("ohne_beleg");
   if (a.stroeme === 0) z.push("verwaist");
   return z;
@@ -48,20 +50,23 @@ export function zustaendeAus(a: AkteurZeile): AkteurZustand[] {
 
 export interface AkteureFilter {
   q: string;
+  /** „Sitz in Region" — die Region, die den Sitz enthaelt. */
+  region: string[];
   sektor: string[];
   akteur: string[];
   akteur_zustand: string[];
 }
 
-export const LEERER_AKTEURE_FILTER: AkteureFilter = { q: "", sektor: [], akteur: [], akteur_zustand: [] };
+export const LEERER_AKTEURE_FILTER: AkteureFilter = { q: "", region: [], sektor: [], akteur: [], akteur_zustand: [] };
 
 /** Welche Schluessel des Filtermodells diese Funktion anwendet (Waechter in filter-modell.test.ts). */
-export const ANGEWANDTE_AKTEUR_SCHLUESSEL: readonly string[] = ["akteur", "akteur_zustand"];
+export const ANGEWANDTE_AKTEUR_SCHLUESSEL: readonly string[] = ["region", "akteur", "akteur_zustand"];
 
 export function filterAkteure(pool: AkteurZeile[], f: AkteureFilter): AkteurZeile[] {
   const q = f.q.trim().toLowerCase();
   return pool.filter((a) => {
     if (q && !`${a.name} ${a.sitzOrt ?? ""} ${a.sitzPlz ?? ""}`.toLowerCase().includes(q)) return false;
+    if (f.region.length && !a.regionIds.some((r) => f.region.includes(r))) return false;
     if (f.sektor.length && !f.sektor.includes(a.sektor || OHNE_SEKTOR)) return false;
     if (f.akteur.length && !f.akteur.includes(a.id)) return false;
     if (f.akteur_zustand.length) {

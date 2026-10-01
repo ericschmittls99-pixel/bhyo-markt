@@ -1205,9 +1205,15 @@ gefüllt und `rollen` wird nirgends gelesen („Abnehmer" ist abgeleitet, E61);
 `akteur_interesse` (AP1a) hat weder Schreibpfad noch Oberfläche und ist
 leer; Seed-Akteure haben kein Anlage-Ereignis; pg_trgm fehlt (PR c).
 
-**E66 (korrigierte Fassung, Eric 01.10.2026).** Pflicht am Akteur: Name,
-Sektor (inkl. Systemzeile `ohne_sektor`, NOT NULL ab a2), Sitz mit PLZ und
-Ort, Kreis-ARS. Verwaist = kein Strom verweist auf den Akteur (E48; auch kein
+**E66 (Fassung nach Abnahme a1, Eric 01.10.2026).** Pflicht am Akteur:
+Name, Sektor (NOT NULL inkl. Systemzeile `ohne_sektor`, ab a2), Sitz mit
+PLZ, Ort und Pin (aus Adresssuche, vom Strom übernommen oder von Hand in der
+Karte gesetzt — dasselbe Bauteil wie beim Strom-Standort, der AdresseBlock)
+und der daraus bestimmte Kreis-ARS. **„Unvollständig" heißt: keine
+Adresse** (keine Straße am Sitz). Der Regionsfilter in akteure. wirkt auf
+den Sitz und heißt dort „Sitz in Region" (einzige Ausnahme von E32 „eine
+Beschriftung", weil die Facette ein anderes Objekt trifft); Karte, ströme.
+und auswertung. bleiben am Strom-Standort. Verwaist = kein Strom verweist auf den Akteur (E48; auch kein
 verworfener); Hinweis an die Admins nach `akteur.verwaist_hinweis_monate`
 (Startwert 6, seit Einführung). „Ohne Sektor" ist eine bewusste Auswahl als
 Systemzeile, nicht NULL (ersetzt E35). Keine Branche. Stammdaten bearbeiten
@@ -1271,11 +1277,18 @@ hat der Akteur wieder einen Strom, werden offene Hinweise erledigt. Gelöscht
 wird nur von Hand. Job-Probe: alt → Hinweis, jung → nichts, zweiter Lauf →
 nichts, Strom → erledigt.
 
-**akteure.** Liste mit dem Filtermodell (E32, Ansicht `akteure`: Hierarchie
-Sektor/Akteur und Facette Zustand); benannte Zustände abgeleitet (E23/E24):
-`unvollstaendig` (Sitz ohne Straße oder ohne Pin), `ohne_beleg` (Ströme,
-aber keiner mit Beleg), `verwaist`. Detail mit Stammdaten (AdresseBlock),
+**akteure.** Liste mit dem Filtermodell (E32, Ansicht `akteure`: „Sitz in
+Region" (ST_Contains auf `sitz_geom`, dieselbe Ableitung wie beim Strom),
+Hierarchie Sektor/Akteur, Facette Zustand); benannte Zustände abgeleitet
+(E23/E24): `unvollstaendig` (keine Adresse), `ohne_beleg` (Ströme, aber
+keiner mit Beleg), `verwaist`. Detail mit Stammdaten (AdresseBlock),
 Belegen/Strömen und Karte; Reiter Kontaktpersonen folgt mit PR b.
+
+**Bestand 117 → 110:** Die Bestandsaufnahme zählte 117 `Seed:`-Akteure, der
+Generator (seed-daten.ts) erzeugt 110. Die sieben übrigen stammten aus einer
+älteren Seed-Fassung; ihre Marker-Ströme werden beim Neuaufbau nicht mehr
+erzeugt, danach waren sie ohne Strom und der Strom-Seed entfernt verwaiste
+Seed-Akteure. Kein Datenverlust an Fachdaten.
 
 **Preview-Testdaten** (`scripts/seed-akteure.ts`, Workflow Seed Preview,
 zweiter Schritt): Sitz des Bestands aus dem Standort des ältesten Stroms

@@ -262,7 +262,9 @@ export function AkteurCombobox({
                   </span>
                 </span>
                 <span className="c akteur-neu-hinweis">
-                  {sitz.lat && sitz.lng ? "Sitz-Pin aus dem Standort übernommen; in akteure. änderbar." : "Erst den Standort mit Pin setzen — der Sitz übernimmt ihn (Kreis-ARS)."}
+                  {sitz.lat && sitz.lng
+                    ? "Sitz-Pin aus dem Standort übernommen; in akteure. änderbar (Adresssuche, Standort oder Klick in die Karte)."
+                    : "Erst den Standort oben setzen (Adresssuche oder Klick in die Karte) — der Sitz übernimmt den Pin (Kreis-ARS)."}
                 </span>
                 {anlageFehler && <span className="pf-fehler">{anlageFehler}</span>}
                 <button

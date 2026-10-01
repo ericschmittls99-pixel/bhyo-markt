@@ -5,6 +5,7 @@ import { AKTEUR_ZUSTAENDE, AKTEUR_ZUSTAND_LABEL, filterAkteure, sortiereAkteure,
 import { withDb } from "@/lib/db";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { aktuellerZugang } from "@/lib/rechte/wache";
+import { ladeRegionOptionen } from "@/lib/stroeme";
 
 export const dynamic = "force-dynamic";
 
@@ -29,13 +30,14 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
       </main>
     );
   }
-  const filter: AkteureFilter = { q: erster(sp.q), sektor: liste(sp.sektor), akteur: liste(sp.akteur), akteur_zustand: liste(sp.akteur_zustand) };
-  const pool = await withDb((db) => ladeAkteure(db));
+  const filter: AkteureFilter = { q: erster(sp.q), region: liste(sp.region), sektor: liste(sp.sektor), akteur: liste(sp.akteur), akteur_zustand: liste(sp.akteur_zustand) };
+  const [pool, regionen] = await Promise.all([withDb((db) => ladeAkteure(db)), ladeRegionOptionen()]);
   const gefiltert = sortiereAkteure(filterAkteure(pool, filter));
   // Optionen aus dem UNGEFILTERTEN Bestand (wie in stroeme.) — der Chip zeigt, was es gibt.
   const sektoren = new Map<string, string>();
   for (const a of pool) sektoren.set(a.sektor, a.sektorLabel);
   const optionen = {
+    region: regionen.map((r) => ({ wert: r.id, label: r.name })),
     akteur: [...sektoren.entries()].map(([wert, label]) => ({ wert, label })).sort((a, b) => a.label.localeCompare(b.label, "de")),
     akteur_zustand: AKTEUR_ZUSTAENDE.map((z) => ({ wert: z, label: AKTEUR_ZUSTAND_LABEL[z] })),
   };

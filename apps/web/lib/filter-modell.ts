@@ -84,6 +84,13 @@ export interface FilterDef {
    */
   hinweis?: string;
   hinweisJeAnsicht?: Partial<Record<Ansicht, string>>;
+  /**
+   * AP2.5 (Entscheidung Eric 01.10.2026): In akteure. filtert die Region den
+   * SITZ des Akteurs und heisst dort „Sitz in Region" — die einzige
+   * Ansicht, in der dieselbe Facette ein anderes Objekt trifft. Sonst gilt
+   * E32: eine Beschriftung fuer alle Ansichten.
+   */
+  labelJeAnsicht?: Partial<Record<Ansicht, string>>;
   /** Für welche Stromarten er gilt. */
   arten: readonly FilterArt[];
   /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
@@ -135,7 +142,11 @@ export const FILTER: readonly FilterDef[] = [
     label: "Region",
     typ: "facette",
     params: ["region"],
-    ansichten: ALLE_ANSICHTEN,
+    // Stroeme: raeumlich aus dem Strom-Standort (ST_Contains). AP2.5: in akteure.
+    // aus dem Sitz des Akteurs — Karte, stroeme. und auswertung. bleiben am Standort.
+    ansichten: [...ALLE_ANSICHTEN, "akteure"],
+    labelJeAnsicht: { akteure: "Sitz in Region" },
+    hinweisJeAnsicht: { akteure: "Region, in der der Sitz des Akteurs liegt — die Ströme behalten ihren Standort" },
     arten: BEIDE,
     gruppe: "haupt",
   },
@@ -428,8 +439,8 @@ export function gilt(f: FilterDef, ansicht: Ansicht, sicht: Sicht): boolean {
 
 /** Beschriftung eines Filters in einer Ansicht (E41: je Ansicht abweichend moeglich). */
 export function filterLabel(def: FilterDef, ansicht: Ansicht): string {
-  void ansicht; // eine Beschriftung fuer alle Ansichten (E32); die Signatur bleibt fuer die Aufrufer
-  return def.label;
+  // Eine Beschriftung fuer alle Ansichten (E32) — Ausnahme nur, wo der Filter ein anderes Objekt trifft (akteure., Sitz).
+  return def.labelJeAnsicht?.[ansicht] ?? def.label;
 }
 
 /** Hinweis zum Filter in dieser Ansicht (Tooltip und Popover-Zeile), z. B. die Bezugszeit. */
