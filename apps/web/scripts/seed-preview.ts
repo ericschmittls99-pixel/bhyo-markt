@@ -100,8 +100,9 @@ async function main() {
       // den Generator-Stand aktualisiert statt am Primaerschluessel zu platzen.
       // `rollen` bleibt unangetastet (E23: ableitbar, wird weder gelesen
       // noch geschrieben) — der Spalten-Default '{}' greift beim Einfuegen.
+      // AP2.5 (E66): „ohne Sektor" ist die Systemzeile ohne_sektor, nicht NULL (NOT NULL ab a2).
       await tx`INSERT INTO akteur (id, name, sektor, status)
-        VALUES (${a.id}, ${a.name}, ${a.sektor}, 'geprueft')
+        VALUES (${a.id}, ${a.name}, ${a.sektor ?? "ohne_sektor"}, 'geprueft')
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
           sektor = EXCLUDED.sektor`;
     }
