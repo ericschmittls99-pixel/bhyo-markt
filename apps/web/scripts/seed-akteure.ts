@@ -217,7 +217,7 @@ async function main() {
       const id = uuid("akteur:" + a.key);
       const o = ORTE[a.ortIdx]!;
       const [strasse, hausnummer] = a.strasse ? [a.strasse.replace(/\s+\d+\w*$/, ""), a.strasse.match(/\s(\d+\w*)$/)?.[1] ?? null] : [null, null];
-      const erstellt = a.alterMonate ? sql`now() - make_interval(months => ${a.alterMonate})` : sql`now()`;
+      const erstellt = a.alterMonate ? sql`now() - make_interval(months => ${a.alterMonate}::int)` : sql`now()`;
       await tx`insert into akteur (id, name, sektor, status, sitz_strasse, sitz_hausnummer, sitz_plz, sitz_ort, sitz_geom, created_at)
         values (${id}, ${PRAEFIX + a.name}, ${a.sektor}, 'geprueft', ${strasse}, ${hausnummer}, ${o.plz}, ${o.ort},
                 ${a.ohnePin ? null : sql`ST_SetSRID(ST_MakePoint(${o.lng + 0.003}, ${o.lat - 0.002}), 4326)`}, ${erstellt})
@@ -231,7 +231,7 @@ async function main() {
           const mitGueltigBis = ["betriebsdaten", "vertrag", "absichtserklaerung", "angebot"].includes(typ);
           const [b] = await tx`insert into beleg (typ, extern_nachvollziehbar, link_url, gueltig_bis, metadata, erstellt_am)
             values (${typ}::beleg_typ, false, ${typ === "webrecherche" ? `https://example.org/seed-a25/${a.key}` : null},
-                    ${mitGueltigBis ? sql`(current_date + ${30 + i * 90})` : null},
+                    ${mitGueltigBis ? sql`(current_date + ${30 + i * 90}::int)` : null},
                     ${tx.json({ seed: BELEG_MARKER, quellenangabe: `Seed-A25 ${typ} ${a.key}` })}, now())
             returning id`;
           belegId = b!.id as string;
