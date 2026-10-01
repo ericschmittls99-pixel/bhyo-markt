@@ -51,7 +51,9 @@ export function AkteurCombobox({
   const [sitz, setSitz] = useState({ strasse: "", hausnummer: "", plz: "", ort: "", lat: "", lng: "" });
   // Solange der Nutzer die Sitz-Felder nicht angefasst hat, folgt der Sitz dem Standort
   // (die Rueckwaertssuche fuellt PLZ/Ort erst nach dem Pin, asynchron).
-  const [sitzBearbeitet, setSitzBearbeitet] = useState(false);
+  // Als Ref, nicht als State: Der Vorbefuell-Aufruf laeuft beim Rendern und darf nie
+  // mit einem veralteten Wert die erste Eingabe ueberschreiben.
+  const sitzBearbeitet = useRef(false);
   const [anlageFehler, setAnlageFehler] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
@@ -117,7 +119,7 @@ export function AkteurCombobox({
 
   /** Sitz aus dem Strom-Standort des Formulars uebernehmen (Felder strasse/hausnummer/plz/ort/lat/lng), bis der Nutzer selbst tippt. */
   function sitzVorbefuellen() {
-    if (sitzBearbeitet) return;
+    if (sitzBearbeitet.current) return;
     const form = box.current?.closest("form");
     const lies = (n: string) => {
       const el = form?.elements.namedItem(n) as HTMLInputElement | RadioNodeList | null;
@@ -127,8 +129,9 @@ export function AkteurCombobox({
     setSitz((alt) => (JSON.stringify(alt) === JSON.stringify(neu) ? alt : neu));
   }
   const sitzFeld = (k: keyof typeof sitz) => (e: { target: { value: string } }) => {
-    setSitzBearbeitet(true);
-    setSitz((alt) => ({ ...alt, [k]: e.target.value }));
+    sitzBearbeitet.current = true;
+    const wert = e.target.value;
+    setSitz((alt) => ({ ...alt, [k]: wert }));
   };
   async function neuAnlegen() {
     const nm = query.trim();
