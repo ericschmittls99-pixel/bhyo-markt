@@ -31,6 +31,8 @@ export interface ZustellEreignis {
   betrifftId?: string | null;
   /** Rohtext des Ereignisses (Notiz der Zugriffsanfrage). */
   text?: string | null;
+  /** PR c: Aufgabentext bei weitergegeben (inbox_eintrag.aufgabe). */
+  aufgabe?: string | null;
 }
 
 type StromSpalte = "biomassestromId" | "outputBedarfId";
@@ -52,6 +54,11 @@ export const HINWEIS_TYPEN = ["verifikation_laeuft_ab", "verifikation_abgelaufen
  * (in Pruefung gegeben, zurueckgesetzt, verworfen) oder Beleg markiert (D3:
  * keine Erinnerungen mehr). Die Hinweise werden bei ALLEN Empfaengern erledigt.
  */
+/**
+ * PR c (D5): Eine Aufgabe ist erledigt, sobald der Strom geprueft (oder erneut
+ * verifiziert) ist — oder verworfen; sonst erledigt sie der Empfaenger selbst.
+ */
+export const AUFGABE_ABRAEUMEN_BEI: readonly EreignisArt[] = ["geprueft", "reverifiziert", "verworfen"];
 export const HINWEIS_ABRAEUMEN_BEI: readonly EreignisArt[] = [
   "geprueft",
   "reverifiziert",
@@ -104,7 +111,8 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
     }
     case "freischaltung":
     case "zugriff_abgelehnt":
-      // Die betroffene Person — nie der Ausloeser selbst.
+    case "aufgabe":
+      // Die betroffene Person — nie der Ausloeser selbst (Weitergeben an sich selbst weist die Action ab).
       return e.betrifftId && e.betrifftId !== e.ausloeserId ? [e.betrifftId] : [];
     case "pruefauftrag": {
       // E62: alle aktiven Pruefer und Admins (admin ⊇ pruefer), ausser dem Ausloeser.
@@ -140,7 +148,7 @@ export async function raeumeAb(
   tx: Schreiber,
   spalte: StromSpalte,
   stromId: string,
-  typ: "zugriffsanfrage" | "pruefauftrag" | (typeof HINWEIS_TYPEN)[number],
+  typ: "zugriffsanfrage" | "pruefauftrag" | "aufgabe" | (typeof HINWEIS_TYPEN)[number],
   ausloeserId?: string,
 ): Promise<number> {
   const stromSpalteRef = spalte === "biomassestromId" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId;
@@ -178,6 +186,8 @@ export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<numb
   if (AUFTRAG_ABRAEUMEN_BEI.includes(e.art)) await raeumeAb(tx, spalte, e.entitaetId, "pruefauftrag");
   // PR b: Ablauf-Hinweise des Jobs sind nach diesen Ereignissen gegenstandslos.
   if (HINWEIS_ABRAEUMEN_BEI.includes(e.art)) for (const typ of HINWEIS_TYPEN) await raeumeAb(tx, spalte, e.entitaetId, typ);
+  // PR c: Aufgaben zu diesem Strom sind mit der Pruefung erfuellt (oder mit dem Verwerfen gegenstandslos).
+  if (AUFGABE_ABRAEUMEN_BEI.includes(e.art)) await raeumeAb(tx, spalte, e.entitaetId, "aufgabe");
 
   const typen = typenFuerArt(e.art);
   if (!typen.length) return 0;
@@ -203,6 +213,8 @@ export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<numb
         zustand: "offen" as const,
         zustandSeit: jetzt,
         notiz: typ === "zugriffsanfrage" ? (e.text ?? null) : null,
+        // PR c: Aufgabentext nur beim Typ aufgabe (CHECK inbox_eintrag_aufgabe_check).
+        aufgabe: typ === "aufgabe" ? (e.aufgabe ?? null) : null,
       };
       const einfuegen = tx.insert(inboxEintrag).values(werte);
       const konflikt = buendelung(typ, zielSpalte);

@@ -9,6 +9,7 @@ import { ladeDetailDaten } from "@/lib/detail-daten";
 import { fmtRelativ } from "@/lib/format";
 import { ladeEintraege } from "@/lib/inbox/server";
 import { darfRolle } from "@/lib/rechte";
+import { ladeZuweisbare } from "@/lib/rechte/sperre-server";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import type { StromArt } from "@/lib/stroeme-modell";
 
@@ -43,6 +44,8 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
 
   const zustand = ersterWert(sp.zustand) === "erledigt" ? ("erledigt" as const) : ("offen" as const);
   const eintraege = await withDb((db) => ladeEintraege(db, zugang.id, zustand));
+  // PR c: moegliche Empfaenger einer Weitergabe — aktiv, Rolle >= bearbeiter (dieselbe Liste wie beim Zuweisen).
+  const empfaenger = darfRolle(zugang, "inbox.weitergeben") ? await withDb((db) => ladeZuweisbare(db)) : [];
   const jetzt = new Date();
   const zeilen = eintraege.map((e) => ({ ...e, zeit: fmtRelativ(e.aktualisiertAm, jetzt) }));
 
@@ -96,7 +99,14 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           />
         </div>
       ) : (
-        <InboxListe zeilen={zeilen} zustand={zustand} darfReverifizieren={darfRolle(zugang, "strom.reverifizieren")} />
+        <InboxListe
+          zeilen={zeilen}
+          zustand={zustand}
+          darfReverifizieren={darfRolle(zugang, "strom.reverifizieren")}
+          darfWeitergeben={darfRolle(zugang, "inbox.weitergeben")}
+          empfaenger={empfaenger}
+          ichId={zugang.id}
+        />
       )}
 
       {detail && (

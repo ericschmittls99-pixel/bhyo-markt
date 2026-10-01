@@ -1,16 +1,13 @@
 name: Leseweg Production (nur lesen)
 
-# Entscheidung Eric (24.09.2026), Variante b: Zielnachweis und
-# Abweichungslisten muessen VOR einem Merge laufen, also von einem Branch,
-# der nicht `main` ist. Das Environment `production` laesst das nicht zu —
-# seine Branch-Policy erlaubt nur `main`, auch fuer rein lesende Jobs
-# (belegt: Lauf 35994847637, Runner null, 0 Schritte, kein Log).
-#
-# Statt den schreibenden Zugang aufzuweichen, gibt es eine zweite
-# Zugangsberechtigung, die nichts als SELECT kann. Ihr Environment
-# `production-lesend` hat bewusst KEINE Branch-Beschraenkung. Der Vorbehalt
-# gegen ungeprueften Branch-Code faellt damit weg: Dieser Code kann nichts
-# veraendern — und genau das prueft der Lauf selbst, statt es zu behaupten.
+# Leseweg nach Production (Entscheidung Eric 24.09.2026, Haertung 30.09.2026,
+# siehe docs/betrieb.md): Eine zweite Zugangsberechtigung, die nichts als
+# SELECT kann (Rolle bhyo_leser), im Environment `production-lesend`. Seit der
+# Haertung vom 30.09.2026 erlaubt auch dieses Environment nur `main` (custom
+# branch policy; Rot-Nachweis: Dispatch von einem Wegwerf-Branch ohne Runner
+# abgewiesen, Lauf 36825384694). Folge: Eine neue Messung wird erst gemergt
+# (nur lesend, z. B. protokoll-messung), dann von main gestartet. Der Lauf
+# belegt selbst, dass er nichts veraendern kann (Schreibversuch muss scheitern).
 #
 # Schreibender Zugriff auf Production bleibt ausschliesslich ueber `main`:
 # Environment `production` plus die ziel-wache in migrate-production.yml.
@@ -20,7 +17,7 @@ on:
 jobs:
   lesen:
     runs-on: ubuntu-24.04
-    # KEINE Branch-Wache hier — dieser Workflow SOLL von jedem Branch laufen.
+    # Keine Branch-Wache im Workflow: die Branch-Policy des Environments (nur main) wacht.
     environment: production-lesend
     permissions:
       contents: read

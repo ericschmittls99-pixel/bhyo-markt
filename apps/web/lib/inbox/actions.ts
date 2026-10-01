@@ -1,15 +1,16 @@
 "use server";
 
-import { inboxEintrag } from "@bhyo/db/schema";
+import { benutzer, inboxEintrag } from "@bhyo/db/schema";
 import { and, eq, inArray } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { withDb } from "@/lib/db";
 import { protokolliere } from "@/lib/protokoll";
-import type { Zugang } from "@/lib/rechte";
+import { darfZugewiesenWerden, type Zugang } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { AktionErgebnis } from "@/lib/stroeme-actions";
 
+import { pruefeAufgabe } from "./aufgabe";
 import { INBOX_TYPEN, type InboxTyp } from "./register";
 import { pruefeInboxEmpfaenger } from "./server";
 
@@ -160,6 +161,60 @@ export async function inboxAblehnen(id: string): Promise<AktionErgebnis> {
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
           betrifftId: e.ausloeserId,
+        });
+      }),
+    );
+  } catch (e) {
+    return fehler(e);
+  }
+  aktualisiere();
+  return { ok: true };
+}
+
+/** PR c (D5): Eintraege, die sich als Aufgabe weitergeben lassen. */
+const WEITERGEBBAR: readonly InboxTyp[] = ["pruefauftrag", "verifikation_laeuft_ab", "verifikation_abgelaufen"];
+
+/**
+ * AP2.4 PR c (E63, D5): Weitergeben — der Empfaenger eines Pruefauftrags oder
+ * Ablauf-Hinweises gibt ihn als Aufgabe an eine Person weiter (aktiv, Rolle
+ * >= bearbeiter, nie an sich selbst). Der eigene Eintrag ist damit erledigt;
+ * das Ereignis weitergegeben (Protokoll, Objektbezug Strom, betroffene
+ * Person, Aufgabentext) stellt die Aufgabe in derselben Transaktion zu.
+ */
+export async function inboxWeitergeben(id: string, empfaengerId: string, aufgabeEingabe: string): Promise<AktionErgebnis> {
+  const wache = await rechtFuerAction("inbox.weitergeben");
+  if ("fehler" in wache) return wache;
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const e = await pruefeInboxEmpfaenger(tx, wache.zugang, "inbox.weitergeben", id);
+        if (!WEITERGEBBAR.includes(e.typ)) throw new Error("Dieser Eintrag lässt sich nicht weitergeben.");
+        if (e.zustand !== "offen") throw new Error("Der Eintrag ist nicht mehr offen.");
+        // Dieselbe Regel wie der DB-CHECK (nicht leer, max. 500) — hier mit Meldung, dort als letzte Grenze.
+        const text = pruefeAufgabe(aufgabeEingabe);
+        if (!text.ok) throw new Error(text.fehler);
+        const aufgabe = text.text;
+        if (empfaengerId === wache.zugang.id) throw new Error("Weitergeben an dich selbst ist nicht möglich.");
+        const [ziel] = await tx
+          .select({ id: benutzer.id, name: benutzer.name, email: benutzer.email, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
+          .from(benutzer)
+          .where(eq(benutzer.id, empfaengerId))
+          .limit(1);
+        if (!darfZugewiesenWerden(ziel)) throw new Error("Diese Person kann keine Aufgabe übernehmen (nicht aktiv oder nur Betrachter).");
+        const jetzt = new Date();
+        await tx
+          .update(inboxEintrag)
+          .set({ zustand: "erledigt", zustandSeit: jetzt, gelesenAm: e.gelesen ? undefined : jetzt })
+          .where(and(eq(inboxEintrag.id, e.id), eq(inboxEintrag.zustand, "offen")));
+        await protokolliere(tx, {
+          art: "weitergegeben",
+          entitaet: e.strom.art === "biomasse" ? "biomassestrom" : "output_bedarf",
+          id: e.strom.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          betrifftId: ziel!.id,
+          text: `Weitergegeben an ${ziel!.name ?? ziel!.email}: ${aufgabe}`,
+          aufgabe,
         });
       }),
     );

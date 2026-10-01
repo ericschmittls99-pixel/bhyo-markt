@@ -19,6 +19,7 @@ vi.mock("@/lib/inbox/actions", () => ({
   inboxUngelesen: async () => ({ ok: true }),
   inboxErledigen: async () => ({ ok: true }),
   inboxVerwerfen: async () => ({ ok: true }),
+  inboxWeitergeben: async () => ({ ok: true }),
   inboxAlleErledigen: async () => ({ ok: true, anzahl: 0 }),
 }));
 
@@ -40,6 +41,7 @@ const zeile = (extra: Partial<Zeile>): Zeile => ({
   bezeichnung: "Papierschlamm",
   notiz: null,
   bezugsdatum: null,
+  aufgabe: null,
   text: "Bernd Bearbeiter hat B-000012 Papierschlamm geändert",
   zeit: "vor 5 Min.",
   ...extra,

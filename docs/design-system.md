@@ -787,3 +787,20 @@ läuft am 08.10.2026 ab", „… ist seit 01.10.2026 abgelaufen", „Prüfdatum 
 erledigt"); offene Zeilen zeigen für Prüfer den Primär-Button **„Erneut
 verifizieren"** vor Erledigt/Verwerfen. **Parameter-Seite:** Gruppe
 „Verifikation" mit „Vorlauf Ablauf-Hinweis" in Tagen (`7 Tage`).
+
+## Weitergeben und Aufgabe in der Inbox (AP2.4 PR c, E63 D5, 01.10.2026)
+
+**Weitergeben:** Offene Prüfaufträge und Ablauf-Hinweise tragen für Rollen ab
+bearbeiter den Ghost-Button **„Weitergeben"** (`ph-arrow-bend-up-right`)
+vor den übrigen Aktionen. Er öffnet ein Popover im Aufbau der
+Zugriffsanfrage (`pop ov-anfrage ib-weiter`): Auswahl „An" (aktive Nutzer ab
+bearbeiter, die eigene Person fehlt), Feld „Aufgabe" vorbefüllt mit „Bitte
+aktualisieren", frei änderbar, Zähler `n/500`, „Abbrechen" und Primär-Button
+„Weitergeben" (gesperrt bei leerem oder zu langem Text). Der eigene Eintrag
+wandert nach „Erledigt".
+
+**Aufgabe (Typ `aufgabe`):** Zeile mit Avatar der weitergebenden Person und
+Text „Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren"".
+Aufgaben sind Aufgaben (nicht in „Alle erledigt"); Aktionen Öffnen, Erledigt,
+Verwerfen, als ungelesen markieren. Sie werden automatisch erledigt, sobald
+der Strom geprüft, erneut verifiziert oder verworfen ist.

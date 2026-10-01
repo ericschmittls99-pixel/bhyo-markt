@@ -4,7 +4,8 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Avatar } from "@/components/Avatar";
-import { inboxAblehnen, inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen } from "@/lib/inbox/actions";
+import { inboxAblehnen, inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen, inboxWeitergeben } from "@/lib/inbox/actions";
+import { AUFGABE_MAX, AUFGABE_VORGABE } from "@/lib/inbox/aufgabe";
 import { stromZuweisen } from "@/lib/sperre-actions";
 import { stromReverifizieren } from "@/lib/stroeme-actions";
 import type { InboxZeile } from "@/lib/inbox/server";
@@ -20,31 +21,66 @@ const ZUSTAND_LABEL = { erledigt: "erledigt", verworfen: "verworfen" } as const;
  * tragende Prüfung (nur der Empfänger) sitzt in den Aktionen.
  */
 const HINWEIS_TYPEN: readonly string[] = ["verifikation_laeuft_ab", "verifikation_abgelaufen"];
+/** PR c (D5): Eintraege, die sich als Aufgabe weitergeben lassen — dieselbe Liste wie in lib/inbox/actions.ts. */
+const WEITERGEBBAR: readonly string[] = ["pruefauftrag", "verifikation_laeuft_ab", "verifikation_abgelaufen"];
+
+export interface WeitergabeEmpfaenger {
+  id: string;
+  name: string | null;
+  email: string;
+}
 
 export function InboxListe({
   zeilen,
   zustand,
   darfReverifizieren = false,
+  darfWeitergeben = false,
+  empfaenger = [],
+  ichId,
 }: {
   zeilen: Zeile[];
   zustand: "offen" | "erledigt";
   /** PR b: Rollenstufe strom.reverifizieren (pruefer/admin) — nur zum Einblenden, serverseitig erneut geprueft. */
   darfReverifizieren?: boolean;
+  /** PR c: Rollenstufe inbox.weitergeben (ab bearbeiter) — nur zum Einblenden. */
+  darfWeitergeben?: boolean;
+  /** PR c: aktive Nutzer mit Rolle >= bearbeiter; die eigene Person wird ausgeblendet (Server weist sie ohnehin ab). */
+  empfaenger?: WeitergabeEmpfaenger[];
+  ichId?: string;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [laeuft, starte] = useTransition();
   const [fehler, setFehler] = useState<string | null>(null);
   const [menue, setMenue] = useState<string | null>(null);
+  // PR c: Weitergeben-Popover je Zeile — Empfaenger und Aufgabentext (vorbefuellt, frei aenderbar).
+  const [weiterOffen, setWeiterOffen] = useState<string | null>(null);
+  const [weiterAn, setWeiterAn] = useState("");
+  const [weiterText, setWeiterText] = useState(AUFGABE_VORGABE);
   const listeRef = useRef<HTMLUListElement>(null);
+  const moeglicheEmpfaenger = empfaenger.filter((e) => e.id !== ichId);
+  const weiterTextOk = weiterText.trim().length > 0 && weiterText.trim().length <= AUFGABE_MAX;
+
+  function weiterOeffnen(id: string) {
+    setMenue(null);
+    setWeiterAn(moeglicheEmpfaenger[0]?.id ?? "");
+    setWeiterText(AUFGABE_VORGABE);
+    setWeiterOffen((w) => (w === id ? null : id));
+  }
 
   useEffect(() => {
-    if (!menue) return;
+    if (!menue && !weiterOffen) return;
     function onDown(ev: MouseEvent) {
-      if (listeRef.current && !listeRef.current.contains(ev.target as Node)) setMenue(null);
+      if (listeRef.current && !listeRef.current.contains(ev.target as Node)) {
+        setMenue(null);
+        setWeiterOffen(null);
+      }
     }
     function onKey(ev: KeyboardEvent) {
-      if (ev.key === "Escape") setMenue(null);
+      if (ev.key === "Escape") {
+        setMenue(null);
+        setWeiterOffen(null);
+      }
     }
     document.addEventListener("mousedown", onDown);
     document.addEventListener("keydown", onKey);
@@ -52,10 +88,11 @@ export function InboxListe({
       document.removeEventListener("mousedown", onDown);
       document.removeEventListener("keydown", onKey);
     };
-  }, [menue]);
+  }, [menue, weiterOffen]);
 
   function fuehreAus(aktion: () => Promise<{ ok: boolean; fehler?: string }>, danach?: () => void) {
     setMenue(null);
+    setWeiterOffen(null);
     starte(async () => {
       const erg = await aktion();
       if (!erg.ok) {
@@ -116,6 +153,63 @@ export function InboxListe({
                 <i className="ph ph-arrow-square-out" aria-hidden />
               </button>
               {/* PR c: Zugriffsanfrage — Zuweisen (dieselbe Aktion strom.zuweisen) oder Ablehnen. */}
+              {/* PR c (D5): Weitergeben als Aufgabe — ab bearbeiter, nie an sich selbst; Text nicht leer, max. 500 (Server und DB). */}
+              {z.zustand === "offen" && WEITERGEBBAR.includes(z.typ) && darfWeitergeben && moeglicheEmpfaenger.length > 0 && (
+                <span className="pop-anchor">
+                  <button
+                    type="button"
+                    className="btn btn--ghost btn--sm"
+                    aria-haspopup="dialog"
+                    aria-expanded={weiterOffen === z.id}
+                    disabled={laeuft}
+                    onClick={() => weiterOeffnen(z.id)}
+                  >
+                    <i className="ph ph-arrow-bend-up-right" aria-hidden />
+                    Weitergeben
+                  </button>
+                  {weiterOffen === z.id && (
+                    <div role="dialog" aria-label="Weitergeben" className="pop ov-anfrage ib-weiter">
+                      <label className="ov-anfrage-label" htmlFor={`weiter-an-${z.id}`}>
+                        An
+                      </label>
+                      <select id={`weiter-an-${z.id}`} className="ib-weiter-an" value={weiterAn} onChange={(ev) => setWeiterAn(ev.target.value)}>
+                        {moeglicheEmpfaenger.map((e) => (
+                          <option key={e.id} value={e.id}>
+                            {e.name ?? e.email}
+                          </option>
+                        ))}
+                      </select>
+                      <label className="ov-anfrage-label" htmlFor={`weiter-text-${z.id}`}>
+                        Aufgabe
+                      </label>
+                      <textarea
+                        id={`weiter-text-${z.id}`}
+                        className="ov-anfrage-notiz"
+                        rows={3}
+                        maxLength={AUFGABE_MAX}
+                        value={weiterText}
+                        onChange={(ev) => setWeiterText(ev.target.value)}
+                      />
+                      <div className="ov-anfrage-fuss">
+                        <span className="c">
+                          {weiterText.trim().length}/{AUFGABE_MAX}
+                        </span>
+                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setWeiterOffen(null)}>
+                          Abbrechen
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn--primary btn--sm"
+                          disabled={laeuft || !weiterTextOk || !weiterAn}
+                          onClick={() => fuehreAus(() => inboxWeitergeben(z.id, weiterAn, weiterText))}
+                        >
+                          Weitergeben
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </span>
+              )}
               {/* PR b: Ablauf-Hinweis — „Erneut verifizieren" (nur Pruefer; serverseitig strom.reverifizieren). */}
               {z.zustand === "offen" && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
                 <button

@@ -5218,6 +5218,14 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* PR c: Weitergeben-Popover in der Inbox (Aufbau wie die Zugriffsanfrage). */
+.ib-weiter {
+  width: 320px;
+}
+.ib-weiter-an {
+  width: 100%;
+  margin-bottom: 8px;
+}
 /* PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen in der Avatar-Groesse. */
 .ib-system {
   color: var(--text-muted);

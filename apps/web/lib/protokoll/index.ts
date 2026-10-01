@@ -45,6 +45,8 @@ export interface Ereignis {
    * sie als Empfaenger; im Protokoll steht sie im Text.
    */
   betrifftId?: string;
+  /** AP2.4 PR c: Aufgabentext bei weitergegeben — geht als inbox_eintrag.aufgabe an die betroffene Person. */
+  aufgabe?: string;
 }
 
 /** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
@@ -71,6 +73,7 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   als_abgelaufen_markiert: "Beleg als abgelaufen markiert",
   abgelaufen_aufgehoben: "Ablauf-Markierung aufgehoben",
   reverifiziert: "Erneut verifiziert",
+  weitergegeben: "Weitergegeben",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",
@@ -117,6 +120,7 @@ export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<
     ausloeserId: ereignis.benutzerId,
     betrifftId: ereignis.betrifftId ?? null,
     text: ereignis.text?.trim() || null,
+    aufgabe: ereignis.aufgabe ?? null,
   });
   return { id: zeile!.id };
 }

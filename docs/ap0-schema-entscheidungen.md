@@ -1162,6 +1162,39 @@ Bezugsdatum, Urheber-CHECK, job_lauf-Unique und -CHECK) und `job-probe`
 Fallback, D3/ohne Beleg ohne Hinweis) — beide gegen die Preview, jede Probe
 zurückgerollt.
 
+## 32. AP2.4 PR c: Weitergeben als Aufgabe (E63, D5), 01.10.2026
+
+**Weitergeben** (`inbox.weitergeben`, ERFASSEN = ab bearbeiter, Objektregel
+nurEmpfaenger): Der Empfänger eines Prüfauftrags oder Ablauf-Hinweises
+(`pruefauftrag`, `verifikation_laeuft_ab`, `verifikation_abgelaufen`) gibt
+ihn als Aufgabe an eine Person weiter — aktiv, Rolle ≥ bearbeiter
+(`darfZugewiesenWerden`), **nie an sich selbst**. Der eigene Eintrag ist damit
+erledigt. **Aufgabentext** vorbefüllt „Bitte aktualisieren", frei änderbar,
+nicht leer, höchstens 500 Zeichen — serverseitig (`lib/inbox/aufgabe.ts`,
+Meldung) **und** als DB-CHECK `inbox_eintrag_aufgabe_check` (Migration 0034:
+Text nur beim Typ aufgabe, dort Pflicht; Rot-Nachweis leerer Text im Server
+und in der DB).
+
+**Ereignis `weitergegeben`** über `protokolliere(tx)` in derselben
+Transaktion wie die Zustellung — Objektbezug Strom, betroffene Person
+(`betrifftId`), Text „Weitergegeben an <Name>: <Aufgabe>"; das neue Feld
+`aufgabe` des Ereignisses geht als `inbox_eintrag.aufgabe` an den Empfänger.
+Keine Beteiligung, kein aenderung_eintrag.
+
+**Inbox-Typ `aufgabe`** (Register): Empfänger = betroffene Person, keine
+Bündelung (jede Weitergabe ein Eintrag mit eigenem Text), Aufgabe (nicht in
+„Alle erledigt"). Erledigt bei allen, sobald der Strom geprüft, erneut
+verifiziert oder verworfen ist (`AUFGABE_ABRAEUMEN_BEI`) — oder wenn der
+Empfänger sie erledigt. Kreislauf ohne Prüfer-Rolle: der Empfänger bearbeitet,
+die fachliche Änderung setzt zurück → in_pruefung → pruefauftrag an alle
+Prüfer → geprüft erledigt die Aufgabe (Test in zustellung.test.ts).
+
+**Enum-Erweiterungen** (`inbox_typ` + aufgabe, `ereignis_art` + weitergegeben)
+fallen unter das Rename-Verbot E53; `inbox-check` (Typen 9, Spalte, CHECK mit
+Proben leer/501/fremder Typ) und `protokoll-check` decken den neuen Pfad ab.
+Im selben PR: Kopfkommentar in `lese-diagnose.yml` korrigiert
+(production-lesend erlaubt nur main, wie docs/betrieb.md).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

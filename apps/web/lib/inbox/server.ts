@@ -29,6 +29,8 @@ export interface InboxZeile {
   strom: { art: StromArt; id: string };
   /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
   bezugsdatum: string | null;
+  /** PR c: Aufgabentext beim Typ aufgabe. */
+  aufgabe: string | null;
   belegNr: string | null;
   bezeichnung: string | null;
   /** PR c: Notiz der Zugriffsanfrage. */
@@ -59,6 +61,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       zustandSeit: inboxEintrag.zustandSeit,
       notiz: inboxEintrag.notiz,
       bezugsdatum: inboxEintrag.bezugsdatum,
+      aufgabe: inboxEintrag.aufgabe,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       ausloeserId: benutzer.id,
@@ -98,12 +101,14 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       bezeichnung,
       notiz: z.notiz,
       bezugsdatum: z.bezugsdatum,
+      aufgabe: z.aufgabe,
       text: INBOX_TYPEN[z.typ].text({
         ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
         belegNr: z.belegNr,
         bezeichnung,
         anzahl: z.anzahl,
         bezugsdatum: z.bezugsdatum,
+        aufgabe: z.aufgabe,
       }),
     };
   });

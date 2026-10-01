@@ -19,7 +19,9 @@ export type InboxAktion =
   | "inbox.ablehnen"
   | "strom.zuweisen"
   /** PR b: erneut verifizieren am Hinweis (nur Pruefer, dieselbe Aktion wie im Beleg-Kopf). */
-  | "strom.reverifizieren";
+  | "strom.reverifizieren"
+  /** PR c (D5): weitergeben als Aufgabe an eine Person (ab bearbeiter, nie an sich selbst). */
+  | "inbox.weitergeben";
 
 /** Was die Zeile anzeigt — aus dem Eintrag und seinem Strom abgeleitet, nie gespeichert. */
 export interface ZeilenDaten {
@@ -30,6 +32,8 @@ export interface ZeilenDaten {
   anzahl: number;
   /** PR b: Bezugsdatum des Job-Hinweises (verifiziert_bis, JJJJ-MM-TT); null bei Pruefdatum unbekannt. */
   bezugsdatum?: string | null;
+  /** PR c: Aufgabentext beim Typ aufgabe. */
+  aufgabe?: string | null;
 }
 
 export interface TypDefinition {
@@ -62,7 +66,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     arten: ["in_pruefung_gegeben", "zurueckgesetzt"],
     empfaengerregel: "alle aktiven Pruefer und Admins ausser dem Ausloeser",
     buendelung: "je Pruefer und Strom, solange der Auftrag offen ist; erledigt bei allen, sobald jemand prueft, zurueckgibt oder verwirft",
-    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"],
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.weitergeben"],
     reinerHinweis: false,
     text: (z) => `${z.ausloeserName} bittet um Prüfung von ${objektText(z)}${z.anzahl > 1 ? ` (${z.anzahl}. Mal)` : ""}`,
   },
@@ -77,12 +81,21 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
   },
   // AP2.4 PR b (E63): zustandsbasierte Hinweise des taeglichen Jobs — kein
   // Ereignis, kein Urheber; Empfaenger und Idempotenz in lib/inbox/hinweise.ts.
+  // AP2.4 PR c (E63, D5): Aufgabe aus Weitergeben — an die genannte Person, mit Text.
+  aufgabe: {
+    arten: ["weitergegeben"],
+    empfaengerregel: "die Person, an die weitergegeben wurde (betrifftId) — aktiv, Rolle >= bearbeiter, nie der Weitergebende selbst",
+    buendelung: "keine — jede Weitergabe ein Eintrag mit eigenem Text; erledigt, sobald der Strom geprueft/reverifiziert/verworfen ist oder der Empfaenger erledigt",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"],
+    reinerHinweis: false,
+    text: (z) => `${z.ausloeserName} bittet dich zu ${objektText(z)}: „${z.aufgabe ?? ""}"`,
+  },
   verifikation_laeuft_ab: {
     arten: [],
     empfaengerregel:
       "der Pruefer des letzten Ereignisses geprueft/reverifiziert; ist er kein Pruefer/Admin mehr oder deaktiviert, alle aktiven Pruefer und Admins",
     buendelung: "je Empfaenger, Strom und Bezugsdatum (verifiziert_bis) genau ein Eintrag, dauerhaft — ein zweiter Lauf erzeugt nichts",
-    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren"],
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren", "inbox.weitergeben"],
     reinerHinweis: false,
     text: (z) => `Verifikation von ${objektText(z)} läuft am ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} ab`,
   },
@@ -91,7 +104,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     empfaengerregel:
       "wie verifikation_laeuft_ab; bei Pruefdatum unbekannt alle aktiven Pruefer und Admins",
     buendelung: "wie verifikation_laeuft_ab; Pruefdatum unbekannt ohne Bezugsdatum, einmal je Empfaenger und Strom",
-    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren"],
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren", "inbox.weitergeben"],
     reinerHinweis: false,
     text: (z) =>
       z.bezugsdatum

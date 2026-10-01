@@ -59,3 +59,17 @@ describe("Inbox-Register", () => {
     expect(INBOX_TYPEN.aenderung_eintrag.aktionen).toContain("inbox.alle_erledigen");
   });
 });
+
+// AP2.4 PR c (E63, D5)
+describe("Register — Aufgabe (PR c)", () => {
+  it("weitergegeben → aufgabe (nur dieser Typ), Aufgabe ist Aufgabe (nicht in Alle erledigt), Text nennt die Aufgabe", () => {
+    expect(typenFuerArt("weitergegeben")).toEqual(["aufgabe"]);
+    expect(INBOX_TYPEN.aufgabe.reinerHinweis).toBe(false);
+    expect(INBOX_TYPEN.aufgabe.aktionen).not.toContain("inbox.alle_erledigen");
+    expect(INBOX_TYPEN.aufgabe.text({ ausloeserName: "Petra Prüfer", belegNr: "B-000012", bezeichnung: "Stroh", anzahl: 1, aufgabe: "Bitte aktualisieren" })).toBe(
+      "Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren\"",
+    );
+    for (const t of ["pruefauftrag", "verifikation_laeuft_ab", "verifikation_abgelaufen"] as const) expect(INBOX_TYPEN[t].aktionen).toContain("inbox.weitergeben");
+    expect(INBOX_TYPEN.aufgabe.aktionen).not.toContain("inbox.weitergeben");
+  });
+});
