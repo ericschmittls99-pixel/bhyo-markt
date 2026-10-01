@@ -20,7 +20,16 @@ export interface DetailDaten {
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
   /** E62: Pruefen und Ablauf-Markierung — aus derselben Matrix, nur zum Ausblenden. */
-  sperrRechte: { bearbeiten: boolean; sperren: boolean; entsperren: boolean; zuweisen: boolean; anfragen: boolean; pruefen: boolean; abgelaufenMarkieren: boolean };
+  sperrRechte: {
+    bearbeiten: boolean;
+    sperren: boolean;
+    entsperren: boolean;
+    zuweisen: boolean;
+    anfragen: boolean;
+    pruefen: boolean;
+    abgelaufenMarkieren: boolean;
+    reverifizieren: boolean;
+  };
   /** PR c: laufende Zugriffsanfrage des Betrachtenden zu diesem Strom. */
   anfrage: { am: string } | null;
   zuweisbare: SperrNutzer[];
@@ -47,6 +56,7 @@ export function sperrRechteFuer(zugang: Zugang, strom: Strom): DetailDaten["sper
     anfragen: darf(zugang, "strom.zugriff_anfragen", sperre),
     pruefen: darf(zugang, "strom.pruefen", sperre),
     abgelaufenMarkieren: darf(zugang, "beleg.abgelaufen_markieren", sperre),
+    reverifizieren: darf(zugang, "strom.reverifizieren", sperre),
   };
 }
 

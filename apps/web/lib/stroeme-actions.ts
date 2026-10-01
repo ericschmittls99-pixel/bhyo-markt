@@ -135,7 +135,7 @@ export async function stromVerwerfen(
 }
 
 /** Meldung der Beleg-Pflicht (PR b, Entscheidung Eric 01.10.2026) — Pruefen und erneut Verifizieren. */
-export const OHNE_BELEG = "Ohne Beleg kann nicht geprüft werden.";
+const OHNE_BELEG = "Ohne Beleg kann nicht geprüft werden.";
 
 /**
  * AP2.4 PR a (E62, D4): „geprueft" setzen — nur pruefer/admin, aus entwurf

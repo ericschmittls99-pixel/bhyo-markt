@@ -5212,6 +5212,12 @@ table.st-tabelle tbody tr:focus-visible {
 .ib-ungelesen .ib-punkt {
   background: var(--text-accent);
 }
+/* PR b: Aktionen unter der Verifikationszeile im Beleg-Block. */
+.ov-verif-aktionen {
+  display: inline-flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
 /* PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen in der Avatar-Groesse. */
 .ib-system {
   color: var(--text-muted);

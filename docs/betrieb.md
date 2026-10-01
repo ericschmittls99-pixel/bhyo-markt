@@ -79,7 +79,7 @@ abzuschalten statt einzelne Abfragen zu markieren.
 | Environment | Secrets (nur Namen, Zielstand nach Schritt 6 der Härtung) | Nutzer |
 |---|---|---|
 | `production` | DATABASE_URL_PRODUCTION | migrate-production.yml (schreibend, nur von main; ziel-wache davor) |
-| `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy) |
+| `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy), job-wache.yml (täglich 06:00 Berlin, AP2.4 PR b) |
 | `neon-restore` | NEON_API_KEY, NEON_PROJECT_ID, NEON_PARENT_BRANCH_ID | restore-woechentlich.yml (montags 03:00 UTC und manuell) |
 
 **Regel „nur main" auf allen dreien** (custom branch policy `main`, per
@@ -99,3 +99,29 @@ Nachweislauf von restore-woechentlich (Branch anlegen, Endpoints und Rollen
 lesen, Connection-URI, Branch löschen). `RESTORE_DATABASE_URL` ist mit
 restore-test.yml entfallen. `packages/db/src/workflow-wachen.test.ts` hält
 die Zuordnung Workflow → Environment → Secret fest.
+
+## Täglicher Verifikations-Job (Cloudflare Cron) und Job-Wache (AP2.4 PR b, 01.10.2026)
+
+**Im Repo, keine Einstellung außerhalb:** Die Cron-Trigger stehen in
+`apps/web/wrangler.jsonc` (`triggers.crons`: 03:00 und 04:00 UTC,
+inheritable — gilt auch für `env.preview`) und werden mit jedem
+`wrangler deploy` gesetzt. Der Worker-Einstieg ist `apps/web/worker.ts`
+(OpenNext-Handler plus `scheduled`); der Job läuft nur um 05:00 Berlin
+weiter, protokolliert sich in `job_lauf` und schreibt Hinweise in
+`inbox_eintrag` (nur lib/inbox). Preview und Production laufen beide täglich
+— die Preview gegen die Preview-DB.
+
+**Beobachten:** Workers-Logs (Observability ist an) mit Präfix
+`JOB verifikation`; in der Datenbank `job_lauf` (nur lesend über den
+Leseweg). `job-wache.yml` (Environment production-lesend, nur main) prüft
+täglich um 06:00 Berlin, dass für heute ein Lauf mit ergebnis = ok steht —
+sonst rot, GitHub benachrichtigt per Mail. Manuell mit Stichtag startbar.
+`bhyo_leser` liest `job_lauf` über die Standardrechte von neondb_owner
+(Leseweg STANDARDRECHTE: `bhyo_leser=r/neondb_owner` auf public) — kein
+zusätzlicher GRANT nötig.
+
+**Wenn die Wache rot ist:** erst den Lauf ansehen (ergebnis `fehler` mit
+Fehlertext, oder gar kein Lauf → Cron nicht gefeuert / Worker-Fehler vor
+dem Insert in den Logs). Ein Nachholen braucht keine Sonderaktion: der
+nächste Lauf stellt zustandsbasiert zu, was fällig ist. Kein manuelles
+Ausführen gegen Production ohne Freigabe.
