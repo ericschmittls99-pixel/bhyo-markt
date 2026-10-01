@@ -357,6 +357,13 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web exec tsx scripts/job-probe.ts
 
+      # tmp (vor Merge entfernen): Akteur-Messung AP2.5 Schritt 0 gegen die Preview, nur lesen.
+      - name: tmp Protokoll-Messung Preview (nur lesen)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db protokoll-messung
+
       # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
       # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,
       # Seed-Insert) geht fuer alle Typen durch, mit der Stufe der Matrix.
