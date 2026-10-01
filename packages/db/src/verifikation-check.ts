@@ -194,7 +194,7 @@ async function main() {
   const d = await probe(async (tx) => {
     const [v] = await tx`select parameter_wert('verifikation.vorlauf_tage', ${heute}::date) as vorlauf`;
     const vorlauf = Number(v!.vorlauf);
-    const [t] = await tx`select (${heute}::date + ${vorlauf})::text as innen, (${heute}::date + ${vorlauf} + 1)::text as aussen`;
+    const [t] = await tx`select (${heute}::date + ${vorlauf}::int)::text as innen, (${heute}::date + ${vorlauf}::int + 1)::text as aussen`;
     const bl = await beleg(tx, "vertrag", t!.innen as string, "belege/preview/check.pdf");
     await setze(tx, "geprueft", bl);
     await pruefEreignis(tx);
