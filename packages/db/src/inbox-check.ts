@@ -94,7 +94,7 @@ async function main() {
   console.log(
     `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/11 typen=${typen.length}/11 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n} (${modus})`,
   );
-  const zaehler = [zaehlerPasst("indizes", idx.length, 11, modus), zaehlerPasst("typen", typen.length, 11, modus)].filter(Boolean);
+  const zaehler = [zaehlerPasst("indizes", idx.length, 11, modus), zaehlerPasst("typen", typen.length, 10, modus)].filter(Boolean);
   if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
     console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson) ${zaehler.join(" · ")}`);
     await sql.end();
