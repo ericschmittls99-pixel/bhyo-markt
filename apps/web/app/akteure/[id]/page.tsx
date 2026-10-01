@@ -42,7 +42,7 @@ export default async function AkteurSeite({ params }: { params: Promise<{ id: st
   const darfLoeschen = darfRolle(zugang, "akteur.loeschen") && a.stroeme === 0;
   return (
     <main className="ak ak-detail">
-      <div className="st-toolbar aw-kopfzeile ak-kopf">
+      <div className="ak-detail-kopf">
         <div className="ak-titel">
           <Link href="/akteure" className="btn btn--ghost btn--sm">
             <i className="ph ph-arrow-left" aria-hidden />
