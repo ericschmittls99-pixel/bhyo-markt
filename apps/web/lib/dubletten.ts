@@ -3,13 +3,14 @@
  * ueber akteur_name_norm (Migration 0038): der %-Operator mit der Schwelle
  * DUBLETTE_STARK (set_config in der Transaktion, nutzt den GIN-Index), der
  * Grad stark/schwach aus lib/akteur-norm.ts (eine Stelle fuer die Schwellen).
- * Ortsbezug = gleiche PLZ oder gleicher Kreis-ARS (View akteur_verwaltung,
- * E25-Weg). Als „keine Dublette" markierte Paare (akteur_keine_dublette)
- * werden nicht vorgeschlagen.
+ * Ortsbezug = gleiche PLZ oder Sitz-Abstand <= DUBLETTE_ORT_METER (ST_DWithin
+ * ueber sitz_geom als geography; Entscheidung Eric 01.10.2026 — der Kreis
+ * allein reicht nicht). Als „keine Dublette" markierte Paare
+ * (akteur_keine_dublette) werden nicht vorgeschlagen.
  */
 import { sql } from "drizzle-orm";
 
-import { DUBLETTE_STARK, dublettenGrad, type DublettenGrad } from "./akteur-norm";
+import { DUBLETTE_ORT_METER, DUBLETTE_STARK, dublettenGrad, type DublettenGrad } from "./akteur-norm";
 import type { AppDb } from "./db";
 
 export interface DublettenAkteur {
@@ -84,7 +85,8 @@ export async function ladeDubletten(db: AppDb): Promise<DublettenPaar[]> {
     return (await tx.execute(sql`
       select ${SPALTEN("a")}, ${SPALTEN("b")},
              similarity(akteur_name_norm(a.name), akteur_name_norm(b.name))::float8 as sim,
-             ((a.sitz_plz is not null and a.sitz_plz = b.sitz_plz) or (va.kreis_ars is not null and va.kreis_ars = vb.kreis_ars)) as gleicher_ort
+             ((a.sitz_plz is not null and a.sitz_plz = b.sitz_plz)
+              or (a.sitz_geom is not null and b.sitz_geom is not null and ST_DWithin(a.sitz_geom::geography, b.sitz_geom::geography, ${DUBLETTE_ORT_METER}))) as gleicher_ort
         from akteur a
         join akteur b on a.id < b.id and akteur_name_norm(a.name) % akteur_name_norm(b.name)
         ${JOINS("a")}
@@ -113,8 +115,8 @@ export interface Treffer {
 
 /**
  * „Meinten Sie …?" beim Anlegen im Beleg: aehnliche Akteure zu einem Namen;
- * Ortsbezug ueber die eingegebene PLZ oder den Kreis des Pins (derselbe
- * ST_Covers-Weg wie akteur_verwaltung, E25).
+ * Ortsbezug ueber die eingegebene PLZ oder den Abstand des Sitz-Pins
+ * (<= DUBLETTE_ORT_METER).
  */
 export async function sucheAehnliche(db: AppDb, name: string, plz: string | null, pin: { lng: number; lat: number } | null): Promise<Treffer[]> {
   if (!name.trim()) return [];
@@ -122,16 +124,13 @@ export async function sucheAehnliche(db: AppDb, name: string, plz: string | null
   const rows = await db.transaction(async (tx) => {
     await tx.execute(sql`select set_config('pg_trgm.similarity_threshold', ${String(DUBLETTE_STARK)}, true)`);
     return (await tx.execute(sql`
-      with eingabe as (
-        select ${plz || null}::text as plz,
-               (select k.ars from verwaltungsgebiet k where k.ebene = 'kreis' and ${punkt} is not null and ST_Covers(k.geom, ${punkt}) order by k.ars limit 1) as kreis_ars
-      )
+      with eingabe as (select ${plz || null}::text as plz, ${punkt} as punkt)
       select a.id, a.name, coalesce(a.sektor, 'ohne_sektor') as sektor, a.sitz_plz, a.sitz_ort,
              similarity(akteur_name_norm(a.name), akteur_name_norm(${name})) ::float8 as sim,
-             ((e.plz is not null and a.sitz_plz = e.plz) or (e.kreis_ars is not null and v.kreis_ars = e.kreis_ars)) as gleicher_ort
+             ((e.plz is not null and a.sitz_plz = e.plz)
+              or (e.punkt is not null and a.sitz_geom is not null and ST_DWithin(a.sitz_geom::geography, e.punkt::geography, ${DUBLETTE_ORT_METER}))) as gleicher_ort
         from akteur a
         cross join eingabe e
-        left join akteur_verwaltung v on v.akteur_id = a.id
        where akteur_name_norm(a.name) % akteur_name_norm(${name})
        order by sim desc, a.name
        limit 8`)) as unknown as { id: string; name: string; sektor: string; sitz_plz: string | null; sitz_ort: string | null; sim: number | string; gleicher_ort: boolean | null }[];
@@ -142,6 +141,26 @@ export async function sucheAehnliche(db: AppDb, name: string, plz: string | null
     if (grad) treffer.push({ id: r.id, name: r.name, sektor: r.sektor, sitzPlz: r.sitz_plz, sitzOrt: r.sitz_ort, aehnlichkeit: Number(r.sim), grad });
   }
   return treffer.sort((x, y) => (x.grad === y.grad ? y.aehnlichkeit - x.aehnlichkeit : x.grad === "stark" ? -1 : 1));
+}
+
+export interface KeineDublette {
+  id: string;
+  a: DublettenAkteur;
+  b: DublettenAkteur;
+  seit: string;
+}
+
+/** Als „keine Dublette" markierte Paare — zum Aufheben (nur Pruefer/Admin). */
+export async function ladeKeineDubletten(db: AppDb): Promise<KeineDublette[]> {
+  const rows = (await db.execute(sql`
+    select d.id as paar_id, d.created_at::text as seit, ${SPALTEN("a")}, ${SPALTEN("b")}
+      from akteur_keine_dublette d
+      join akteur a on a.id = d.akteur_a
+      join akteur b on b.id = d.akteur_b
+      ${JOINS("a")}
+      ${JOINS("b")}
+     order by d.created_at desc`)) as unknown as (Roh & { paar_id: string; seit: string })[];
+  return rows.map((r) => ({ id: r.paar_id, a: akteurAus(r, "a"), b: akteurAus(r, "b"), seit: r.seit }));
 }
 
 /** Text des Zusammenfuehrungs-Ereignisses — nur IDs (E57); der Trigger liest „Ziel <id>". */

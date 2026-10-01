@@ -5,27 +5,31 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
 import { sitzText } from "@/lib/akteure-modell";
-import { akteureZusammenfuehren, keineDubletteMarkieren } from "@/lib/dubletten-actions";
+import { akteureZusammenfuehren, keineDubletteAufheben, keineDubletteMarkieren } from "@/lib/dubletten-actions";
 import { konflikte, type Entscheidungen, type Gewinner, type KonfliktFeld } from "@/lib/dubletten-modell";
-import type { DublettenAkteur, DublettenPaar } from "@/lib/dubletten";
+import type { DublettenAkteur, DublettenPaar, KeineDublette } from "@/lib/dubletten";
+import { fmtDatum } from "@/lib/format";
 
 const FELD_LABEL: Record<KonfliktFeld, string> = { name: "Name", sektor: "Sektor", sitz: "Sitz" };
 
 /**
  * Liste der moeglichen Dubletten (AP2.5 PR c): je Paar beide Akteure mit
  * Sektor, Sitz, Kreis und Zaehlern, der Grad als zurueckgenommene Pille
- * (keine Ampel), die Aehnlichkeit in Prozent (Rundung nur hier). Aktionen:
- * „keine Dublette" und „Zusammenfuehren" — Letzteres oeffnet unter der Zeile
- * die Zielwahl, die Feldkonflikte (voreingestellt gewinnt das Ziel) und die
- * Bestaetigung mit den Zahlen, die umziehen.
+ * (keine Ampel), die Aehnlichkeit in Prozent (Rundung nur hier). Aktionen
+ * (beide Pruefer/Admin): „keine Dublette" und „Zusammenfuehren" — Letzteres
+ * oeffnet unter der Zeile die Zielwahl, die Feldkonflikte (voreingestellt
+ * gewinnt das Ziel) und die Bestaetigung mit den Zahlen, die umziehen.
+ * Darunter die markierten Paare mit „Markierung aufheben".
  */
 export function DublettenListe({
   paare,
+  markiert,
   sektoren,
   darfMarkieren,
   darfZusammenfuehren,
 }: {
   paare: DublettenPaar[];
+  markiert: KeineDublette[];
   sektoren: { code: string; label: string }[];
   darfMarkieren: boolean;
   darfZusammenfuehren: boolean;
@@ -49,12 +53,26 @@ export function DublettenListe({
     });
   }
 
-  if (paare.length === 0) return <p className="ov-note ak-leer-text">Keine möglichen Dubletten.</p>;
+  function aufheben(m: KeineDublette) {
+    start(async () => {
+      const erg = await keineDubletteAufheben(m.id);
+      if (!erg.ok) {
+        setFehler(erg.fehler ?? "Aufheben fehlgeschlagen.");
+        return;
+      }
+      setFehler(null);
+      setToast(`Markierung „${m.a.name}" · „${m.b.name}" aufgehoben — das Paar wird wieder vorgeschlagen.`);
+      router.refresh();
+    });
+  }
 
   return (
     <>
       {fehler && <p className="pf-fehler" role="alert">{fehler}</p>}
       {toast && <p className="ov-note">{toast}</p>}
+      {paare.length === 0 ? (
+        <p className="ov-note ak-leer-text">Keine möglichen Dubletten.</p>
+      ) : (
       <table className="einst-tabelle ak-tabelle db-tabelle">
         <thead>
           <tr>
@@ -90,6 +108,40 @@ export function DublettenListe({
           })}
         </tbody>
       </table>
+      )}
+      {markiert.length > 0 && (
+        <section className="ov-sec ak-sec db-markiert">
+          <h3>als keine dublette markiert.</h3>
+          <table className="einst-tabelle ak-tabelle db-tabelle">
+            <thead>
+              <tr>
+                <th>Akteur A</th>
+                <th>Akteur B</th>
+                <th>Markiert</th>
+                <th>Aktion</th>
+              </tr>
+            </thead>
+            <tbody>
+              {markiert.map((m) => (
+                <tr key={m.id}>
+                  <AkteurZelle a={m.a} />
+                  <AkteurZelle a={m.b} />
+                  <td>{fmtDatum(m.seit.slice(0, 10))}</td>
+                  <td>
+                    {darfMarkieren ? (
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => aufheben(m)} disabled={pending}>
+                        Markierung aufheben
+                      </button>
+                    ) : (
+                      <span className="c">–</span>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
     </>
   );
 }

@@ -85,8 +85,11 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
   if (!spalte) return [];
   switch (typ) {
     case "aenderung_eintrag": {
-      // Beteiligte aus dem Protokoll (inklusive des gerade geschriebenen Ereignisses).
+      // Beteiligte aus dem Protokoll (inklusive des gerade geschriebenen Ereignisses) —
+      // plus die im Ereignis benannte betroffene Person (AP2.5 PR c: beim
+      // Zusammenfuehren der Sperrinhaber jedes betroffenen Stroms).
       const beteiligte = beteiligteAus(await protokollZeilen(tx, e.entitaet, e.entitaetId));
+      if (e.betrifftId && !beteiligte.includes(e.betrifftId)) beteiligte.push(e.betrifftId);
       if (beteiligte.length === 0) return [];
       const kandidaten = await tx
         .select({ id: benutzer.id, rolle: benutzer.rolle, aktiv: benutzer.aktiv })

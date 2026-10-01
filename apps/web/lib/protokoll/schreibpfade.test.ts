@@ -71,7 +71,7 @@ vi.mock("@/lib/vergabe-fenster", async (orig) => ({
 
 const { statusSetzen, stromVerwerfen, stromPruefen, stromReverifizieren, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
 const { akteurBearbeiten, akteurLoeschen } = await import("@/lib/akteur-actions");
-const { keineDubletteMarkieren, akteureZusammenfuehren } = await import("@/lib/dubletten-actions");
+const { keineDubletteMarkieren, keineDubletteAufheben, akteureZusammenfuehren } = await import("@/lib/dubletten-actions");
 const { stromSperren, stromEntsperren, stromZuweisen, zuweisungEntfernen } = await import("@/lib/sperre-actions");
 const { benutzerAnlegen, rolleSetzen, aktivSetzen } = await import("@/lib/benutzer-actions");
 const { stromSpeichern } = await import("@/lib/formular-actions");
@@ -209,6 +209,15 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; entitaet: string; id: string; text?: string }][]).map((c) => c[1]);
     expect(arten.map((e) => e.id)).toEqual([A, B]);
     for (const e of arten) expect(e).toMatchObject({ art: "keine_dublette_markiert", entitaet: "akteur", benutzerId: ERIC.id, text: `Paar ${A} · ${B}` });
+  });
+  it("AP2.5 PR c: keineDubletteAufheben → keine_dublette_aufgehoben an beiden Akteuren des Paars", async () => {
+    const A = "00000000-0000-4000-8000-0000000000a1";
+    const B = "00000000-0000-4000-8000-0000000000a2";
+    aktuelleZeilen = [{ ...ZEILEN[0]!, a: A, b: B }];
+    expect(await keineDubletteAufheben("00000000-0000-4000-8000-0000000000d1")).toEqual({ ok: true });
+    const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; id: string; text?: string }][]).map((c) => c[1]);
+    expect(arten.map((e) => e.id)).toEqual([A, B]);
+    for (const e of arten) expect(e).toMatchObject({ art: "keine_dublette_aufgehoben", text: `Paar ${A} · ${B}` });
   });
   it("AP2.5 PR c: akteureZusammenfuehren → akteur_zusammengefuehrt an der Quelle ZUERST (Trigger liest es), akteur_geaendert am Ziel, geaendert je Strom, kontaktperson_geaendert je Person — nur IDs", async () => {
     const Q = "00000000-0000-4000-8000-0000000000a1";

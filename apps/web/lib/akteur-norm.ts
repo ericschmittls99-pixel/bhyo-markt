@@ -5,8 +5,11 @@
  * Seite prueft dubletten-check in der CI, diese Seite akteur-norm.test.ts.
  *
  * Form: Kleinschreibung, Umlaute (ae/oe/ue/ss), e.K./e.V. als Woerter, alles
- * Nicht-Alphanumerische zu Leerzeichen, Rechtsform-Woerter entfernt (bis
- * nichts mehr faellt), Leerraum zusammengezogen.
+ * Nicht-Alphanumerische zu Leerzeichen, Abkuerzung „sw" → „stadtwerke" (als
+ * eigenes Wort; Entscheidung Eric 01.10.2026 — „Gem." wird NICHT aufgeloest,
+ * weil „gem. GmbH" gemeinnuetzig heisst und „Gem. X" ↔ „Gemeinde X" ueber die
+ * Trigramme am selben Ort ohnehin stark gefunden wird, siehe Kalibrierung),
+ * Rechtsform-Woerter entfernt (bis nichts mehr faellt), Leerraum zusammengezogen.
  *
  * Die Aehnlichkeit kommt in der Datenbank aus pg_trgm (similarity). Fuer die
  * Kalibrierung ohne Datenbank rechnet `aehnlichkeit` dieselben Trigramme
@@ -20,6 +23,7 @@ export function akteurNameNorm(name: string): string {
   s = s.replace(/ä/g, "ae").replace(/ö/g, "oe").replace(/ü/g, "ue").replace(/ß/g, "ss");
   s = s.replace(/\be\.\s?k\.?/g, " ek ").replace(/\be\.\s?v\.?/g, " ev ");
   s = s.replace(/[^a-z0-9]+/g, " ");
+  s = s.replace(/(^|\s)sw(?=\s|$)/g, "$1stadtwerke");
   for (;;) {
     const v = s.replace(RECHTSFORM_WOERTER, " ");
     if (v === s) break;
@@ -49,7 +53,7 @@ export function aehnlichkeit(a: string, b: string): number {
 }
 
 /**
- * Schwellen (E66, kalibriert an den Seed-Namen — Bericht
+ * Schwellen (E66, kalibriert an den Seed-Namen und den Kalibrier-Paaren — Bericht
  * docs/ap25-dubletten-kalibrierung.md, Begruendung im Entscheidungslog §35):
  *
  *  - STARK: Aehnlichkeit >= DUBLETTE_STARK UND gleiche PLZ oder gleicher
@@ -68,6 +72,15 @@ export function aehnlichkeit(a: string, b: string): number {
  */
 export const DUBLETTE_STARK = 0.6;
 export const DUBLETTE_SCHWACH = 0.75;
+/**
+ * Ortsbezug fuer „stark" (Entscheidung Eric 01.10.2026): gleiche PLZ ODER
+ * Sitz-Abstand <= DUBLETTE_ORT_METER (ST_DWithin ueber sitz_geom als
+ * geography). Der gleiche Kreis allein reicht NICHT — kommunale Akteure
+ * desselben Kreises (Stadt / Stadtwerke / Zweckverband) erschienen sonst
+ * massenhaft als stark. 2 km decken dieselbe Stadt bei verschiedenen PLZ
+ * (Grossstadt, Nachbar-PLZ) und lassen Nachbargemeinden draussen.
+ */
+export const DUBLETTE_ORT_METER = 2000;
 
 export type DublettenGrad = "stark" | "schwach";
 

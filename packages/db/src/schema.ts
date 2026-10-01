@@ -791,6 +791,7 @@ export const ereignisArt = pgEnum("ereignis_art", [
   // Ereignis zu) und „keine Dublette" (Paar in akteur_keine_dublette).
   "akteur_zusammengefuehrt",
   "keine_dublette_markiert",
+  "keine_dublette_aufgehoben",
 ]);
 
 export const aenderung = pgTable(

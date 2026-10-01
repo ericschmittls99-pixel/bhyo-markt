@@ -63,8 +63,9 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "kontaktperson.bearbeiten": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
   "kontaktperson.loeschen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "kontaktperson.auskunft": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
-  // AP2.5 PR c (E66): Zusammenfuehren nur Pruefer und Admin (Rot-Nachweis: bearbeiter abgewiesen).
-  "akteur.keine_dublette": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
+  // AP2.5 PR c (E66): keine Dublette (markieren/aufheben) und Zusammenfuehren nur Pruefer und Admin (Rot-Nachweis: bearbeiter abgewiesen).
+  "akteur.keine_dublette": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  "akteur.keine_dublette_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "akteur.zusammenfuehren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
 };
 

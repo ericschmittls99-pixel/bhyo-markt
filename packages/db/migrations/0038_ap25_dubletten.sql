@@ -13,7 +13,9 @@
 -- 2. Tabelle akteur_keine_dublette: ein markiertes Paar (akteur_a < akteur_b,
 --    UNIQUE) wird nicht mehr vorgeschlagen; zwei FKs ON DELETE CASCADE.
 -- 3. Ereignisarten akteur_zusammengefuehrt (am Quell-Akteur, Text nur IDs:
---    „Quelle <id> → Ziel <id>") und keine_dublette_markiert. Rename-Verbot (E53).
+--    „Quelle <id> → Ziel <id>"), keine_dublette_markiert und
+--    keine_dublette_aufgehoben (Markierung aufheben, nur Pruefer/Admin).
+--    Rename-Verbot (E53).
 -- 4. Trigger kontaktperson_kein_umhaengen (0036) bekommt seine EINZIGE
 --    Ausnahme: das Umhaengen auf das Ziel einer Zusammenfuehrung, belegt durch
 --    das Ereignis akteur_zusammengefuehrt der Quelle in DERSELBEN Transaktion
@@ -24,6 +26,7 @@
 -- (im Trigger nur als Textvergleich art::text, zur Laufzeit ausgewertet).
 ALTER TYPE "public"."ereignis_art" ADD VALUE 'akteur_zusammengefuehrt';--> statement-breakpoint
 ALTER TYPE "public"."ereignis_art" ADD VALUE 'keine_dublette_markiert';--> statement-breakpoint
+ALTER TYPE "public"."ereignis_art" ADD VALUE 'keine_dublette_aufgehoben';--> statement-breakpoint
 CREATE EXTENSION IF NOT EXISTS pg_trgm;--> statement-breakpoint
 CREATE FUNCTION akteur_name_norm(p_name text) RETURNS text
   LANGUAGE plpgsql IMMUTABLE STRICT AS $fn$
@@ -36,6 +39,8 @@ BEGIN
   s := regexp_replace(s, '\me\.\s?k\.?', ' ek ', 'g');
   s := regexp_replace(s, '\me\.\s?v\.?', ' ev ', 'g');
   s := regexp_replace(s, '[^a-z0-9]+', ' ', 'g');
+  -- Abkuerzung SW (Stadtwerke) als eigenes Wort; „Gem." bewusst nicht (gem. GmbH = gemeinnuetzig).
+  s := regexp_replace(s, '(^|\s)sw(?=\s|$)', '\1stadtwerke', 'g');
   LOOP
     v := regexp_replace(s, '(^|\s)(gmbh|mbh|gbr|kg|kgaa|ag|ohg|ug|se|eg|ek|ev|co|haftungsbeschraenkt|ltd|inc)(?=\s|$)', ' ', 'g');
     EXIT WHEN v = s;

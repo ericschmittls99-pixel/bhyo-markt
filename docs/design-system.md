@@ -854,15 +854,19 @@ internen Modus (extern fehlt sie ganz).
 
 **Liste `akteure./dubletten`:** Kopf wie das Akteur-Detail (`ak-detail-kopf`:
 Rücksprung „akteure.", Titel „mögliche dubletten.", Pillen „n stark" /
-„n schwach"), darunter ein `ov-note` mit den Schwellen in Prozent. Tabelle
+„n schwach"), darunter ein `ov-note` mit den Schwellen in Prozent und dem Ortsbezug (PLZ
+oder Sitz-Abstand bis 2 km). Tabelle
 `einst-tabelle ak-tabelle db-tabelle` mit vier Spalten: Akteur A, Akteur B
 (Name als Link, Sektor als `param-schluessel`, Sitz · Kreis und Zähler
 „n Ströme · m Kontaktpersonen" als `c`), Ähnlichkeit (Grad als Pille —
 **stark** `pill--accent`, **schwach** `pill--muted`, keine Ampel — plus
 „NN % · gleicher Ort" als `c`; gerundet wird nur hier) und Aktionen („keine
 Dublette" `btn--ghost btn--sm` ab bearbeiter, „Zusammenführen" `btn--sm`
-mit `ph-arrows-merge` nur Prüfer/Admin). Der Link „mögliche Dubletten (n)"
-(`ph-copy`) sitzt in der Kopfzeile von `akteure.`.
+mit `ph-arrows-merge` — beide nur Prüfer/Admin). Der Link „mögliche
+Dubletten (n)" (`ph-copy`) sitzt in der Kopfzeile von `akteure.`. Unter der
+Liste der Abschnitt **„als keine dublette markiert."** (`db-markiert`,
+gleiche Tabelle: Akteur A, Akteur B, Markiert am, „Markierung aufheben"
+`btn--ghost btn--sm` für Prüfer/Admin).
 
 **Zusammenführen-Panel** öffnet unter der Zeile (`db-panel-zeile` →
 `db-panel`: `surface-sunken` mit Haarlinie, **kein Glas** — es schwebt

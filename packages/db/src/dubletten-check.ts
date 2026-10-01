@@ -8,7 +8,8 @@
  * 2. Paritaet: akteur_name_norm liefert fuer jede Fixture dieselbe Form wie
  *    das TypeScript-Spiegelbild (dubletten-fixtures.ts, geteilt mit
  *    apps/web/lib/akteur-norm.test.ts); similarity() stimmt mit der
- *    nachgerechneten Aehnlichkeit ueberein.
+ *    nachgerechneten Aehnlichkeit ueberein — auch fuer die Kalibrier-Paare
+ *    (echte Varianten, kommunale falsche Treffer).
  * 3. Regeln (jede Probe in einer zurueckgerollten Transaktion): Paar
  *    ungeordnet (a > b) abgewiesen, Paar doppelt abgewiesen, Umhaengen einer
  *    Kontaktperson OHNE Zusammenfuehrungs-Ereignis abgewiesen, MIT Ereignis
@@ -21,7 +22,7 @@
  */
 import postgres from "postgres";
 
-import { AEHNLICHKEIT_FIXTURES, NORM_FIXTURES } from "./dubletten-fixtures";
+import { AEHNLICHKEIT_FIXTURES, KALIBRIER_PAARE, NORM_FIXTURES } from "./dubletten-fixtures";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -73,7 +74,11 @@ async function main() {
     const [r] = await sql`select similarity(${a}, ${b})::float8 as sim`;
     if (Math.abs(Number(r!.sim) - erwartet) > 1e-6) fehler.push(`Paritaet similarity(${JSON.stringify(a)}, ${JSON.stringify(b)}): SQL ${r!.sim} ≠ TS ${erwartet}`);
   }
-  console.log(`PARITAET norm=${NORM_FIXTURES.length} similarity=${AEHNLICHKEIT_FIXTURES.length} abweichungen=${fehler.length}`);
+  for (const p of KALIBRIER_PAARE) {
+    const [r] = await sql`select similarity(akteur_name_norm(${p.a}), akteur_name_norm(${p.b}))::float8 as sim`;
+    if (Math.abs(Number(r!.sim) - p.aehnlichkeit) > 1e-6) fehler.push(`Paritaet Kalibrier-Paar ${JSON.stringify(p.a)} · ${JSON.stringify(p.b)}: SQL ${r!.sim} ≠ TS ${p.aehnlichkeit}`);
+  }
+  console.log(`PARITAET norm=${NORM_FIXTURES.length} similarity=${AEHNLICHKEIT_FIXTURES.length} kalibrier_paare=${KALIBRIER_PAARE.length} abweichungen=${fehler.length}`);
 
   // (3) Regeln
   const akteure = (await sql`select id from akteur order by created_at limit 2`) as unknown as { id: string }[];

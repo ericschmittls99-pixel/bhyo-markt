@@ -9,7 +9,7 @@
 import { describe, expect, it } from "vitest";
 
 import { DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad } from "../lib/akteur-norm";
-import { kalibrierungsPaare } from "./dubletten-kalibrierung";
+import { kalibrierPaare, kalibrierungsPaare } from "./dubletten-kalibrierung";
 
 const paare = kalibrierungsPaare(0);
 
@@ -29,5 +29,41 @@ describe("Dubletten-Kalibrierung gegen den Seed", () => {
     expect(staerkster.sim, `${staerkster.a} · ${staerkster.b}`).toBeLessThan(DUBLETTE_SCHWACH);
     // Mit Ortsbezug werden falsche Freunde am selben Ort bewusst vorgeschlagen (stark ab 0,6).
     expect(DUBLETTE_STARK).toBeLessThanOrEqual(staerkster.sim);
+  });
+});
+
+describe("Kalibrier-Paare der geteilten Fixture-Liste (Eric 01.10.2026)", () => {
+  const alle = kalibrierPaare();
+  it("Aehnlichkeit und Ergebnis jedes Paars sind festgehalten (Fixture = Messung)", () => {
+    for (const p of alle) {
+      expect(p.gerechnet, `${p.a} · ${p.b}`).toBeCloseTo(p.aehnlichkeit, 9);
+      expect(p.ergebnis, `${p.a} · ${p.b}`).toBe(p.grad);
+    }
+  });
+  it("alle Seed-Kandidaten werden gefunden (stark bzw. schwach)", () => {
+    for (const p of alle.filter((x) => x.klasse === "seed_stark")) expect(p.ergebnis).toBe("stark");
+    for (const p of alle.filter((x) => x.klasse === "seed_schwach")) expect(p.ergebnis).toBe("schwach");
+  });
+  it("echte Varianten: Treffer und die ausdruecklich benannten Nicht-Treffer bei den gewaehlten Schwellen", () => {
+    const varianten = alle.filter((x) => x.klasse === "variante");
+    const nicht = varianten.filter((x) => !x.ergebnis).map((x) => `${x.a} · ${x.b}${x.gleicherOrt ? "" : " (ohne Ortsbezug)"}`);
+    // Was hier steht, steht auch im Bericht (docs/ap25-dubletten-kalibrierung.md) — aendert sich die Liste, aendert sich der Bericht.
+    expect(nicht).toEqual([
+      "Kompostwerk Vorderpfalz · Kompostwerk Vorderpflaz (ohne Ortsbezug)",
+      "Gem. Haßloch · Gemeinde Haßloch (ohne Ortsbezug)",
+      "Stadtwerke Speyer · Stadtwerke Speyer Energie (ohne Ortsbezug)",
+      "AVR Abfallverwertung Rhein-Neckar · AVR Rhein-Neckar",
+    ]);
+    expect(varianten.length - nicht.length).toBe(varianten.length - 4);
+  });
+  it("kommunale falsche Treffer: keiner erreicht die schwache Schwelle; die Fehlalarme mit Ortsbezug sind ausdruecklich benannt", () => {
+    const kommunal = alle.filter((x) => x.klasse === "kommunal");
+    expect(kommunal.length).toBeGreaterThan(0);
+    for (const p of kommunal) expect(p.gerechnet, `${p.a} · ${p.b}`).toBeLessThan(DUBLETTE_SCHWACH);
+    expect(kommunal.filter((x) => x.ergebnis).map((x) => `${x.a} · ${x.b}`)).toEqual([
+      "Stadt Speyer · Stadtwerke Speyer",
+      "Gemeinde Haßloch · Gemeindewerke Haßloch",
+      "Stadt Hockenheim · Stadtwerke Hockenheim",
+    ]);
   });
 });

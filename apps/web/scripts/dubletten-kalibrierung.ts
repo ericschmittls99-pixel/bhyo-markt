@@ -12,7 +12,7 @@
 import { aehnlichkeit, akteurNameNorm, DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad } from "../lib/akteur-norm";
 import { A25_AKTEURE, A25_ORTE } from "./seed-akteure-daten";
 import { baueSeedDaten } from "./seed-daten";
-import { AEHNLICHKEIT_FIXTURES } from "@bhyo/db/dubletten-fixtures";
+import { AEHNLICHKEIT_FIXTURES, KALIBRIER_PAARE, type KalibrierKlasse, type KalibrierPaar } from "@bhyo/db/dubletten-fixtures";
 
 export interface Paar {
   a: string;
@@ -43,6 +43,42 @@ export function kalibrierungsPaare(ab = 0.3): Paar[] {
   return paare.sort((p, q) => q.sim - p.sim || p.a.localeCompare(q.a, "de"));
 }
 
+/** Die Kalibrier-Paare der geteilten Fixture-Liste, nachgerechnet bei den gewaehlten Schwellen. */
+export function kalibrierPaare(): (KalibrierPaar & { gerechnet: number; ergebnis: "stark" | "schwach" | null; norm: [string, string] })[] {
+  return KALIBRIER_PAARE.map((p) => {
+    const norm: [string, string] = [akteurNameNorm(p.a), akteurNameNorm(p.b)];
+    const gerechnet = aehnlichkeit(norm[0], norm[1]);
+    return { ...p, norm, gerechnet, ergebnis: dublettenGrad(gerechnet, p.gleicherOrt) };
+  });
+}
+
+const KLASSE_TEXT: Record<KalibrierKlasse, string> = {
+  seed_stark: "Seed-Kandidaten stark",
+  seed_schwach: "Seed-Kandidaten schwach",
+  variante: "echte Varianten (sollen gefunden werden)",
+  kommunal: "kommunale falsche Treffer (sollen nicht erscheinen)",
+};
+
+export function klassenBericht(): string {
+  const z: string[] = [];
+  const alle = kalibrierPaare();
+  for (const klasse of ["seed_stark", "seed_schwach", "variante", "kommunal"] as KalibrierKlasse[]) {
+    const p = alle.filter((x) => x.klasse === klasse);
+    const gefunden = p.filter((x) => x.ergebnis !== null);
+    const soll = klasse !== "kommunal";
+    z.push(`### ${KLASSE_TEXT[klasse]}: ${soll ? `${gefunden.length} von ${p.length} gefunden` : `${gefunden.length} von ${p.length} Fehlalarme`}`);
+    z.push("");
+    z.push("| Paar | normalisiert | Ähnlichkeit | Ortsbezug | Ergebnis |", "|---|---|---|---|---|");
+    for (const x of p) z.push(`| ${x.a} · ${x.b} | ${x.norm[0]} · ${x.norm[1]} | ${x.gerechnet.toFixed(3)} | ${x.gleicherOrt ? "ja" : "–"} | ${x.ergebnis ?? "–"}${soll && !x.ergebnis ? " **(nicht gefunden)**" : !soll && x.ergebnis ? " **(Fehlalarm)**" : ""} |`);
+    const nicht = soll ? p.filter((x) => !x.ergebnis) : p.filter((x) => x.ergebnis);
+    z.push("");
+    if (soll && nicht.length) z.push(`Nicht gefunden: ${nicht.map((x) => `„${x.a}" · „${x.b}"${x.gleicherOrt ? "" : " (ohne Ortsbezug)"}`).join("; ")}.`);
+    if (!soll && nicht.length) z.push(`Fehlalarme: ${nicht.map((x) => `„${x.a}" · „${x.b}" (${x.ergebnis})`).join("; ")}.`);
+    z.push("");
+  }
+  return z.join("\n");
+}
+
 export function bericht(): string {
   const paare = kalibrierungsPaare();
   const z = ["| Paar | normalisiert | Ähnlichkeit | Seed-Kandidat | gleiche PLZ | Vorschlag |", "|---|---|---|---|---|---|"];
@@ -62,7 +98,15 @@ export function bericht(): string {
 }
 
 if (process.argv[1] && /dubletten-kalibrierung\.ts$/.test(process.argv[1])) {
+  if (process.argv[2] === "--fixtures") {
+    // Druckt die Kalibrier-Paare mit nachgerechneter Aehnlichkeit und Ergebnis als TS-Zeilen (zum Uebernehmen in dubletten-fixtures.ts).
+    for (const p of kalibrierPaare()) console.log(`  { a: ${JSON.stringify(p.a)}, b: ${JSON.stringify(p.b)}, klasse: "${p.klasse}", gleicherOrt: ${p.gleicherOrt}, aehnlichkeit: ${p.gerechnet}, grad: ${p.ergebnis ? `"${p.ergebnis}"` : "null"} },`);
+  } else {
+  console.log("## Kalibrier-Paare (geteilte Fixture-Liste)\n");
+  console.log(klassenBericht());
+  console.log("## Seed-Namen: alle Paare ab 0,30\n");
   console.log(bericht());
+  }
   console.log("\nFixture-Aehnlichkeiten (TS):");
-  for (const [a, b] of AEHNLICHKEIT_FIXTURES) console.log(`${JSON.stringify(a)} · ${JSON.stringify(b)} = ${aehnlichkeit(a, b)}`);
+  if (process.argv[2] !== "--fixtures") for (const [a, b] of AEHNLICHKEIT_FIXTURES) console.log(`${JSON.stringify(a)} · ${JSON.stringify(b)} = ${aehnlichkeit(a, b)}`);
 }

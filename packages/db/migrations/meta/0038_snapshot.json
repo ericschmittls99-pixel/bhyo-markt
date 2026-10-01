@@ -1,5 +1,5 @@
 {
-  "id": "393abce9-adb8-45ae-8839-33ec475e32d0",
+  "id": "2f3ffed5-2cb1-4a40-b732-9fd48b0bbdc7",
   "prevId": "76566eae-127c-4353-8312-c40711edea71",
   "version": "7",
   "dialect": "postgresql",
@@ -3010,7 +3010,8 @@
         "kontaktperson_geloescht",
         "auskunft_erstellt",
         "akteur_zusammengefuehrt",
-        "keine_dublette_markiert"
+        "keine_dublette_markiert",
+        "keine_dublette_aufgehoben"
       ]
     },
     "public.feedstock_cluster": {

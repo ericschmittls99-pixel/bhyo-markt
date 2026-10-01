@@ -4,7 +4,11 @@
  *     Erwartungstabelle in rechte/matrix.test.ts deckt jede Rolle; hier der
  *     Pfad ueber die Wache: KeinRecht → Ergebnis { ok: false }, kein Ereignis.
  *  2. Zusammenfuehren ueber eine FREMDE Sperre wird mit klarer Meldung
- *     abgewiesen, nichts protokolliert (Leitplanke Belege, E44).
+ *     abgewiesen, nichts protokolliert (Leitplanke Belege, E44) — bei Pruefer;
+ *     ein Admin darf (E44) und das Ereignis je Strom nennt den Sperrinhaber
+ *     als betroffene Person (gebuendelte Mitteilung, zustellung.test.ts).
+ *  3. „keine Dublette" markieren/aufheben als bearbeiter wird abgewiesen
+ *     (Entscheidung Eric 01.10.2026).
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -28,7 +32,7 @@ function kette(zeilen: unknown[]): unknown {
   });
 }
 const protokolliere = vi.fn(async () => {});
-let rolle: "bearbeiter" | "pruefer" = "pruefer";
+let rolle: "bearbeiter" | "pruefer" | "admin" = "pruefer";
 let sperre: { gesperrtVon: string | null } = { gesperrtVon: null };
 vi.mock("@/lib/protokoll", async (orig) => ({ ...(await orig<typeof import("@/lib/protokoll")>()), protokolliere }));
 vi.mock("@/lib/db", () => ({ withDb: async (fn: (db: unknown) => unknown) => fn(kette(ZEILEN)) }));
@@ -40,7 +44,7 @@ vi.mock("@/lib/rechte/wache", async (orig) => {
     ...echt,
     // Echte Matrix, nur die Identitaet ist eine Attrappe: die Rolle entscheidet.
     rechtFuerAction: async (aktion: Parameters<typeof darf>[1]) =>
-      darf({ art: "erlaubt", ...ERIC, rolle }, aktion) || aktion === "akteur.zusammenfuehren" && rolle === "pruefer"
+      darf({ art: "erlaubt", ...ERIC, rolle }, aktion)
         ? { email: ERIC.email, zugang: { art: "erlaubt", ...ERIC, rolle } }
         : { ok: false, fehler: "Für diese Aktion fehlt das Schreibrecht." },
   };
@@ -59,7 +63,7 @@ vi.mock("@/lib/rechte/sperre-server", async (orig) => {
   };
 });
 
-const { akteureZusammenfuehren } = await import("@/lib/dubletten-actions");
+const { akteureZusammenfuehren, keineDubletteMarkieren, keineDubletteAufheben } = await import("@/lib/dubletten-actions");
 
 beforeEach(() => {
   protokolliere.mockClear();
@@ -86,6 +90,29 @@ describe("AP2.5 PR c: Zusammenfuehren — Rot-Nachweise", () => {
     const erg = await akteureZusammenfuehren(Q, Z, {});
     expect(erg.ok).toBe(true);
     expect((protokolliere.mock.calls[0] as unknown as [unknown, { art: string }])[1].art).toBe("akteur_zusammengefuehrt");
+  });
+  it("Admin ueber eine fremde Sperre (E44): laeuft durch, das geaendert-Ereignis je Strom nennt den Sperrinhaber (betrifftId)", async () => {
+    rolle = "admin";
+    sperre = { gesperrtVon: FREMD.id };
+    const erg = await akteureZusammenfuehren(Q, Z, {});
+    expect(erg.ok).toBe(true);
+    const stroeme = (protokolliere.mock.calls as unknown as [unknown, { art: string; entitaet: string; betrifftId?: string }][]).map((c) => c[1]).filter((e) => e.art === "geaendert");
+    expect(stroeme.length).toBeGreaterThan(0);
+    for (const e of stroeme) expect(e.betrifftId).toBe(FREMD.id);
+  });
+  it("ungesperrt: das geaendert-Ereignis je Strom hat keine betroffene Person", async () => {
+    await akteureZusammenfuehren(Q, Z, {});
+    const stroeme = (protokolliere.mock.calls as unknown as [unknown, { art: string; betrifftId?: string }][]).map((c) => c[1]).filter((e) => e.art === "geaendert");
+    for (const e of stroeme) expect(e.betrifftId).toBeUndefined();
+  });
+  it("keine Dublette markieren und aufheben als bearbeiter abgewiesen, kein Ereignis; als pruefer erlaubt", async () => {
+    rolle = "bearbeiter";
+    expect((await keineDubletteMarkieren(Q, Z)).ok).toBe(false);
+    expect((await keineDubletteAufheben("00000000-0000-4000-8000-0000000000d1")).ok).toBe(false);
+    expect(protokolliere).not.toHaveBeenCalled();
+    rolle = "pruefer";
+    expect((await keineDubletteMarkieren(Q, Z)).ok).toBe(true);
+    expect(protokolliere).toHaveBeenCalledTimes(2);
   });
   it("Quelle = Ziel abgewiesen", async () => {
     expect((await akteureZusammenfuehren(Q, Q, {})).ok).toBe(false);

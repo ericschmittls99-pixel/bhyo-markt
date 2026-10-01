@@ -1,78 +1,129 @@
 # AP2.5 PR c — Kalibrierung der Dubletten-Schwellen (E66)
 
-Stand 01.10.2026. Gerechnet ohne Datenbank (Eric: lokal oder in der CI,
-nie gegen die gemeinsame Preview) mit `apps/web/scripts/dubletten-kalibrierung.ts`:
+Stand 01.10.2026 (zweite Fassung nach Erics Abnahme: Ortsbezug = gleiche PLZ
+oder Sitz-Abstand ≤ 2 km, Kalibrier-Paare in der geteilten Fixture-Liste).
+Gerechnet ohne Datenbank (lokal oder in der CI, nie gegen die gemeinsame
+Preview) mit `apps/web/scripts/dubletten-kalibrierung.ts`:
 
 ```
-pnpm --filter web exec tsx scripts/dubletten-kalibrierung.ts
+pnpm --filter web exec tsx scripts/dubletten-kalibrierung.ts            # Bericht
+pnpm --filter web exec tsx scripts/dubletten-kalibrierung.ts --fixtures # Fixture-Zeilen
 ```
 
-Das Skript normalisiert alle Seed-Namen (Seed-A25 aus
-`scripts/seed-akteure-daten.ts`, Seed-Bestand aus `scripts/seed-daten.ts`)
-mit dem TypeScript-Spiegelbild von `akteur_name_norm` und rechnet die
-pg_trgm-Ähnlichkeit nach (Trigramme wie pg_trgm; Paritaet SQL ↔ TS prüft
-`dubletten-check` in der CI über die geteilten Fixtures). Der Test
-`scripts/dubletten-kalibrierung.test.ts` hält die Trennung fest.
+Das Skript normalisiert mit dem TypeScript-Spiegelbild von `akteur_name_norm`
+und rechnet die pg_trgm-Ähnlichkeit nach (Trigramme wie pg_trgm). Die
+Parität SQL ↔ TypeScript prüft `dubletten-check` in der CI über die geteilte
+Fixture-Liste `packages/db/src/dubletten-fixtures.ts` — Namen, Ähnlichkeits-
+Referenzen und die Kalibrier-Paare mit ihrer nachgerechneten Ähnlichkeit.
+`scripts/dubletten-kalibrierung.test.ts` hält das Ergebnis je Klasse fest.
 
-## Ergebnis
+## Schwellen (Konstanten in `apps/web/lib/akteur-norm.ts`)
+
+- **stark**: Ähnlichkeit ≥ `DUBLETTE_STARK = 0,60` **und** (gleiche PLZ **oder**
+  Sitz-Abstand ≤ `DUBLETTE_ORT_METER = 2000` über `sitz_geom`). Der gleiche
+  Kreis allein reicht nicht (Entscheidung Eric 01.10.2026: kommunale Akteure
+  desselben Kreises erschienen sonst massenhaft als stark).
+- **schwach**: Ähnlichkeit ≥ `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug.
+- Normalisierung: Abkürzung **„SW" → „stadtwerke"** (eigenes Wort) in SQL
+  und TypeScript; **„Gem." wird nicht aufgelöst**, weil „gem. GmbH"
+  gemeinnützig bedeutet — „Gem. X" ↔ „Gemeinde X" wird am selben Ort
+  dennoch stark gefunden (0,632), ohne Ortsbezug nicht (siehe unten).
+
+## Kalibrier-Paare je Klasse (geteilte Fixture-Liste)
+
+### Seed-Kandidaten stark: 3 von 3 gefunden
+
+| Paar | normalisiert | Ähnlichkeit | Ortsbezug | Ergebnis |
+|---|---|---|---|---|
+| Müller Agrar GmbH · Mueller Agrar | mueller agrar · mueller agrar | 1.000 | ja | stark |
+| Stadtwerke Speyer GmbH · Stadtwerke Speyer | stadtwerke speyer · stadtwerke speyer | 1.000 | ja | stark |
+| Biogas Kraichgau GmbH & Co. KG · Biogas Kraichgau KG | biogas kraichgau · biogas kraichgau | 1.000 | ja | stark |
+
+
+### Seed-Kandidaten schwach: 2 von 2 gefunden
+
+| Paar | normalisiert | Ähnlichkeit | Ortsbezug | Ergebnis |
+|---|---|---|---|---|
+| Forstbetrieb Rheinhessen e.K. · Forstbetrieb Rheinhessen | forstbetrieb rheinhessen · forstbetrieb rheinhessen | 1.000 | – | schwach |
+| Papierfabrik Neckartal AG · Papierfabrik Neckartal | papierfabrik neckartal · papierfabrik neckartal | 1.000 | – | schwach |
+
+
+### echte Varianten (sollen gefunden werden): 14 von 18 gefunden
+
+| Paar | normalisiert | Ähnlichkeit | Ortsbezug | Ergebnis |
+|---|---|---|---|---|
+| Stadtwerke Speyer · Stadwerke Speyer | stadtwerke speyer · stadwerke speyer | 0.737 | ja | stark |
+| Müller Agrar · Müler Agrar | mueller agrar · mueler agrar | 0.800 | ja | stark |
+| Kompostwerk Vorderpfalz · Kompostwerk Vorderpflaz | kompostwerk vorderpfalz · kompostwerk vorderpflaz | 0.714 | – | – **(nicht gefunden)** |
+| Raiffeisen Mosbach eG · Raifeisen Mosbach | raiffeisen mosbach · raifeisen mosbach | 0.850 | – | schwach |
+| SW Speyer · Stadtwerke Speyer | stadtwerke speyer · stadtwerke speyer | 1.000 | ja | stark |
+| SW Speyer GmbH · Stadtwerke Speyer | stadtwerke speyer · stadtwerke speyer | 1.000 | – | schwach |
+| Gem. Haßloch · Gemeinde Haßloch | gem hassloch · gemeinde hassloch | 0.632 | ja | stark |
+| Gem. Haßloch · Gemeinde Haßloch | gem hassloch · gemeinde hassloch | 0.632 | – | – **(nicht gefunden)** |
+| Hof Sonnenberg GbR · Sonnenberg Hof | hof sonnenberg · sonnenberg hof | 1.000 | – | schwach |
+| Biogas Kraichgau · Kraichgau Biogas GmbH | biogas kraichgau · kraichgau biogas | 1.000 | – | schwach |
+| Biogas Müller GmbH & Co. KG · Müller Biogas | biogas mueller · mueller biogas | 1.000 | ja | stark |
+| Stadtwerke Speyer · Stadtwerke Speyer Energie | stadtwerke speyer · stadtwerke speyer energie | 0.680 | ja | stark |
+| Stadtwerke Speyer · Stadtwerke Speyer Energie | stadtwerke speyer · stadtwerke speyer energie | 0.680 | – | – **(nicht gefunden)** |
+| Biogas Kraichgau · Biogasanlage Kraichgau | biogas kraichgau · biogasanlage kraichgau | 0.667 | ja | stark |
+| Forstbetrieb Rheinhessen · Forstbetrieb Rheinhessen Nord | forstbetrieb rheinhessen · forstbetrieb rheinhessen nord | 0.833 | – | schwach |
+| Chemiepark Ludwigshafen GmbH · Chemiepark Ludwigshafen Nord | chemiepark ludwigshafen · chemiepark ludwigshafen nord | 0.828 | – | schwach |
+| Entsorgung Mannheim GmbH · Entsorgungsbetrieb Mannheim | entsorgung mannheim · entsorgungsbetrieb mannheim | 0.655 | ja | stark |
+| AVR Abfallverwertung Rhein-Neckar · AVR Rhein-Neckar | avr abfallverwertung rhein neckar · avr rhein neckar | 0.515 | ja | – **(nicht gefunden)** |
+
+Nicht gefunden: „Kompostwerk Vorderpfalz" · „Kompostwerk Vorderpflaz" (ohne Ortsbezug); „Gem. Haßloch" · „Gemeinde Haßloch" (ohne Ortsbezug); „Stadtwerke Speyer" · „Stadtwerke Speyer Energie" (ohne Ortsbezug); „AVR Abfallverwertung Rhein-Neckar" · „AVR Rhein-Neckar".
+
+### kommunale falsche Treffer (sollen nicht erscheinen): 3 von 11 Fehlalarme
+
+| Paar | normalisiert | Ähnlichkeit | Ortsbezug | Ergebnis |
+|---|---|---|---|---|
+| Stadt Speyer · Stadtwerke Speyer | stadt speyer · stadtwerke speyer | 0.611 | ja | stark **(Fehlalarm)** |
+| Stadt Speyer · Gemeindewerke Speyer | stadt speyer · gemeindewerke speyer | 0.269 | ja | – |
+| Stadtwerke Speyer · Gemeindewerke Speyer | stadtwerke speyer · gemeindewerke speyer | 0.407 | ja | – |
+| Stadt Speyer · Zweckverband Speyer | stadt speyer · zweckverband speyer | 0.280 | ja | – |
+| Stadtwerke Speyer · Zweckverband Speyer | stadtwerke speyer · zweckverband speyer | 0.233 | ja | – |
+| Gemeinde Haßloch · Gemeindewerke Haßloch | gemeinde hassloch · gemeindewerke hassloch | 0.708 | ja | stark **(Fehlalarm)** |
+| Gemeinde Haßloch · Zweckverband Haßloch | gemeinde hassloch · zweckverband hassloch | 0.290 | ja | – |
+| Stadt Hockenheim · Stadtwerke Hockenheim | stadt hockenheim · stadtwerke hockenheim | 0.696 | ja | stark **(Fehlalarm)** |
+| Stadt Landau · Stadtwerke Landau in der Pfalz | stadt landau · stadtwerke landau in der pfalz | 0.375 | ja | – |
+| Stadt Mannheim · Stadtentwässerung Mannheim | stadt mannheim · stadtentwaesserung mannheim | 0.483 | ja | – |
+| Stadtwerke Mannheim · Stadtentwässerung Mannheim | stadtwerke mannheim · stadtentwaesserung mannheim | 0.412 | ja | – |
+
+Fehlalarme: „Stadt Speyer" · „Stadtwerke Speyer" (stark); „Gemeinde Haßloch" · „Gemeindewerke Haßloch" (stark); „Stadt Hockenheim" · „Stadtwerke Hockenheim" (stark).
+
+
+**Lesart.** Alle fünf Seed-Kandidaten werden gefunden. Von den 18 echten
+Varianten werden 14 gefunden; **nicht gefunden** werden vier: drei ohne
+Ortsbezug knapp unter 0,75 („Kompostwerk Vorderpflaz" 0,714, „Gem. Haßloch"
+0,632, „Stadtwerke Speyer Energie" 0,680 — mit Ortsbezug werden dieselben
+Paare stark gefunden) und eine Kürzung des Namens trotz Ortsbezug („AVR
+Abfallverwertung Rhein-Neckar" ↔ „AVR Rhein-Neckar" 0,515, weil
+„abfallverwertung" die Hälfte der Trigramme stellt). Von den elf kommunalen
+Paaren derselben Stadt erzeugen **drei Fehlalarme** als stark (Stadt ·
+Stadtwerke Speyer 0,611, Gemeinde · Gemeindewerke Haßloch 0,708, Stadt ·
+Stadtwerke Hockenheim 0,696); keines erreicht die schwache Schwelle. Eine
+starke Schwelle von 0,72 würde die drei Fehlalarme vermeiden, aber vier
+echte Varianten mit Ortsbezug verlieren (0,632–0,680); eine von 0,50 würde
+die AVR-Kürzung finden, aber weitere kommunale Paare hereinlassen
+(Stadt · Stadtentwässerung Mannheim 0,483 bleibt knapp draußen). Die
+Fehlalarme landen auf der Liste und werden dort als „keine Dublette"
+markiert.
+
+## Seed-Namen: alle Paare
 
 Kandidaten des Seeds: 5 Paare, schwächster 1.000.
 Nicht-Kandidaten ab 0,30: 356 Paare, stärkster 1.000 (Agrarbetrieb Heidelberg · Agrarbetrieb Heidelberg).
 Schwellen: stark ≥ 0.6 mit gleicher PLZ oder gleichem Kreis-ARS, schwach ≥ 0.75.
 
-**Befund 1 — die Seed-Kandidaten liegen alle bei 1,000.** Die fünf
-beauftragten Kandidatenpaare (drei stark, zwei schwach) unterscheiden sich nur
-in Rechtsform oder Umlaut („Müller Agrar GmbH" · „Mueller Agrar", „Biogas
-Kraichgau GmbH & Co. KG" · „Biogas Kraichgau KG"). Die Normalisierung macht
-sie identisch; die Schwelle wird deshalb nicht von den Kandidaten, sondern
-von den falschen Freunden bestimmt.
+**Befund 1** — die Seed-Kandidaten liegen alle bei 1,000: sie unterscheiden
+sich nur in Rechtsform oder Umlaut, die Normalisierung macht sie identisch.
+**Befund 2** — falsche Freunde reichen bis 0,696 am selben Ort und 0,686 an
+verschiedenen Orten (gleiche Betriebsart: „Winzergenossenschaft Weinheim" ·
+„… Sinsheim"). **Befund 3** — acht gleichnamige Paare im Seed-Bestand
+(`seed-daten.ts`, z. B. „Agrarbetrieb Heidelberg" zweimal) sind echte
+Namensdubletten; sie bleiben als Testfall für die Liste (Eric 01.10.2026).
 
-**Befund 2 — falsche Freunde reichen bis 0,696.** Am selben Ort: „Stadt
-Hockenheim" · „Stadtwerke Hockenheim" 0,696, „Forstbetrieb Neustadt a. d. W."
-· „Agrarbetrieb Neustadt a. d. W." 0,618 (langer Ortsname). An verschiedenen
-Orten mit gleicher Betriebsart: „Winzergenossenschaft Weinheim" · „… Sinsheim"
-0,686, „Landschaftspflegeverband Eberbach" · „… Buchen" 0,632, „Sägewerk
-Mannheim" · „Sägewerk Weinheim" 0,583. „Entsorgung Mannheim GmbH" ·
-„Entsorgungsbetrieb Mannheim" 0,655 ist vermutlich eine echte Dublette.
-
-**Befund 3 — realistische Varianten liegen bei 0,65–0,83** (nicht im Seed,
-nachgerechnet):
-
-| Variante | Ähnlichkeit |
-|---|---|
-| Stadtwerke Speyer · Stadtwerke Speyer Energie | 0,680 |
-| Stadtwerke Speyer · Stadwerke Speyer (Tippfehler) | 0,737 |
-| Müller Agrar · Müler Agrar (Tippfehler) | 0,800 |
-| Biogas Kraichgau · Biogasanlage Kraichgau | 0,667 |
-| Forstbetrieb Rheinhessen · Forstbetrieb Rheinhessen Nord | 0,833 |
-| Papierfabrik Neckartal · Papierfabrik Neckartal Werk 2 | 0,767 |
-| Raiffeisen Mosbach · Raiffeisen Mosbach Agrar | 0,760 |
-| Hof Sonnenberg · Sonnenberg Hof | 1,000 |
-| Kompostwerk Vorderpfalz · Kompostwerk Vorderpfalz Betriebs | 0,727 |
-| Chemiepark Ludwigshafen · Chemiepark Ludwigshafen Nord | 0,828 |
-| Gemeinde Haßloch · Gemeindeverwaltung Haßloch | 0,586 |
-| AVR Abfallverwertung Rhein-Neckar · AVR Rhein-Neckar | 0,515 |
-
-**Befund 4 — acht gleichnamige Paare im Seed-Bestand** (`seed-daten.ts`,
-z. B. „Agrarbetrieb Heidelberg" zweimal) sind echte Namensdubletten und
-werden auf der Preview als Vorschläge erscheinen; das ist richtig so.
-
-## Entscheidung (Konstanten in `apps/web/lib/akteur-norm.ts`)
-
-- `DUBLETTE_STARK = 0,60` — mit Ortsbezug (gleiche PLZ oder gleicher
-  Kreis-ARS) zählt die Trefferquote: echte Varianten ab 0,65 werden
-  gefunden, die falschen Freunde am selben Ort (0,62–0,70) bewusst mit
-  vorgeschlagen — dafür gibt es „keine Dublette".
-- `DUBLETTE_SCHWACH = 0,75` — ohne Ortsbezug zählt die Genauigkeit: gleiche
-  Betriebsart an anderem Ort (bis 0,69) bleibt darunter, Tippfehler-
-  und Zusatzwort-Varianten (0,74–0,83) meist darüber; was knapp darunter
-  liegt, wird über den Ortsbezug (stark) gefunden, sobald die PLZ stimmt.
-- Es gibt keine saubere Trennlinie zwischen 0,65 und 0,75 — die beiden
-  Schwellen sind der Kompromiss aus den Befunden 2 und 3. Ändert sich die
-  Normalisierung oder der Seed, zeigt `dubletten-kalibrierung.test.ts`, ob
-  die Trennung noch hält.
-
-## Paare ab 0,50 (vollständige Liste ab 0,30 über das Skript)
+### Paare ab 0,50 (vollständige Liste ab 0,30 über das Skript)
 
 | Paar | normalisiert | Ähnlichkeit | Seed-Kandidat | gleiche PLZ | Vorschlag |
 |---|---|---|---|---|---|

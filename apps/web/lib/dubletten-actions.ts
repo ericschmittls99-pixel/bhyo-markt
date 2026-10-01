@@ -13,9 +13,10 @@ import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { AktionErgebnis } from "@/lib/stroeme-actions";
 
 /**
- * AP2.5 PR c (E66): Dubletten — „keine Dublette" (ab bearbeiter) und
- * Zusammenfuehren (nur pruefer/admin, endgueltig). Jeder Pfad protokolliert;
- * im Freitext stehen nur IDs und Feldnamen (E57).
+ * AP2.5 PR c (E66): Dubletten — „keine Dublette" markieren und aufheben sowie
+ * Zusammenfuehren, alle nur pruefer/admin (Entscheidung Eric 01.10.2026),
+ * Zusammenfuehren endgueltig. Jeder Pfad protokolliert; im Freitext stehen
+ * nur IDs und Feldnamen (E57).
  */
 export async function keineDubletteMarkieren(aId: string, bId: string): Promise<AktionErgebnis> {
   const wache = await rechtFuerAction("akteur.keine_dublette");
@@ -57,8 +58,39 @@ export async function keineDubletteMarkieren(aId: string, bId: string): Promise<
  * geschrieben. Der Trigger kontaktperson_kein_umhaengen laesst das
  * Umhaengen nur mit dem Ereignis akteur_zusammengefuehrt dieser Transaktion
  * zu. Die Beteiligten der Stroeme bekommen ueber das Ereignis „geaendert" je
- * Strom die uebliche gebuendelte Aenderungs-Mitteilung.
+ * Strom die uebliche gebuendelte Aenderungs-Mitteilung — der Sperrinhaber
+ * eingeschlossen (betrifftId; Auftrag Eric, AP2.5 PR c), auch wenn ein Admin
+ * ueber seine Sperre hinweg zusammenfuehrt.
  */
+/** Markierung aufheben: das Paar wird wieder vorgeschlagen; protokolliert an beiden Akteuren. */
+export async function keineDubletteAufheben(paarId: string): Promise<AktionErgebnis> {
+  const wache = await rechtFuerAction("akteur.keine_dublette_aufheben");
+  if ("fehler" in wache) return wache;
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const [paar] = await tx.select({ a: akteurKeineDublette.akteurA, b: akteurKeineDublette.akteurB }).from(akteurKeineDublette).where(eq(akteurKeineDublette.id, paarId)).for("update");
+        if (!paar) throw new Error("Markierung nicht gefunden.");
+        await tx.delete(akteurKeineDublette).where(eq(akteurKeineDublette.id, paarId));
+        for (const id of [paar.a, paar.b]) {
+          await protokolliere(tx, {
+            art: "keine_dublette_aufgehoben",
+            entitaet: "akteur",
+            id,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: wache.email,
+            text: `Paar ${paar.a} · ${paar.b}`,
+          });
+        }
+      }),
+    );
+  } catch (e) {
+    return { ok: false, fehler: e instanceof Error ? e.message : "Aufheben fehlgeschlagen." };
+  }
+  revalidatePath("/akteure/dubletten");
+  return { ok: true };
+}
+
 export async function akteureZusammenfuehren(quelleId: string, zielId: string, entscheidungenRoh: unknown): Promise<ZusammenfuehrenErgebnis> {
   const wache = await rechtFuerAction("akteur.zusammenfuehren");
   if ("fehler" in wache) return wache;
@@ -75,14 +107,14 @@ export async function akteureZusammenfuehren(quelleId: string, zielId: string, e
         if (!quelle || !ziel) throw new Error("Quelle oder Ziel nicht gefunden.");
 
         // Leitplanke Belege: alle Stroeme der Quelle, Sperre je Strom in der Transaktion.
-        const stroeme: { art: "biomasse" | "output"; id: string; bezeichnung: string | null }[] = [];
+        const stroeme: { art: "biomasse" | "output"; id: string; bezeichnung: string | null; gesperrtVon?: string | null }[] = [];
         for (const s of await tx.select({ id: biomassestrom.id, bezeichnung: biomassestrom.bezeichnung }).from(biomassestrom).where(eq(biomassestrom.akteurId, quelleId)))
           stroeme.push({ art: "biomasse", ...s });
         for (const s of await tx.select({ id: outputBedarf.id, bezeichnung: outputBedarf.bezeichnung }).from(outputBedarf).where(eq(outputBedarf.akteurId, quelleId)))
           stroeme.push({ art: "output", ...s });
         for (const s of stroeme) {
           try {
-            await pruefeStromSperre(tx, wache.zugang, "strom.bearbeiten", s.art, s.id);
+            s.gesperrtVon = (await pruefeStromSperre(tx, wache.zugang, "strom.bearbeiten", s.art, s.id)).gesperrtVon;
           } catch (e) {
             if (e instanceof Gesperrt) {
               throw new Error(`Zusammenführen abgewiesen: Strom „${s.bezeichnung ?? s.id}" ist von ${e.von.name ?? e.von.email} gesperrt. Erst entsperren oder zuweisen lassen.`);
@@ -146,6 +178,7 @@ export async function akteureZusammenfuehren(quelleId: string, zielId: string, e
             benutzerId: wache.zugang.id,
             benutzerEmail: wache.email,
             text: `Akteur zusammengeführt: ${quelleId} → ${zielId}`,
+            betrifftId: s.gesperrtVon ?? undefined,
           });
         }
         stroemeGesamt = stroeme.length;

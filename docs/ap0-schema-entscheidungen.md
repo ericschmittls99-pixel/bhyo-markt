@@ -1367,18 +1367,32 @@ Akteuren), eine junge Person.
 **Normalisierung** (Migration 0038): `akteur_name_norm(text)` in SQL und
 dasselbe Spiegelbild in `apps/web/lib/akteur-norm.ts` — Kleinschreibung,
 Umlaute (ae/oe/ue/ss), e.K./e.V. als Wörter, alles Nicht-Alphanumerische zu
-Leerzeichen, Rechtsform-Wörter entfernt (gmbh, mbh, gbr, kg, kgaa, ag, ohg,
-ug, se, eg, ek, ev, co, haftungsbeschraenkt, ltd, inc), Leerraum
-zusammengezogen. **Eine Fixture-Liste** (`packages/db/src/dubletten-fixtures.ts`)
-für beide Seiten: `akteur-norm.test.ts` prüft TypeScript, `dubletten-check`
-(CI, Preview) prüft SQL und `similarity()` gegen die nachgerechnete
-pg_trgm-Ähnlichkeit. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
+Leerzeichen, Abkürzung **„SW" → „stadtwerke"** (eigenes Wort; „Gem." wird
+bewusst nicht aufgelöst, weil „gem. GmbH" gemeinnützig heißt und „Gem. X" ↔
+„Gemeinde X" am selben Ort ohnehin stark gefunden wird), Rechtsform-Wörter
+entfernt (gmbh, mbh, gbr, kg, kgaa, ag, ohg, ug, se, eg, ek, ev, co,
+haftungsbeschraenkt, ltd, inc), Leerraum zusammengezogen. **Eine
+Fixture-Liste** (`packages/db/src/dubletten-fixtures.ts`) für beide Seiten:
+Namen, Ähnlichkeits-Referenzen und die **Kalibrier-Paare** (echte Varianten:
+Tippfehler, Abkürzungen, Wortreihenfolge, Zusatzwörter; kommunale falsche
+Treffer derselben Stadt; Seed-Kandidaten) mit nachgerechneter Ähnlichkeit und
+Ergebnis — `akteur-norm.test.ts` und `dubletten-kalibrierung.test.ts` prüfen
+TypeScript, `dubletten-check` (CI, Preview) prüft SQL und `similarity()`
+dagegen. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
 Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
 
 **Schwellen** (Konstanten, Kalibrierung in `docs/ap25-dubletten-kalibrierung.md`):
-`DUBLETTE_STARK = 0,60` mit gleicher PLZ oder gleichem Kreis-ARS (View
-`akteur_verwaltung`, E25-Weg), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug.
-Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
+`DUBLETTE_STARK = 0,60` mit **Ortsbezug = gleiche PLZ oder Sitz-Abstand ≤
+`DUBLETTE_ORT_METER = 2 km`** (ST_DWithin über `sitz_geom` als geography;
+Entscheidung Eric 01.10.2026 — der gleiche Kreis allein reicht nicht, sonst
+erschienen kommunale Akteure desselben Kreises massenhaft als stark; 2 km
+decken dieselbe Stadt bei verschiedenen PLZ und lassen Nachbargemeinden
+draußen), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug. Ergebnis bei diesen
+Schwellen: alle Seed-Kandidaten gefunden; 14 von 18 echten Varianten
+gefunden (nicht gefunden: drei ohne Ortsbezug knapp unter 0,75 und die
+Namenskürzung „AVR Abfallverwertung Rhein-Neckar" ↔ „AVR Rhein-Neckar"
+0,515); 3 von 11 kommunalen Paaren derselben Stadt als Fehlalarm stark
+(Stadt · Stadtwerke, Gemeinde · Gemeindewerke), keines schwach. Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
 1,000 (sie unterscheiden sich nur in Rechtsform/Umlaut), die Schwelle wird
 von den falschen Freunden bestimmt — am selben Ort bis 0,70 („Stadt X" ·
 „Stadtwerke X"), an verschiedenen Orten bis 0,69 (gleiche Betriebsart);
@@ -1388,13 +1402,16 @@ hält die Trennung gegen den Seed fest.
 
 **„Meinten Sie …?"** beim Anlegen im Beleg (`/api/akteure/aehnlich`, Lesen
 reicht): starke und schwache Treffer zum eingegebenen Namen, Ortsbezug über
-die PLZ oder den Kreis des Sitz-Pins; Anlegen bleibt möglich.
+die PLZ oder den Abstand des Sitz-Pins (≤ 2 km); Anlegen bleibt möglich.
 
 **Liste `akteure./dubletten`:** Paare ab der Schwelle, stark vor schwach,
 ohne die als **„keine Dublette"** markierten (Tabelle `akteur_keine_dublette`,
-akteur_a < akteur_b, UNIQUE, zwei FKs ON DELETE CASCADE; Aktion
-`akteur.keine_dublette` ab bearbeiter, Ereignis `keine_dublette_markiert` an
-beiden Akteuren, Text nur IDs).
+akteur_a < akteur_b, UNIQUE, zwei FKs ON DELETE CASCADE). Markieren
+(`akteur.keine_dublette`) und **Aufheben** (`akteur.keine_dublette_aufheben`,
+Abschnitt „als keine Dublette markiert" unter der Liste) nur Prüfer und Admin
+über darf() (Entscheidung Eric 01.10.2026); Ereignisse
+`keine_dublette_markiert` / `keine_dublette_aufgehoben` an beiden Akteuren,
+Text nur IDs. Rot gezeigt: Bearbeiter markiert → abgewiesen.
 
 **Zusammenführen** (`akteur.zusammenfuehren`, nur Prüfer und Admin,
 endgültig): Ziel wählen (voreingestellt der Akteur mit mehr Strömen),
@@ -1408,7 +1425,10 @@ laut E44 über fremde Sperren — dieselbe Regel wie beim Bearbeiten, keine
 zweite). Dann Ereignis `akteur_zusammengefuehrt` an der Quelle („Quelle <id>
 → Ziel <id>; n Ströme; Felder aus Quelle: …") **zuerst**, `akteur_geaendert`
 am Ziel, Ströme umgehängt mit `geaendert` je Strom (→ die übliche gebündelte
-Änderungs-Mitteilung an die Beteiligten), Kontaktpersonen umgehängt mit
+Änderungs-Mitteilung an die Beteiligten **einschließlich des Sperrinhabers**:
+das Ereignis trägt ihn als `betrifftId`, die Zustellung von `aenderung_eintrag`
+nimmt die benannte betroffene Person zu den Beteiligten dazu — Test in
+`zustellung.test.ts`), Kontaktpersonen umgehängt mit
 `kontaktperson_geaendert` (nur IDs), Interessen umgezogen (Duplikate
 derselben Region zusammengelegt), Quelle gelöscht (keine-Dublette-Paare und
 Verwaist-Hinweise per CASCADE). **Trigger-Ausnahme:** `kontaktperson_kein_

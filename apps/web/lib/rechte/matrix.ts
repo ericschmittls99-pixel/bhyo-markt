@@ -72,10 +72,12 @@ export const AKTIONEN = [
   "kontaktperson.bearbeiten",
   "kontaktperson.loeschen",
   "kontaktperson.auskunft",
-  // AP2.5 PR c (E66): „keine Dublette" ab bearbeiter (Pflege der Liste);
-  // zusammenfuehren nur pruefer/admin, endgueltig — Sperren der betroffenen
-  // Stroeme prueft die Action je Strom mit der Objektregel von strom.bearbeiten.
+  // AP2.5 PR c (E66): „keine Dublette" markieren und aufheben nur pruefer/admin
+  // (Entscheidung Eric 01.10.2026); zusammenfuehren nur pruefer/admin,
+  // endgueltig — Sperren der betroffenen Stroeme prueft die Action je Strom
+  // mit der Objektregel von strom.bearbeiten.
   "akteur.keine_dublette",
+  "akteur.keine_dublette_aufheben",
   "akteur.zusammenfuehren",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
@@ -126,7 +128,8 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "kontaktperson.bearbeiten": ERFASSEN,
   "kontaktperson.loeschen": SPERREN,
   "kontaktperson.auskunft": VERWALTEN,
-  "akteur.keine_dublette": ERFASSEN,
+  "akteur.keine_dublette": SPERREN,
+  "akteur.keine_dublette_aufheben": SPERREN,
   "akteur.zusammenfuehren": SPERREN,
 };
 

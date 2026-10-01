@@ -84,6 +84,7 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   auskunft_erstellt: "Auskunft (Art. 15) erstellt",
   akteur_zusammengefuehrt: "Akteur zusammengeführt",
   keine_dublette_markiert: "Als keine Dublette markiert",
+  keine_dublette_aufgehoben: "Markierung „keine Dublette“ aufgehoben",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",
