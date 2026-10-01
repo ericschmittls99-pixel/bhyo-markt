@@ -1146,6 +1146,15 @@ UTC, Prüfung nur in der Berliner Stunde 6), Environment production-lesend
 ok steht; manuell mit Stichtag (Rot-Nachweis). `job_lauf` ist für bhyo_leser
 über die Standardrechte von neondb_owner lesbar (Leseweg, STANDARDRECHTE).
 
+**Freigegebene Abweichungen (Abnahme PR b, Eric 01.10.2026; werden später
+unter E62/E63 geführt, keine eigene Nummer):** `ohne_beleg` ist **nicht
+fällig** und hat **keinen Rang** in „nächste Verifikation" — der Weg führt
+über einen Beleg, nicht über eine Verifikation. **Erneut verifizieren wird
+abgewiesen, solange die Markierung „abgelaufen" besteht** (erst Markierung
+aufheben). Ebenso freigegeben: Empfänger im Idempotenz-Index, „abgelaufen"
+ab dem Folgetag von verifiziert_bis, Vorab-Hinweis wird mit dem Ablauf
+erledigt, Hinweise sind Aufgaben (nicht in „Alle erledigt").
+
 **Nachweise im CI:** `verifikation-check` (ohne_beleg, reverifiziert als
 Prüftag, Vorlauf innen/außen/am Tag/Folgetag, Hinweis-Unique mit und ohne
 Bezugsdatum, Urheber-CHECK, job_lauf-Unique und -CHECK) und `job-probe`
