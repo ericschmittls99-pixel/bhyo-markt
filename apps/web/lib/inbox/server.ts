@@ -24,8 +24,11 @@ export interface InboxZeile {
   /** ISO-Zeitpunkt der letzten Aenderung des Buendels. */
   aktualisiertAm: string;
   zustandSeit: string;
-  ausloeser: { id: string; name: string | null; email: string };
+  /** null bei den Hinweisen des Jobs (PR b). */
+  ausloeser: { id: string; name: string | null; email: string } | null;
   strom: { art: StromArt; id: string };
+  /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
+  bezugsdatum: string | null;
   belegNr: string | null;
   bezeichnung: string | null;
   /** PR c: Notiz der Zugriffsanfrage. */
@@ -55,6 +58,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       aktualisiertAm: inboxEintrag.aktualisiertAm,
       zustandSeit: inboxEintrag.zustandSeit,
       notiz: inboxEintrag.notiz,
+      bezugsdatum: inboxEintrag.bezugsdatum,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       ausloeserId: benutzer.id,
@@ -65,7 +69,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       akteurName: sql<string | null>`(select a.name from akteur a where a.id = coalesce(${biomassestrom.akteurId}, ${outputBedarf.akteurId}))`,
     })
     .from(inboxEintrag)
-    .innerJoin(benutzer, eq(benutzer.id, inboxEintrag.ausloeserId))
+    .leftJoin(benutzer, eq(benutzer.id, inboxEintrag.ausloeserId))
     .leftJoin(biomassestrom, eq(biomassestrom.id, inboxEintrag.biomassestromId))
     .leftJoin(outputBedarf, eq(outputBedarf.id, inboxEintrag.outputBedarfId))
     .where(
@@ -76,7 +80,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
     )
     .orderBy(desc(inboxEintrag.aktualisiertAm));
   return zeilen.map((z) => {
-    const ausloeser = { id: z.ausloeserId, name: z.ausloeserName, email: z.ausloeserEmail };
+    const ausloeser = z.ausloeserId && z.ausloeserEmail ? { id: z.ausloeserId, name: z.ausloeserName, email: z.ausloeserEmail } : null;
     const bezeichnung = z.bezeichnung ?? z.akteurName;
     return {
       id: z.id,
@@ -93,11 +97,13 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       belegNr: z.belegNr,
       bezeichnung,
       notiz: z.notiz,
+      bezugsdatum: z.bezugsdatum,
       text: INBOX_TYPEN[z.typ].text({
-        ausloeserName: ausloeser.name ?? ausloeser.email,
+        ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
         belegNr: z.belegNr,
         bezeichnung,
         anzahl: z.anzahl,
+        bezugsdatum: z.bezugsdatum,
       }),
     };
   });
@@ -123,7 +129,7 @@ export async function pruefeInboxEmpfaenger(
 ): Promise<{
   id: string;
   empfaengerId: string;
-  ausloeserId: string;
+  ausloeserId: string | null;
   typ: InboxTyp;
   zustand: "offen" | "erledigt" | "verworfen";
   gelesen: boolean;

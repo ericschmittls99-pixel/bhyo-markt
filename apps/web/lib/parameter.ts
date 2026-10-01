@@ -52,18 +52,23 @@ export function pruefeParameterEingabe(
 }
 
 export function einheitLabel(einheit: string): string {
-  return einheit === "monate" ? "Monate" : einheit;
+  if (einheit === "monate") return "Monate";
+  if (einheit === "tage") return "Tage";
+  return einheit;
 }
 
 /** Anzeige eines Werts mit Einheit: „3 Monate". */
 export function wertMitEinheit(wert: number, einheit: string): string {
   if (einheit === "monate") return `${wert} ${wert === 1 ? "Monat" : "Monate"}`;
+  if (einheit === "tage") return `${wert} ${wert === 1 ? "Tag" : "Tage"}`;
   return `${wert} ${einheit}`;
 }
 
 /** Gruppen der Parameter-Seite: Praefix des Schluessels → Ueberschrift. */
 export const PARAMETER_GRUPPEN: Record<string, string> = {
   verifikationsfrist: "Verifikationsfristen",
+  // AP2.4 PR b (E63): Vorlauf der Ablauf-Hinweise.
+  verifikation: "Verifikation",
 };
 
 export function gruppeVon(schluessel: string): string {

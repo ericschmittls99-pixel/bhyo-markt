@@ -15,6 +15,14 @@
  *    gueltig_bis · abgelaufen_am gesetzt → als_abgelaufen_markiert.
  * 3. D3: die Markierung wertet die Qualitaet um eine Stufe ab (A→B, D bleibt
  *    D) — GENERATED-Spalte, nicht die App.
+ * 4. PR b (Migration 0033): Ereignisart reverifiziert, Inbox-Typen der
+ *    Hinweise, Parameter verifikation.vorlauf_tage, Tabelle job_lauf.
+ *    Ableitung: geprueft ohne Beleg → ohne_beleg · reverifiziert zaehlt als
+ *    neuer Prueftag · gueltig_bis innerhalb des Vorlaufs → laeuft_bald_ab,
+ *    ausserhalb → gueltig, am Tag selbst noch laeuft_bald_ab, am Folgetag
+ *    abgelaufen. DB-Regeln: Hinweis zweimal mit demselben Bezugsdatum (auch
+ *    NULL) → Unique-Verletzung; Hinweis ohne Urheber erlaubt, jeder andere
+ *    Typ ohne Urheber → CHECK; job_lauf zweimal am Stichtag → Unique.
  *
  * Nichts bleibt liegen: jede Probe in einer zurueckgerollten Transaktion.
  */
@@ -57,11 +65,20 @@ async function main() {
   const [sp] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'beleg' and column_name = 'abgelaufen_am'`;
   const [q] = await sql`select count(*)::int as n from pg_proc where proname = 'qualitaetsstufe' and pronargs = 4`;
   const arten = (await sql`select enumlabel from pg_enum where enumtypid = 'ereignis_art'::regtype`).map((r) => r.enumlabel as string);
-  const NEU = ["in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt", "als_abgelaufen_markiert", "abgelaufen_aufgehoben"];
+  const NEU = ["in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt", "als_abgelaufen_markiert", "abgelaufen_aufgehoben", "reverifiziert"];
   const fehlend = NEU.filter((a) => !arten.includes(a));
-  console.log(`STRUKTUR funktion=${fn!.n} abgelaufen_am=${sp!.n} qualitaetsstufe4=${q!.n} arten_fehlend=${JSON.stringify(fehlend)}`);
-  if (fn!.n !== 1 || sp!.n !== 1 || q!.n !== 1 || fehlend.length) {
-    console.error("::error::VERIFIKATION-CHECK VERLETZT (Migration 0032 fehlt): Funktion / Spalte / qualitaetsstufe / Ereignisarten");
+  // PR b (0033)
+  const typen = (await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`).map((r) => r.enumlabel as string);
+  const typenFehlend = ["verifikation_laeuft_ab", "verifikation_abgelaufen"].filter((t) => !typen.includes(t));
+  const [jl] = await sql`select count(*)::int as n from information_schema.tables where table_name = 'job_lauf'`;
+  const [hx] = await sql`select count(*)::int as n from pg_index i join pg_class c on c.oid = i.indexrelid
+    where c.relname in ('inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx') and i.indisunique and i.indnullsnotdistinct`;
+  const [vl] = await sql`select count(*)::int as n from parameter_definition where schluessel = 'verifikation.vorlauf_tage'`;
+  console.log(
+    `STRUKTUR funktion=${fn!.n} abgelaufen_am=${sp!.n} qualitaetsstufe4=${q!.n} arten_fehlend=${JSON.stringify(fehlend)} typen_fehlend=${JSON.stringify(typenFehlend)} job_lauf=${jl!.n} hinweis_indizes=${hx!.n} vorlauf_parameter=${vl!.n}`,
+  );
+  if (fn!.n !== 1 || sp!.n !== 1 || q!.n !== 1 || fehlend.length || typenFehlend.length || jl!.n !== 1 || hx!.n !== 2 || vl!.n !== 1) {
+    console.error("::error::VERIFIKATION-CHECK VERLETZT (Migration 0032/0033 fehlt): Funktion / Spalte / qualitaetsstufe / Ereignisarten / Inbox-Typen / job_lauf / Hinweis-Indizes / Parameter");
     await sql.end();
     process.exit(1);
   }
@@ -88,9 +105,12 @@ async function main() {
       returning id`;
     return b!.id as string;
   };
-  const pruefEreignis = (tx: postgres.TransactionSql) =>
-    tx`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id)
-       values ('biomassestrom', ${strom.id}, 'Verifikation-Check geprueft', 'geprueft', ${nutzer.id})`;
+  const pruefEreignis = (tx: postgres.TransactionSql, art: "geprueft" | "reverifiziert" = "geprueft", zeitpunkt: string | null = null) =>
+    zeitpunkt
+      ? tx`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id, zeitpunkt)
+           values ('biomassestrom', ${strom.id}, 'Verifikation-Check', ${art}::ereignis_art, ${nutzer.id}, ${zeitpunkt}::timestamptz)`
+      : tx`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id)
+           values ('biomassestrom', ${strom.id}, 'Verifikation-Check', ${art}::ereignis_art, ${nutzer.id})`;
   const erwarte = (name: string, ist: Zeile | undefined, zustand: string, bis?: string | null) => {
     console.log(`ZUSTAND ${name}: ${JSON.stringify(ist)}`);
     if (!ist || ist.zustand !== zustand) fehler.push(`${name}: Zustand ${ist?.zustand} statt ${zustand}`);
@@ -117,7 +137,8 @@ async function main() {
   erwarte("entwurf", a.ergebnis?.entwurf, "ungeprueft", null);
   erwarte("in_pruefung", a.ergebnis?.inPruefung, "in_pruefung", null);
   erwarte("geprueft ohne Pruefereignis", a.ergebnis?.ohneEreignis, "pruefdatum_unbekannt", null);
-  erwarte("geprueft ohne Beleg", a.ergebnis?.ohneBeleg, "pruefdatum_unbekannt", null);
+  // PR b: geprueft ohne Beleg ist ein eigener Zustand (Entscheidung Eric 01.10.2026).
+  erwarte("geprueft ohne Beleg", a.ergebnis?.ohneBeleg, "ohne_beleg", null);
 
   const b = await probe(async (tx) => {
     const bl = await beleg(tx, "gespraech", null, null);
@@ -128,11 +149,20 @@ async function main() {
     const gueltig = await lies(tx, heute);
     const [folgetag] = await tx`select (${erw!.bis}::date + 1)::text as t`;
     const abgelaufen = await lies(tx, folgetag!.t as string);
-    return { erwartetBis: erw!.bis as string, gueltig, abgelaufen };
+    // PR b: ein aelteres geprueft-Ereignis (vor 13 Monaten) und ein reverifiziert von heute:
+    // verifiziert_am ist das reverifiziert, die Frist zaehlt ab heute.
+    await tx`delete from aenderung where entitaet_id = ${strom.id} and text = 'Verifikation-Check'`;
+    await pruefEreignis(tx, "geprueft", "2025-09-01T10:00:00Z");
+    const alt = await lies(tx, heute);
+    await pruefEreignis(tx, "reverifiziert");
+    const reverifiziert = await lies(tx, heute);
+    return { erwartetBis: erw!.bis as string, gueltig, abgelaufen, alt, reverifiziert };
   });
   if (!b.ergebnis) fehler.push(`Probe Typ-Frist: ${b.fehler}`);
   erwarte("geprueft + Gespraech (Frist ab Prueftag)", b.ergebnis?.gueltig, "gueltig", b.ergebnis?.erwartetBis);
   erwarte("Folgetag von verifiziert_bis", b.ergebnis?.abgelaufen, "abgelaufen", b.ergebnis?.erwartetBis);
+  erwarte("altes geprueft (13 Monate)", b.ergebnis?.alt, "abgelaufen");
+  erwarte("reverifiziert heute = neuer Prueftag", b.ergebnis?.reverifiziert, "gueltig", b.ergebnis?.erwartetBis);
 
   const c = await probe(async (tx) => {
     const [gb] = await tx`select (current_date + 10)::text as t, (current_date + 11)::text as t1`;
@@ -159,6 +189,60 @@ async function main() {
   console.log(`QUALITAET_ABWERTUNG vertrag ${c.ergebnis?.vorher}->${c.ergebnis?.nachher} webrecherche ${c.ergebnis?.dVorher}->${c.ergebnis?.dNachher}`);
   if (c.ergebnis && !(c.ergebnis.vorher === "A" && c.ergebnis.nachher === "B")) fehler.push("Markierung wertet Vertrag A nicht auf B ab");
   if (c.ergebnis && !(c.ergebnis.dVorher === "D" && c.ergebnis.dNachher === "D")) fehler.push("D bleibt nicht D");
+
+  // (4) PR b: Vorlauf — gueltig_bis innerhalb von vorlauf_tage → laeuft_bald_ab; am Tag selbst noch; Folgetag abgelaufen.
+  const d = await probe(async (tx) => {
+    const [v] = await tx`select parameter_wert('verifikation.vorlauf_tage', ${heute}::date) as vorlauf`;
+    const vorlauf = Number(v!.vorlauf);
+    const [t] = await tx`select (${heute}::date + ${vorlauf})::text as innen, (${heute}::date + ${vorlauf} + 1)::text as aussen`;
+    const bl = await beleg(tx, "vertrag", t!.innen as string, "belege/preview/check.pdf");
+    await setze(tx, "geprueft", bl);
+    await pruefEreignis(tx);
+    const innen = await lies(tx, heute);
+    await tx`update beleg set gueltig_bis = ${t!.aussen as string} where id = ${bl}`;
+    const aussen = await lies(tx, heute);
+    await tx`update beleg set gueltig_bis = ${heute} where id = ${bl}`;
+    const amTag = await lies(tx, heute);
+    const [morgen] = await tx`select (${heute}::date + 1)::text as t`;
+    const folgetag = await lies(tx, morgen!.t as string);
+    return { vorlauf, innen, aussen, amTag, folgetag, bisInnen: t!.innen as string };
+  });
+  if (!d.ergebnis) fehler.push(`Probe Vorlauf: ${d.fehler}`);
+  console.log(`VORLAUF_TAGE ${d.ergebnis?.vorlauf}`);
+  erwarte("gueltig_bis = heute + Vorlauf", d.ergebnis?.innen, "laeuft_bald_ab", d.ergebnis?.bisInnen);
+  erwarte("gueltig_bis = heute + Vorlauf + 1", d.ergebnis?.aussen, "gueltig");
+  erwarte("gueltig_bis = heute", d.ergebnis?.amTag, "laeuft_bald_ab", heute);
+  erwarte("gueltig_bis = heute, Folgetag", d.ergebnis?.folgetag, "abgelaufen", heute);
+
+  // (5) PR b: DB-Regeln der Hinweise und des Job-Protokolls (jede Probe zurueckgerollt).
+  const hinweis = (tx: postgres.TransactionSql, typ: string, bezugsdatum: string | null) =>
+    tx`insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, bezugsdatum)
+       values (${nutzer.id}, null, ${typ}::inbox_typ, ${strom.id}, null, ${bezugsdatum})`;
+  const regel = async (name: string, fn: (tx: postgres.TransactionSql) => Promise<unknown>, erwartetFehler: RegExp | null) => {
+    const r = await probe(fn);
+    const ok = erwartetFehler ? !!r.fehler && erwartetFehler.test(r.fehler) : !r.fehler;
+    console.log(`REGEL ${name}: ${ok ? "OK" : "VERLETZT"} ${r.fehler ? `(${r.fehler.slice(0, 90)})` : ""}`);
+    if (!ok) fehler.push(`Regel ${name}`);
+  };
+  await regel("Hinweis ohne Urheber erlaubt", (tx) => hinweis(tx, "verifikation_abgelaufen", null), null);
+  await regel("Hinweis zweimal ohne Bezugsdatum (NULLS NOT DISTINCT)", async (tx) => {
+    await hinweis(tx, "verifikation_abgelaufen", null);
+    await hinweis(tx, "verifikation_abgelaufen", null);
+  }, /inbox_eintrag_biomasse_hinweis_uidx/);
+  await regel("Hinweis zweimal mit Bezugsdatum", async (tx) => {
+    await hinweis(tx, "verifikation_laeuft_ab", heute);
+    await hinweis(tx, "verifikation_laeuft_ab", heute);
+  }, /inbox_eintrag_biomasse_hinweis_uidx/);
+  await regel("zwei Bezugsdaten = zwei Hinweise", async (tx) => {
+    await hinweis(tx, "verifikation_laeuft_ab", heute);
+    await hinweis(tx, "verifikation_laeuft_ab", "2030-01-01");
+  }, null);
+  await regel("aenderung_eintrag ohne Urheber abgewiesen", (tx) => hinweis(tx, "aenderung_eintrag", null), /inbox_eintrag_urheber_check/);
+  await regel("job_lauf zweimal am Stichtag", async (tx) => {
+    await tx`insert into job_lauf (job, stichtag) values ('verifikation-check', ${heute})`;
+    await tx`insert into job_lauf (job, stichtag) values ('verifikation-check', ${heute})`;
+  }, /job_lauf_job_stichtag_unique/);
+  await regel("job_lauf: ergebnis nur laeuft/ok/fehler", (tx) => tx`insert into job_lauf (job, stichtag, ergebnis) values ('verifikation-check', ${heute}, 'halb')`, /job_lauf_ergebnis_check/);
 
   await sql.end();
   if (fehler.length) {

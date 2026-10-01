@@ -1,0 +1,2758 @@
+{
+  "id": "746b4f83-c63f-43bf-99b6-565a9f1aec03",
+  "prevId": "cb65e8c2-76d7-45ba-a083-ae4320c39dcf",
+  "version": "7",
+  "dialect": "postgresql",
+  "tables": {
+    "public.aenderung": {
+      "name": "aenderung",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "entitaet_typ": {
+          "name": "entitaet_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "entitaet_id": {
+          "name": "entitaet_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zeitpunkt": {
+          "name": "zeitpunkt",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "text": {
+          "name": "text",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "benutzer_email": {
+          "name": "benutzer_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "art": {
+          "name": "art",
+          "type": "ereignis_art",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "benutzer_id": {
+          "name": "benutzer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "aenderung_entitaet_idx": {
+          "name": "aenderung_entitaet_idx",
+          "columns": [
+            {
+              "expression": "entitaet_typ",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "entitaet_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "aenderung_benutzer_id_benutzer_id_fk": {
+          "name": "aenderung_benutzer_id_benutzer_id_fk",
+          "tableFrom": "aenderung",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "benutzer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "aenderung_urheber_check": {
+          "name": "aenderung_urheber_check",
+          "value": "\"aenderung\".\"art\" = 'altbestand' or \"aenderung\".\"benutzer_id\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.akteur": {
+      "name": "akteur",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sektor": {
+          "name": "sektor",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rollen": {
+          "name": "rollen",
+          "type": "text[]",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'{}'::text[]"
+        },
+        "kontakt_email": {
+          "name": "kontakt_email",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kontakt_telefon": {
+          "name": "kontakt_telefon",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ansprechperson": {
+          "name": "ansprechperson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "datensatz_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "akteur_sektor_sektor_code_fk": {
+          "name": "akteur_sektor_sektor_code_fk",
+          "tableFrom": "akteur",
+          "tableTo": "sektor",
+          "columnsFrom": [
+            "sektor"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.akteur_interesse": {
+      "name": "akteur_interesse",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "akteur_id": {
+          "name": "akteur_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "datensatz_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "akteur_interesse_region_id_idx": {
+          "name": "akteur_interesse_region_id_idx",
+          "columns": [
+            {
+              "expression": "region_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "akteur_interesse_akteur_id_akteur_id_fk": {
+          "name": "akteur_interesse_akteur_id_akteur_id_fk",
+          "tableFrom": "akteur_interesse",
+          "tableTo": "akteur",
+          "columnsFrom": [
+            "akteur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "akteur_interesse_region_id_region_id_fk": {
+          "name": "akteur_interesse_region_id_region_id_fk",
+          "tableFrom": "akteur_interesse",
+          "tableTo": "region",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "akteur_interesse_akteur_id_region_id_unique": {
+          "name": "akteur_interesse_akteur_id_region_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "akteur_id",
+            "region_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.analyse_lauf": {
+      "name": "analyse_lauf",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "region_id": {
+          "name": "region_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "lauf_id": {
+          "name": "lauf_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "status": {
+          "name": "status",
+          "type": "lauf_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'arbeitsfassung'"
+        },
+        "baureihe_gewaehlt": {
+          "name": "baureihe_gewaehlt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "eingefroren_am": {
+          "name": "eingefroren_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "parametersatz_version": {
+          "name": "parametersatz_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "rechenkern_version": {
+          "name": "rechenkern_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "analyse_lauf_region_id_idx": {
+          "name": "analyse_lauf_region_id_idx",
+          "columns": [
+            {
+              "expression": "region_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "analyse_lauf_region_id_region_id_fk": {
+          "name": "analyse_lauf_region_id_region_id_fk",
+          "tableFrom": "analyse_lauf",
+          "tableTo": "region",
+          "columnsFrom": [
+            "region_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "analyse_lauf_lauf_id_unique": {
+          "name": "analyse_lauf_lauf_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "lauf_id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.beleg": {
+      "name": "beleg",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "beleg_nr": {
+          "name": "beleg_nr",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'B-' || lpad(nextval('beleg_nr_seq')::text, 6, '0')"
+        },
+        "typ": {
+          "name": "typ",
+          "type": "beleg_typ",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "datei_key": {
+          "name": "datei_key",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "link_url": {
+          "name": "link_url",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gueltig_bis": {
+          "name": "gueltig_bis",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "abgelaufen_am": {
+          "name": "abgelaufen_am",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "extern_nachvollziehbar": {
+          "name": "extern_nachvollziehbar",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "metadata": {
+          "name": "metadata",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "qualitaet": {
+          "name": "qualitaet",
+          "type": "qualitaets_stufe",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "qualitaetsstufe(typ, datei_key, link_url, abgelaufen_am)",
+            "type": "stored"
+          }
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "beleg_beleg_nr_unique": {
+          "name": "beleg_beleg_nr_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "beleg_nr"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "beleg_quellenangabe_check": {
+          "name": "beleg_quellenangabe_check",
+          "value": "btrim(coalesce(\"beleg\".\"metadata\" ->> 'quellenangabe', '')) <> ''"
+        },
+        "beleg_gueltig_bis_check": {
+          "name": "beleg_gueltig_bis_check",
+          "value": "\"beleg\".\"typ\" NOT IN ('betriebsdaten', 'vertrag', 'absichtserklaerung', 'angebot') OR \"beleg\".\"gueltig_bis\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.benutzer": {
+      "name": "benutzer",
+      "schema": "",
+      "columns": {
+        "email": {
+          "name": "email",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "rolle": {
+          "name": "rolle",
+          "type": "benutzer_rolle",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "geaendert_am": {
+          "name": "geaendert_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "benutzer_id_unique": {
+          "name": "benutzer_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "benutzer_email_lower_check": {
+          "name": "benutzer_email_lower_check",
+          "value": "\"benutzer\".\"email\" = lower(\"benutzer\".\"email\")"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.biomassestrom": {
+      "name": "biomassestrom",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "akteur_id": {
+          "name": "akteur_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bezeichnung": {
+          "name": "bezeichnung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ort": {
+          "name": "ort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strasse": {
+          "name": "strasse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hausnummer": {
+          "name": "hausnummer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "standort_geom": {
+          "name": "standort_geom",
+          "type": "geometry(point)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kontaktperson": {
+          "name": "kontaktperson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "materialart_code": {
+          "name": "materialart_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "menge_roh_fm": {
+          "name": "menge_roh_fm",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ts_anteil_pct": {
+          "name": "ts_anteil_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "aschegehalt_pct": {
+          "name": "aschegehalt_pct",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "menge_atro": {
+          "name": "menge_atro",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false,
+          "generated": {
+            "as": "menge_roh_fm * ts_anteil_pct / 100 * (1 - aschegehalt_pct / 100)",
+            "type": "stored"
+          }
+        },
+        "zeitraum_von": {
+          "name": "zeitraum_von",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zeitraum_bis": {
+          "name": "zeitraum_bis",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "saisonalitaet": {
+          "name": "saisonalitaet",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preis_min": {
+          "name": "preis_min",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_mittel": {
+          "name": "preis_mittel",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_max": {
+          "name": "preis_max",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_herkunft": {
+          "name": "preis_herkunft",
+          "type": "preis_herkunft",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "beleg_id": {
+          "name": "beleg_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "datensatz_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reserviert_bhyo": {
+          "name": "reserviert_bhyo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "reserviert_seit": {
+          "name": "reserviert_seit",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gesperrt_von": {
+          "name": "gesperrt_von",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gesperrt_am": {
+          "name": "gesperrt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "biomassestrom_akteur_id_idx": {
+          "name": "biomassestrom_akteur_id_idx",
+          "columns": [
+            {
+              "expression": "akteur_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "biomassestrom_beleg_id_idx": {
+          "name": "biomassestrom_beleg_id_idx",
+          "columns": [
+            {
+              "expression": "beleg_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "biomassestrom_materialart_code_idx": {
+          "name": "biomassestrom_materialart_code_idx",
+          "columns": [
+            {
+              "expression": "materialart_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "biomassestrom_akteur_id_akteur_id_fk": {
+          "name": "biomassestrom_akteur_id_akteur_id_fk",
+          "tableFrom": "biomassestrom",
+          "tableTo": "akteur",
+          "columnsFrom": [
+            "akteur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "biomassestrom_materialart_code_materialart_code_fk": {
+          "name": "biomassestrom_materialart_code_materialart_code_fk",
+          "tableFrom": "biomassestrom",
+          "tableTo": "materialart",
+          "columnsFrom": [
+            "materialart_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "biomassestrom_beleg_id_beleg_id_fk": {
+          "name": "biomassestrom_beleg_id_beleg_id_fk",
+          "tableFrom": "biomassestrom",
+          "tableTo": "beleg",
+          "columnsFrom": [
+            "beleg_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "biomassestrom_gesperrt_von_benutzer_id_fk": {
+          "name": "biomassestrom_gesperrt_von_benutzer_id_fk",
+          "tableFrom": "biomassestrom",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "gesperrt_von"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "biomassestrom_sperre_check": {
+          "name": "biomassestrom_sperre_check",
+          "value": "(\"biomassestrom\".\"gesperrt_von\" is null) = (\"biomassestrom\".\"gesperrt_am\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.entfernung": {
+      "name": "entfernung",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "lauf_id": {
+          "name": "lauf_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ziel_typ": {
+          "name": "ziel_typ",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ziel_id": {
+          "name": "ziel_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "luftlinie_km": {
+          "name": "luftlinie_km",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "umwegfaktor": {
+          "name": "umwegfaktor",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "entfernung_lauf_id_idx": {
+          "name": "entfernung_lauf_id_idx",
+          "columns": [
+            {
+              "expression": "lauf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "entfernung_lauf_id_analyse_lauf_id_fk": {
+          "name": "entfernung_lauf_id_analyse_lauf_id_fk",
+          "tableFrom": "entfernung",
+          "tableTo": "analyse_lauf",
+          "columnsFrom": [
+            "lauf_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "entfernung_ziel_typ_check": {
+          "name": "entfernung_ziel_typ_check",
+          "value": "\"entfernung\".\"ziel_typ\" in ('biomassestrom', 'output_bedarf')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.inbox_eintrag": {
+      "name": "inbox_eintrag",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "empfaenger_id": {
+          "name": "empfaenger_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ausloeser_id": {
+          "name": "ausloeser_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "typ": {
+          "name": "typ",
+          "type": "inbox_typ",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "biomassestrom_id": {
+          "name": "biomassestrom_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_bedarf_id": {
+          "name": "output_bedarf_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ereignis_id": {
+          "name": "ereignis_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bezugsdatum": {
+          "name": "bezugsdatum",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "anzahl": {
+          "name": "anzahl",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 1
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "aktualisiert_am": {
+          "name": "aktualisiert_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "gelesen_am": {
+          "name": "gelesen_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zustand": {
+          "name": "zustand",
+          "type": "inbox_zustand",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'offen'"
+        },
+        "zustand_seit": {
+          "name": "zustand_seit",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "notiz": {
+          "name": "notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {
+        "inbox_eintrag_biomasse_offen_uidx": {
+          "name": "inbox_eintrag_biomasse_offen_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and \"inbox_eintrag\".\"typ\" = 'aenderung_eintrag' and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_output_offen_uidx": {
+          "name": "inbox_eintrag_output_offen_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and \"inbox_eintrag\".\"typ\" = 'aenderung_eintrag' and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_biomasse_anfrage_uidx": {
+          "name": "inbox_eintrag_biomasse_anfrage_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ausloeser_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'zugriffsanfrage' and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_output_anfrage_uidx": {
+          "name": "inbox_eintrag_output_anfrage_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "ausloeser_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'zugriffsanfrage' and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_biomasse_pruefauftrag_uidx": {
+          "name": "inbox_eintrag_biomasse_pruefauftrag_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'pruefauftrag' and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_output_pruefauftrag_uidx": {
+          "name": "inbox_eintrag_output_pruefauftrag_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'pruefauftrag' and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_biomasse_hinweis_uidx": {
+          "name": "inbox_eintrag_biomasse_hinweis_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "typ",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bezugsdatum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "inbox_typ_text(\"inbox_eintrag\".\"typ\") in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and \"inbox_eintrag\".\"biomassestrom_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_output_hinweis_uidx": {
+          "name": "inbox_eintrag_output_hinweis_uidx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "typ",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "bezugsdatum",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "inbox_typ_text(\"inbox_eintrag\".\"typ\") in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and \"inbox_eintrag\".\"output_bedarf_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "inbox_eintrag_zaehler_idx": {
+          "name": "inbox_eintrag_zaehler_idx",
+          "columns": [
+            {
+              "expression": "empfaenger_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"inbox_eintrag\".\"zustand\" = 'offen' and \"inbox_eintrag\".\"gelesen_am\" is null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "inbox_eintrag_empfaenger_id_benutzer_id_fk": {
+          "name": "inbox_eintrag_empfaenger_id_benutzer_id_fk",
+          "tableFrom": "inbox_eintrag",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "empfaenger_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inbox_eintrag_ausloeser_id_benutzer_id_fk": {
+          "name": "inbox_eintrag_ausloeser_id_benutzer_id_fk",
+          "tableFrom": "inbox_eintrag",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "ausloeser_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inbox_eintrag_biomassestrom_id_biomassestrom_id_fk": {
+          "name": "inbox_eintrag_biomassestrom_id_biomassestrom_id_fk",
+          "tableFrom": "inbox_eintrag",
+          "tableTo": "biomassestrom",
+          "columnsFrom": [
+            "biomassestrom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inbox_eintrag_output_bedarf_id_output_bedarf_id_fk": {
+          "name": "inbox_eintrag_output_bedarf_id_output_bedarf_id_fk",
+          "tableFrom": "inbox_eintrag",
+          "tableTo": "output_bedarf",
+          "columnsFrom": [
+            "output_bedarf_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "inbox_eintrag_ereignis_id_aenderung_id_fk": {
+          "name": "inbox_eintrag_ereignis_id_aenderung_id_fk",
+          "tableFrom": "inbox_eintrag",
+          "tableTo": "aenderung",
+          "columnsFrom": [
+            "ereignis_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "inbox_eintrag_genau_ein_strom_check": {
+          "name": "inbox_eintrag_genau_ein_strom_check",
+          "value": "num_nonnulls(\"inbox_eintrag\".\"biomassestrom_id\", \"inbox_eintrag\".\"output_bedarf_id\") = 1"
+        },
+        "inbox_eintrag_anzahl_check": {
+          "name": "inbox_eintrag_anzahl_check",
+          "value": "\"inbox_eintrag\".\"anzahl\" >= 1"
+        },
+        "inbox_eintrag_urheber_check": {
+          "name": "inbox_eintrag_urheber_check",
+          "value": "inbox_typ_text(\"inbox_eintrag\".\"typ\") in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') or (\"inbox_eintrag\".\"ausloeser_id\" is not null and \"inbox_eintrag\".\"ereignis_id\" is not null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.job_lauf": {
+      "name": "job_lauf",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "job": {
+          "name": "job",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stichtag": {
+          "name": "stichtag",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gestartet_am": {
+          "name": "gestartet_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "beendet_am": {
+          "name": "beendet_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ergebnis": {
+          "name": "ergebnis",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'laeuft'"
+        },
+        "anzahl": {
+          "name": "anzahl",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "fehler": {
+          "name": "fehler",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "job_lauf_job_stichtag_unique": {
+          "name": "job_lauf_job_stichtag_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "job",
+            "stichtag"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "job_lauf_ergebnis_check": {
+          "name": "job_lauf_ergebnis_check",
+          "value": "\"job_lauf\".\"ergebnis\" in ('laeuft', 'ok', 'fehler')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.lauf_nummernkreis": {
+      "name": "lauf_nummernkreis",
+      "schema": "",
+      "columns": {
+        "jahr": {
+          "name": "jahr",
+          "type": "integer",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "letzte_nummer": {
+          "name": "letzte_nummer",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.materialart": {
+      "name": "materialart",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "cluster": {
+          "name": "cluster",
+          "type": "feedstock_cluster",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.output_bedarf": {
+      "name": "output_bedarf",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "akteur_id": {
+          "name": "akteur_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bezeichnung": {
+          "name": "bezeichnung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ort": {
+          "name": "ort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "strasse": {
+          "name": "strasse",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "hausnummer": {
+          "name": "hausnummer",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "standort_geom": {
+          "name": "standort_geom",
+          "type": "geometry(point)",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kontaktperson": {
+          "name": "kontaktperson",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "produkt_code": {
+          "name": "produkt_code",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "menge_wert": {
+          "name": "menge_wert",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "menge_einheit": {
+          "name": "menge_einheit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "preis": {
+          "name": "preis",
+          "type": "numeric",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_einheit": {
+          "name": "preis_einheit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_herkunft": {
+          "name": "preis_herkunft",
+          "type": "preis_herkunft",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zeitraum_von": {
+          "name": "zeitraum_von",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zeitraum_bis": {
+          "name": "zeitraum_bis",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "saisonalitaet": {
+          "name": "saisonalitaet",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "beleg_id": {
+          "name": "beleg_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "datensatz_status",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "reserviert_bhyo": {
+          "name": "reserviert_bhyo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "reserviert_seit": {
+          "name": "reserviert_seit",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gesperrt_von": {
+          "name": "gesperrt_von",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "gesperrt_am": {
+          "name": "gesperrt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "output_bedarf_akteur_id_idx": {
+          "name": "output_bedarf_akteur_id_idx",
+          "columns": [
+            {
+              "expression": "akteur_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "output_bedarf_beleg_id_idx": {
+          "name": "output_bedarf_beleg_id_idx",
+          "columns": [
+            {
+              "expression": "beleg_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "output_bedarf_produkt_code_idx": {
+          "name": "output_bedarf_produkt_code_idx",
+          "columns": [
+            {
+              "expression": "produkt_code",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "output_bedarf_akteur_id_akteur_id_fk": {
+          "name": "output_bedarf_akteur_id_akteur_id_fk",
+          "tableFrom": "output_bedarf",
+          "tableTo": "akteur",
+          "columnsFrom": [
+            "akteur_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "output_bedarf_produkt_code_output_produkt_code_fk": {
+          "name": "output_bedarf_produkt_code_output_produkt_code_fk",
+          "tableFrom": "output_bedarf",
+          "tableTo": "output_produkt",
+          "columnsFrom": [
+            "produkt_code"
+          ],
+          "columnsTo": [
+            "code"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "output_bedarf_beleg_id_beleg_id_fk": {
+          "name": "output_bedarf_beleg_id_beleg_id_fk",
+          "tableFrom": "output_bedarf",
+          "tableTo": "beleg",
+          "columnsFrom": [
+            "beleg_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "output_bedarf_gesperrt_von_benutzer_id_fk": {
+          "name": "output_bedarf_gesperrt_von_benutzer_id_fk",
+          "tableFrom": "output_bedarf",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "gesperrt_von"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "output_bedarf_sperre_check": {
+          "name": "output_bedarf_sperre_check",
+          "value": "(\"output_bedarf\".\"gesperrt_von\" is null) = (\"output_bedarf\".\"gesperrt_am\" is null)"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.output_produkt": {
+      "name": "output_produkt",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gruppe": {
+          "name": "gruppe",
+          "type": "output_gruppe",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "art": {
+          "name": "art",
+          "type": "output_art",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.parameter_definition": {
+      "name": "parameter_definition",
+      "schema": "",
+      "columns": {
+        "schluessel": {
+          "name": "schluessel",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "bezeichnung": {
+          "name": "bezeichnung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "einheit": {
+          "name": "einheit",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "min": {
+          "name": "min",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "max": {
+          "name": "max",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "beschreibung": {
+          "name": "beschreibung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.parameter_wert": {
+      "name": "parameter_wert",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "schluessel": {
+          "name": "schluessel",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "wert": {
+          "name": "wert",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gueltig_ab": {
+          "name": "gueltig_ab",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "begruendung": {
+          "name": "begruendung",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "erstellt_von": {
+          "name": "erstellt_von",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "erstellt_am": {
+          "name": "erstellt_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "parameter_wert_schluessel_parameter_definition_schluessel_fk": {
+          "name": "parameter_wert_schluessel_parameter_definition_schluessel_fk",
+          "tableFrom": "parameter_wert",
+          "tableTo": "parameter_definition",
+          "columnsFrom": [
+            "schluessel"
+          ],
+          "columnsTo": [
+            "schluessel"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "parameter_wert_erstellt_von_benutzer_id_fk": {
+          "name": "parameter_wert_erstellt_von_benutzer_id_fk",
+          "tableFrom": "parameter_wert",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "erstellt_von"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "parameter_wert_schluessel_gueltig_ab_unique": {
+          "name": "parameter_wert_schluessel_gueltig_ab_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "schluessel",
+            "gueltig_ab"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "parameter_wert_begruendung_check": {
+          "name": "parameter_wert_begruendung_check",
+          "value": "length(trim(\"parameter_wert\".\"begruendung\")) > 0"
+        },
+        "parameter_wert_nie_rueckwirkend_check": {
+          "name": "parameter_wert_nie_rueckwirkend_check",
+          "value": "\"parameter_wert\".\"gueltig_ab\" = '-infinity'::date or \"parameter_wert\".\"gueltig_ab\" >= (\"parameter_wert\".\"erstellt_am\" at time zone 'Europe/Berlin')::date"
+        },
+        "parameter_wert_urheber_check": {
+          "name": "parameter_wert_urheber_check",
+          "value": "\"parameter_wert\".\"gueltig_ab\" = '-infinity'::date or \"parameter_wert\".\"erstellt_von\" is not null"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.region": {
+      "name": "region",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "gebiet": {
+          "name": "gebiet",
+          "type": "geometry(point)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bereitschaft_stufe": {
+          "name": "bereitschaft_stufe",
+          "type": "bereitschaft_stufe",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'kein_kontakt'"
+        },
+        "bereitschaft_beleg_id": {
+          "name": "bereitschaft_beleg_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bereitschaft_notiz": {
+          "name": "bereitschaft_notiz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "bereitschaft_stand": {
+          "name": "bereitschaft_stand",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "region_bereitschaft_beleg_id_idx": {
+          "name": "region_bereitschaft_beleg_id_idx",
+          "columns": [
+            {
+              "expression": "bereitschaft_beleg_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "region_bereitschaft_beleg_id_beleg_id_fk": {
+          "name": "region_bereitschaft_beleg_id_beleg_id_fk",
+          "tableFrom": "region",
+          "tableTo": "beleg",
+          "columnsFrom": [
+            "bereitschaft_beleg_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.sektor": {
+      "name": "sektor",
+      "schema": "",
+      "columns": {
+        "code": {
+          "name": "code",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "label": {
+          "name": "label",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sortierung": {
+          "name": "sortierung",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true,
+          "default": 0
+        },
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "aktiv": {
+          "name": "aktiv",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": true
+        }
+      },
+      "indexes": {
+        "sektor_label_norm_idx": {
+          "name": "sektor_label_norm_idx",
+          "columns": [
+            {
+              "expression": "sektor_label_norm(\"label\")",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {
+        "sektor_id_unique": {
+          "name": "sektor_id_unique",
+          "nullsNotDistinct": false,
+          "columns": [
+            "id"
+          ]
+        }
+      },
+      "policies": {},
+      "checkConstraints": {
+        "sektor_code_check": {
+          "name": "sektor_code_check",
+          "value": "\"sektor\".\"code\" ~ '^[a-z0-9_]+$' and \"sektor\".\"code\" not in ('ohne_sektor', 'abnehmer')"
+        },
+        "sektor_label_check": {
+          "name": "sektor_label_check",
+          "value": "length(btrim(\"sektor\".\"label\")) > 0"
+        },
+        "sektor_label_reserviert_check": {
+          "name": "sektor_label_reserviert_check",
+          "value": "sektor_label_norm(\"sektor\".\"label\") not in ('abnehmer', 'ohne sektor')"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.strom_zuweisung": {
+      "name": "strom_zuweisung",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "biomassestrom_id": {
+          "name": "biomassestrom_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_bedarf_id": {
+          "name": "output_bedarf_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "nutzer_id": {
+          "name": "nutzer_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zugewiesen_von": {
+          "name": "zugewiesen_von",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "zugewiesen_am": {
+          "name": "zugewiesen_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "strom_zuweisung_biomasse_nutzer_uidx": {
+          "name": "strom_zuweisung_biomasse_nutzer_uidx",
+          "columns": [
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nutzer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"strom_zuweisung\".\"biomassestrom_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "strom_zuweisung_output_nutzer_uidx": {
+          "name": "strom_zuweisung_output_nutzer_uidx",
+          "columns": [
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "nutzer_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"strom_zuweisung\".\"output_bedarf_id\" is not null",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "strom_zuweisung_biomassestrom_id_biomassestrom_id_fk": {
+          "name": "strom_zuweisung_biomassestrom_id_biomassestrom_id_fk",
+          "tableFrom": "strom_zuweisung",
+          "tableTo": "biomassestrom",
+          "columnsFrom": [
+            "biomassestrom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strom_zuweisung_output_bedarf_id_output_bedarf_id_fk": {
+          "name": "strom_zuweisung_output_bedarf_id_output_bedarf_id_fk",
+          "tableFrom": "strom_zuweisung",
+          "tableTo": "output_bedarf",
+          "columnsFrom": [
+            "output_bedarf_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strom_zuweisung_nutzer_id_benutzer_id_fk": {
+          "name": "strom_zuweisung_nutzer_id_benutzer_id_fk",
+          "tableFrom": "strom_zuweisung",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "nutzer_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "strom_zuweisung_zugewiesen_von_benutzer_id_fk": {
+          "name": "strom_zuweisung_zugewiesen_von_benutzer_id_fk",
+          "tableFrom": "strom_zuweisung",
+          "tableTo": "benutzer",
+          "columnsFrom": [
+            "zugewiesen_von"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "strom_zuweisung_genau_ein_strom_check": {
+          "name": "strom_zuweisung_genau_ein_strom_check",
+          "value": "num_nonnulls(\"strom_zuweisung\".\"biomassestrom_id\", \"strom_zuweisung\".\"output_bedarf_id\") = 1"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.vergabe_zeitraum": {
+      "name": "vergabe_zeitraum",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "biomassestrom_id": {
+          "name": "biomassestrom_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "output_bedarf_id": {
+          "name": "output_bedarf_id",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vergeben_von": {
+          "name": "vergeben_von",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vergeben_bis": {
+          "name": "vergeben_bis",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "vergeben_an": {
+          "name": "vergeben_an",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "an_bhyo": {
+          "name": "an_bhyo",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "vergabe_zeitraum_biomassestrom_id_idx": {
+          "name": "vergabe_zeitraum_biomassestrom_id_idx",
+          "columns": [
+            {
+              "expression": "biomassestrom_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "vergabe_zeitraum_output_bedarf_id_idx": {
+          "name": "vergabe_zeitraum_output_bedarf_id_idx",
+          "columns": [
+            {
+              "expression": "output_bedarf_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "vergabe_zeitraum_biomassestrom_id_biomassestrom_id_fk": {
+          "name": "vergabe_zeitraum_biomassestrom_id_biomassestrom_id_fk",
+          "tableFrom": "vergabe_zeitraum",
+          "tableTo": "biomassestrom",
+          "columnsFrom": [
+            "biomassestrom_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        },
+        "vergabe_zeitraum_output_bedarf_id_output_bedarf_id_fk": {
+          "name": "vergabe_zeitraum_output_bedarf_id_output_bedarf_id_fk",
+          "tableFrom": "vergabe_zeitraum",
+          "tableTo": "output_bedarf",
+          "columnsFrom": [
+            "output_bedarf_id"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "no action",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "vergabe_ein_elternteil_check": {
+          "name": "vergabe_ein_elternteil_check",
+          "value": "(\"vergabe_zeitraum\".\"biomassestrom_id\" IS NULL) <> (\"vergabe_zeitraum\".\"output_bedarf_id\" IS NULL)"
+        },
+        "vergabe_mindestens_ein_datum_check": {
+          "name": "vergabe_mindestens_ein_datum_check",
+          "value": "\"vergabe_zeitraum\".\"vergeben_von\" IS NOT NULL OR \"vergabe_zeitraum\".\"vergeben_bis\" IS NOT NULL"
+        }
+      },
+      "isRLSEnabled": false
+    },
+    "public.verwaltungsgebiet": {
+      "name": "verwaltungsgebiet",
+      "schema": "",
+      "columns": {
+        "ars": {
+          "name": "ars",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "ebene": {
+          "name": "ebene",
+          "type": "verwaltungs_ebene",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "name": {
+          "name": "name",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "bez": {
+          "name": "bez",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "geom": {
+          "name": "geom",
+          "type": "geometry(MultiPolygon,4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "geom_anzeige": {
+          "name": "geom_anzeige",
+          "type": "geometry(MultiPolygon,4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stichtag": {
+          "name": "stichtag",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    }
+  },
+  "enums": {
+    "public.beleg_typ": {
+      "name": "beleg_typ",
+      "schema": "public",
+      "values": [
+        "dokument",
+        "gespraech",
+        "angebot",
+        "absichtserklaerung",
+        "vertrag",
+        "betriebsdaten",
+        "webrecherche"
+      ]
+    },
+    "public.benutzer_rolle": {
+      "name": "benutzer_rolle",
+      "schema": "public",
+      "values": [
+        "betrachter",
+        "bearbeiter",
+        "admin",
+        "pruefer"
+      ]
+    },
+    "public.bereitschaft_stufe": {
+      "name": "bereitschaft_stufe",
+      "schema": "public",
+      "values": [
+        "kein_kontakt",
+        "erstgespraech",
+        "positives_signal",
+        "absichtserklaerung"
+      ]
+    },
+    "public.datensatz_status": {
+      "name": "datensatz_status",
+      "schema": "public",
+      "values": [
+        "entwurf",
+        "in_pruefung",
+        "geprueft",
+        "verworfen"
+      ]
+    },
+    "public.ereignis_art": {
+      "name": "ereignis_art",
+      "schema": "public",
+      "values": [
+        "angelegt",
+        "geaendert",
+        "status_gesetzt",
+        "verworfen",
+        "gesperrt",
+        "entsperrt",
+        "zugewiesen",
+        "zuweisung_entfernt",
+        "benutzer_angelegt",
+        "rolle_gesetzt",
+        "benutzer_aktiviert",
+        "benutzer_deaktiviert",
+        "region_angelegt",
+        "akteur_angelegt",
+        "projekt_angelegt",
+        "altbestand",
+        "zugriff_angefragt",
+        "zugriff_abgelehnt",
+        "parameter_gesetzt",
+        "parameter_zurueckgenommen",
+        "sektor_angelegt",
+        "sektor_umbenannt",
+        "sektor_deaktiviert",
+        "sektor_reaktiviert",
+        "in_pruefung_gegeben",
+        "geprueft",
+        "zurueckgegeben",
+        "reaktiviert",
+        "zurueckgesetzt",
+        "als_abgelaufen_markiert",
+        "abgelaufen_aufgehoben",
+        "reverifiziert"
+      ]
+    },
+    "public.feedstock_cluster": {
+      "name": "feedstock_cluster",
+      "schema": "public",
+      "values": [
+        "organische_rest_abfallstoffe",
+        "lignozellulosische_reststoffe",
+        "nachwachsende_rohstoffe",
+        "lipide_spezialfeedstocks",
+        "polymere_synthetische_c_quellen"
+      ]
+    },
+    "public.inbox_typ": {
+      "name": "inbox_typ",
+      "schema": "public",
+      "values": [
+        "aenderung_eintrag",
+        "zugriffsanfrage",
+        "freischaltung",
+        "zugriff_abgelehnt",
+        "pruefauftrag",
+        "pruefung_erledigt",
+        "verifikation_laeuft_ab",
+        "verifikation_abgelaufen"
+      ]
+    },
+    "public.inbox_zustand": {
+      "name": "inbox_zustand",
+      "schema": "public",
+      "values": [
+        "offen",
+        "erledigt",
+        "verworfen"
+      ]
+    },
+    "public.lauf_status": {
+      "name": "lauf_status",
+      "schema": "public",
+      "values": [
+        "arbeitsfassung",
+        "eingefroren"
+      ]
+    },
+    "public.output_art": {
+      "name": "output_art",
+      "schema": "public",
+      "values": [
+        "target",
+        "add_on"
+      ]
+    },
+    "public.output_gruppe": {
+      "name": "output_gruppe",
+      "schema": "public",
+      "values": [
+        "primaerprodukte",
+        "wasserstoff",
+        "derivate",
+        "add_ons"
+      ]
+    },
+    "public.preis_herkunft": {
+      "name": "preis_herkunft",
+      "schema": "public",
+      "values": [
+        "eigene_datenbank",
+        "marktdaten",
+        "schaetzung"
+      ]
+    },
+    "public.qualitaets_stufe": {
+      "name": "qualitaets_stufe",
+      "schema": "public",
+      "values": [
+        "A",
+        "B",
+        "C",
+        "D"
+      ]
+    },
+    "public.verwaltungs_ebene": {
+      "name": "verwaltungs_ebene",
+      "schema": "public",
+      "values": [
+        "land",
+        "kreis"
+      ]
+    }
+  },
+  "schemas": {},
+  "sequences": {},
+  "roles": {},
+  "policies": {},
+  "views": {},
+  "_meta": {
+    "columns": {},
+    "schemas": {},
+    "tables": {}
+  }
+}

@@ -16,21 +16,30 @@ export type VerifikationsZustand =
   | "ungeprueft"
   | "in_pruefung"
   | "gueltig"
-  /** PR b: verifiziert_bis − Vorlauf ≤ heute — bis dahin liefert die Funktion ihn nicht. */
+  /** PR b: verifiziert_bis − Vorlauf (parameter verifikation.vorlauf_tage) ≤ Stichtag ≤ verifiziert_bis. */
   | "laeuft_bald_ab"
   | "abgelaufen"
   | "als_abgelaufen_markiert"
-  /** Geprueft ohne erkennbares Pruefereignis (Altbestand) oder ohne Beleg — gilt als faellig. */
-  | "pruefdatum_unbekannt";
+  /** Geprueft ohne erkennbares Pruefereignis (Altbestand) — gilt als faellig. */
+  | "pruefdatum_unbekannt"
+  /**
+   * PR b (Entscheidung Eric 01.10.2026): geprueft ohne Beleg — Altbestand, seit
+   * PR b nicht mehr erzeugbar (Beleg-Pflicht beim Pruefen). Keine Frist,
+   * keine Ablauf-Hinweise: Der Weg zurueck fuehrt ueber einen Beleg
+   * (fachliche Aenderung → Ruecksetzen → Pruefung).
+   */
+  | "ohne_beleg";
 
-/** Reihenfolge = Anzeige-Reihenfolge der Filteroptionen; laeuft_bald_ab kommt mit PR b in die Liste. */
+/** Reihenfolge = Anzeige-Reihenfolge der Filteroptionen (E32). */
 export const VERIFIKATION_ZUSTAENDE: readonly VerifikationsZustand[] = [
   "ungeprueft",
   "in_pruefung",
   "gueltig",
+  "laeuft_bald_ab",
   "abgelaufen",
   "als_abgelaufen_markiert",
   "pruefdatum_unbekannt",
+  "ohne_beleg",
 ];
 
 export const VERIFIKATION_LABEL: Record<VerifikationsZustand, string> = {
@@ -41,6 +50,7 @@ export const VERIFIKATION_LABEL: Record<VerifikationsZustand, string> = {
   abgelaufen: "abgelaufen",
   als_abgelaufen_markiert: "als abgelaufen markiert",
   pruefdatum_unbekannt: "Prüfdatum unbekannt",
+  ohne_beleg: "ohne Beleg",
 };
 
 export interface VerifikationsErgebnis {
@@ -77,6 +87,8 @@ export function verifikationPill(
       return { text: "abgelaufen.", tone: "inactive" };
     case "pruefdatum_unbekannt":
       return { text: "prüfdatum unbekannt.", tone: "inactive" };
+    case "ohne_beleg":
+      return { text: "ohne beleg.", tone: "inactive" };
     case "in_pruefung":
       return { text: "in prüfung.", tone: "active" };
     case "ungeprueft":
@@ -86,8 +98,9 @@ export function verifikationPill(
 
 /**
  * Sortierschluessel fuer „naechste Verifikation" (Auswertung): Abgelaufene
- * und Prüfdatum-unbekannt zuerst (aelteste zuerst), dann Gueltige nach
- * verifiziert_bis aufsteigend. Ungeprueft/in Pruefung haben keine Frist.
+ * und Prüfdatum-unbekannt zuerst (aelteste zuerst), dann Gueltige (auch
+ * bald ablaufende) nach verifiziert_bis aufsteigend. Ungeprueft, in Pruefung,
+ * markiert und ohne Beleg haben keine Frist — kein Rang.
  */
 export function verifikationsRang(v: VerifikationsErgebnis | undefined): [number, string] | null {
   if (!v) return null;

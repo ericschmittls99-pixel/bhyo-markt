@@ -35,10 +35,15 @@ function kette(zeilen: unknown[]): unknown {
 }
 
 const protokolliere = vi.fn(async () => {});
+/** PR b: einzelne Tests brauchen einen Strom MIT Beleg (Beleg-Pflicht beim Pruefen). */
+let aktuelleZeilen: unknown[] = ZEILEN;
+const BELEG = "00000000-0000-4000-8000-0000000000b0";
+const mitBeleg = (extra: Record<string, unknown> = {}) =>
+  ZEILEN.map((z) => ({ ...z, belegId: BELEG, typ: "gespraech", gueltigBis: null, abgelaufenAm: null, ...extra }));
 vi.mock("@/lib/protokoll", async (orig) => ({ ...(await orig<typeof import("@/lib/protokoll")>()), protokolliere }));
 vi.mock("@/lib/db", () => ({
   currentUserEmail: async () => ERIC.email,
-  withDb: async (fn: (db: unknown) => unknown) => fn(kette(ZEILEN)),
+  withDb: async (fn: (db: unknown) => unknown) => fn(kette(aktuelleZeilen)),
   getBelegeBucket: async () => ({ put: async () => {}, get: async () => null }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
@@ -62,7 +67,7 @@ vi.mock("@/lib/vergabe-fenster", async (orig) => ({
   validiereVergaben: () => ({}),
 }));
 
-const { statusSetzen, stromVerwerfen, stromPruefen, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
+const { statusSetzen, stromVerwerfen, stromPruefen, stromReverifizieren, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
 const { stromSperren, stromEntsperren, stromZuweisen, zuweisungEntfernen } = await import("@/lib/sperre-actions");
 const { benutzerAnlegen, rolleSetzen, aktivSetzen } = await import("@/lib/benutzer-actions");
 const { stromSpeichern } = await import("@/lib/formular-actions");
@@ -83,7 +88,10 @@ function formular(felder: Record<string, string>) {
   return fd;
 }
 
-beforeEach(() => protokolliere.mockClear());
+beforeEach(() => {
+  protokolliere.mockClear();
+  aktuelleZeilen = ZEILEN;
+});
 
 describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => {
   // AP2.4 (E62, 0.4): jeder Statuswechsel mit eigener Art — status_gesetzt wird nie mehr geschrieben.
@@ -96,9 +104,30 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     expect(r.ok).toBe(false);
     expect(protokolliere).not.toHaveBeenCalled();
   });
-  it("stromPruefen → geprueft am Strom (aus entwurf direkt)", async () => {
+  it("stromPruefen → geprueft am Strom (aus entwurf direkt, mit Beleg)", async () => {
+    aktuelleZeilen = mitBeleg();
     expect(await stromPruefen("biomasse", STROM)).toEqual({ ok: true });
     expect(ereignis()).toMatchObject({ art: "geprueft", entitaet: "biomassestrom", id: STROM, benutzerId: ERIC.id });
+  });
+  it("PR b: stromPruefen ohne Beleg — abgewiesen, kein Ereignis", async () => {
+    expect(await stromPruefen("biomasse", STROM)).toEqual({ ok: false, fehler: "Ohne Beleg kann nicht geprüft werden." });
+    expect(protokolliere).not.toHaveBeenCalled();
+  });
+  it("PR b: stromReverifizieren → reverifiziert am geprueften Strom mit Beleg, ohne Statuswechsel", async () => {
+    aktuelleZeilen = mitBeleg({ status: "geprueft" });
+    expect(await stromReverifizieren("output", STROM)).toEqual({ ok: true });
+    expect(ereignis()).toMatchObject({ art: "reverifiziert", entitaet: "output_bedarf", id: STROM, benutzerId: ERIC.id });
+  });
+  it("PR b: stromReverifizieren — D3-Regeln: nicht geprueft, markiert, gueltig_bis erreicht → Fehler, kein Ereignis", async () => {
+    aktuelleZeilen = mitBeleg({ status: "entwurf" });
+    expect((await stromReverifizieren("biomasse", STROM)).ok).toBe(false);
+    aktuelleZeilen = mitBeleg({ status: "geprueft", abgelaufenAm: "2026-09-01" });
+    expect((await stromReverifizieren("biomasse", STROM)).fehler).toMatch(/Markierung aufheben/);
+    aktuelleZeilen = mitBeleg({ status: "geprueft", typ: "vertrag", gueltigBis: "2026-01-01" });
+    expect((await stromReverifizieren("biomasse", STROM)).fehler).toMatch(/Gültig bis ist erreicht/);
+    aktuelleZeilen = mitBeleg({ status: "geprueft", typ: "vertrag", gueltigBis: "2099-01-01" });
+    expect(await stromReverifizieren("biomasse", STROM)).toEqual({ ok: true });
+    expect(protokolliere).toHaveBeenCalledTimes(1);
   });
   it("belegAbgelaufenMarkieren ohne Beleg: Fehler, kein Ereignis", async () => {
     const r = await belegAbgelaufenMarkieren("biomasse", STROM);

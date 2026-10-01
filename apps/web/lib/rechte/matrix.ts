@@ -58,6 +58,8 @@ export const AKTIONEN = [
   "strom.pruefen",
   "beleg.abgelaufen_markieren",
   "beleg.abgelaufen_aufheben",
+  // AP2.4 PR b (E63): erneut verifizieren — pruefer/admin, Objektregel wie das Bearbeiten.
+  "strom.reverifizieren",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -99,6 +101,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "strom.pruefen": SPERREN,
   "beleg.abgelaufen_markieren": SPERREN,
   "beleg.abgelaufen_aufheben": SPERREN,
+  "strom.reverifizieren": SPERREN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -159,6 +162,7 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "strom.pruefen": aendernBeiSperre,
   "beleg.abgelaufen_markieren": aendernBeiSperre,
   "beleg.abgelaufen_aufheben": aendernBeiSperre,
+  "strom.reverifizieren": aendernBeiSperre,
   "strom.sperren": sperren,
   "strom.entsperren": inhaberOderAdmin,
   "strom.zuweisen": inhaberOderAdmin,

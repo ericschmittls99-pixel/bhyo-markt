@@ -26,6 +26,8 @@ export const BETEILIGUNGS_ARTEN: readonly EreignisArt[] = [
   "zurueckgegeben",
   "reaktiviert",
   "zurueckgesetzt",
+  // AP2.4 PR b: wer erneut verifiziert, ist beteiligt wie der Pruefer.
+  "reverifiziert",
 ];
 
 export type Ersteller =

@@ -14,8 +14,17 @@ import {
 // selbst liegt in strom_verifikation() (Migration 0032) und wird im CI gegen
 // die Preview geprueft (packages/db/src/verifikation-check.ts).
 describe("Verifikationszustaende (E62)", () => {
-  it("die Filterliste nennt jeden Zustand ausser laeuft_bald_ab (PR b) und jeder hat ein Label", () => {
-    expect(VERIFIKATION_ZUSTAENDE).toEqual(["ungeprueft", "in_pruefung", "gueltig", "abgelaufen", "als_abgelaufen_markiert", "pruefdatum_unbekannt"]);
+  it("die Filterliste nennt jeden Zustand (PR b: laeuft_bald_ab, ohne_beleg) und jeder hat ein Label", () => {
+    expect(VERIFIKATION_ZUSTAENDE).toEqual([
+      "ungeprueft",
+      "in_pruefung",
+      "gueltig",
+      "laeuft_bald_ab",
+      "abgelaufen",
+      "als_abgelaufen_markiert",
+      "pruefdatum_unbekannt",
+      "ohne_beleg",
+    ]);
     for (const z of VERIFIKATION_ZUSTAENDE) expect(VERIFIKATION_LABEL[z]).toBeTruthy();
     expect(VERIFIKATION_LABEL.laeuft_bald_ab).toBe("läuft bald ab");
     expect(istVerifikationsZustand("gueltig")).toBe(true);
@@ -31,6 +40,11 @@ describe("Verifikationszustaende (E62)", () => {
     expect(verifikationPill({ zustand: "pruefdatum_unbekannt", verifiziertAm: null, verifiziertBis: null }, fmtDatum).text).toBe("prüfdatum unbekannt.");
     expect(verifikationPill({ zustand: "in_pruefung", verifiziertAm: null, verifiziertBis: null }, fmtDatum).text).toBe("in prüfung.");
     expect(verifikationPill({ zustand: "ungeprueft", verifiziertAm: null, verifiziertBis: null }, fmtDatum).text).toBe("ungeprüft.");
+    expect(verifikationPill({ zustand: "laeuft_bald_ab", verifiziertAm: null, verifiziertBis: "2026-10-05" }, fmtDatum)).toEqual({
+      text: "läuft ab am 05.10.2026.",
+      tone: "active",
+    });
+    expect(verifikationPill({ zustand: "ohne_beleg", verifiziertAm: null, verifiziertBis: null }, fmtDatum)).toEqual({ text: "ohne beleg.", tone: "inactive" });
   });
   it("faellig sind abgelaufen und Pruefdatum unbekannt", () => {
     expect(FAELLIGE_ZUSTAENDE).toEqual(["abgelaufen", "pruefdatum_unbekannt"]);
@@ -42,6 +56,9 @@ describe("Verifikationszustaende (E62)", () => {
     expect(verifikationsRang({ zustand: "in_pruefung", verifiziertAm: null, verifiziertBis: null })).toBeNull();
     expect(verifikationsRang({ zustand: "ungeprueft", verifiziertAm: null, verifiziertBis: null })).toBeNull();
     expect(verifikationsRang({ zustand: "als_abgelaufen_markiert", verifiziertAm: null, verifiziertBis: null })).toBeNull();
+    expect(verifikationsRang({ zustand: "laeuft_bald_ab", verifiziertAm: null, verifiziertBis: "2026-10-05" })).toEqual([2, "2026-10-05"]);
+    // ohne Beleg: keine Frist, kein Hinweis — kein Rang (Entscheidung Eric 01.10.2026).
+    expect(verifikationsRang({ zustand: "ohne_beleg", verifiziertAm: null, verifiziertBis: null })).toBeNull();
     expect(verifikationsRang(undefined)).toBeNull();
   });
 });

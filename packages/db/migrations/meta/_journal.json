@@ -232,6 +232,13 @@
       "when": 1790801528345,
       "tag": "0032_ap24_verifikation",
       "breakpoints": true
+    },
+    {
+      "idx": 33,
+      "version": "7",
+      "when": 1790837606338,
+      "tag": "0033_ap24_job_hinweise",
+      "breakpoints": true
     }
   ]
 }

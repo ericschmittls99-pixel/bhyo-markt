@@ -152,6 +152,7 @@ export async function inboxAblehnen(id: string): Promise<AktionErgebnis> {
         const e = await pruefeInboxEmpfaenger(tx, wache.zugang, "inbox.ablehnen", id);
         if (e.typ !== "zugriffsanfrage") throw new Error("Nur eine Zugriffsanfrage lässt sich ablehnen.");
         if (e.zustand !== "offen") throw new Error("Die Anfrage ist nicht mehr offen.");
+        if (!e.ausloeserId) throw new Error("Die Anfrage hat keinen Urheber.");
         await protokolliere(tx, {
           art: "zugriff_abgelehnt",
           entitaet: e.strom.art === "biomasse" ? "biomassestrom" : "output_bedarf",

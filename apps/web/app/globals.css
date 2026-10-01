@@ -5212,6 +5212,12 @@ table.st-tabelle tbody tr:focus-visible {
 .ib-ungelesen .ib-punkt {
   background: var(--text-accent);
 }
+/* PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen in der Avatar-Groesse. */
+.ib-system {
+  color: var(--text-muted);
+  background: var(--surface-subtle);
+  font-size: 16px;
+}
 .ib-text {
   min-width: 0;
   padding: 0;

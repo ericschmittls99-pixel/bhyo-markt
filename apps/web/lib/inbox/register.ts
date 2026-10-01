@@ -5,6 +5,7 @@
  */
 import type { inboxTyp } from "@bhyo/db/schema";
 
+import { fmtDatum } from "@/lib/format";
 import type { EreignisArt } from "@/lib/protokoll";
 
 export type InboxTyp = (typeof inboxTyp.enumValues)[number];
@@ -16,19 +17,24 @@ export type InboxAktion =
   | "inbox.verwerfen"
   | "inbox.alle_erledigen"
   | "inbox.ablehnen"
-  | "strom.zuweisen";
+  | "strom.zuweisen"
+  /** PR b: erneut verifizieren am Hinweis (nur Pruefer, dieselbe Aktion wie im Beleg-Kopf). */
+  | "strom.reverifizieren";
 
 /** Was die Zeile anzeigt — aus dem Eintrag und seinem Strom abgeleitet, nie gespeichert. */
 export interface ZeilenDaten {
+  /** Leer bei den Hinweisen des Jobs (kein Urheber). */
   ausloeserName: string;
   belegNr: string | null;
   bezeichnung: string | null;
   anzahl: number;
+  /** PR b: Bezugsdatum des Job-Hinweises (verifiziert_bis, JJJJ-MM-TT); null bei Pruefdatum unbekannt. */
+  bezugsdatum?: string | null;
 }
 
 export interface TypDefinition {
   /** Ereignisarten, die diesen Typ ausloesen. */
-  arten: readonly EreignisArt[];
+  arten: readonly EreignisArt[]; // leer = nicht ereignisgetrieben (Job-Hinweise, lib/inbox/hinweise.ts)
   /** Empfaengerregel in Worten (die Abfrage steht in zustellung.ts). */
   empfaengerregel: string;
   /** Buendelungsschluessel in Worten (die Indizes stehen in packages/db/src/schema.ts). */
@@ -69,8 +75,31 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     reinerHinweis: true,
     text: (z) => `${z.ausloeserName} hat ${objektText(z)} geprüft`,
   },
+  // AP2.4 PR b (E63): zustandsbasierte Hinweise des taeglichen Jobs — kein
+  // Ereignis, kein Urheber; Empfaenger und Idempotenz in lib/inbox/hinweise.ts.
+  verifikation_laeuft_ab: {
+    arten: [],
+    empfaengerregel:
+      "der Pruefer des letzten Ereignisses geprueft/reverifiziert; ist er kein Pruefer/Admin mehr oder deaktiviert, alle aktiven Pruefer und Admins",
+    buendelung: "je Empfaenger, Strom und Bezugsdatum (verifiziert_bis) genau ein Eintrag, dauerhaft — ein zweiter Lauf erzeugt nichts",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren"],
+    reinerHinweis: false,
+    text: (z) => `Verifikation von ${objektText(z)} läuft am ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} ab`,
+  },
+  verifikation_abgelaufen: {
+    arten: [],
+    empfaengerregel:
+      "wie verifikation_laeuft_ab; bei Pruefdatum unbekannt alle aktiven Pruefer und Admins",
+    buendelung: "wie verifikation_laeuft_ab; Pruefdatum unbekannt ohne Bezugsdatum, einmal je Empfaenger und Strom",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren"],
+    reinerHinweis: false,
+    text: (z) =>
+      z.bezugsdatum
+        ? `Verifikation von ${objektText(z)} ist seit ${fmtDatum(z.bezugsdatum)} abgelaufen`
+        : `Prüfdatum von ${objektText(z)} unbekannt – bitte verifizieren`,
+  },
   aenderung_eintrag: {
-    arten: ["geaendert", "status_gesetzt", "verworfen", "in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt"],
+    arten: ["geaendert", "status_gesetzt", "verworfen", "in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt", "reverifiziert"],
     empfaengerregel:
       "alle Beteiligten des Stroms (Beteiligungs-Arten, lib/protokoll/ableitung.ts) ausser dem Ausloeser, Deaktivierten, Betrachtern — und ausser denen, die fuer dasselbe Ereignis schon pruefauftrag oder pruefung_erledigt bekommen",
     buendelung: "je Empfaenger und Strom, solange der Eintrag offen ist",
