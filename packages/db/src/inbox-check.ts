@@ -12,6 +12,9 @@
  * 5. PR c: Zugriffsanfrage — der Index (Empfaenger, Strom, Anfragender) greift:
  *    zweite offene Anfrage derselben Person abgewiesen, zweite Anfragende
  *    zugelassen; Enum inbox_typ traegt die drei neuen Typen.
+ * 8. AP2.4 PR c (E63, D5): Typ aufgabe, Spalte aufgabe, CHECK
+ *    inbox_eintrag_aufgabe_check — Text nur beim Typ aufgabe, nicht leer,
+ *    hoechstens 500 Zeichen (Probe: leer, 501 Zeichen, fremder Typ mit Text).
  * 7. AP2.4 PR b (E63): Typen verifikation_laeuft_ab und verifikation_abgelaufen,
  *    die beiden Hinweis-Indizes (NULLS NOT DISTINCT), Spalte bezugsdatum,
  *    ausloeser_id und ereignis_id NULL-faehig, CHECK inbox_eintrag_urheber_check.
@@ -68,11 +71,14 @@ async function main() {
     where table_name = 'inbox_eintrag' and column_name in ('ausloeser_id', 'ereignis_id') and is_nullable = 'YES'`;
   const [bz] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'bezugsdatum'`;
   const [uc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_urheber_check'`;
+  // PR c (0034): Typ aufgabe, Spalte aufgabe, Aufgaben-CHECK.
+  const [as] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'aufgabe'`;
+  const [ac] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_aufgabe_check'`;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/8 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n}`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/9 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n}`,
   );
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 9 || typen.length !== 8 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten)");
+  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 9 || typen.length !== 9 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1) {
+    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe)");
     await sql.end();
     process.exit(1);
   }
@@ -132,6 +138,24 @@ async function main() {
     values (${nutzer.id}, ${nutzer.id}, 'aenderung_eintrag', ${ereignis.id})`);
   console.log(`OHNE_STROM_ABGEWIESEN ${!!ohneStrom.fehler}`);
   if (!ohneStrom.fehler) fehler.push("Eintrag ohne Strom kam durch — CHECK greift nicht");
+
+  // (4b) AP2.4 PR c: Aufgaben-CHECK — leer, 501 Zeichen und Text an fremdem Typ abgewiesen; 500 Zeichen erlaubt.
+  const aufgabe = (tx: postgres.TransactionSql, typ: string, text: string | null) => tx`
+    insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, aufgabe)
+    values (${nutzer.id}, ${nutzer.id}, ${typ}::inbox_typ, ${strom.id}, ${ereignis.id}, ${text})`;
+  const aufgabenProben: [string, string, string | null, boolean][] = [
+    ["AUFGABE_LEER_ABGEWIESEN", "aufgabe", "   ", true],
+    ["AUFGABE_NULL_ABGEWIESEN", "aufgabe", null, true],
+    ["AUFGABE_501_ABGEWIESEN", "aufgabe", "x".repeat(501), true],
+    ["AUFGABE_500_ERLAUBT", "aufgabe", "x".repeat(500), false],
+    ["AUFGABE_AN_FREMDEM_TYP_ABGEWIESEN", "aenderung_eintrag", "Bitte aktualisieren", true],
+  ];
+  for (const [name, typ, text, sollFehler] of aufgabenProben) {
+    const r = await probe((tx) => aufgabe(tx, typ, text));
+    const ok = sollFehler ? !!r.fehler && /inbox_eintrag_aufgabe_check/.test(r.fehler) : !r.fehler;
+    console.log(`${name} ${ok}${r.fehler ? ` (${r.fehler.slice(0, 80)})` : ""}`);
+    if (!ok) fehler.push(`${name}: ${sollFehler ? "kam durch" : r.fehler}`);
+  }
 
   // (5) PR c: Zugriffsanfrage — Index (Empfaenger, Strom, Anfragender) greift.
   const [zweiter] = await sql`select id from benutzer where id <> ${nutzer.id} order by email limit 1`;
