@@ -111,7 +111,7 @@ async function main() {
   const dsgvo = await probe(async (tx) => {
     const [p] = await anlegen(tx);
     await tx`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id)
-             values ('kontaktperson', ${p!.id}, ${"probe@bhyo.de: Felder: funktion"}, 'kontaktperson_geaendert', ${nutzer.id})`;
+             values ('kontaktperson', ${p!.id}, ${"probe@bhyo.de: Kontaktperson " + SENTINEL + " geaendert"}, 'kontaktperson_geaendert', ${nutzer.id})`;
     await tx`insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, kontaktperson_id, ereignis_id, bezugsdatum)
              values (${nutzer.id}, null, 'kontaktperson_loeschpruefung', ${p!.id}, null, '2026-01-01')`;
     const vorher = await sucheText(tx, SENTINEL);
