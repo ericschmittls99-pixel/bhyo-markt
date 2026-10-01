@@ -77,7 +77,6 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
            null, e.bezugsdatum, 1, now(), now(), 'offen', now()
       from empfaenger e
      where e.empfaenger_id is not null
-    on conflict do nothing
     returning typ::text as typ
   `)) as unknown as { typ: string }[];
 
