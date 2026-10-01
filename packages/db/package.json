@@ -10,7 +10,8 @@
     "./schema": "./src/schema.ts",
     "./journal": "./migrations/meta/_journal.json",
     "./client": "./src/client.ts",
-    "./fehler": "./src/fehler.ts"
+    "./fehler": "./src/fehler.ts",
+    "./dubletten-fixtures": "./src/dubletten-fixtures.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",
@@ -40,7 +41,8 @@
     "archiv-altfelder": "tsx src/archiv-altfelder.ts",
     "test": "vitest run",
     "test:watch": "vitest",
-    "kontaktperson-check": "tsx src/kontaktperson-check.ts"
+    "kontaktperson-check": "tsx src/kontaktperson-check.ts",
+    "dubletten-check": "tsx src/dubletten-check.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

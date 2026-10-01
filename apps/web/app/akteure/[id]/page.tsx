@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { AkteurKarte } from "@/components/akteure/AkteurKarte";
 import { AkteurStammdaten } from "@/components/akteure/AkteurStammdaten";
@@ -8,6 +8,7 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur, ladeAkteurStroeme } from "@/lib/akteure";
 import { AKTEUR_ZUSTAND_LABEL, zustaendeAus } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
+import { zielNachZusammenfuehrung } from "@/lib/dubletten";
 import { fmtDatum } from "@/lib/format";
 import { ladeKontaktpersonen } from "@/lib/kontaktpersonen";
 import { darfRolle } from "@/lib/rechte";
@@ -41,7 +42,12 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
     ladeSektoren(),
     withDb((db) => ladeKontaktpersonen(db, id)),
   ]);
-  if (!a) notFound();
+  if (!a) {
+    // AP2.5 PR c: alte Links zur Quelle einer Zusammenfuehrung leiten ueber das Protokoll aufs Ziel.
+    const ziel = await withDb((db) => zielNachZusammenfuehrung(db, id));
+    if (ziel) redirect(`/akteure/${ziel}${reiter === "kontaktpersonen" ? "?reiter=kontaktpersonen" : ""}`);
+    notFound();
+  }
   const zustaende = zustaendeAus(a);
   const darfBearbeiten = darfRolle(zugang, "akteur.bearbeiten");
   const darfLoeschen = darfRolle(zugang, "akteur.loeschen") && a.stroeme === 0;

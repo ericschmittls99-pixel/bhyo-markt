@@ -11,6 +11,17 @@ interface AkteurOption {
   sektor: string | null;
 }
 
+/** AP2.5 PR c: aehnlicher Akteur zum eingegebenen Namen (/api/akteure/aehnlich). */
+interface Aehnlich {
+  id: string;
+  name: string;
+  sektor: string;
+  sitzPlz: string | null;
+  sitzOrt: string | null;
+  aehnlichkeit: number;
+  grad: "stark" | "schwach";
+}
+
 interface SektorOption {
   code: string;
   label: string;
@@ -55,6 +66,10 @@ export function AkteurCombobox({
   // mit einem veralteten Wert die erste Eingabe ueberschreiben.
   const sitzBearbeitet = useRef(false);
   const [anlageFehler, setAnlageFehler] = useState<string | null>(null);
+  // AP2.5 PR c (E66): „Meinten Sie …?" — starke und schwache Treffer zum
+  // eingegebenen Namen, Ortsbezug ueber die PLZ/den Pin des Sitzes. Anlegen
+  // bleibt trotzdem moeglich.
+  const [aehnliche, setAehnliche] = useState<Aehnlich[]>([]);
   const box = useRef<HTMLDivElement>(null);
 
   // Einmal laden: acht Zeilen, Quelle fuer Auswahl und Anzeige-Label.
@@ -93,6 +108,25 @@ export function AkteurCombobox({
     }, 200);
     return () => clearTimeout(t);
   }, [query, gewaehlt]);
+
+  useEffect(() => {
+    if (gewaehlt || !query.trim()) {
+      setAehnliche([]);
+      return;
+    }
+    const q = query.trim();
+    const t = setTimeout(async () => {
+      try {
+        const p = new URLSearchParams({ name: q, plz: sitz.plz, lat: sitz.lat, lng: sitz.lng });
+        const res = await fetch(`/api/akteure/aehnlich?${p.toString()}`);
+        const data = (await res.json()) as { treffer?: Aehnlich[] };
+        setAehnliche(data.treffer ?? []);
+      } catch {
+        setAehnliche([]);
+      }
+    }, 250);
+    return () => clearTimeout(t);
+  }, [query, gewaehlt, sitz.plz, sitz.lat, sitz.lng]);
 
   useEffect(() => {
     const onClick = (e: MouseEvent) => {
@@ -227,6 +261,29 @@ export function AkteurCombobox({
               ))}
             {!laedt && !treffer.length && (
               <span className="menu-leer">Kein Treffer.</span>
+            )}
+            {!laedt && query.trim() && !exakt && aehnliche.length > 0 && (
+              <div className="akteur-meinten" role="group" aria-label="Meinten Sie">
+                <span className="menu-leer">Meinten Sie …?</span>
+                {aehnliche.map((a) => (
+                  <button
+                    key={a.id}
+                    type="button"
+                    className="menu-item"
+                    onMouseDown={(e) => {
+                      e.preventDefault();
+                      waehle({ id: a.id, name: a.name, sektor: a.sektor });
+                    }}
+                  >
+                    <span className="lbl">{a.name}</span>
+                    <span className="scb-meta">
+                      {[a.sitzPlz, a.sitzOrt].filter(Boolean).join(" ")}
+                      {" · "}
+                      <span className={`pill ${a.grad === "stark" ? "pill--accent" : "pill--muted"}`}>{a.grad}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
             )}
             {!laedt && query.trim() && !exakt && (
               <div className="akteur-neu" ref={() => sitzVorbefuellen()}>

@@ -1362,6 +1362,68 @@ erledigt, jung → nichts.
 zwei Löschprüfungs-Fälle (25/30 Monate ohne Aktivität an verwaisten
 Akteuren), eine junge Person.
 
+## 35. AP2.5 PR c: Dubletten und Zusammenführen (E66), 01.10.2026
+
+**Normalisierung** (Migration 0038): `akteur_name_norm(text)` in SQL und
+dasselbe Spiegelbild in `apps/web/lib/akteur-norm.ts` — Kleinschreibung,
+Umlaute (ae/oe/ue/ss), e.K./e.V. als Wörter, alles Nicht-Alphanumerische zu
+Leerzeichen, Rechtsform-Wörter entfernt (gmbh, mbh, gbr, kg, kgaa, ag, ohg,
+ug, se, eg, ek, ev, co, haftungsbeschraenkt, ltd, inc), Leerraum
+zusammengezogen. **Eine Fixture-Liste** (`packages/db/src/dubletten-fixtures.ts`)
+für beide Seiten: `akteur-norm.test.ts` prüft TypeScript, `dubletten-check`
+(CI, Preview) prüft SQL und `similarity()` gegen die nachgerechnete
+pg_trgm-Ähnlichkeit. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
+Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
+
+**Schwellen** (Konstanten, Kalibrierung in `docs/ap25-dubletten-kalibrierung.md`):
+`DUBLETTE_STARK = 0,60` mit gleicher PLZ oder gleichem Kreis-ARS (View
+`akteur_verwaltung`, E25-Weg), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug.
+Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
+1,000 (sie unterscheiden sich nur in Rechtsform/Umlaut), die Schwelle wird
+von den falschen Freunden bestimmt — am selben Ort bis 0,70 („Stadt X" ·
+„Stadtwerke X"), an verschiedenen Orten bis 0,69 (gleiche Betriebsart);
+echte Varianten (Tippfehler, Zusatzwort) liegen bei 0,65–0,83. Mit Ortsbezug
+zählt die Trefferquote, ohne die Genauigkeit. `dubletten-kalibrierung.test.ts`
+hält die Trennung gegen den Seed fest.
+
+**„Meinten Sie …?"** beim Anlegen im Beleg (`/api/akteure/aehnlich`, Lesen
+reicht): starke und schwache Treffer zum eingegebenen Namen, Ortsbezug über
+die PLZ oder den Kreis des Sitz-Pins; Anlegen bleibt möglich.
+
+**Liste `akteure./dubletten`:** Paare ab der Schwelle, stark vor schwach,
+ohne die als **„keine Dublette"** markierten (Tabelle `akteur_keine_dublette`,
+akteur_a < akteur_b, UNIQUE, zwei FKs ON DELETE CASCADE; Aktion
+`akteur.keine_dublette` ab bearbeiter, Ereignis `keine_dublette_markiert` an
+beiden Akteuren, Text nur IDs).
+
+**Zusammenführen** (`akteur.zusammenfuehren`, nur Prüfer und Admin,
+endgültig): Ziel wählen (voreingestellt der Akteur mit mehr Strömen),
+Feldkonflikte Name/Sektor/Sitz entscheidet der Nutzer, voreingestellt gewinnt
+das Ziel (der Sitz als Ganzes, weil der Pin den Kreis bestimmt). In **einer
+Transaktion**: beide Akteure gesperrt (FOR UPDATE), **Leitplanke Belege**
+— jeder Strom der Quelle wird mit der Objektregel von `strom.bearbeiten`
+(E44) geprüft; ist einer für den Handelnden gesperrt, Abweisung mit Meldung
+„Zusammenführen abgewiesen: Strom „…" ist von … gesperrt." (Admins dürfen
+laut E44 über fremde Sperren — dieselbe Regel wie beim Bearbeiten, keine
+zweite). Dann Ereignis `akteur_zusammengefuehrt` an der Quelle („Quelle <id>
+→ Ziel <id>; n Ströme; Felder aus Quelle: …") **zuerst**, `akteur_geaendert`
+am Ziel, Ströme umgehängt mit `geaendert` je Strom (→ die übliche gebündelte
+Änderungs-Mitteilung an die Beteiligten), Kontaktpersonen umgehängt mit
+`kontaktperson_geaendert` (nur IDs), Interessen umgezogen (Duplikate
+derselben Region zusammengelegt), Quelle gelöscht (keine-Dublette-Paare und
+Verwaist-Hinweise per CASCADE). **Trigger-Ausnahme:** `kontaktperson_kein_
+umhaengen` lässt das Umhängen nur zu, wenn das Ereignis
+`akteur_zusammengefuehrt` der Quelle mit „Ziel <id>" in **derselben
+Transaktion** steht (`zeitpunkt = now()`); sonst bleibt jedes UPDATE von
+akteur_id abgewiesen. **Alte Links** `/akteure/<quelle>` leiten über dieses
+Ereignis aufs Ziel (Kette bis 10 Stufen).
+
+**Rot gezeigt:** Zusammenführen als bearbeiter (Matrix testweise offen →
+matrix.test und dubletten-actions.test rot); über eine fremde Sperre
+(Sperrprüfung testweise entfernt → Test rot); `dubletten-check` (CI) weist
+nach: Löschen eines Akteurs mit Strom scheitert am Fremdschlüssel,
+Umhängen ohne Ereignis am Trigger, Paar ungeordnet/doppelt an CHECK/UNIQUE.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

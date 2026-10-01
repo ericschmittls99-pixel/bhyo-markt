@@ -22,6 +22,7 @@ export function AkteureListe({
   irgendeinFilter,
   ruecksetzParams,
   q,
+  dubletten,
 }: {
   zeilen: AkteurZeile[];
   gesamt: number;
@@ -30,6 +31,8 @@ export function AkteureListe({
   irgendeinFilter: boolean;
   ruecksetzParams: readonly string[];
   q: string;
+  /** AP2.5 PR c: Zahl der moeglichen Dubletten (Link zur Liste). */
+  dubletten: number;
 }) {
   const { setze } = useUrlZustand();
   const [suche, setSuche] = useState(q);
@@ -51,6 +54,10 @@ export function AkteureListe({
           {zeilen.length} von {gesamt} {gesamt === 1 ? "Akteur" : "Akteuren"}
           {irgendeinFilter ? " gefiltert" : ""}
         </span>
+        <Link href="/akteure/dubletten" className="btn btn--ghost btn--sm">
+          <i className="ph ph-copy" aria-hidden />
+          mögliche Dubletten{dubletten ? ` (${dubletten})` : ""}
+        </Link>
       </div>
       <div className="st-chips ak-chips">
         <FacettenChips

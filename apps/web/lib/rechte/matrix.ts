@@ -72,6 +72,11 @@ export const AKTIONEN = [
   "kontaktperson.bearbeiten",
   "kontaktperson.loeschen",
   "kontaktperson.auskunft",
+  // AP2.5 PR c (E66): „keine Dublette" ab bearbeiter (Pflege der Liste);
+  // zusammenfuehren nur pruefer/admin, endgueltig — Sperren der betroffenen
+  // Stroeme prueft die Action je Strom mit der Objektregel von strom.bearbeiten.
+  "akteur.keine_dublette",
+  "akteur.zusammenfuehren",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -121,6 +126,8 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "kontaktperson.bearbeiten": ERFASSEN,
   "kontaktperson.loeschen": SPERREN,
   "kontaktperson.auskunft": VERWALTEN,
+  "akteur.keine_dublette": ERFASSEN,
+  "akteur.zusammenfuehren": SPERREN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
