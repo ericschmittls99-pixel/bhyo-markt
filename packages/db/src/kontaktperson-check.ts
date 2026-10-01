@@ -17,6 +17,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -62,8 +64,13 @@ async function main() {
   const [ty] = await sql`select count(*)::int as n from pg_enum where enumtypid = 'inbox_typ'::regtype and enumlabel = 'kontaktperson_loeschpruefung'`;
   const [sp] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'kontaktperson_id'`;
   const [pa] = await sql`select count(*)::int as n from parameter_definition where schluessel = 'kontaktperson.loeschpruefung_monate'`;
-  console.log(`STRUKTUR tabelle=${t!.n} checks=${c!.n}/5 trigger=${tr!.n} typ=${ty!.n} spalte=${sp!.n} parameter=${pa!.n}`);
-  if (t!.n !== 1 || c!.n !== 5 || tr!.n !== 1 || ty!.n !== 1 || sp!.n !== 1 || pa!.n !== 1) {
+  // Journal-Vergleich (Eric 01.10.2026): die Zahl der CHECKs waechst mit spaeteren Migrationen —
+  // exakt bei gleichem Journal, mindestens wenn die DB voraus ist, rot bei Rueckstand.
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  const checks = zaehlerPasst("checks", c!.n, 5, journal.modus === "mindest" ? "mindest" : "exakt");
+  console.log(`STRUKTUR tabelle=${t!.n} checks=${c!.n}/5 trigger=${tr!.n} typ=${ty!.n} spalte=${sp!.n} parameter=${pa!.n} (${journal.modus})`);
+  if (journal.modus === "rot" || t!.n !== 1 || checks || tr!.n !== 1 || ty!.n !== 1 || sp!.n !== 1 || pa!.n !== 1) {
     console.error("::error::KONTAKTPERSON-CHECK VERLETZT (Migration 0036 fehlt): Tabelle / CHECKs / Trigger / Typ / Spalte / Parameter");
     await sql.end();
     process.exit(1);
