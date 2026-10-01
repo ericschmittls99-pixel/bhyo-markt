@@ -44,11 +44,35 @@ function objektText(z: ZeilenDaten): string {
   return [z.belegNr, z.bezeichnung].filter(Boolean).join(" ") || "einen Eintrag";
 }
 
+/**
+ * Reihenfolge = Zustellreihenfolge je Ereignis (AP2.4, D6): erst die Aufgaben-
+ * und Rueckmeldetypen, dann der Hinweis „Aenderung an meinem Eintrag" — wer
+ * fuer dasselbe Ereignis schon einen pruefauftrag oder pruefung_erledigt
+ * bekommt, bekommt keinen aenderung_eintrag mehr (zustellung.ts).
+ */
 export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
-  aenderung_eintrag: {
-    arten: ["geaendert", "status_gesetzt", "verworfen"],
+  // AP2.4 PR a (E62)
+  pruefauftrag: {
+    arten: ["in_pruefung_gegeben", "zurueckgesetzt"],
+    empfaengerregel: "alle aktiven Pruefer und Admins ausser dem Ausloeser",
+    buendelung: "je Pruefer und Strom, solange der Auftrag offen ist; erledigt bei allen, sobald jemand prueft, zurueckgibt oder verwirft",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"],
+    reinerHinweis: false,
+    text: (z) => `${z.ausloeserName} bittet um Prüfung von ${objektText(z)}${z.anzahl > 1 ? ` (${z.anzahl}. Mal)` : ""}`,
+  },
+  pruefung_erledigt: {
+    arten: ["geprueft"],
     empfaengerregel:
-      "alle Beteiligten des Stroms (angelegt, geaendert, status_gesetzt, verworfen) ausser dem Ausloeser, Deaktivierten und Betrachtern",
+      "die Person, die zuletzt in Pruefung gegeben oder die Ruecksetzung ausgeloest hat — nie der Pruefer selbst",
+    buendelung: "keine — jede Pruefung ein Eintrag",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `${z.ausloeserName} hat ${objektText(z)} geprüft`,
+  },
+  aenderung_eintrag: {
+    arten: ["geaendert", "status_gesetzt", "verworfen", "in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt"],
+    empfaengerregel:
+      "alle Beteiligten des Stroms (Beteiligungs-Arten, lib/protokoll/ableitung.ts) ausser dem Ausloeser, Deaktivierten, Betrachtern — und ausser denen, die fuer dasselbe Ereignis schon pruefauftrag oder pruefung_erledigt bekommen",
     buendelung: "je Empfaenger und Strom, solange der Eintrag offen ist",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
@@ -82,10 +106,12 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
   },
 };
 
-/** Welcher Typ entsteht aus einer Ereignisart? null = keine Zustellung. */
+/** Welche Typen entstehen aus einer Ereignisart, in Zustellreihenfolge? Leer = keine Zustellung. */
+export function typenFuerArt(art: EreignisArt): InboxTyp[] {
+  return (Object.entries(INBOX_TYPEN) as [InboxTyp, TypDefinition][]).filter(([, def]) => def.arten.includes(art)).map(([typ]) => typ);
+}
+
+/** Der erste Typ einer Ereignisart (Aufgabe vor Hinweis); null = keine Zustellung. */
 export function typFuerArt(art: EreignisArt): InboxTyp | null {
-  for (const [typ, def] of Object.entries(INBOX_TYPEN) as [InboxTyp, TypDefinition][]) {
-    if (def.arten.includes(art)) return typ;
-  }
-  return null;
+  return typenFuerArt(art)[0] ?? null;
 }

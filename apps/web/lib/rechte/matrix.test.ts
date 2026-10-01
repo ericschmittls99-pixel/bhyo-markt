@@ -51,6 +51,10 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "sektor.umbenennen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "sektor.deaktivieren": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "sektor.reaktivieren": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
+  // E62 D4: „geprueft" setzen nur pruefer und admin — ein bearbeiter gibt nur in Pruefung.
+  "strom.pruefen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  "beleg.abgelaufen_markieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  "beleg.abgelaufen_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -154,6 +158,33 @@ describe("E44 Sperre: jeder fachliche Schreibpfad", () => {
   }
   // Ein Bearbeiter, der nur Inhaber "waere" (ID stimmt), aber Rolle bearbeiter hat: Inhaber sein setzt pruefer voraus —
   // fuer das Bearbeiten reicht die Zuweisung/Inhaberschaft ueber die ID (E44 nennt Sperrinhaber, Zugewiesene, Admins).
+});
+
+// AP2.4 PR a (E62): Pruefen und Ablauf-Markierung — Rollenstufe pruefer/admin,
+// Objektstufe wie das Bearbeiten (am gesperrten Strom nur Inhaber, Zugewiesene, admin).
+const PRUEF_PFADE: Aktion[] = ["strom.pruefen", "beleg.abgelaufen_markieren", "beleg.abgelaufen_aufheben"];
+const PRUEF_ERWARTUNG: Record<Rolle, Record<"frei" | "inhaber" | "zugewiesen" | "fremd", boolean>> = {
+  betrachter: { frei: false, inhaber: false, zugewiesen: false, fremd: false },
+  bearbeiter: { frei: false, inhaber: false, zugewiesen: false, fremd: false },
+  pruefer: { frei: true, inhaber: true, zugewiesen: true, fremd: false },
+  admin: { frei: true, inhaber: true, zugewiesen: true, fremd: true },
+};
+describe("E62 Pruefen und Ablauf-Markierung: Rolle × Sperre", () => {
+  for (const aktion of PRUEF_PFADE) {
+    for (const rolle of ROLLEN) {
+      it(`${aktion} × ${rolle} × ungesperrt = ${PRUEF_ERWARTUNG[rolle].frei}`, () => {
+        expect(darf({ rolle, id: ICH }, aktion, objektFuer(false, "fremd"))).toBe(PRUEF_ERWARTUNG[rolle].frei);
+      });
+      for (const v of ["inhaber", "zugewiesen", "fremd"] as const) {
+        it(`${aktion} × ${rolle} × gesperrt/${v} = ${PRUEF_ERWARTUNG[rolle][v]}`, () => {
+          expect(darf({ rolle, id: ICH }, aktion, objektFuer(true, v))).toBe(PRUEF_ERWARTUNG[rolle][v]);
+        });
+      }
+    }
+  }
+  it("ohne Objekt: fail closed", () => {
+    for (const aktion of PRUEF_PFADE) expect(darf({ rolle: "admin", id: ICH }, aktion)).toBe(false);
+  });
 });
 
 describe("E44 Sperren, Entsperren, Zuweisen", () => {

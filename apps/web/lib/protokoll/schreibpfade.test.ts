@@ -62,7 +62,7 @@ vi.mock("@/lib/vergabe-fenster", async (orig) => ({
   validiereVergaben: () => ({}),
 }));
 
-const { statusSetzen, stromVerwerfen } = await import("@/lib/stroeme-actions");
+const { statusSetzen, stromVerwerfen, stromPruefen, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
 const { stromSperren, stromEntsperren, stromZuweisen, zuweisungEntfernen } = await import("@/lib/sperre-actions");
 const { benutzerAnlegen, rolleSetzen, aktivSetzen } = await import("@/lib/benutzer-actions");
 const { stromSpeichern } = await import("@/lib/formular-actions");
@@ -86,9 +86,24 @@ function formular(felder: Record<string, string>) {
 beforeEach(() => protokolliere.mockClear());
 
 describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => {
-  it("statusSetzen → status_gesetzt am Strom", async () => {
+  // AP2.4 (E62, 0.4): jeder Statuswechsel mit eigener Art — status_gesetzt wird nie mehr geschrieben.
+  it("statusSetzen entwurf → in_pruefung: in_pruefung_gegeben am Strom", async () => {
     expect(await statusSetzen("biomasse", STROM, "in_pruefung")).toEqual({ ok: true });
-    expect(ereignis()).toMatchObject({ art: "status_gesetzt", entitaet: "biomassestrom", id: STROM, benutzerId: ERIC.id });
+    expect(ereignis()).toMatchObject({ art: "in_pruefung_gegeben", entitaet: "biomassestrom", id: STROM, benutzerId: ERIC.id });
+  });
+  it("statusSetzen: geprueft geht hier nicht — das ist strom.pruefen", async () => {
+    const r = await statusSetzen("biomasse", STROM, "geprueft");
+    expect(r.ok).toBe(false);
+    expect(protokolliere).not.toHaveBeenCalled();
+  });
+  it("stromPruefen → geprueft am Strom (aus entwurf direkt)", async () => {
+    expect(await stromPruefen("biomasse", STROM)).toEqual({ ok: true });
+    expect(ereignis()).toMatchObject({ art: "geprueft", entitaet: "biomassestrom", id: STROM, benutzerId: ERIC.id });
+  });
+  it("belegAbgelaufenMarkieren ohne Beleg: Fehler, kein Ereignis", async () => {
+    const r = await belegAbgelaufenMarkieren("biomasse", STROM);
+    expect(r).toEqual({ ok: false, fehler: "Der Strom hat keinen Beleg." });
+    expect(protokolliere).not.toHaveBeenCalled();
   });
   it("stromVerwerfen → verworfen am Output-Bedarf", async () => {
     expect(await stromVerwerfen("output", STROM)).toEqual({ ok: true });

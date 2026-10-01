@@ -1,6 +1,7 @@
 import { STATUS_PILL } from "@/lib/status";
 import type { StromArt } from "@/lib/stroeme-modell";
 import {
+  RESERVIERUNG_VERALTET_PILL,
   verfuegbarkeitPill,
   type VerfuegbarkeitsErgebnis,
 } from "@/lib/verfuegbarkeit";
@@ -52,6 +53,12 @@ export function VerfuegbarkeitsPill({
     <>
       <span className={`spill spill--${p.tone}`}>{p.text}</span>
       {ergebnis.reserviertZusatz && <ReserviertStempel />}
+      {/* E64: Nebentag „bitte erneuern" — die Reservierung zaehlt weiter. */}
+      {ergebnis.reservierungVeraltet && (
+        <span className={`spill spill--${RESERVIERUNG_VERALTET_PILL.tone}`} title="Reservierung älter als die Gültigkeit — bitte erneuern">
+          {RESERVIERUNG_VERALTET_PILL.text}
+        </span>
+      )}
     </>
   );
 }

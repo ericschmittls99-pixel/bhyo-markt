@@ -1,7 +1,7 @@
 "use server";
 
-import { biomassestrom, outputBedarf, vergabeZeitraum } from "@bhyo/db/schema";
-import { eq, sql } from "drizzle-orm";
+import { beleg, biomassestrom, outputBedarf, vergabeZeitraum } from "@bhyo/db/schema";
+import { eq, getTableColumns, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import {
@@ -14,6 +14,7 @@ import {
 } from "@/lib/beleg-server";
 import { heuteBerlin } from "@/lib/datum";
 import { withDb, type AppDb } from "@/lib/db";
+import { fachlicheFelder } from "@/lib/feldeinstufung";
 import {
   herkunftOderNull,
   monatZuBis,
@@ -49,6 +50,36 @@ function zahl(formData: FormData, key: string): string {
 }
 
 const leerZuNull = (v: string): string | null => (v.trim() === "" ? null : v);
+
+/**
+ * E62/D6: Vergleichsform fuer „hat sich das Feld geaendert?" — Zahlen als
+ * Zahl (numeric kommt als Text), Datum/Text als Text, JSON stabil, leer als
+ * null. Absichtlich grob: lieber einmal zu viel zuruecksetzen als eine
+ * fachliche Aenderung uebersehen.
+ */
+function vergleichsform(v: unknown): string | null {
+  if (v == null) return null;
+  if (typeof v === "string") {
+    const t = v.trim();
+    if (t === "") return null;
+    return /^-?\d+(\.\d+)?$/.test(t) ? String(Number(t)) : t;
+  }
+  if (typeof v === "number") return String(v);
+  if (typeof v === "boolean") return v ? "true" : "false";
+  if (v instanceof Date) return v.toISOString();
+  return JSON.stringify(v);
+}
+
+/** Geaenderte Felder in Spaltenschreibweise (fuer die Feldliste im Ereignis). */
+function geaenderteFelder(
+  spalten: Record<string, { name: string }>,
+  vorher: Record<string, unknown>,
+  nachher: Record<string, unknown>,
+): string[] {
+  return Object.keys(nachher)
+    .filter((k) => k in spalten && vergleichsform(vorher[k]) !== vergleichsform(nachher[k]))
+    .map((k) => spalten[k]!.name);
+}
 
 function nichtLeer(v: string, label: string): string {
   if (v.trim() === "") throw new ValidierungsFehler(`${label} ist ein Pflichtfeld.`);
@@ -245,17 +276,26 @@ export async function stromSpeichern(
 
         // E44: Objektstufe — Sperre des Stroms (Zeilensperre) gegen die Matrix.
         await pruefeStromSperre(tx, wache.zugang, "strom.bearbeiten", art, id);
-        // Bearbeiten: Beleg in place (Entscheidung Eric), Status unangetastet.
+        // Bearbeiten: Beleg in place (Entscheidung Eric). Status unangetastet —
+        // AUSSER bei einer fachlichen Aenderung an einem geprueften Strom (E62,
+        // D6): dann zurueck auf „in Pruefung", in derselben Transaktion.
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
-        const [bestand] = await tx
-          .select({
-            belegId: tabelle.belegId,
-            reserviertSeit: tabelle.reserviertSeit,
-          })
-          .from(tabelle)
-          .where(eq(tabelle.id, id))
-          .limit(1);
+        const spalten = getTableColumns(tabelle) as Record<string, { name: string }>;
+        const [bestand] = await tx.select().from(tabelle).where(eq(tabelle.id, id)).limit(1);
         if (!bestand) throw new ValidierungsFehler("Datensatz nicht gefunden.");
+        const vorher = bestand as unknown as Record<string, unknown>;
+        // standort_geom ist ein SQL-Ausdruck — Vergleich ueber die Koordinate.
+        const [geomVorher] = await tx
+          .select({ lng: sql<unknown>`case when ${tabelle.standortGeom} is null then null else ST_X(${tabelle.standortGeom}) end`, lat: sql<unknown>`case when ${tabelle.standortGeom} is null then null else ST_Y(${tabelle.standortGeom}) end` })
+          .from(tabelle)
+          .where(eq(tabelle.id, id));
+        const belegVorher = bestand.belegId
+          ? (await tx.select().from(beleg).where(eq(beleg.id, bestand.belegId)).limit(1))[0] ?? null
+          : null;
+        const vergabenVorher = await tx
+          .select({ vergebenVon: vergabeZeitraum.vergebenVon, vergebenBis: vergabeZeitraum.vergebenBis, vergebenAn: vergabeZeitraum.vergebenAn, anBhyo: vergabeZeitraum.anBhyo })
+          .from(vergabeZeitraum)
+          .where(eq(art === "biomasse" ? vergabeZeitraum.biomassestromId : vergabeZeitraum.outputBedarfId, id));
 
         // E44, geteilte Belege: nur aendern, wenn kein referenzierender Strom
         // fuer den Handelnden gesperrt ist (alle Referenzen gehalten).
@@ -264,22 +304,65 @@ export async function stromSpeichern(
           ? await aktualisiereBeleg(tx, formData, bestand.belegId)
           : await erstelleBeleg(tx, formData);
 
+        const neueWerte = {
+          ...werte,
+          // Stempel-Regel 0010: Editieren verjuengt nicht, Abwaehlen nullt.
+          reserviertSeit: naechsteReserviertSeit(
+            reserviertBhyo,
+            bestand.reserviertSeit,
+            heute,
+          ),
+          belegId: belegErgebnis?.belegId ?? null,
+        };
         await tx
           .update(tabelle)
-          .set({
-            ...werte,
-            // Stempel-Regel 0010: Editieren verjuengt nicht, Abwaehlen nullt.
-            reserviertSeit: naechsteReserviertSeit(
-              reserviertBhyo,
-              bestand.reserviertSeit,
-              heute,
-            ),
-            belegId: belegErgebnis?.belegId ?? null,
-            updatedAt: new Date(),
-          } as never)
+          .set({ ...neueWerte, updatedAt: new Date() } as never)
           .where(eq(tabelle.id, id));
         await vergabenSpeichern(tx, id);
         await protokolliere(tx, { art: "geaendert", entitaet: entitaetTyp, id, benutzerId: wache.zugang.id, benutzerEmail: email, text: begruendung });
+
+        // E62 D6: Feldliste der Aenderung — Strom, Koordinate, Beleg, Vergaben.
+        const { standortGeom: _g, ...ohneGeom } = neueWerte as Record<string, unknown> & { standortGeom?: unknown };
+        const geaendert = geaenderteFelder(spalten, vorher, ohneGeom);
+        const geomNachher = koordinate ? { lng: koordinate.lng, lat: koordinate.lat } : { lng: null, lat: null };
+        if (vergleichsform(geomVorher?.lng) !== vergleichsform(geomNachher.lng) || vergleichsform(geomVorher?.lat) !== vergleichsform(geomNachher.lat)) {
+          geaendert.push("standort_geom");
+        }
+        if (belegErgebnis?.belegId) {
+          const [belegNachher] = await tx.select().from(beleg).where(eq(beleg.id, belegErgebnis.belegId)).limit(1);
+          if (!belegVorher) geaendert.push("beleg.typ");
+          else if (belegNachher) {
+            const bv = belegVorher as unknown as Record<string, unknown>;
+            const bn = belegNachher as unknown as Record<string, unknown>;
+            const belegSpalten = getTableColumns(beleg) as Record<string, { name: string }>;
+            for (const k of ["typ", "dateiKey", "linkUrl", "gueltigBis", "externNachvollziehbar", "erstelltAm"]) {
+              if (vergleichsform(bv[k]) !== vergleichsform(bn[k])) geaendert.push(`beleg.${belegSpalten[k]!.name}`);
+            }
+            const mv = (bv.metadata ?? {}) as Record<string, unknown>;
+            const mn = (bn.metadata ?? {}) as Record<string, unknown>;
+            for (const k of new Set([...Object.keys(mv), ...Object.keys(mn)])) {
+              if (vergleichsform(mv[k]) !== vergleichsform(mn[k])) geaendert.push(`beleg.metadata.${k}`);
+            }
+          }
+        } else if (belegVorher) geaendert.push("beleg.typ");
+        const vergabenNachher = vergabenZuWerten(vergaben);
+        const vergabeText = (v: { vergebenVon: string | null; vergebenBis: string | null; vergebenAn: string | null; anBhyo: boolean }) =>
+          JSON.stringify([v.vergebenVon, v.vergebenBis, v.vergebenAn ?? null, v.anBhyo]);
+        if (JSON.stringify([...vergabenVorher.map(vergabeText)].sort()) !== JSON.stringify([...vergabenNachher.map(vergabeText)].sort())) {
+          geaendert.push("vergabe_zeitraum.vergeben_von");
+        }
+        const fachlich = fachlicheFelder(entitaetTyp, geaendert);
+        if (bestand.status === "geprueft" && fachlich.length > 0) {
+          await tx.update(tabelle).set({ status: "in_pruefung" as never, updatedAt: new Date() } as never).where(eq(tabelle.id, id));
+          await protokolliere(tx, {
+            art: "zurueckgesetzt",
+            entitaet: entitaetTyp,
+            id,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: email,
+            text: `Zurückgesetzt in Prüfung: fachliche Änderung an ${fachlich.join(", ")}`,
+          });
+        }
       }),
     );
   } catch (e) {

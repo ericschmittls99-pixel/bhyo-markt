@@ -12,7 +12,7 @@ import {
 } from "@bhyo/db/schema";
 import { and, desc, eq, isNotNull, sql } from "drizzle-orm";
 
-import { ZEITZONE } from "@/lib/datum";
+import { heuteBerlin } from "@/lib/datum";
 import { DEAKTIVIERT_SUFFIX } from "@/lib/sektor";
 import { withDb, type AppDb } from "@/lib/db";
 import {
@@ -55,13 +55,22 @@ const belegSelect = {
   belegGueltigBis: beleg.gueltigBis,
   belegErstelltAm: beleg.erstelltAm,
   belegMetadata: beleg.metadata,
-  // AP2.3 (E60): Typ-Frist der unteren drei Belegtypen aus der Parameter-
-  // Historie, aufgeloest am Basisdatum = Erhebungsdatum als Kalendertag
-  // Europe/Berlin (PR b; vorher ::date in Sitzungszeit UTC — zwischen 00:00
-  // und 02:00 Berlin einen Tag zu frueh, am Tag einer Friständerung die alte
-  // Frist). Genau eine Lesestelle: parameter_wert(); kein Standardwert.
-  belegFristMonate: sql<unknown>`case when ${beleg.typ} in ('gespraech','dokument','webrecherche') then parameter_wert('verifikationsfrist.' || ${beleg.typ}::text, (${beleg.erstelltAm} at time zone ${ZEITZONE})::date) end`,
+  /** AP2.4 (E62, D3): Ablauf-Markierung des Pruefers — gespeichert, nicht ableitbar. */
+  belegAbgelaufenAm: beleg.abgelaufenAm,
 };
+
+/**
+ * AP2.4 PR a (E62): Verifikationszustand aus der EINEN mengenbasierten
+ * SQL-Funktion strom_verifikation(stichtag) (Migration 0032) — als Join,
+ * nicht je Zeile. Die Frist zaehlt ab dem Prueftag (Ereignis geprueft), nicht
+ * mehr ab der Erhebung; die alte E33-Gesamtfaelligkeit ist damit abgeloest.
+ */
+const verifikationSelect = {
+  verifikationZustand: sql<unknown>`v.zustand`,
+  verifiziertAm: sql<unknown>`v.verifiziert_am`,
+  verifiziertBis: sql<unknown>`v.verifiziert_bis`,
+};
+const verifikationJoin = (stichtag: string) => sql`strom_verifikation(${stichtag}::date) as v`;
 
 // AP2.3 PR b: Ein deaktivierter Sektor bleibt an seinen Akteuren und damit im
 // Filter sichtbar, solange er verwendet wird — benannt, nicht stumm.
@@ -72,7 +81,7 @@ const sektorLabelSql = sql<string | null>`case when ${sektor.aktiv} then ${sekto
  * genau einen Datensatz — fuer Detail-Deeplinks auf Stroeme jenseits des
  * 500er-Limits.
  */
-export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
+export function ladeStroeme(art: StromArt, nurId?: string, stichtag: string = heuteBerlin()): Promise<Strom[]> {
   return withDb(async (db) => {
     if (art === "biomasse") {
       const geom = biomassestrom.standortGeom;
@@ -120,12 +129,14 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
           sperrInhaber: sql<unknown>`(select json_build_object('id', b.id, 'name', b.name, 'email', b.email) from benutzer b where b.id = ${biomassestrom.gesperrtVon})`,
           zuweisungen: sql<unknown>`coalesce((select json_agg(json_build_object('id', b.id, 'name', b.name, 'email', b.email) order by b.name, b.email) from strom_zuweisung z join benutzer b on b.id = z.nutzer_id where z.biomassestrom_id = ${biomassestrom.id}), '[]'::json)`,
           ...belegSelect,
+          ...verifikationSelect,
         })
         .from(biomassestrom)
         .leftJoin(akteur, eq(akteur.id, biomassestrom.akteurId))
         .leftJoin(sektor, eq(sektor.code, akteur.sektor))
         .leftJoin(materialart, eq(materialart.code, biomassestrom.materialartCode))
         .leftJoin(beleg, eq(beleg.id, biomassestrom.belegId))
+        .leftJoin(verifikationJoin(stichtag), sql`v.strom_id = ${biomassestrom.id} and v.art = 'biomasse'`)
         .where(nurId ? eq(biomassestrom.id, nurId) : undefined)
         .orderBy(desc(biomassestrom.createdAt))
         .limit(500);
@@ -172,12 +183,14 @@ export function ladeStroeme(art: StromArt, nurId?: string): Promise<Strom[]> {
         sperrInhaber: sql<unknown>`(select json_build_object('id', b.id, 'name', b.name, 'email', b.email) from benutzer b where b.id = ${outputBedarf.gesperrtVon})`,
         zuweisungen: sql<unknown>`coalesce((select json_agg(json_build_object('id', b.id, 'name', b.name, 'email', b.email) order by b.name, b.email) from strom_zuweisung z join benutzer b on b.id = z.nutzer_id where z.output_bedarf_id = ${outputBedarf.id}), '[]'::json)`,
         ...belegSelect,
+        ...verifikationSelect,
       })
       .from(outputBedarf)
       .leftJoin(akteur, eq(akteur.id, outputBedarf.akteurId))
       .leftJoin(sektor, eq(sektor.code, akteur.sektor))
       .leftJoin(outputProdukt, eq(outputProdukt.code, outputBedarf.produktCode))
       .leftJoin(beleg, eq(beleg.id, outputBedarf.belegId))
+      .leftJoin(verifikationJoin(stichtag), sql`v.strom_id = ${outputBedarf.id} and v.art = 'output'`)
       .where(nurId ? eq(outputBedarf.id, nurId) : undefined)
       .orderBy(desc(outputBedarf.createdAt))
       .limit(500);

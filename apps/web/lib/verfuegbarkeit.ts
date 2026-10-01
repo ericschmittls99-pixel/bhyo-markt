@@ -36,6 +36,41 @@ export interface VerfuegbarkeitsErgebnis {
   status: VerfuegbarkeitsStatus;
   /** Randfall Handoff: Reservierung zusaetzlich zur externen Vergabe zeigen. */
   reserviertZusatz: boolean;
+  /**
+   * E64 (AP2.4): Nebentag „Reservierung veraltet" — reserviert_seit + Typ-
+   * Gueltigkeit (parameter_wert am Kalendertag von reserviert_seit) liegt vor
+   * dem Bezug. Die Reservierung zaehlt weiter als reserviert; der Nebentag
+   * heisst nur „bitte erneuern". Unabhaengig von der Verifikation (E62).
+   */
+  reservierungVeraltet: boolean;
+}
+
+/** Filterwert des Nebentags (E64) — neben den sechs Hauptzustaenden waehlbar. */
+export const RESERVIERUNG_VERALTET = "reservierung_veraltet";
+export const RESERVIERUNG_VERALTET_LABEL = "Reservierung veraltet";
+export const RESERVIERUNG_VERALTET_PILL = { text: "reservierung veraltet.", tone: "inactive" };
+
+function plusMonate(iso: string, monate: number): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCMonth(d.getUTCMonth() + monate);
+  return d.toISOString().slice(0, 10);
+}
+
+/**
+ * E64: Ist die Reservierung am Bezug veraltet? Ende = reserviert_seit +
+ * Gueltigkeit in Monaten (aus parameter_wert, am Datensatz geliefert);
+ * veraltet, wenn das Ende vor dem Beginn des Bezugs liegt. Fehlt der
+ * Parameterwert an einer Reservierung, ist das ein Fehler, kein Standard.
+ */
+export function reservierungVeraltet(
+  bezug: VerfuegbarkeitsBezug,
+  strom: { reserviertBhyo: boolean; reserviertSeit: string | null; reservierungMonate?: number | null },
+): boolean {
+  if (!strom.reserviertBhyo || !strom.reserviertSeit) return false;
+  if (strom.reservierungMonate == null) {
+    throw new Error("Gültigkeit der Reservierung nicht geladen (parameter_wert fehlt am Datensatz).");
+  }
+  return plusMonate(strom.reserviertSeit, strom.reservierungMonate) < bezugFenster(bezug).von;
 }
 
 // Pillen-Texte (Kleinschreibung mit Schlusspunkt, V2) je Stromart — Beschluss
@@ -111,10 +146,13 @@ function bezugFenster(b: VerfuegbarkeitsBezug): { von: string; bis: string } {
  */
 export function leiteVerfuegbarkeitAb(
   bezug: VerfuegbarkeitsBezug,
-  strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean },
+  strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean; reserviertSeit?: string | null; reservierungMonate?: number | null },
   vergaben: VergabeDaten[],
 ): VerfuegbarkeitsErgebnis {
   const fenster = bezugFenster(bezug);
+  // E64: Nebentag, unabhaengig vom Haupttag — auch eine vergebene oder
+  // abgelaufene Reservierung kann veraltet sein.
+  const veraltet = reservierungVeraltet(bezug, { reserviertBhyo: strom.reserviertBhyo, reserviertSeit: strom.reserviertSeit ?? null, reservierungMonate: strom.reservierungMonate });
   // Beschluss 22.09.2026: Die Reservierung erscheint IMMER als Nebentag,
   // sobald sie nicht selbst der Haupttag ist — Regeln 1-3 bestimmen den
   // Haupttag, die Zusatz-Pille macht die Zusage trotzdem sichtbar.
@@ -128,6 +166,7 @@ export function leiteVerfuegbarkeitAb(
     reserviertZusatz:
       (strom.reserviertBhyo || status === "vergeben_bhyo") &&
       status !== "reserviert_bhyo",
+    reservierungVeraltet: veraltet,
   });
 
   if (fenster.von > strom.zeitraumBis) return mit("abgelaufen");
@@ -154,6 +193,8 @@ export function reichereVerfuegbarkeitAn<
     zeitraumVon: string | null;
     zeitraumBis: string | null;
     reserviertBhyo: boolean;
+    reserviertSeit?: string | null;
+    reservierungMonate?: number | null;
     verfuegbarkeit?: VerfuegbarkeitsErgebnis;
     /** F5 PR B: Die Vergaben selbst, fuer den Filter "Vergeben ab / bis". */
     vergaben?: VergabeDaten[];
@@ -177,6 +218,8 @@ export function reichereVerfuegbarkeitAn<
               zeitraumVon: s.zeitraumVon,
               zeitraumBis: s.zeitraumBis,
               reserviertBhyo: s.reserviertBhyo,
+              reserviertSeit: s.reserviertSeit ?? null,
+              reservierungMonate: s.reservierungMonate,
             },
             vergabenJeStrom.get(s.id) ?? [],
           ),

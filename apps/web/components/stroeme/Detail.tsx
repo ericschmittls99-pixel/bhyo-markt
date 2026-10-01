@@ -22,8 +22,8 @@ import {
   fmtZeitraum,
   formatSpanne,
 } from "@/lib/format";
-import { ERLAUBTE_UEBERGAENGE, STATUS_LABEL, STATUS_PILL } from "@/lib/status";
-import { statusSetzen, stromVerwerfen } from "@/lib/stroeme-actions";
+import { ERLAUBTE_UEBERGAENGE, PRUEF_AUSGANG, STATUS_LABEL, STATUS_PILL, UEBERGANG_LABEL } from "@/lib/status";
+import { belegAbgelaufenAufheben, belegAbgelaufenMarkieren, statusSetzen, stromPruefen, stromVerwerfen } from "@/lib/stroeme-actions";
 import { stromEntsperren, stromSperren, stromZuweisen, zugriffAnfragen, zuweisungEntfernen } from "@/lib/sperre-actions";
 import { NOTIZ_MAX } from "@/lib/inbox/notiz";
 import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
@@ -32,7 +32,7 @@ import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutz
 import { PreisKorridorEinzel } from "@/components/stroeme/PreisKorridorEinzel";
 import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
-import { VERIFIKATION_LABEL } from "@/lib/verifizierung";
+import { verifikationPill } from "@/lib/verifikation";
 import {
   vergabeLabel,
   type VerfuegbarkeitsErgebnis,
@@ -70,7 +70,6 @@ export function Detail({
   strom,
   historie,
   begruendung,
-  verifizierung,
   modal,
   canEdit,
   stroemeHref,
@@ -84,7 +83,6 @@ export function Detail({
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
-  verifizierung: string | null;
   /** E38: Korridor des Stroms im Verhaeltnis zu seiner Vergleichsgruppe (serverseitig aus dem Pool). */
   preisKorridor?: PreisKorridorEinzelDaten | null;
   modal: boolean;
@@ -105,6 +103,10 @@ export function Detail({
     zuweisen: boolean;
     /** PR c: Zugriff anfragen (gesperrt, weder Inhaber noch zugewiesen, Rolle >= bearbeiter). */
     anfragen?: boolean;
+    /** E62 D4: „geprueft" setzen — pruefer/admin, an gesperrten Stroemen wie das Bearbeiten. */
+    pruefen?: boolean;
+    /** E62 D3: Beleg als abgelaufen markieren / Markierung aufheben — pruefer/admin. */
+    abgelaufenMarkieren?: boolean;
   } | null;
   /** PR c: laufende Zugriffsanfrage des Betrachtenden — dann „Angefragt am …" statt Knopf. */
   anfrage?: { am: string } | null;
@@ -162,6 +164,29 @@ export function Detail({
     });
   }
 
+  // E62 D4: „Geprueft" ist eine eigene Aktion (pruefer/admin), aus entwurf und in_pruefung.
+  function pruefen() {
+    setStatusMenu(false);
+    startTransition(async () => {
+      const erg = await stromPruefen(s.art, s.id);
+      if (erg.ok) {
+        zeigeToast("Als geprüft gesetzt");
+        router.refresh();
+      } else zeigeToast(erg.fehler ?? "Speichern fehlgeschlagen.");
+    });
+  }
+
+  // E62 D3: Ablauf-Markierung des Belegs (nur Pruefer) — Zustand „abgelaufen", Qualitaet eine Stufe tiefer.
+  function abgelaufen(markieren: boolean) {
+    startTransition(async () => {
+      const erg = markieren ? await belegAbgelaufenMarkieren(s.art, s.id) : await belegAbgelaufenAufheben(s.art, s.id);
+      if (erg.ok) {
+        zeigeToast(markieren ? "Beleg als abgelaufen markiert" : "Markierung aufgehoben");
+        router.refresh();
+      } else zeigeToast(erg.fehler ?? "Speichern fehlgeschlagen.");
+    });
+  }
+
   function sperrAktion(lauf: () => Promise<{ ok: boolean; fehler?: string }>, erfolg: string) {
     setZuweisenOffen(false);
     startTransition(async () => {
@@ -196,6 +221,12 @@ export function Detail({
     .join(" · ");
   const pill = STATUS_PILL[s.status] ?? { text: `${s.status}.`, tone: "quiet" };
   const uebergaenge = ERLAUBTE_UEBERGAENGE[s.status] ?? [];
+  const darfPruefen = darfBearbeiten && !!sperrRechte?.pruefen && PRUEF_AUSGANG.includes(s.status);
+  // E62: Zustands-Pille aus strom_verifikation() — „gültig bis TT.MM.JJJJ" bzw. der benannte Zustand.
+  const verifPill = s.verifikation ? verifikationPill(s.verifikation, fmtDatum) : null;
+  // Im Kopf nur, wenn sie mehr sagt als die Status-Pille daneben (ungeprueft / in Pruefung
+  // stehen dort bereits); im Beleg-Block steht sie immer.
+  const verifPillImKopf = verifPill && s.verifikation?.zustand !== "ungeprueft" && s.verifikation?.zustand !== "in_pruefung" ? verifPill : null;
 
   const chain = feed
     ? [
@@ -286,17 +317,28 @@ export function Detail({
                               onClick={() => wechsleStatus(ziel)}
                             >
                               <span className="lbl">
-                                Auf „{STATUS_LABEL[ziel]}" setzen
+                                {UEBERGANG_LABEL[`${s.status}>${ziel}`] ?? `Auf „${STATUS_LABEL[ziel]}" setzen`}
                               </span>
                             </button>
                           ))}
-                          {uebergaenge.length === 0 && (
+                          {/* E62 D4: nur Pruefer sehen „Geprueft" — serverseitig erneut geprueft (strom.pruefen). */}
+                          {darfPruefen && (
+                            <button type="button" role="menuitem" className="menu-item" onClick={pruefen}>
+                              <span className="lbl">Geprüft</span>
+                            </button>
+                          )}
+                          {uebergaenge.length === 0 && !darfPruefen && (
                             <span className="menu-leer">Kein Wechsel vorgesehen.</span>
                           )}
                         </span>
                       </span>
                     )}
                   </span>
+                  {verifPillImKopf && (
+                    <span className={`spill spill--${verifPillImKopf.tone}`} title="Verifikation">
+                      {verifPillImKopf.text}
+                    </span>
+                  )}
                   {verfuegbarkeit && (
                     <VerfuegbarkeitsPill art={s.art} ergebnis={verfuegbarkeit} />
                   )}
@@ -694,14 +736,38 @@ export function Detail({
                     wert={s.beleg.externNachvollziehbar ? "ja, für externe Verwendung freigegeben" : "nein, nur intern"}
                   />
                   <Kv label="Kernnotiz" wert={s.beleg.kernnotiz} />
+                  {/* E62: Verifikation — Zustand, Pruefzeitpunkt, verifiziert bis; D3-Markierung nur fuer Pruefer. */}
                   <Kv
-                    label="Nächste Verifizierung"
+                    label="Verifikation"
                     wert={
-                      verifizierung
-                        ? `${fmtDatum(verifizierung)}${s.verifikation ? ` · ${VERIFIKATION_LABEL[s.verifikation.status]}` : ""}`
-                        : "keine Frist"
+                      verifPill ? (
+                        <span className="ov-verif">
+                          <span className={`spill spill--${verifPill.tone}`}>{verifPill.text}</span>
+                          {s.verifikation?.verifiziertAm && (
+                            <span className="c"> geprüft am {fmtDatumZeit(s.verifikation.verifiziertAm)}</span>
+                          )}
+                          {s.beleg.abgelaufenAm && (
+                            <span className="c"> · als abgelaufen markiert am {fmtDatum(s.beleg.abgelaufenAm)}</span>
+                          )}
+                        </span>
+                      ) : null
                     }
                   />
+                  {darfBearbeiten && sperrRechte?.abgelaufenMarkieren && (
+                    <Kv
+                      label=""
+                      wert={
+                        <button
+                          type="button"
+                          className="btn btn--ghost btn--sm"
+                          disabled={pending}
+                          onClick={() => abgelaufen(!s.beleg!.abgelaufenAm)}
+                        >
+                          {s.beleg.abgelaufenAm ? "Markierung aufheben" : "Als abgelaufen markieren"}
+                        </button>
+                      }
+                    />
+                  )}
                 </div>
               ) : (
                 <p className="ov-note">Kein Beleg hinterlegt.</p>

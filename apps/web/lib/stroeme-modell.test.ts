@@ -189,11 +189,11 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
   it("filtert nach dem abgeleiteten Status; Stroeme ohne Ableitung fallen raus", () => {
     const frei = strom({
       id: "f",
-      verfuegbarkeit: { status: "verfuegbar", reserviertZusatz: false },
+      verfuegbarkeit: { status: "verfuegbar", reserviertZusatz: false, reservierungVeraltet: false },
     });
     const weg = strom({
       id: "w",
-      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false },
+      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false, reservierungVeraltet: false },
     });
     const ohne = strom({ id: "o" });
     const erg = filterStroeme(
@@ -205,22 +205,31 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
   });
 
   // E33: Verifikations-Filter ueber das angereicherte Feld.
+  it("E64: „reservierung_veraltet“ filtert den Nebentag neben dem Haupttag", () => {
+    const alt = strom({ id: "alt", verfuegbarkeit: { status: "reserviert_bhyo", reserviertZusatz: false, reservierungVeraltet: true } });
+    const frisch = strom({ id: "frisch", verfuegbarkeit: { status: "reserviert_bhyo", reserviertZusatz: false, reservierungVeraltet: false } });
+    const ids = (werte: string[]) => filterStroeme([alt, frisch], { ...LEERER_FILTER, verfuegbarkeit: werte }, "stroeme").map((s) => s.id);
+    expect(ids(["reservierung_veraltet"])).toEqual(["alt"]);
+    expect(ids(["reserviert_bhyo"])).toEqual(["alt", "frisch"]);
+  });
+
   it("verifikation filtert ueber den angereicherten Zustand; nicht angereichert = nicht filterbar", () => {
-    const aktiv = strom({ id: "a", verifikation: { faelligkeit: "2027-01-01", status: "aktiv" } });
-    const alt = strom({ id: "x", verifikation: { faelligkeit: "2025-01-01", status: "ausgelaufen" } });
-    const frei = strom({ id: "k", verifikation: { faelligkeit: null, status: "keine_frist" } });
+    const aktiv = strom({ id: "a", verifikation: { zustand: "gueltig", verifiziertAm: null, verifiziertBis: "2027-01-01" } });
+    const alt = strom({ id: "x", verifikation: { zustand: "abgelaufen", verifiziertAm: null, verifiziertBis: "2025-01-01" } });
+    const frei = strom({ id: "k", verifikation: { zustand: "ungeprueft", verifiziertAm: null, verifiziertBis: null } });
     const roh = strom({ id: "r" });
     const ids = (werte: string[]) =>
       filterStroeme([aktiv, alt, frei, roh], { ...LEERER_FILTER, verifikation: werte }, "stroeme").map((s) => s.id);
-    expect(ids(["ausgelaufen"])).toEqual(["x"]);
-    expect(ids(["keine_frist"])).toEqual(["k"]);
-    expect(ids(["aktiv", "ausgelaufen"])).toEqual(["a", "x"]);
+    expect(ids(["abgelaufen"])).toEqual(["x"]);
+    expect(ids(["ungeprueft"])).toEqual(["k"]);
+    expect(ids(["gueltig", "abgelaufen"])).toEqual(["a", "x"]);
     expect(ids([])).toEqual(["a", "x", "k", "r"]);
+    // E62: feste Liste der benannten Zustaende (laeuft_bald_ab kommt mit PR b).
     const opt = facettenOptionen("biomasse", [], [], {});
-    expect(opt.verifikation!.map((o) => o.wert)).toEqual(["aktiv", "ausgelaufen", "keine_frist"]);
+    expect(opt.verifikation!.map((o) => o.wert)).toEqual(["ungeprueft", "in_pruefung", "gueltig", "abgelaufen", "als_abgelaufen_markiert", "pruefdatum_unbekannt"]);
   });
 
-  it("facettenOptionen liefert die feste 6er-Liste mit Art-Labels", () => {
+  it("facettenOptionen liefert die feste 6er-Liste mit Art-Labels — plus den E64-Nebentag", () => {
     const opt = facettenOptionen("output", [], [], {});
     expect(opt.verfuegbarkeit!.map((o) => o.wert)).toEqual([
       "verfuegbar",
@@ -229,7 +238,9 @@ describe("verfuegbarkeit-Facette (AP1j PR 3)", () => {
       "reserviert_bhyo",
       "noch_nicht_verfuegbar",
       "abgelaufen",
+      "reservierung_veraltet",
     ]);
+    expect(opt.verfuegbarkeit![6]!.label).toBe("Reservierung veraltet");
     expect(opt.verfuegbarkeit![0]!.label).toBe("Offen");
     expect(facettenOptionen("biomasse", [], [], {}).verfuegbarkeit![0]!.label).toBe(
       "Verfügbar",

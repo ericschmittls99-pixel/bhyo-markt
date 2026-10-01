@@ -734,3 +734,31 @@ in ein Feld mit Speichern/Abbrechen wandelt; „Deaktivieren" bzw.
 Akteuren weiter. Fußzeile: „Gelöscht wird nicht." In Auswahllisten
 (Akteur-Combobox) erscheinen nur aktive Sektoren; ein deaktivierter steht
 an Akteuren, in Ströme-Ansichten und im Filter als „Name (deaktiviert)".
+
+## Verifikation im Detail-Kopf, Prüfaktionen, Filter (AP2.4 PR a, E62/E64, 30.09.2026)
+
+**Zustands-Pille** neben der Status-Pille (`spill`, Ton je Zustand, keine
+Ampel): „gültig bis TT.MM.JJJJ." (running), „in prüfung." (active),
+„ungeprüft." (quiet), „abgelaufen seit TT.MM.JJJJ." / „abgelaufen." /
+„prüfdatum unbekannt." (inactive). Im Beleg-Block die Zeile „Verifikation"
+mit derselben Pille, „geprüft am" und ggf. „als abgelaufen markiert am".
+
+**Status-Menü** an der Status-Pille (wie E8), aber mit den Übergängen als
+Handlung beschriftet: „In Prüfung geben" (ab bearbeiter, aus entwurf und
+geprüft), „Zurückgeben" (aus in Prüfung), „Reaktivieren" (aus verworfen).
+**„Geprüft"** steht nur für Prüfer und Admins im Menü (aus entwurf und in
+Prüfung) — serverseitig `strom.pruefen`. Unter dem Beleg-Block für Prüfer der
+Ghost-Button **„Als abgelaufen markieren"** bzw. **„Markierung aufheben"**.
+
+**Filter „Verifikation"** ersetzt „Verifizierung": feste Liste ungeprüft ·
+in Prüfung · gültig · abgelaufen · als abgelaufen markiert · Prüfdatum
+unbekannt (läuft bald ab kommt mit PR b). **Verfügbarkeits-Filter** bekommt
+als siebte Option „Reservierung veraltet" (E64); in der Pillenzeile
+erscheint dann die zurückgenommene Pille „reservierung veraltet." (inactive)
+neben dem bhyo-Stempel — die Reservierung zählt weiter.
+
+**Auswertung:** Modul „nächste verifikation." zeigt die drei nächsten
+Abläufe nach `verifiziert bis`, Abgelaufene zuerst mit Wert-Pille
+„abgelaufen.". **Inbox:** „… bittet um Prüfung von …" (Prüfauftrag, Aufgabe,
+nicht in „Alle erledigt") und „… hat … geprüft" (Rückmeldung, Hinweis).
+

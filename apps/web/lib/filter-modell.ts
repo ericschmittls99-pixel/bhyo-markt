@@ -326,13 +326,14 @@ export const FILTER: readonly FilterDef[] = [
     gruppe: "weitere",
   },
   {
-    // E33 (26.09.2026): aktiv / ausgelaufen / keine Frist, gemessen an der
-    // Gesamtfaelligkeit (Belegfrist, Verfuegbarkeitsende, befristete
-    // Vergaben, Reservierung) gegen das heutige Datum. Anders als die
-    // Verfuegbarkeit gilt er auch in auswertung.: dort spielt niemand sonst
-    // diese Rolle, das Verifizierungs-Modul zeigt nur die drei naechsten.
+    // E62 (AP2.4): die benannten Verifikationszustaende (ungeprueft, in
+    // Pruefung, gueltig, abgelaufen, als abgelaufen markiert, Pruefdatum
+    // unbekannt) aus strom_verifikation(). Loeste den E33-Filter
+    // „Verifizierung" (Gesamtfaelligkeit) ab; Verfuegbarkeitsende, Vergaben und
+    // das Reservierungsveralten (E64) gehoeren zum Verfuegbarkeits-Filter.
+    // Gilt auch in auswertung. (das Modul zeigt die drei naechsten).
     key: "verifikation",
-    label: "Verifizierung",
+    label: "Verifikation",
     typ: "facette",
     params: ["verifikation"],
     ansichten: ALLE_ANSICHTEN,

@@ -985,6 +985,94 @@ keine). Der `sektor-check` erzwingt beide Befunde als Proben (Tabulator/CR/
 LF am Rand abgewiesen; „Abnehmer" und „ohne Sektor" in jeder Schreibweise
 beim Anlegen und Umbenennen abgewiesen) — vor 0031 rot, danach grün.
 
+## 30. AP2.4 Prüf- & Verifikationsprozess: Verifikationsmodell und Rechte (E62), Reservierung veraltet (E64), 30.09.2026
+
+**Schritt 0 (gemessen, abgenommen):** Die E33-Fälligkeit hatte elf
+Verbraucher (Detail, Karte, Register, Formular-Vorschau, Filter
+„Verifizierung", Export „Verifizierung"/„Fälligkeit", Auswertungsmodul „drei
+nächste", SQL-Zulieferung im Loader). Status setzte eine Stelle
+(`wechsleStatus`, Übergänge in `lib/status.ts`), und jeder bearbeiter durfte
+„geprüft" setzen. Qualität A–D entstand an zwei gespiegelten Stellen (SQL
+`qualitaetsstufe()` als GENERATED-Spalte, TS `deriveQualitaet`, Paritätstest
+im CI). Der Zielstatus stand nur im Freitext von `status_gesetzt`. Das
+Veralten der Reservierung hing allein an der Gesamtfälligkeit.
+
+**E62 — Rechte (D4).** „in Prüfung geben", „Zurückgeben" (in_pruefung →
+entwurf) und „Reaktivieren" (verworfen → entwurf) ab bearbeiter
+(`strom.status_setzen`, Übergänge ohne „geprüft"); **„geprüft" nur pruefer
+und admin** über die eigene Aktion `strom.pruefen`, auch direkt aus entwurf.
+Ablauf-Markierung (`beleg.abgelaufen_markieren`, `beleg.abgelaufen_aufheben`)
+nur pruefer/admin. Objektregel wie das Bearbeiten (am gesperrten Strom nur
+Inhaber, Zugewiesene, admin). Matrix-Tests je Rolle × Sperre; Rot-Nachweis
+im PR.
+
+**E62 — Ereignisarten (0.4).** Jeder Statuswechsel mit eigener Art,
+strukturiert statt Freitext: `in_pruefung_gegeben` (entwurf → in_pruefung
+und geprueft → in_pruefung von Hand), `geprueft`, `zurueckgegeben`,
+`reaktiviert`, `verworfen` (bestehend), `zurueckgesetzt` (automatisch bei
+fachlicher Änderung, Feldliste im Text); dazu `als_abgelaufen_markiert`,
+`abgelaufen_aufgehoben`; `reverifiziert` folgt in PR b. `status_gesetzt`
+bleibt nur für den Altbestand. Die Beteiligten-Ableitung (E51/E56) zählt die
+fünf Statusarten mit.
+
+**E62 — Verifikation, abgeleitet statt gespeichert (E23, D1).** Eine
+SQL-Funktion `strom_verifikation(stichtag)` (Migration 0032, STABLE,
+mengenbasiert) für Liste, Detail, Filter, Export und Job:
+`verifiziert_am` = Zeitpunkt des letzten Ereignisses geprueft/reverifiziert,
+solange der Strom geprüft ist; `verifiziert_bis` = `gueltig_bis` bei den
+oberen vier Belegtypen, sonst Kalendertag Berlin von `verifiziert_am` +
+`parameter_wert('verifikationsfrist.<typ>', dieser Tag)`. Zustände:
+`ungeprueft` (entwurf, verworfen) · `in_pruefung` · `gueltig` ·
+`laeuft_bald_ab` (PR b) · `abgelaufen` · `als_abgelaufen_markiert` ·
+`pruefdatum_unbekannt` (geprüft ohne Prüfereignis, z. B. Altbestand, oder
+geprüft ohne Beleg — gilt als fällig). **Gewollte Verhaltensänderung:** die
+Frist zählt ab dem Prüftag, nicht mehr ab der Erhebung; die alte
+Gesamtfälligkeit (`lib/verifizierung.ts`) ist entfernt, alle Verbraucher
+lesen `strom.verifikation` aus dem Loader. Filter „Verifikation" mit den
+benannten Zuständen (E32); Export „Verifikation" und „verifiziert bis";
+Auswertungsmodul „nächste verifikation" (Abgelaufene zuerst).
+Vorher/Nachher der Preview-Einträge im PR.
+
+**E62 — „Abgelaufen" markieren (D3).** `beleg.abgelaufen_am date` — eine
+Eingabe des Prüfers, nicht ableitbar, deshalb gespeichert; Setzen und
+Aufheben protokolliert. Wirkung: Zustand `als_abgelaufen_markiert`, keine
+Erinnerungen (PR b), Pille „abgelaufen.". Qualität: `qualitaetsstufe()`
+bekommt `abgelaufen_am` und wertet **eine Stufe** ab (A→B, B→C, C→D, D
+bleibt D); die GENERATED-Spalte `beleg.qualitaet` ist dafür neu angelegt,
+`deriveQualitaet` spiegelt es, die Ankerfälle prüfen jede Stufe. Nur die
+Markierung wertet ab, eine bloß überfällige Verifikation nicht.
+
+**E62 — Rücksetzen bei fachlicher Änderung (E43, D6).** Feldeinstufung als
+Daten in `lib/feldeinstufung.ts` (fachlich / redaktionell / technisch) für
+jede Spalte von biomassestrom, output_bedarf, beleg, vergabe_zeitraum;
+Entscheidung 0.5: kontaktperson und extern_nachvollziehbar redaktionell
+(Kontakt wandert mit AP2.5 ins CRM; die Freigabe regelt Sichtbarkeit, nicht
+Richtigkeit), Notizen redaktionell, technische Spalten ausdrücklich geführt.
+Wächter `scripts/feld-check.ts`: eine Spalte ohne Einstufung ist rot
+(Rot-Nachweis im PR). Speichert jemand eine fachliche Änderung an einem
+geprüften Strom, setzt `stromSpeichern` in derselben Transaktion den Status
+auf in_pruefung und schreibt `zurueckgesetzt` mit den Feldnamen.
+
+**E62 — Inbox.** Neue Typen `pruefauftrag` (an alle aktiven Prüfer und
+Admins, sobald ein Strom in in_pruefung kommt — manuell oder durch
+Rücksetzen; Bündelung je Prüfer und Strom per Unique-Index; erledigt bei
+allen, sobald jemand prüft, zurückgibt oder verwirft) und
+`pruefung_erledigt` (an die Person, die in Prüfung gegeben bzw. die
+Rücksetzung ausgelöst hat, nicht wenn sie selbst prüft). Ein Ereignis kann
+mehrere Typen auslösen; **keine Doppel-Einträge (D6):** wer für dasselbe
+Ereignis einen pruefauftrag oder pruefung_erledigt bekommt, bekommt keinen
+aenderung_eintrag.
+
+**E64 — Reservierung veraltet.** Das Veralten der Reservierung ist ein
+Nebentag „Reservierung veraltet" in der Verfügbarkeit, abgeleitet aus
+`reserviert_seit` + `parameter_wert('verifikationsfrist.reservierung',
+Kalendertag Berlin von reserviert_seit)`, unabhängig von der Verifikation.
+An den Zahlen ändert sich nichts: die Reservierung zählt weiter als
+reserviert, der Nebentag heißt nur „bitte erneuern". Filterbar im
+Verfügbarkeits-Filter als siebte Option (E32). Verfügbarkeitsende und
+Vergabe-Enden deckt der Verfügbarkeits-Filter bereits ab (abgelaufen,
+vergeben).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

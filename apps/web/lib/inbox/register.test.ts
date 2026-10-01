@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { INBOX_TYPEN, typFuerArt } from "./register";
+import { INBOX_TYPEN, typenFuerArt, typFuerArt } from "./register";
 
 describe("Inbox-Register", () => {
   it("aenderung_eintrag entsteht aus geaendert, status_gesetzt, verworfen — sonst nichts", () => {
@@ -36,6 +36,23 @@ describe("Inbox-Register", () => {
     expect(text({ ausloeserName: "Petra Prüfer", belegNr: null, bezeichnung: null, anzahl: 1 })).toBe(
       "Petra Prüfer hat einen Eintrag geändert",
     );
+  });
+  // AP2.4 PR a (E62)
+  it("in_pruefung_gegeben und zurueckgesetzt → pruefauftrag VOR aenderung_eintrag; geprueft → pruefung_erledigt vor aenderung_eintrag", () => {
+    expect(typenFuerArt("in_pruefung_gegeben")).toEqual(["pruefauftrag", "aenderung_eintrag"]);
+    expect(typenFuerArt("zurueckgesetzt")).toEqual(["pruefauftrag", "aenderung_eintrag"]);
+    expect(typenFuerArt("geprueft")).toEqual(["pruefung_erledigt", "aenderung_eintrag"]);
+    expect(typenFuerArt("zurueckgegeben")).toEqual(["aenderung_eintrag"]);
+    expect(typenFuerArt("reaktiviert")).toEqual(["aenderung_eintrag"]);
+    expect(typenFuerArt("als_abgelaufen_markiert")).toEqual([]);
+    expect(typFuerArt("in_pruefung_gegeben")).toBe("pruefauftrag");
+    expect(INBOX_TYPEN.pruefauftrag.reinerHinweis).toBe(false);
+    expect(INBOX_TYPEN.pruefauftrag.aktionen).not.toContain("inbox.alle_erledigen");
+    expect(INBOX_TYPEN.pruefung_erledigt.reinerHinweis).toBe(true);
+    const z = { ausloeserName: "Bernd Bearbeiter", belegNr: "B-000012", bezeichnung: "Stroh", anzahl: 1 };
+    expect(INBOX_TYPEN.pruefauftrag.text(z)).toBe("Bernd Bearbeiter bittet um Prüfung von B-000012 Stroh");
+    expect(INBOX_TYPEN.pruefauftrag.text({ ...z, anzahl: 2 })).toBe("Bernd Bearbeiter bittet um Prüfung von B-000012 Stroh (2. Mal)");
+    expect(INBOX_TYPEN.pruefung_erledigt.text({ ...z, ausloeserName: "Petra Prüfer" })).toBe("Petra Prüfer hat B-000012 Stroh geprüft");
   });
   it("Alle erledigt gilt fuer reine Hinweise", () => {
     expect(INBOX_TYPEN.aenderung_eintrag.reinerHinweis).toBe(true);

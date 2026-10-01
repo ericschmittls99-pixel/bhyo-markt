@@ -51,6 +51,13 @@ export const AKTIONEN = [
   "sektor.umbenennen",
   "sektor.deaktivieren",
   "sektor.reaktivieren",
+  // AP2.4 PR a (E62, D4): „geprueft" nur pruefer/admin (strom.pruefen, auch
+  // direkt aus entwurf); Ablauf-Markierung des Belegs nur pruefer/admin.
+  // Objektregel wie beim Bearbeiten: am gesperrten Strom nur Inhaber,
+  // Zugewiesene und admin.
+  "strom.pruefen",
+  "beleg.abgelaufen_markieren",
+  "beleg.abgelaufen_aufheben",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -89,6 +96,9 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "sektor.umbenennen": VERWALTEN,
   "sektor.deaktivieren": VERWALTEN,
   "sektor.reaktivieren": VERWALTEN,
+  "strom.pruefen": SPERREN,
+  "beleg.abgelaufen_markieren": SPERREN,
+  "beleg.abgelaufen_aufheben": SPERREN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -146,6 +156,9 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "strom.bearbeiten": aendernBeiSperre,
   "strom.status_setzen": aendernBeiSperre,
   "strom.verwerfen": aendernBeiSperre,
+  "strom.pruefen": aendernBeiSperre,
+  "beleg.abgelaufen_markieren": aendernBeiSperre,
+  "beleg.abgelaufen_aufheben": aendernBeiSperre,
   "strom.sperren": sperren,
   "strom.entsperren": inhaberOderAdmin,
   "strom.zuweisen": inhaberOderAdmin,

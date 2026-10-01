@@ -35,7 +35,6 @@ import {
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
-import { reichereVerifikationAn } from "@/lib/verifizierung";
 import { detailDatenAus } from "@/lib/detail-daten";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -108,12 +107,8 @@ export async function RegisterInhalt({
   // (stichtag = Serverdatum) — Grid, Tabelle, Detail und die neue Facette
   // lesen alle dasselbe Feld.
   const stichtag = heuteBerlin();
-  // E33: Faelligkeit und Verifikationsstatus ebenso einmal je Request.
-  const poolBasis = reichereVerifikationAn(
-    reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag),
-    vergabenMap,
-    stichtag,
-  );
+  // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
+  const poolBasis = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
   // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
   const pool = fuerMich && zugang.art === "erlaubt" ? reichereFuerMichAn(poolBasis, zugang.id, beteiligt) : poolBasis;
 
@@ -182,13 +177,7 @@ export async function RegisterInhalt({
   let detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
   if (detailId && !detailStrom) {
     const nachgeladen = (await ladeStroeme(art, detailId))[0] ?? null;
-    detailStrom = nachgeladen
-      ? reichereVerifikationAn(
-          reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag),
-          vergabenMap,
-          stichtag,
-        )[0]!
-      : null;
+    detailStrom = nachgeladen ? reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag)[0]! : null;
   }
   // Detail-Daten an einer Stelle (lib/detail-daten.ts) — dieselbe
   // Zusammenstellung wie in inbox. („Öffnen" zeigt dasselbe Panel, AP2.2).
@@ -292,7 +281,6 @@ export async function RegisterInhalt({
             strom={detail.strom}
             historie={detail.historie}
             begruendung={detail.begruendung}
-            verifizierung={detail.verifizierung}
             modal={ansicht === "grid"}
             canEdit={canEdit}
             sperrRechte={detail.sperrRechte}

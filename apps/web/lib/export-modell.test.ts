@@ -94,7 +94,7 @@ const nichtFreigegeben = strom({
     { vergebenVon: "2026-01-01", vergebenBis: "2027-06-30", vergebenAn: "Biogas Nachbar GmbH", anBhyo: false },
     { vergebenVon: "2027-07-01", vergebenBis: null, vergebenAn: null, anBhyo: true },
   ],
-  verifikation: { faelligkeit: "2027-06-30", status: "aktiv" },
+  verifikation: { zustand: "gueltig", verifiziertAm: "2026-09-30T10:00:00.000Z", verifiziertBis: "2027-06-30" },
 });
 const linkBeleg = strom({
   id: "link",
@@ -151,7 +151,7 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
       "menge_atro", "menge_stofflich", "menge_energetisch",
       "preis_min", "preis_mittel", "preis_max", "preis_stofflich", "preis_energetisch",
       "potenzial",
-      "qualitaet", "belegtyp", "quellenangabe", "datei", "link", "verifikation", "faelligkeit",
+      "qualitaet", "belegtyp", "quellenangabe", "datei", "link", "verifikation", "verifiziert_bis",
       "status", "verfuegbarkeit", "reserviert", "reserviert_seit", "vergeben_ab", "vergeben_bis", "vergeben_an",
     ]);
   });

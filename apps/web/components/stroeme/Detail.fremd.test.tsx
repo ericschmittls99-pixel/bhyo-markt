@@ -83,7 +83,6 @@ function render(
       strom={strom}
       historie={[]}
       begruendung={null}
-      verifizierung={null}
       modal={false}
       canEdit={true}
       sperrRechte={sperrRechte}

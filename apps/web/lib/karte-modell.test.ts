@@ -111,7 +111,7 @@ describe("stromZuPunkt", () => {
   it("nimmt den Status-Text mit (Label je Art, PR 3)", () => {
     const p = stromZuPunkt({
       ...outputStrom,
-      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false },
+      verfuegbarkeit: { status: "vergeben_extern", reserviertZusatz: false, reservierungVeraltet: false },
     })!;
     expect(p.statusText).toBe("gedeckt (extern).");
   });

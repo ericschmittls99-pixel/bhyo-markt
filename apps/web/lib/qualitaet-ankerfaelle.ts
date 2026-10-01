@@ -9,7 +9,9 @@ import { BELEG_TYPEN, type BelegBewertung, type BelegTyp } from "./qualitaet";
  * die Paritaet laut fehl.
  *
  * Fuer jeden der sieben Typen ein vollstaendiger und ein unvollstaendiger
- * Fall, dazu die Randfaelle, an denen die Matrix kippen koennte.
+ * Fall, dazu die Randfaelle, an denen die Matrix kippen koennte — und seit
+ * AP2.4 (E62, D3) je Stufe der Fall „als abgelaufen markiert": eine Stufe
+ * tiefer, D bleibt D.
  */
 export interface Ankerfall {
   name: string;
@@ -56,4 +58,11 @@ export const ANKERFAELLE: Ankerfall[] = [
   // Leerraum ist kein Nachweis.
   { name: "vertrag mit Leerraum als Datei-Key", bewertung: { typ: "vertrag", dateiKey: "   " }, erwartet: "B" },
   { name: "dokument mit Leerraum als Link", bewertung: { typ: "dokument", linkUrl: "  " }, erwartet: "D" },
+  // E62 D3: Markierung „abgelaufen" wertet eine Stufe ab — je Stufe ein Fall, D bleibt D.
+  { name: "A markiert → B (vertrag mit Datei)", bewertung: { typ: "vertrag", dateiKey: DATEI, abgelaufenAm: "2026-09-30" }, erwartet: "B" },
+  { name: "B markiert → C (angebot mit Link)", bewertung: { typ: "angebot", linkUrl: LINK, abgelaufenAm: "2026-09-30" }, erwartet: "C" },
+  { name: "C markiert → D (gespraech)", bewertung: { typ: "gespraech", abgelaufenAm: "2026-09-30" }, erwartet: "D" },
+  { name: "D markiert bleibt D (webrecherche)", bewertung: { typ: "webrecherche", linkUrl: LINK, abgelaufenAm: "2026-09-30" }, erwartet: "D" },
+  // Ohne Markierung (null / leer) keine Abwertung.
+  { name: "abgelaufen_am null: keine Abwertung", bewertung: { typ: "vertrag", dateiKey: DATEI, abgelaufenAm: null }, erwartet: "A" },
 ];

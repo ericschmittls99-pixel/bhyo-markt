@@ -5459,3 +5459,11 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-secondary);
   text-wrap: pretty;
 }
+
+/* AP2.4 (E62): Verifikationszeile im Beleg-Block — Pille plus Zeitangaben. */
+.ov-verif {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}

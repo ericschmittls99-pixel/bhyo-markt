@@ -48,7 +48,6 @@ import {
 } from "@/lib/qualitaet";
 import type { MaterialartMitCluster, OutputProduktOption } from "@/lib/register";
 import { BELEG_LABEL, KATEGORIE_LABEL, type StromArt } from "@/lib/stroeme-modell";
-import { naechsteVerifizierung } from "@/lib/verifizierung";
 import { dezimalAnzeige, monatAnzeige, monatKanonisch } from "@/lib/eingabe-format";
 
 /**
@@ -261,15 +260,9 @@ export function FormularPanel({
   const dateiHinweis =
     ohneDateiUndLink && typ ? stufeObergrenzeOhneDatei(typ) : null;
 
-  // E33: obere vier Typen -> gueltig_bis; untere drei -> Typ-Frist ab Erhebung.
+  // E33/E62: obere vier Typen -> gueltig_bis (= verifiziert bis); untere drei
+  // -> Typ-Frist ab dem Prueftag, erst nach dem Pruefen bekannt.
   const gueltigBisFeld = typ ? brauchtGueltigBis(typ) : false;
-  const verifizierung = typ
-    ? naechsteVerifizierung({
-        typ,
-        gueltigBis: gueltigBisFeld ? gueltigBis || null : null,
-        erhebungsdatum: erhebungsdatum || null,
-      })
-    : null;
 
   const clusterOptionen = useMemo(() => {
     const vorhanden = [...new Set(materialarten.map((m) => m.cluster))];
@@ -1029,10 +1022,10 @@ export function FormularPanel({
               </span>
               <span className="c">
                 Aus Belegtyp und Nachweis (Datei bzw. Link) berechnet, nicht editierbar.
-                {verifizierung
-                  ? ` Nächste Verifizierung: ${fmtDatum(verifizierung)}`
-                  : gueltigBisFeld
-                    ? " Nächste Verifizierung: folgt aus dem Datum oben."
+                {gueltigBisFeld
+                  ? " Verifiziert bis: das Datum oben, sobald ein Prüfer den Eintrag geprüft hat."
+                  : typ
+                    ? " Verifiziert bis: Prüftag plus Typ-Frist, sobald ein Prüfer den Eintrag geprüft hat."
                     : ""}
               </span>
               {dateiHinweis && (

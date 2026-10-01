@@ -1,4 +1,4 @@
-// E23/E34: Paritaetstest DB-Funktion qualitaetsstufe() (Migration 0021)
+// E23/E34/E62: Paritaetstest DB-Funktion qualitaetsstufe() (Migration 0032, vier Parameter)
 // gegen deriveQualitaet — ueber alle Ankerfaelle, gegen die ECHTE Datenbank
 // (DATABASE_URL), nicht gegen einen Mock. Laeuft im Deploy-CI direkt nach
 // "Migrate Preview-DB"; eine Abweichung bricht den Deploy laut ab.
@@ -22,7 +22,8 @@ async function main() {
       select qualitaetsstufe(
         ${b.typ}::beleg_typ,
         ${b.dateiKey ?? null},
-        ${b.linkUrl ?? null}
+        ${b.linkUrl ?? null},
+        ${b.abgelaufenAm ?? null}::date
       )::text as stufe`;
     const db = row!.stufe as string;
     const ts = deriveQualitaet(b);

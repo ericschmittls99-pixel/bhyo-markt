@@ -62,7 +62,6 @@ export function KarteAnsicht({
   detailVergaben,
   historie,
   begruendung,
-  verifizierung,
   preisKorridor = null,
   filterOffenInitial,
   legendeInitial,
@@ -92,7 +91,6 @@ export function KarteAnsicht({
   detailVergaben: VergabeDaten[];
   historie: { zeitpunkt: string; text: string }[];
   begruendung: string | null;
-  verifizierung: string | null;
   /** E38 */
   preisKorridor?: PreisKorridorEinzelDaten | null;
   filterOffenInitial: boolean;
@@ -235,7 +233,6 @@ export function KarteAnsicht({
           strom={detailStrom}
           historie={historie}
           begruendung={begruendung}
-          verifizierung={verifizierung}
           preisKorridor={preisKorridor}
           verfuegbarkeit={detailVerfuegbarkeit}
           vergaben={detailVergaben}
