@@ -181,7 +181,34 @@ async function main() {
     arten_0032_fehlen: ARTEN_0032.filter((a) => !vorhandeneArten.has(a)),
     ...vs,
   };
+  // AP2.4 PR b (E63), Messung nach Migration 0033: Parameter
+  // verifikation.vorlauf_tage, Tabelle job_lauf, die beiden Idempotenz-Indizes
+  // der Hinweise (NULLS NOT DISTINCT), Ereignisart reverifiziert, Inbox-Typen
+  // verifikation_laeuft_ab/verifikation_abgelaufen. Vor 0033: „fehlt" — das
+  // ist der Rot-Nachweis gegen eine echte Datenbank ohne 0033, kein Fehler.
+  const [m33] = await sql`select
+      exists (select 1 from parameter_definition where schluessel = 'verifikation.vorlauf_tage') as parameter_vorlauf_tage,
+      exists (select 1 from information_schema.tables where table_name = 'job_lauf') as job_lauf,
+      (select count(*)::int from pg_index i join pg_class c on c.oid = i.indexrelid
+        where c.relname in ('inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx') and i.indisunique and i.indnullsnotdistinct) as idempotenz_indizes,
+      exists (select 1 from pg_enum where enumtypid = 'ereignis_art'::regtype and enumlabel = 'reverifiziert') as art_reverifiziert,
+      (select count(*)::int from pg_enum where enumtypid = 'inbox_typ'::regtype and enumlabel in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')) as inbox_typen_hinweise`;
+  const vollstaendig33 = m33!.parameter_vorlauf_tage && m33!.job_lauf && m33!.idempotenz_indizes === 2 && m33!.art_reverifiziert && m33!.inbox_typen_hinweise === 2;
+  const fehlt33 = [
+    !m33!.parameter_vorlauf_tage && "parameter verifikation.vorlauf_tage",
+    !m33!.job_lauf && "job_lauf",
+    m33!.idempotenz_indizes !== 2 && `idempotenz_indizes ${m33!.idempotenz_indizes}/2`,
+    !m33!.art_reverifiziert && "ereignisart reverifiziert",
+    m33!.inbox_typen_hinweise !== 2 && `inbox_typen_hinweise ${m33!.inbox_typen_hinweise}/2`,
+  ].filter(Boolean);
+  console.log("MIGRATION_0033 " + JSON.stringify({ stand: vollstaendig33 ? "vorhanden" : "fehlt", ...m33, fehlt: fehlt33 }));
   if (vs!.funktion_verifikation) {
+    const [jl] = m33!.job_lauf
+      ? await sql`select count(*)::int as laeufe, max(stichtag)::text as letzter_stichtag,
+                         (select ergebnis from job_lauf where job = 'verifikation' order by stichtag desc limit 1) as letztes_ergebnis
+                    from job_lauf where job = 'verifikation'`
+      : [{ laeufe: null, letzter_stichtag: null, letztes_ergebnis: null }];
+    console.log("JOB_LAUF " + JSON.stringify(jl));
     const zustaende = await sql`
       select art, zustand, count(*)::int as n
         from strom_verifikation(current_date) group by 1, 2 order by 1, 2`;
