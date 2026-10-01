@@ -7,7 +7,7 @@
 import { AEHNLICHKEIT_FIXTURES, NORM_FIXTURES } from "@bhyo/db/dubletten-fixtures";
 import { describe, expect, it } from "vitest";
 
-import { aehnlichkeit, akteurNameNorm, DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad, trigramme } from "./akteur-norm";
+import { aehnlichkeit, akteurNameNorm, DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad, trigramme, wortTeilmenge } from "./akteur-norm";
 
 describe("akteurNameNorm (Spiegelbild von akteur_name_norm, Migration 0038)", () => {
   for (const [eingabe, erwartet] of NORM_FIXTURES) {
@@ -42,5 +42,24 @@ describe("dublettenGrad", () => {
     expect(dublettenGrad(DUBLETTE_SCHWACH, false)).toBe("schwach");
     expect(dublettenGrad(DUBLETTE_STARK - 0.01, true)).toBeNull();
     expect(dublettenGrad(0, false)).toBeNull();
+  });
+});
+
+describe("wortTeilmenge (Zusatzregel, Spiegelbild von akteur_name_wortteilmenge)", () => {
+  it("kuerzerer Name mit >= 2 Woertern, alle im laengeren enthalten", () => {
+    expect(wortTeilmenge("avr rhein neckar", "avr abfallverwertung rhein neckar")).toBe(true);
+    expect(wortTeilmenge("avr abfallverwertung rhein neckar", "avr rhein neckar")).toBe(true);
+    expect(wortTeilmenge("mueller agrar", "mueller agrar")).toBe(true);
+  });
+  it("ein Wort reicht nicht; Teilwoerter zaehlen nicht; leer nie", () => {
+    expect(wortTeilmenge("speyer", "stadtwerke speyer")).toBe(false);
+    expect(wortTeilmenge("stadt speyer", "stadtwerke speyer")).toBe(false);
+    expect(wortTeilmenge("", "stadtwerke speyer")).toBe(false);
+    expect(wortTeilmenge("", "")).toBe(false);
+  });
+  it("mit Ortsbezug stark unabhaengig von der Aehnlichkeit; ohne Ortsbezug ohne Wirkung", () => {
+    expect(dublettenGrad(0.3, true, true)).toBe("stark");
+    expect(dublettenGrad(0.3, false, true)).toBeNull();
+    expect(dublettenGrad(0.3, true, false)).toBeNull();
   });
 });

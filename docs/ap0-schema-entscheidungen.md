@@ -1387,12 +1387,20 @@ Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
 Entscheidung Eric 01.10.2026 — der gleiche Kreis allein reicht nicht, sonst
 erschienen kommunale Akteure desselben Kreises massenhaft als stark; 2 km
 decken dieselbe Stadt bei verschiedenen PLZ und lassen Nachbargemeinden
-draußen), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug. Ergebnis bei diesen
-Schwellen: alle Seed-Kandidaten gefunden; 14 von 18 echten Varianten
-gefunden (nicht gefunden: drei ohne Ortsbezug knapp unter 0,75 und die
-Namenskürzung „AVR Abfallverwertung Rhein-Neckar" ↔ „AVR Rhein-Neckar"
-0,515); 3 von 11 kommunalen Paaren derselben Stadt als Fehlalarm stark
-(Stadt · Stadtwerke, Gemeinde · Gemeindewerke), keines schwach. Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
+draußen), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug. **Zusatzregel „Wort-Teilmenge"**
+(Entscheidung Eric 01.10.2026, durch Messung entschieden): hat der kürzere
+normalisierte Name mindestens zwei Wörter, sind alle im längeren enthalten
+und besteht Ortsbezug, ist das Paar stark, unabhängig von der Ähnlichkeit —
+gleiche Form in SQL (`akteur_name_wortteilmenge`) und App (`wortTeilmenge`).
+Messung: ein Treffer mehr („AVR Abfallverwertung Rhein-Neckar" ↔ „AVR
+Rhein-Neckar" 0,515), kein neuer Fehlalarm, kein Seed-Paar neu stark.
+Ergebnis bei diesen Schwellen: alle Seed-Kandidaten gefunden; 15 von 18
+echten Varianten gefunden (nicht gefunden: drei ohne Ortsbezug knapp unter
+0,75); 3 von 11 kommunalen Paaren derselben Stadt als Fehlalarm stark (Stadt
+· Stadtwerke, Gemeinde · Gemeindewerke), keines schwach. Die Abfragen
+materialisieren die normalisierten Namen einmal und vergleichen paarweise
+(Ähnlichkeit ODER Teilmenge) — kein Trigramm-Index, weil das ODER keinen
+Index nutzen könnte und die Mengen klein sind. Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
 1,000 (sie unterscheiden sich nur in Rechtsform/Umlaut), die Schwelle wird
 von den falschen Freunden bestimmt — am selben Ort bis 0,70 („Stadt X" ·
 „Stadtwerke X"), an verschiedenen Orten bis 0,69 (gleiche Betriebsart);

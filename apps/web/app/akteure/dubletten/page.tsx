@@ -43,7 +43,7 @@ export default async function DublettenPage() {
         </div>
       </div>
       <p className="ov-note">
-        Ähnlichkeit der normalisierten Namen (pg_trgm). Stark: ab {Math.round(DUBLETTE_STARK * 100)} % mit gleicher PLZ oder Sitz-Abstand bis {DUBLETTE_ORT_METER / 1000} km. Schwach: ab {Math.round(DUBLETTE_SCHWACH * 100)} % ohne Ortsbezug.
+        Ähnlichkeit der normalisierten Namen (pg_trgm). Stark: ab {Math.round(DUBLETTE_STARK * 100)} % mit gleicher PLZ oder Sitz-Abstand bis {DUBLETTE_ORT_METER / 1000} km. Schwach: ab {Math.round(DUBLETTE_SCHWACH * 100)} % ohne Ortsbezug. Zusatzregel: Sind alle Wörter des kürzeren Namens (mindestens zwei) im längeren enthalten, ist das Paar mit Ortsbezug stark.
         Als „keine Dublette" markierte Paare erscheinen nicht mehr (unten aufhebbar). Zusammenführen ist endgültig.
       </p>
       <DublettenListe

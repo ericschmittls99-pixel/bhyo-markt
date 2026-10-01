@@ -49,7 +49,18 @@ BEGIN
   RETURN btrim(regexp_replace(s, '\s+', ' ', 'g'));
 END
 $fn$;--> statement-breakpoint
-CREATE INDEX "akteur_name_norm_trgm_idx" ON "akteur" USING gin (akteur_name_norm("name") gin_trgm_ops);--> statement-breakpoint
+-- Wort-Teilmenge auf bereits normalisierten Namen: text[] <@ text[] = alle Woerter des kuerzeren im laengeren.
+CREATE FUNCTION akteur_name_wortteilmenge(p_a text, p_b text) RETURNS boolean
+  LANGUAGE sql IMMUTABLE STRICT AS $fn$
+  WITH w AS (
+    SELECT array_remove(string_to_array(p_a, ' '), '') AS a, array_remove(string_to_array(p_b, ' '), '') AS b
+  ), k AS (
+    SELECT CASE WHEN cardinality(a) <= cardinality(b) THEN a ELSE b END AS kurz,
+           CASE WHEN cardinality(a) <= cardinality(b) THEN b ELSE a END AS lang
+      FROM w
+  )
+  SELECT cardinality(kurz) >= 2 AND kurz <@ lang FROM k
+$fn$;--> statement-breakpoint
 CREATE TABLE "akteur_keine_dublette" (
 	"id" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,
 	"akteur_a" uuid NOT NULL,
@@ -82,21 +93,22 @@ BEGIN
   RETURN NEW;
 END
 $fn$;--> statement-breakpoint
--- Zaehlbeweis im selben Lauf: Extension, Normalisierung (Beispiel), Index,
--- Tabelle mit zwei FKs, Trigger-Ausnahme im Funktionstext.
+-- Zaehlbeweis im selben Lauf: Extension, Normalisierung (Beispiel),
+-- Wort-Teilmenge (Beispiel), Tabelle mit zwei FKs, Trigger-Ausnahme im Funktionstext.
 DO $$
 DECLARE
-  n_ext integer; norm text; sim real; n_idx integer; n_fk integer; n_trg integer; n_ausnahme integer;
+  n_ext integer; norm text; sim real; teil boolean; n_fk integer; n_trg integer; n_ausnahme integer;
 BEGIN
   SELECT count(*) INTO n_ext FROM pg_extension WHERE extname = 'pg_trgm';
   norm := akteur_name_norm('Müller Agrar GmbH & Co. KG');
   sim := similarity(akteur_name_norm('Biogas Kraichgau GmbH & Co. KG'), akteur_name_norm('Biogas Kraichgau KG'));
-  SELECT count(*) INTO n_idx FROM pg_class WHERE relname = 'akteur_name_norm_trgm_idx';
+  teil := akteur_name_wortteilmenge(akteur_name_norm('AVR Abfallverwertung Rhein-Neckar'), akteur_name_norm('AVR Rhein-Neckar'))
+          AND NOT akteur_name_wortteilmenge('stadt speyer', 'stadtwerke speyer');
   SELECT count(*) INTO n_fk FROM pg_constraint WHERE conrelid = 'akteur_keine_dublette'::regclass AND contype = 'f' AND confdeltype = 'c';
   SELECT count(*) INTO n_trg FROM pg_trigger WHERE tgname = 'kontaktperson_kein_umhaengen' AND NOT tgisinternal;
   SELECT count(*) INTO n_ausnahme FROM pg_proc WHERE proname = 'kontaktperson_kein_umhaengen' AND prosrc LIKE '%akteur_zusammengefuehrt%';
-  RAISE NOTICE 'PR_C pg_trgm=% norm=% sim=% index=% fks=% trigger=% ausnahme=%', n_ext, norm, sim, n_idx, n_fk, n_trg, n_ausnahme;
-  IF n_ext <> 1 OR norm <> 'mueller agrar' OR sim <> 1 OR n_idx <> 1 OR n_fk <> 2 OR n_trg <> 1 OR n_ausnahme <> 1 THEN
-    RAISE EXCEPTION 'PR c nach Expand widerspruechlich (ext=%, norm=%, sim=%, idx=%, fk=%, trg=%, ausnahme=%)', n_ext, norm, sim, n_idx, n_fk, n_trg, n_ausnahme;
+  RAISE NOTICE 'PR_C pg_trgm=% norm=% sim=% teilmenge=% fks=% trigger=% ausnahme=%', n_ext, norm, sim, teil, n_fk, n_trg, n_ausnahme;
+  IF n_ext <> 1 OR norm <> 'mueller agrar' OR sim <> 1 OR NOT teil OR n_fk <> 2 OR n_trg <> 1 OR n_ausnahme <> 1 THEN
+    RAISE EXCEPTION 'PR c nach Expand widerspruechlich (ext=%, norm=%, sim=%, teil=%, fk=%, trg=%, ausnahme=%)', n_ext, norm, sim, teil, n_fk, n_trg, n_ausnahme;
   END IF;
 END $$;

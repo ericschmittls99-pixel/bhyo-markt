@@ -854,8 +854,8 @@ internen Modus (extern fehlt sie ganz).
 
 **Liste `akteure./dubletten`:** Kopf wie das Akteur-Detail (`ak-detail-kopf`:
 Rücksprung „akteure.", Titel „mögliche dubletten.", Pillen „n stark" /
-„n schwach"), darunter ein `ov-note` mit den Schwellen in Prozent und dem Ortsbezug (PLZ
-oder Sitz-Abstand bis 2 km). Tabelle
+„n schwach"), darunter ein `ov-note` mit den Schwellen in Prozent, dem Ortsbezug (PLZ
+oder Sitz-Abstand bis 2 km) und der Zusatzregel Wort-Teilmenge. Tabelle
 `einst-tabelle ak-tabelle db-tabelle` mit vier Spalten: Akteur A, Akteur B
 (Name als Link, Sektor als `param-schluessel`, Sitz · Kreis und Zähler
 „n Ströme · m Kontaktpersonen" als `c`), Ähnlichkeit (Grad als Pille —

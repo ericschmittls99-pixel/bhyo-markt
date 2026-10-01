@@ -84,8 +84,23 @@ export const DUBLETTE_ORT_METER = 2000;
 
 export type DublettenGrad = "stark" | "schwach";
 
-export function dublettenGrad(sim: number, gleicherOrt: boolean): DublettenGrad | null {
-  if (sim >= DUBLETTE_STARK && gleicherOrt) return "stark";
+/**
+ * Zusatzregel „Wort-Teilmenge" (Entscheidung Eric 01.10.2026, durch Messung
+ * entschieden: ein Treffer mehr — „AVR Abfallverwertung Rhein-Neckar" ·
+ * „AVR Rhein-Neckar" —, kein neuer Fehlalarm): Hat der kuerzere normalisierte
+ * Name mindestens zwei Woerter und sind alle im laengeren enthalten, ist das
+ * Paar mit Ortsbezug „stark", unabhaengig von der Aehnlichkeit. Spiegelbild
+ * von akteur_name_wortteilmenge (SQL, Migration 0038).
+ */
+export function wortTeilmenge(a: string, b: string): boolean {
+  const wa = a.split(" ").filter(Boolean);
+  const wb = b.split(" ").filter(Boolean);
+  const [kurz, lang] = wa.length <= wb.length ? [wa, wb] : [wb, wa];
+  return kurz.length >= 2 && kurz.every((w) => lang.includes(w));
+}
+
+export function dublettenGrad(sim: number, gleicherOrt: boolean, teilmenge = false): DublettenGrad | null {
+  if (gleicherOrt && (sim >= DUBLETTE_STARK || teilmenge)) return "stark";
   if (sim >= DUBLETTE_SCHWACH) return "schwach";
   return null;
 }

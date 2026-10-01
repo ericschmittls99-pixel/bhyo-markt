@@ -23,6 +23,9 @@ describe("Dubletten-Kalibrierung gegen den Seed", () => {
     for (const p of paare.filter((p) => p.kandidat === "stark")) expect(dublettenGrad(p.sim, p.gleichePlz), `${p.a} · ${p.b}`).toBe("stark");
     for (const p of paare.filter((p) => p.kandidat === "schwach")) expect(dublettenGrad(p.sim, p.gleichePlz), `${p.a} · ${p.b}`).toBe("schwach");
   });
+  it("Zusatzregel Wort-Teilmenge macht im Seed kein Paar mit gleicher PLZ neu stark", () => {
+    expect(paare.filter((p) => p.gleichePlz && p.teilmenge && dublettenGrad(p.sim, p.gleichePlz) !== "stark")).toEqual([]);
+  });
   it("kein Nicht-Kandidat mit verschiedenem Namen erreicht die schwache Schwelle", () => {
     const fremd = paare.filter((p) => !p.kandidat && p.norm[0] !== p.norm[1]);
     const staerkster = fremd.reduce((m, p) => (p.sim > m.sim ? p : m));
@@ -37,6 +40,7 @@ describe("Kalibrier-Paare der geteilten Fixture-Liste (Eric 01.10.2026)", () => 
   it("Aehnlichkeit und Ergebnis jedes Paars sind festgehalten (Fixture = Messung)", () => {
     for (const p of alle) {
       expect(p.gerechnet, `${p.a} · ${p.b}`).toBeCloseTo(p.aehnlichkeit, 9);
+      expect(p.teilmenge, `${p.a} · ${p.b}`).toBe(p.wortTeilmenge);
       expect(p.ergebnis, `${p.a} · ${p.b}`).toBe(p.grad);
     }
   });
@@ -52,14 +56,16 @@ describe("Kalibrier-Paare der geteilten Fixture-Liste (Eric 01.10.2026)", () => 
       "Kompostwerk Vorderpfalz · Kompostwerk Vorderpflaz (ohne Ortsbezug)",
       "Gem. Haßloch · Gemeinde Haßloch (ohne Ortsbezug)",
       "Stadtwerke Speyer · Stadtwerke Speyer Energie (ohne Ortsbezug)",
-      "AVR Abfallverwertung Rhein-Neckar · AVR Rhein-Neckar",
     ]);
-    expect(varianten.length - nicht.length).toBe(varianten.length - 4);
+    // Zusatzregel Wort-Teilmenge (Eric 01.10.2026): genau dieses Paar wird dadurch gefunden, sonst nichts.
+    expect(varianten.filter((x) => x.ergebnis !== x.ohneRegel).map((x) => `${x.a} · ${x.b}`)).toEqual(["AVR Abfallverwertung Rhein-Neckar · AVR Rhein-Neckar"]);
   });
   it("kommunale falsche Treffer: keiner erreicht die schwache Schwelle; die Fehlalarme mit Ortsbezug sind ausdruecklich benannt", () => {
     const kommunal = alle.filter((x) => x.klasse === "kommunal");
     expect(kommunal.length).toBeGreaterThan(0);
     for (const p of kommunal) expect(p.gerechnet, `${p.a} · ${p.b}`).toBeLessThan(DUBLETTE_SCHWACH);
+    // Die Zusatzregel erzeugt keinen neuen Fehlalarm (Bedingung fuer ihre Uebernahme).
+    for (const p of kommunal) expect(p.ergebnis, `${p.a} · ${p.b}`).toBe(p.ohneRegel);
     expect(kommunal.filter((x) => x.ergebnis).map((x) => `${x.a} · ${x.b}`)).toEqual([
       "Stadt Speyer · Stadtwerke Speyer",
       "Gemeinde Haßloch · Gemeindewerke Haßloch",

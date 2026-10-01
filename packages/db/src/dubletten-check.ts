@@ -2,8 +2,8 @@
  * AP2.5 PR c (E66): dauerhafter DB-Check fuer Dubletten und Zusammenfuehren —
  * laeuft im Deploy-CI gegen die echte Preview-DB. Zusicherungen:
  *
- * 1. Struktur (Migration 0038): pg_trgm, Funktion akteur_name_norm, GIN-Index,
- *    Tabelle akteur_keine_dublette mit zwei FKs ON DELETE CASCADE, die beiden
+ * 1. Struktur (Migration 0038): pg_trgm, Funktionen akteur_name_norm und
+ *    akteur_name_wortteilmenge, Tabelle akteur_keine_dublette mit zwei FKs ON DELETE CASCADE, die beiden
  *    Ereignisarten, Trigger kontaktperson_kein_umhaengen mit der Ausnahme.
  * 2. Paritaet: akteur_name_norm liefert fuer jede Fixture dieselbe Form wie
  *    das TypeScript-Spiegelbild (dubletten-fixtures.ts, geteilt mit
@@ -53,14 +53,14 @@ async function main() {
   // (1) Struktur
   const [ext] = await sql`select count(*)::int as n from pg_extension where extname = 'pg_trgm'`;
   const [fn] = await sql`select count(*)::int as n from pg_proc where proname = 'akteur_name_norm'`;
-  const [idx] = await sql`select count(*)::int as n from pg_class where relname = 'akteur_name_norm_trgm_idx'`;
+  const [tm] = await sql`select count(*)::int as n from pg_proc where proname = 'akteur_name_wortteilmenge'`;
   const [tab] = await sql`select count(*)::int as n from information_schema.tables where table_name = 'akteur_keine_dublette'`;
   const [fks] = await sql`select count(*)::int as n from pg_constraint where conrelid = 'akteur_keine_dublette'::regclass and contype = 'f' and confdeltype = 'c'`;
-  const [arten] = await sql`select count(*)::int as n from pg_enum where enumtypid = 'ereignis_art'::regtype and enumlabel in ('akteur_zusammengefuehrt', 'keine_dublette_markiert')`;
+  const [arten] = await sql`select count(*)::int as n from pg_enum where enumtypid = 'ereignis_art'::regtype and enumlabel in ('akteur_zusammengefuehrt', 'keine_dublette_markiert', 'keine_dublette_aufgehoben')`;
   const [trg] = await sql`select count(*)::int as n from pg_proc where proname = 'kontaktperson_kein_umhaengen' and prosrc like '%akteur_zusammengefuehrt%'`;
-  console.log(`STRUKTUR pg_trgm=${ext!.n} funktion=${fn!.n} index=${idx!.n} tabelle=${tab!.n} fks=${fks!.n}/2 arten=${arten!.n}/2 trigger_ausnahme=${trg!.n}`);
-  if (ext!.n !== 1 || fn!.n !== 1 || idx!.n !== 1 || tab!.n !== 1 || fks!.n !== 2 || arten!.n !== 2 || trg!.n !== 1) {
-    console.error("::error::DUBLETTEN-CHECK VERLETZT (Migration 0038 fehlt): Extension / Funktion / Index / Tabelle / FKs / Arten / Trigger");
+  console.log(`STRUKTUR pg_trgm=${ext!.n} funktion=${fn!.n} teilmenge=${tm!.n} tabelle=${tab!.n} fks=${fks!.n}/2 arten=${arten!.n}/3 trigger_ausnahme=${trg!.n}`);
+  if (ext!.n !== 1 || fn!.n !== 1 || tm!.n !== 1 || tab!.n !== 1 || fks!.n !== 2 || arten!.n !== 3 || trg!.n !== 1) {
+    console.error("::error::DUBLETTEN-CHECK VERLETZT (Migration 0038 fehlt): Extension / Funktionen / Tabelle / FKs / Arten / Trigger");
     await sql.end();
     process.exit(1);
   }
@@ -75,8 +75,10 @@ async function main() {
     if (Math.abs(Number(r!.sim) - erwartet) > 1e-6) fehler.push(`Paritaet similarity(${JSON.stringify(a)}, ${JSON.stringify(b)}): SQL ${r!.sim} ≠ TS ${erwartet}`);
   }
   for (const p of KALIBRIER_PAARE) {
-    const [r] = await sql`select similarity(akteur_name_norm(${p.a}), akteur_name_norm(${p.b}))::float8 as sim`;
+    const [r] = await sql`select similarity(akteur_name_norm(${p.a}), akteur_name_norm(${p.b}))::float8 as sim,
+                                 akteur_name_wortteilmenge(akteur_name_norm(${p.a}), akteur_name_norm(${p.b})) as teil`;
     if (Math.abs(Number(r!.sim) - p.aehnlichkeit) > 1e-6) fehler.push(`Paritaet Kalibrier-Paar ${JSON.stringify(p.a)} · ${JSON.stringify(p.b)}: SQL ${r!.sim} ≠ TS ${p.aehnlichkeit}`);
+    if (Boolean(r!.teil) !== p.wortTeilmenge) fehler.push(`Paritaet Wort-Teilmenge ${JSON.stringify(p.a)} · ${JSON.stringify(p.b)}: SQL ${r!.teil} ≠ TS ${p.wortTeilmenge}`);
   }
   console.log(`PARITAET norm=${NORM_FIXTURES.length} similarity=${AEHNLICHKEIT_FIXTURES.length} kalibrier_paare=${KALIBRIER_PAARE.length} abweichungen=${fehler.length}`);
 
