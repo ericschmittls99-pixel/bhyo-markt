@@ -76,6 +76,13 @@ async function main() {
       (SELECT id FROM biomassestrom WHERE bezeichnung LIKE ${"%" + MARKER})`;
     await tx`DELETE FROM vergabe_zeitraum WHERE output_bedarf_id IN
       (SELECT id FROM output_bedarf WHERE bezeichnung LIKE ${"%" + MARKER})`;
+    // AP2.1/AP2.2 (Zuweisungen, Inbox) und AP2.4 (Hinweise) verweisen seither auf
+    // Stroeme: die Zeilen zu Marker-Stroemen sind Testdaten derselben Preview und
+    // gehen mit — sonst bricht der Marker-DELETE am Fremdschluessel ab (01.10.2026).
+    for (const tabelle of ["strom_zuweisung", "inbox_eintrag"] as const) {
+      await tx.unsafe(`DELETE FROM ${tabelle} WHERE biomassestrom_id IN (SELECT id FROM biomassestrom WHERE bezeichnung LIKE $1)`, ["%" + MARKER]);
+      await tx.unsafe(`DELETE FROM ${tabelle} WHERE output_bedarf_id IN (SELECT id FROM output_bedarf WHERE bezeichnung LIKE $1)`, ["%" + MARKER]);
+    }
     await tx`DELETE FROM biomassestrom WHERE bezeichnung LIKE ${"%" + MARKER}`;
     await tx`DELETE FROM output_bedarf WHERE bezeichnung LIKE ${"%" + MARKER}`;
     await tx`DELETE FROM beleg WHERE metadata->>'seed' = ${BELEG_MARKER}`;
