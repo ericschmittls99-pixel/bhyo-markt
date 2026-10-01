@@ -161,6 +161,40 @@ async function main() {
     console.log("SEKTOR " + JSON.stringify({ ...sk, hinweis: "vor 0030" }));
   }
 
+  // AP2.4 PR a (E62), Messung nach Migration 0032: die sieben neuen
+  // Ereignisarten, die Funktion strom_verifikation(date), qualitaetsstufe mit
+  // vier Parametern, die neu angelegte GENERATED-Spalte beleg.qualitaet und
+  // beleg.abgelaufen_am. Mit Struktur: Stroeme je Zustand am heutigen Stichtag
+  // und die geprueften Stroeme ohne Beleg bzw. ohne Pruefereignis — die
+  // Vorher-Messung fuer den Zustand ohne_beleg (PR b). Vor 0032 fehlt die
+  // Struktur — dann steht das so da, kein Fehler.
+  const arten = await sql`select enumlabel from pg_enum where enumtypid = 'ereignis_art'::regtype order by enumsortorder`;
+  const ARTEN_0032 = ["in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt", "als_abgelaufen_markiert", "abgelaufen_aufgehoben"];
+  const vorhandeneArten = new Set(arten.map((a) => a.enumlabel as string));
+  const [vs] = await sql`select
+      exists (select 1 from pg_proc where proname = 'strom_verifikation' and pronargs = 1) as funktion_verifikation,
+      exists (select 1 from pg_proc where proname = 'qualitaetsstufe' and pronargs = 4) as qualitaetsstufe_4,
+      (select is_generated = 'ALWAYS' from information_schema.columns where table_name = 'beleg' and column_name = 'qualitaet') as qualitaet_generated,
+      exists (select 1 from information_schema.columns where table_name = 'beleg' and column_name = 'abgelaufen_am') as spalte_abgelaufen_am`;
+  const struktur = {
+    ereignisarten: arten.length,
+    arten_0032_fehlen: ARTEN_0032.filter((a) => !vorhandeneArten.has(a)),
+    ...vs,
+  };
+  if (vs!.funktion_verifikation) {
+    const zustaende = await sql`
+      select art, zustand, count(*)::int as n
+        from strom_verifikation(current_date) group by 1, 2 order by 1, 2`;
+    const [ohne] = await sql`select
+        (select count(*)::int from biomassestrom where status = 'geprueft' and beleg_id is null)
+        + (select count(*)::int from output_bedarf where status = 'geprueft' and beleg_id is null) as geprueft_ohne_beleg,
+        (select count(*)::int from strom_verifikation(current_date) v
+          where v.status = 'geprueft' and v.verifiziert_am is null) as geprueft_ohne_pruefereignis`;
+    console.log("VERIFIKATION " + JSON.stringify({ ...struktur, ...ohne, zustaende: zustaende.map((z) => `${z.art}/${z.zustand}=${z.n}`) }));
+  } else {
+    console.log("VERIFIKATION " + JSON.stringify({ ...struktur, hinweis: "vor 0032" }));
+  }
+
   const beispiele = await sql`
     select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n
       from aenderung group by 1, 2 order by 3 desc limit 15`;
