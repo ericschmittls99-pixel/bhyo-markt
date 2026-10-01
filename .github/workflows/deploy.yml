@@ -347,6 +347,14 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db verifikation-check
 
+      # tmp (vor Merge entfernen): Vorher-Messung der Verifikation auf der
+      # Preview, nur lesen — Stroeme je Zustand, geprueft ohne Beleg.
+      - name: tmp Protokoll-Messung Preview (nur lesen)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db protokoll-messung
+
       # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
       # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,
       # Seed-Insert) geht fuer alle Typen durch, mit der Stufe der Matrix.
