@@ -1,10 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { kontaktpersonAnlegen, kontaktpersonBearbeiten, kontaktpersonLoeschen } from "@/lib/kontaktperson-actions";
+import { kontaktpersonAnlegen, kontaktpersonAuskunftErstellen, kontaktpersonBearbeiten, kontaktpersonLoeschen } from "@/lib/kontaktperson-actions";
 import { KONTAKT_GRENZEN, NOTIZ_HINWEIS, type Kontaktperson } from "@/lib/kontaktperson-modell";
 import { fmtDatum } from "@/lib/format";
 
@@ -44,6 +43,17 @@ export function Kontaktpersonen({
       setFehler(null);
       setOffen(null);
       router.refresh();
+    });
+  }
+  // Auskunft (Art. 15): die Aktion schreibt das Ereignis und oeffnet danach die Druckansicht.
+  function auskunft(id: string) {
+    start(async () => {
+      const erg = await kontaktpersonAuskunftErstellen(id);
+      if (!erg.ok || !erg.ereignisId) {
+        setFehler(erg.fehler ?? "Auskunft fehlgeschlagen.");
+        return;
+      }
+      router.push(`/akteure/${akteurId}/kontaktpersonen/${id}/auskunft?ereignis=${erg.ereignisId}`);
     });
   }
   function loeschen(id: string) {
@@ -155,9 +165,9 @@ export function Kontaktpersonen({
                         </button>
                       )}
                       {darfAuskunft && (
-                        <Link className="btn btn--ghost btn--sm" href={`/akteure/${akteurId}/kontaktpersonen/${p.id}/auskunft`} target="_blank">
-                          Auskunft
-                        </Link>
+                        <button type="button" className="btn btn--ghost btn--sm" disabled={pending} onClick={() => auskunft(p.id)}>
+                          Auskunft erstellen
+                        </button>
                       )}
                       {darfLoeschen && confirm !== p.id && (
                         <button type="button" className="btn btn--ghost btn--sm" disabled={pending} onClick={() => setConfirm(p.id)}>

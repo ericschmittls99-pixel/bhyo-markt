@@ -784,6 +784,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "kontaktperson_angelegt",
   "kontaktperson_geaendert",
   "kontaktperson_geloescht",
+  // AP2.5 PR b: Auskunft nach Art. 15 erstellt (nur Admin) — die Druckansicht ist nur ueber dieses Ereignis erreichbar.
+  "auskunft_erstellt",
 ]);
 
 export const aenderung = pgTable(

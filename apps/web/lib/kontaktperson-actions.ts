@@ -110,3 +110,37 @@ export async function kontaktpersonLoeschen(id: string): Promise<AktionErgebnis>
   aktualisiere(akteurId);
   return { ok: true };
 }
+
+/**
+ * Auskunft nach Art. 15 DSGVO erstellen (nur Admin, kontaktperson.auskunft):
+ * schreibt das Ereignis auskunft_erstellt (nur IDs) und liefert dessen ID —
+ * die Druckansicht ist ausschliesslich ueber dieses Ereignis erreichbar
+ * (Entscheidung Eric 01.10.2026): ohne Aktion keine Auskunft.
+ */
+export async function kontaktpersonAuskunftErstellen(id: string): Promise<AktionErgebnis & { ereignisId?: string; akteurId?: string }> {
+  const wache = await rechtFuerAction("kontaktperson.auskunft");
+  if ("fehler" in wache) return wache;
+  let ereignisId = "";
+  let akteurId = "";
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const [p] = await tx.select({ akteurId: kontaktperson.akteurId }).from(kontaktperson).where(eq(kontaktperson.id, id)).limit(1);
+        if (!p) throw new Error("Kontaktperson nicht gefunden.");
+        akteurId = p.akteurId;
+        const e = await protokolliere(tx, {
+          art: "auskunft_erstellt",
+          entitaet: "kontaktperson",
+          id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Akteur ${akteurId}`,
+        });
+        ereignisId = e.id;
+      }),
+    );
+  } catch (e) {
+    return { ok: false, fehler: e instanceof Error ? e.message : "Auskunft fehlgeschlagen." };
+  }
+  return { ok: true, ereignisId, akteurId };
+}

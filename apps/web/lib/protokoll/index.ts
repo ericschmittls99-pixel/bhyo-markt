@@ -81,6 +81,7 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   kontaktperson_angelegt: "Kontaktperson angelegt",
   kontaktperson_geaendert: "Kontaktperson geändert",
   kontaktperson_geloescht: "Kontaktperson gelöscht",
+  auskunft_erstellt: "Auskunft (Art. 15) erstellt",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",

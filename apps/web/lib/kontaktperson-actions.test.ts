@@ -33,7 +33,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
-const { kontaktpersonAnlegen, kontaktpersonBearbeiten, kontaktpersonLoeschen } = await import("./kontaktperson-actions");
+const { kontaktpersonAnlegen, kontaktpersonAuskunftErstellen, kontaktpersonBearbeiten, kontaktpersonLoeschen } = await import("./kontaktperson-actions");
 
 const fd = (w: Record<string, string>) => {
   const f = new FormData();
@@ -70,6 +70,19 @@ describe("Kontaktpersonen: Rechte serverseitig (E66)", () => {
     await kontaktpersonBearbeiten(ZEILE.id, fd({ name: "Petra Person", funktion: "Geschäftsführung" }));
     const e = (protokolliere.mock.calls[0] as unknown as [unknown, { art: string; entitaet: string; text?: string }])[1];
     expect(e).toMatchObject({ art: "kontaktperson_geaendert", entitaet: "kontaktperson", text: "Felder: funktion" });
+    expect(e.text).not.toContain("Petra");
+  });
+  it("Auskunft erstellen: nur Admin; schreibt auskunft_erstellt (nur IDs) und liefert die Ereignis-ID", async () => {
+    for (const r of ["betrachter", "bearbeiter", "pruefer"] as const) {
+      rolle = r;
+      expect((await kontaktpersonAuskunftErstellen(ZEILE.id)).ok).toBe(false);
+    }
+    expect(protokolliere).not.toHaveBeenCalled();
+    rolle = "admin";
+    const erg = await kontaktpersonAuskunftErstellen(ZEILE.id);
+    expect(erg).toMatchObject({ ok: true, ereignisId: "e", akteurId: ZEILE.akteurId });
+    const e = (protokolliere.mock.calls[0] as unknown as [unknown, { art: string; entitaet: string; text?: string }])[1];
+    expect(e).toMatchObject({ art: "auskunft_erstellt", entitaet: "kontaktperson", text: `Akteur ${ZEILE.akteurId}` });
     expect(e.text).not.toContain("Petra");
   });
   it("Eingabe: Name Pflicht, Laengen, E-Mail-Form; Umhaengen gibt es nicht (akteur_id wird nie gesetzt)", async () => {

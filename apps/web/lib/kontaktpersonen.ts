@@ -82,3 +82,17 @@ export async function ladeKontaktpersonEreignisse(db: Leser, id: string): Promis
   }[];
   return rows.map((r) => ({ zeitpunkt: r.zeitpunkt, art: r.art, text: r.text, benutzerEmail: r.benutzer_email }));
 }
+
+/**
+ * Ist dieses Ereignis eine Auskunft (auskunft_erstellt) zu genau dieser Person,
+ * von dieser Person angelegt und juenger als eine Stunde? Nur dann oeffnet die
+ * Druckansicht — die Aktion ist der einzige Weg dorthin.
+ */
+export async function auskunftFreigegeben(db: Leser, ereignisId: string, kontaktpersonId: string, benutzerId: string): Promise<boolean> {
+  const rows = (await db.execute(sql`
+    select 1 from aenderung
+     where id = ${ereignisId} and entitaet_typ = 'kontaktperson' and entitaet_id = ${kontaktpersonId}
+       and art::text = 'auskunft_erstellt' and benutzer_id = ${benutzerId}
+       and zeitpunkt > now() - interval '1 hour'`)) as unknown as unknown[];
+  return rows.length === 1;
+}

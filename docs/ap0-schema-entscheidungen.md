@@ -1340,11 +1340,14 @@ Exporte werden nicht gespeichert; Backups halten gelöschte Daten 30 Tage
 Kopf, keine Zelle); der Export-Wächter prüft die Einstufung und die externe
 Datei (rot gezeigt: Spalte ohne `intern` → Name in der externen Datei).
 
-**Auskunft (Art. 15):** Druckansicht je Person unter
-`/akteure/<id>/kontaktpersonen/<pid>/auskunft`, nur Admin (fail closed), mit
-allen gespeicherten Feldern und allen Protokollereignissen zur Person;
-gedruckt wird aus dem Browser (F6). Das Aufrufen wird nicht protokolliert
-(kein Schreibpfad in einer Leseansicht).
+**Auskunft (Art. 15):** Aktion **„Auskunft erstellen"**
+(`kontaktperson.auskunft`, nur Admin über darf()) schreibt das Ereignis
+`auskunft_erstellt` (nur IDs) über protokolliere() und öffnet danach die
+Druckansicht `/akteure/<id>/kontaktpersonen/<pid>/auskunft?ereignis=<id>`;
+die Seite prüft das Ereignis (zu dieser Person, von dieser Person, jünger
+als eine Stunde) und ist ohne die Aktion nicht erreichbar (404). Inhalt: alle
+gespeicherten Felder und alle Protokollereignisse zur Person; gedruckt wird
+aus dem Browser (F6). Migration 0037 ergänzt den Enum-Wert (Rename-Verbot).
 
 **Löschprüfung (E57, Job):** Parameter `kontaktperson.loeschpruefung_monate` =
 24 (seit Einführung). Aktivität = jüngste Änderung an der Person

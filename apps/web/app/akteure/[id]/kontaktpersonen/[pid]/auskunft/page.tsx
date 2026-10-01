@@ -4,7 +4,7 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur } from "@/lib/akteure";
 import { withDb } from "@/lib/db";
 import { fmtDatum, fmtDatumZeit } from "@/lib/format";
-import { ladeKontaktperson, ladeKontaktpersonEreignisse } from "@/lib/kontaktpersonen";
+import { auskunftFreigegeben, ladeKontaktperson, ladeKontaktpersonEreignisse } from "@/lib/kontaktpersonen";
 import { STANDARDTEXT } from "@/lib/protokoll";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -14,12 +14,17 @@ export const dynamic = "force-dynamic";
 /**
  * Auskunft je Person (Art. 15 DSGVO, AP2.5 PR b): Druckansicht ueber die
  * Druck-Route-Idee aus F6 — gedruckt wird aus dem Browser als PDF. Nur Admin
- * (kontaktperson.auskunft, fail closed). Enthaelt alle gespeicherten Felder
+ * (kontaktperson.auskunft, fail closed) und nur ueber die Aktion „Auskunft
+ * erstellen": Das Ereignis auskunft_erstellt (eigenes, juenger als eine
+ * Stunde) ist der Schluessel; ohne ihn gibt es die Seite nicht (404).
+ * Enthaelt alle gespeicherten Felder
  * und alle Protokollereignisse zur Person; deren Freitext traegt nur IDs und
  * Feldnamen (E57).
  */
-export default async function AuskunftSeite({ params }: { params: Promise<{ id: string; pid: string }> }) {
+export default async function AuskunftSeite({ params, searchParams }: { params: Promise<{ id: string; pid: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id, pid } = await params;
+  const sp = await searchParams;
+  const ereignisId = Array.isArray(sp.ereignis) ? sp.ereignis[0] : sp.ereignis;
   const zugang = await aktuellerZugang();
   if (zugang.art !== "erlaubt" || !darfRolle(zugang, "kontaktperson.auskunft")) {
     return (
@@ -28,6 +33,9 @@ export default async function AuskunftSeite({ params }: { params: Promise<{ id: 
       </main>
     );
   }
+  // Nur ueber die Aktion „Auskunft erstellen" (Ereignis auskunft_erstellt, eigenes, juenger als eine Stunde).
+  const freigegeben = ereignisId ? await withDb((db) => auskunftFreigegeben(db, ereignisId, pid, zugang.id)) : false;
+  if (!freigegeben) notFound();
   const [person, akteur, ereignisse] = await Promise.all([
     withDb((db) => ladeKontaktperson(db, pid)),
     withDb((db) => ladeAkteur(db, id)),
