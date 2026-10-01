@@ -242,12 +242,12 @@ async function main() {
           await tx`insert into output_bedarf (id, akteur_id, bezeichnung, ort, plz, standort_geom, produkt_code, menge_wert, menge_einheit, preis, preis_einheit, preis_herkunft,
               zeitraum_von, zeitraum_bis, saisonalitaet, beleg_id, status, reserviert_bhyo, reserviert_seit)
             values (${stromId}, ${id}, ${bezeichnung}, ${o.ort}, ${o.plz}, ${sql`ST_SetSRID(ST_MakePoint(${o.lng + 0.01}, ${o.lat + 0.01}), 4326)`},
-              ${produkte[i % produkte.length]!}, 500, 't/a', null, null, null, '2026-01', '2027-12', ${tx.json(Array(12).fill(1))}, ${belegId}, 'entwurf', false, null)`;
+              ${produkte[i % produkte.length]!}, 500, 't/a', null, null, null, '2026-01-01', '2027-12-31', ${tx.json(Array(12).fill(1))}, ${belegId}, 'entwurf', false, null)`;
         } else {
           await tx`insert into biomassestrom (id, akteur_id, bezeichnung, ort, plz, standort_geom, materialart_code, menge_roh_fm, ts_anteil_pct, aschegehalt_pct,
               zeitraum_von, zeitraum_bis, saisonalitaet, preis_min, preis_mittel, preis_max, preis_herkunft, beleg_id, status, reserviert_bhyo, reserviert_seit)
             values (${stromId}, ${id}, ${bezeichnung}, ${o.ort}, ${o.plz}, ${sql`ST_SetSRID(ST_MakePoint(${o.lng + 0.01 * (i + 1)}, ${o.lat - 0.01}), 4326)`},
-              ${materialarten[(a.ortIdx + i) % materialarten.length]!}, ${1000 + i * 250}, 45, 5, '2026-01', '2027-12', ${tx.json(Array(12).fill(1))},
+              ${materialarten[(a.ortIdx + i) % materialarten.length]!}, ${1000 + i * 250}, 45, 5, '2026-01-01', '2027-12-31', ${tx.json(Array(12).fill(1))},
               null, null, null, null, ${belegId}, ${belegId ? "geprueft" : "entwurf"}, false, null)`;
         }
         stroemeAngelegt += 1;
