@@ -37,7 +37,7 @@ export async function fuehreVerifikationsJobAus(db: AppDb, jetzt: Date): Promise
     const hinweise = await db.transaction((tx) => stelleVerifikationsHinweiseZu(tx, stichtag));
     await db
       .update(jobLauf)
-      .set({ ergebnis: "ok", anzahl: hinweise.laeuftAb + hinweise.abgelaufen, beendetAm: new Date() })
+      .set({ ergebnis: "ok", anzahl: hinweise.laeuftAb + hinweise.abgelaufen + hinweise.verwaist, beendetAm: new Date() })
       .where(eq(jobLauf.id, lauf.id));
     return { lauf: "ok", stichtag, hinweise };
   } catch (e) {

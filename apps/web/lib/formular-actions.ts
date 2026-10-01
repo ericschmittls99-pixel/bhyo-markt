@@ -319,6 +319,18 @@ export async function stromSpeichern(
           .set({ ...neueWerte, updatedAt: new Date() } as never)
           .where(eq(tabelle.id, id));
         await vergabenSpeichern(tx, id);
+        // AP2.5 PR a1 (E66/E23): Wechselt der Strom den Akteur, bekommt der ALTE Akteur
+        // ein Ereignis — daraus liest der Verwaist-Hinweis, seit wann er ohne Strom ist.
+        if (bestand.akteurId !== eingaben.akteurId) {
+          await protokolliere(tx, {
+            art: "akteur_geaendert",
+            entitaet: "akteur",
+            id: bestand.akteurId,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: email,
+            text: `Strom ${id} umgehängt`,
+          });
+        }
         await protokolliere(tx, { art: "geaendert", entitaet: entitaetTyp, id, benutzerId: wache.zugang.id, benutzerEmail: email, text: begruendung });
 
         // E62 D6: Feldliste der Aenderung — Strom, Koordinate, Beleg, Vergaben.

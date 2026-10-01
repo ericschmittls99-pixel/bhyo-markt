@@ -34,6 +34,8 @@ export interface ZeilenDaten {
   bezugsdatum?: string | null;
   /** PR c: Aufgabentext beim Typ aufgabe. */
   aufgabe?: string | null;
+  /** AP2.5: Name des Akteurs beim Typ akteur_verwaist (Objektbezug Akteur statt Strom). */
+  akteurName?: string | null;
 }
 
 export interface TypDefinition {
@@ -78,6 +80,16 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
     text: (z) => `${z.ausloeserName} hat ${objektText(z)} geprüft`,
+  },
+  // AP2.5 PR a1 (E66): verwaister Akteur (kein Strom) seit N Monaten — Hinweis
+  // des taeglichen Jobs an alle aktiven Admins, kein Ereignis, kein Urheber.
+  akteur_verwaist: {
+    arten: [],
+    empfaengerregel: "alle aktiven Admins",
+    buendelung: "je Admin, Akteur und Bezugsdatum (seit wann verwaist) genau ein Eintrag, dauerhaft; erledigt, sobald der Akteur wieder einen Strom hat",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `Akteur ${z.akteurName ?? "–"} ist seit ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} verwaist – kein Strom verweist auf ihn`,
   },
   // AP2.4 PR b (E63): zustandsbasierte Hinweise des taeglichen Jobs — kein
   // Ereignis, kein Urheber; Empfaenger und Idempotenz in lib/inbox/hinweise.ts.

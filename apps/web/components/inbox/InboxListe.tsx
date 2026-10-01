@@ -106,10 +106,13 @@ export function InboxListe({
   }
 
   function oeffnen(z: Zeile) {
+    // AP2.5: Hinweise zum Akteur oeffnen die Akteur-Seite; alles andere das Detail-Panel hier.
     const p = new URLSearchParams(searchParams.toString());
-    p.set("detail", z.strom.id);
-    p.set("sicht", z.strom.art === "output" ? "outputs" : "feedstock");
-    const ziel = `/inbox?${p.toString()}`;
+    if (z.strom) {
+      p.set("detail", z.strom.id);
+      p.set("sicht", z.strom.art === "output" ? "outputs" : "feedstock");
+    }
+    const ziel = z.strom ? `/inbox?${p.toString()}` : z.akteur ? `/akteure/${z.akteur.id}` : "/inbox";
     if (z.gelesen) {
       router.push(ziel, { scroll: false });
       return;
@@ -211,23 +214,23 @@ export function InboxListe({
                 </span>
               )}
               {/* PR b: Ablauf-Hinweis — „Erneut verifizieren" (nur Pruefer; serverseitig strom.reverifizieren). */}
-              {z.zustand === "offen" && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
+              {z.zustand === "offen" && z.strom && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
                 <button
                   type="button"
                   className="btn btn--primary btn--sm"
                   disabled={laeuft}
-                  onClick={() => fuehreAus(() => stromReverifizieren(z.strom.art, z.strom.id))}
+                  onClick={() => fuehreAus(() => stromReverifizieren(z.strom!.art, z.strom!.id))}
                 >
                   Erneut verifizieren
                 </button>
               )}
-              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && z.ausloeser && (
+              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && z.ausloeser && z.strom && (
                 <>
                   <button
                     type="button"
                     className="btn btn--primary btn--sm"
                     disabled={laeuft}
-                    onClick={() => fuehreAus(() => stromZuweisen(z.strom.art, z.strom.id, z.ausloeser!.id))}
+                    onClick={() => fuehreAus(() => stromZuweisen(z.strom!.art, z.strom!.id, z.ausloeser!.id))}
                   >
                     Zuweisen
                   </button>

@@ -14,10 +14,12 @@
  *    'eNeRgIe', '  Energie' und 'energie\t' (Tabulator, E61) neben 'Energie'
  *    werden abgewiesen (INSERT), ebenso das Umbenennen eines anderen Sektors
  *    auf ' energie ' (UPDATE).
- * 3. Reservierte Werte per DB-CHECK (E61): 'abnehmer' (eine Rolle, 0020) und
- *    'ohne_sektor' (der Filterwert fuer NULL) existieren nicht als Zeile
- *    (nichts zu deaktivieren), lassen sich nicht anlegen (INSERT) und kein
- *    Sektor laesst sich auf sie umbenennen (UPDATE code). Die Bezeichnungen
+ * 3. Reservierte Werte (E61; seit AP2.5 PR a1 / E66 umgekehrt fuer
+ *    ohne_sektor, Migration 0035): 'abnehmer' (eine Rolle, 0020) existiert
+ *    nicht als Zeile und laesst sich weder anlegen noch per Umbenennen
+ *    erreichen; 'ohne_sektor' ist die Systemzeile — genau einmal vorhanden,
+ *    weder umbenennbar noch deaktivierbar noch loeschbar (Trigger), kein
+ *    zweiter INSERT, kein Umbenennen eines anderen Codes darauf. Die Bezeichnungen
  *    'Abnehmer' und 'ohne Sektor' (Schreibweise/Randleerraum egal) werden
  *    beim Anlegen und beim Umbenennen abgewiesen. Ein Code ausserhalb
  *    snake_case und eine leere Bezeichnung ebenso.
@@ -115,17 +117,40 @@ async function main() {
     if (grund === null) fehler.push(`Umbenennen von ${zweiter.code} auf die Bezeichnung von ${erster!.code} kam durch`);
   }
 
-  // (3) Geschuetzte Werte: keine Zeile, kein INSERT, kein Umbenennen (UPDATE code) darauf
-  const GESCHUETZT = ["abnehmer", "ohne_sektor"];
-  const vorhanden = (await sql`select code from sektor where code in (${GESCHUETZT[0]!}, ${GESCHUETZT[1]!})`).map((r) => r.code as string);
-  console.log(`GESCHUETZT_ALS_ZEILE ${JSON.stringify(vorhanden)}`);
-  if (vorhanden.length) fehler.push(`Geschuetzte Codes existieren als Sektor: ${vorhanden.join(", ")}`);
-  for (const g of GESCHUETZT) {
+  // (3) Geschuetzte Werte (E61, seit AP2.5 PR a1 / E66 umgekehrt fuer ohne_sektor):
+  //     'abnehmer' bleibt eine Rolle — keine Zeile, kein INSERT, kein Umbenennen darauf.
+  //     'ohne_sektor' ist die SYSTEMZEILE: genau einmal vorhanden, Bezeichnung
+  //     „ohne Sektor", aktiv; sie laesst sich weder umbenennen noch deaktivieren
+  //     noch loeschen (Trigger sektor_systemzeile_wache), kein zweiter INSERT,
+  //     kein Umbenennen eines anderen Codes darauf. Vor 0035 ist das rot.
+  const [abn] = await sql`select count(*)::int as n from sektor where code = 'abnehmer'`;
+  const [sys] = await sql`select count(*)::int as n, bool_or(label = 'ohne Sektor') as label_ok, bool_or(aktiv) as aktiv from sektor where code = 'ohne_sektor'`;
+  console.log(`SYSTEMZEILE abnehmer_zeilen=${abn!.n} ohne_sektor_zeilen=${sys!.n} label_ok=${sys!.label_ok} aktiv=${sys!.aktiv}`);
+  if (abn!.n !== 0) fehler.push("'abnehmer' existiert als Sektor (Rolle, keine Zeile)");
+  if (sys!.n !== 1 || !sys!.label_ok || !sys!.aktiv) fehler.push("Systemzeile ohne_sektor fehlt oder ist falsch (genau einmal, Bezeichnung 'ohne Sektor', aktiv) — Migration 0035");
+  const abnehmerUpdate = await probe(async (tx) => {
+    await tx`update sektor set code = 'abnehmer' where code = ${erster!.code as string}`;
+  });
+  console.log(`GESCHUETZT_UPDATE_CODE ${erster!.code} -> abnehmer abgewiesen=${abnehmerUpdate !== null}`);
+  if (abnehmerUpdate === null) fehler.push("Umbenennen des Codes auf abnehmer kam durch — CHECK gilt nicht fuer UPDATE");
+  const abnehmerInsert = await probe(async (tx) => {
+    await tx`insert into sektor (code, label) values ('abnehmer', 'Probe Abnehmer')`;
+  });
+  if (abnehmerInsert === null) fehler.push("INSERT des Codes abnehmer kam durch");
+  const systemProben: [string, (tx: postgres.TransactionSql) => Promise<unknown>][] = [
+    ["INSERT zweite ohne_sektor-Zeile", (tx) => tx`insert into sektor (code, label, sortierung) values ('ohne_sektor', 'Probe', 0)`],
+    ["UPDATE Code eines anderen Sektors auf ohne_sektor", (tx) => tx`update sektor set code = 'ohne_sektor' where code = ${erster!.code as string}`],
+    ["UPDATE Bezeichnung der Systemzeile", (tx) => tx`update sektor set label = 'Probe' where code = 'ohne_sektor'`],
+    ["UPDATE aktiv = false der Systemzeile", (tx) => tx`update sektor set aktiv = false where code = 'ohne_sektor'`],
+    ["UPDATE Code der Systemzeile", (tx) => tx`update sektor set code = 'ohne_sektor_alt' where code = 'ohne_sektor'`],
+    ["DELETE der Systemzeile", (tx) => tx`delete from sektor where code = 'ohne_sektor'`],
+  ];
+  for (const [name, fn] of systemProben) {
     const grund = await probe(async (tx) => {
-      await tx`update sektor set code = ${g} where code = ${erster!.code as string}`;
+      await fn(tx);
     });
-    console.log(`GESCHUETZT_UPDATE_CODE ${erster!.code} -> ${g} abgewiesen=${grund !== null}`);
-    if (grund === null) fehler.push(`Umbenennen des Codes auf ${g} kam durch — CHECK gilt nicht fuer UPDATE`);
+    console.log(`SYSTEMZEILE_PROBE ${JSON.stringify(name)} abgewiesen=${grund !== null}${grund ? ` (${grund.slice(0, 70)})` : ""}`);
+    if (grund === null) fehler.push(`${name} kam durch — Systemzeile nicht geschuetzt`);
   }
   // E61: reservierte Bezeichnungen — beim Umbenennen (UPDATE) und beim Anlegen (INSERT).
   for (const l of ["Abnehmer", "ohne Sektor", "  ABNEHMER\t", "Ohne  Sektor".replace("  ", " ")]) {

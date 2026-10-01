@@ -3,8 +3,9 @@
  * im Deploy-CI gegen die echte Preview-DB. Zusicherungen:
  *
  * 1. Tabellen, Funktion parameter_wert() und beide Trigger stehen (0029);
- *    fuenf Startwerte mit gueltig_ab = '-infinity' (vier Fristen aus 0029,
- *    verifikation.vorlauf_tage aus 0033, AP2.4 PR b); jeder Schluessel ist heute
+ *    sechs Startwerte mit gueltig_ab = '-infinity' (vier Fristen aus 0029,
+ *    verifikation.vorlauf_tage aus 0033, akteur.verwaist_hinweis_monate aus
+ *    0035, AP2.5 PR a1); jeder Schluessel ist heute
  *    aufloesbar.
  * 2. Nie rueckwirkend: eine Zeile mit gueltig_ab = gestern wird vom CHECK
  *    abgewiesen.
@@ -67,12 +68,15 @@ async function main() {
   const heute = await sql`select schluessel, parameter_wert(schluessel, current_date) as heute from parameter_definition order by schluessel`;
   console.log("STARTWERTE " + JSON.stringify(start.map((z) => `${z.schluessel}=${z.wert}`)));
   console.log("HEUTE " + JSON.stringify(heute.map((z) => `${z.schluessel}=${z.heute}`)));
-  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage"];
+  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage", "akteur.verwaist_hinweis_monate"];
   const fehlendeStart = ERWARTET.filter((k) => !start.some((z) => z.schluessel === k));
   if (start.length !== ERWARTET.length || fehlendeStart.length) fehler.push(`${start.length} Startwerte statt ${ERWARTET.length} (fehlend: ${fehlendeStart.join(", ") || "–"})`);
   if (heute.length !== ERWARTET.length) fehler.push("nicht jeder Schluessel ist heute aufloesbar");
   const vorlauf = heute.find((z) => z.schluessel === "verifikation.vorlauf_tage");
   if (!vorlauf || Number(vorlauf.heute) !== 7) fehler.push(`verifikation.vorlauf_tage heute ${vorlauf?.heute} statt 7 (Startwert E63)`);
+  // AP2.5 PR a1 (E66): Verwaist-Hinweis nach 6 Monaten (Startwert seit Einfuehrung).
+  const verwaist = heute.find((z) => z.schluessel === "akteur.verwaist_hinweis_monate");
+  if (!verwaist || Number(verwaist.heute) !== 6) fehler.push(`akteur.verwaist_hinweis_monate heute ${verwaist?.heute} statt 6 (Startwert E66)`);
 
   const [wer] = await sql`select id from benutzer order by email limit 1`;
   if (!wer) {

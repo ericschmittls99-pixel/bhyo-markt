@@ -154,6 +154,7 @@ export async function inboxAblehnen(id: string): Promise<AktionErgebnis> {
         if (e.typ !== "zugriffsanfrage") throw new Error("Nur eine Zugriffsanfrage lässt sich ablehnen.");
         if (e.zustand !== "offen") throw new Error("Die Anfrage ist nicht mehr offen.");
         if (!e.ausloeserId) throw new Error("Die Anfrage hat keinen Urheber.");
+        if (!e.strom) throw new Error("Die Anfrage hat keinen Strom.");
         await protokolliere(tx, {
           art: "zugriff_abgelehnt",
           entitaet: e.strom.art === "biomasse" ? "biomassestrom" : "output_bedarf",
@@ -188,7 +189,7 @@ export async function inboxWeitergeben(id: string, empfaengerId: string, aufgabe
     await withDb((db) =>
       db.transaction(async (tx) => {
         const e = await pruefeInboxEmpfaenger(tx, wache.zugang, "inbox.weitergeben", id);
-        if (!WEITERGEBBAR.includes(e.typ)) throw new Error("Dieser Eintrag lässt sich nicht weitergeben.");
+        if (!WEITERGEBBAR.includes(e.typ) || !e.strom) throw new Error("Dieser Eintrag lässt sich nicht weitergeben.");
         if (e.zustand !== "offen") throw new Error("Der Eintrag ist nicht mehr offen.");
         // Dieselbe Regel wie der DB-CHECK (nicht leer, max. 500) — hier mit Meldung, dort als letzte Grenze.
         const text = pruefeAufgabe(aufgabeEingabe);

@@ -62,6 +62,10 @@ export const AKTIONEN = [
   "strom.reverifizieren",
   // AP2.4 PR c (E63, D5): weitergeben — ab bearbeiter, nur eigene Eintraege (nurEmpfaenger).
   "inbox.weitergeben",
+  // AP2.5 PR a1 (E66): Stammdaten ab bearbeiter ohne Sperre; loeschen nur admin
+  // und nur verwaist (Server prueft, die DB weist per FK jeden Strom-Bezug ab).
+  "akteur.bearbeiten",
+  "akteur.loeschen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -105,6 +109,8 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "beleg.abgelaufen_aufheben": SPERREN,
   "strom.reverifizieren": SPERREN,
   "inbox.weitergeben": ERFASSEN,
+  "akteur.bearbeiten": ERFASSEN,
+  "akteur.loeschen": VERWALTEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */

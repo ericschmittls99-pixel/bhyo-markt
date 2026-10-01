@@ -45,6 +45,12 @@ export function AkteurCombobox({
   const [laedt, setLaedt] = useState(false);
   const [sektor, setSektor] = useState("");
   const [sektoren, setSektoren] = useState<SektorOption[]>([]);
+  // AP2.5 (E66, Praezisierung F0a): der Sitz des neuen Akteurs — vorbefuellt mit dem
+  // Strom-Standort aus dem umgebenden Formular (AdresseBlock), frei aenderbar; PLZ und
+  // Ort sind Pflicht, der Pin (lat/lng) kommt mit (Kreis-ARS, E25). Kein Vererben danach.
+  const [sitz, setSitz] = useState({ strasse: "", hausnummer: "", plz: "", ort: "", lat: "", lng: "" });
+  const [sitzVorbefuellt, setSitzVorbefuellt] = useState(false);
+  const [anlageFehler, setAnlageFehler] = useState<string | null>(null);
   const box = useRef<HTMLDivElement>(null);
 
   // Einmal laden: acht Zeilen, Quelle fuer Auswahl und Anzeige-Label.
@@ -107,17 +113,42 @@ export function AkteurCombobox({
     onGewaehlt?.(null);
   }
 
+  /** Sitz einmal aus dem Strom-Standort des Formulars uebernehmen (Felder strasse/hausnummer/plz/ort/lat/lng). */
+  function sitzVorbefuellen() {
+    if (sitzVorbefuellt) return;
+    const form = box.current?.closest("form");
+    const lies = (n: string) => {
+      const el = form?.elements.namedItem(n) as HTMLInputElement | RadioNodeList | null;
+      return el && "value" in el ? String(el.value ?? "") : "";
+    };
+    setSitz({ strasse: lies("strasse"), hausnummer: lies("hausnummer"), plz: lies("plz"), ort: lies("ort"), lat: lies("lat"), lng: lies("lng") });
+    setSitzVorbefuellt(true);
+  }
   async function neuAnlegen() {
     const nm = query.trim();
     if (!nm) return;
     setLaedt(true);
+    setAnlageFehler(null);
     try {
       const res = await fetch("/api/akteure", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name: nm, sektor: sektor || undefined }),
+        body: JSON.stringify({
+          name: nm,
+          sektor: sektor || undefined,
+          sitz_strasse: sitz.strasse,
+          sitz_hausnummer: sitz.hausnummer,
+          sitz_plz: sitz.plz,
+          sitz_ort: sitz.ort,
+          lat: sitz.lat,
+          lng: sitz.lng,
+        }),
       });
-      if (!res.ok) return;
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        setAnlageFehler(data?.error ?? "Anlegen fehlgeschlagen.");
+        return;
+      }
       const data = (await res.json()) as { akteur: AkteurOption };
       waehle(data.akteur);
     } finally {
@@ -189,7 +220,7 @@ export function AkteurCombobox({
               <span className="menu-leer">Kein Treffer.</span>
             )}
             {!laedt && query.trim() && !exakt && (
-              <div className="akteur-neu">
+              <div className="akteur-neu" ref={() => sitzVorbefuellen()}>
                 <span className="pf-feld">
                   <select
                     aria-label="Sektor"
@@ -206,9 +237,29 @@ export function AkteurCombobox({
                       ))}
                   </select>
                 </span>
+                {/* Sitz (E66): PLZ und Ort Pflicht, Adresse frei; der Pin kommt aus dem Strom-Standort. */}
+                <span className="akteur-neu-sitz">
+                  <span className="pf-feld">
+                    <input type="text" aria-label="Sitz: Straße" placeholder="Straße" value={sitz.strasse} onChange={(e) => setSitz({ ...sitz, strasse: e.target.value })} />
+                  </span>
+                  <span className="pf-feld akteur-neu-nr">
+                    <input type="text" aria-label="Sitz: Hausnummer" placeholder="Nr." value={sitz.hausnummer} onChange={(e) => setSitz({ ...sitz, hausnummer: e.target.value })} />
+                  </span>
+                  <span className="pf-feld akteur-neu-plz">
+                    <input type="text" aria-label="Sitz: PLZ" placeholder="PLZ *" value={sitz.plz} onChange={(e) => setSitz({ ...sitz, plz: e.target.value })} />
+                  </span>
+                  <span className="pf-feld">
+                    <input type="text" aria-label="Sitz: Ort" placeholder="Ort *" value={sitz.ort} onChange={(e) => setSitz({ ...sitz, ort: e.target.value })} />
+                  </span>
+                </span>
+                <span className="c akteur-neu-hinweis">
+                  {sitz.lat && sitz.lng ? "Sitz-Pin aus dem Standort übernommen; in akteure. änderbar." : "Erst den Standort mit Pin setzen — der Sitz übernimmt ihn (Kreis-ARS)."}
+                </span>
+                {anlageFehler && <span className="pf-fehler">{anlageFehler}</span>}
                 <button
                   type="button"
                   className="btn btn--primary btn--sm"
+                  disabled={!sitz.plz.trim() || !sitz.ort.trim() || !sitz.lat || !sitz.lng}
                   onMouseDown={(e) => {
                     e.preventDefault();
                     void neuAnlegen();

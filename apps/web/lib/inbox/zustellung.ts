@@ -124,7 +124,8 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
     }
     case "verifikation_laeuft_ab":
     case "verifikation_abgelaufen":
-      // PR b: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
+    case "akteur_verwaist":
+      // PR b / AP2.5: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
       return [];
     case "pruefung_erledigt": {
       // E62: die Person, die den Auftrag ausgeloest hat — nie der Pruefer selbst, nie Deaktivierte.

@@ -20,8 +20,8 @@
  * Einzigkeit (genau eine Definition, genau eine Facettenliste).
  */
 
-/** Die drei Ansichten mit Filterleiste. */
-export const ANSICHTEN = ["stroeme", "karte", "auswertung"] as const;
+/** Die Ansichten mit Filterleiste — seit AP2.5 PR a1 auch akteure. (E66). */
+export const ANSICHTEN = ["stroeme", "karte", "auswertung", "akteure"] as const;
 export type Ansicht = (typeof ANSICHTEN)[number];
 
 /**
@@ -104,7 +104,8 @@ export interface FilterDef {
 }
 
 const BEIDE: readonly FilterArt[] = ["feedstock", "outputs"];
-const ALLE_ANSICHTEN: readonly Ansicht[] = ANSICHTEN;
+/** Die drei Strom-Ansichten; akteure. (AP2.5) hat nur die Filter, die am Akteur Sinn ergeben. */
+const ALLE_ANSICHTEN: readonly Ansicht[] = ["stroeme", "karte", "auswertung"];
 
 /**
  * Der heutige Bestand, zusammengeführt und mit ausdrücklicher Zugehörigkeit.
@@ -199,7 +200,20 @@ export const FILTER: readonly FilterDef[] = [
       { param: "sektor", label: "Sektoren" },
       { param: "akteur", label: "Akteure" },
     ],
-    ansichten: ALLE_ANSICHTEN,
+    // AP2.5: gilt auch in akteure. (dort auf die Akteurliste angewendet, lib/akteure-modell.ts).
+    ansichten: [...ALLE_ANSICHTEN, "akteure"],
+    arten: BEIDE,
+    gruppe: "haupt",
+  },
+  {
+    // AP2.5 PR a1 (E66): die benannten Zustaende eines Akteurs (E24) —
+    // unvollstaendig (Sitz ohne Adresse oder Pin), ohne Beleg, verwaist. Nur in
+    // akteure.; abgeleitet in lib/akteure-modell.ts, nie gespeichert (E23).
+    key: "akteur_zustand",
+    label: "Zustand",
+    typ: "facette",
+    params: ["akteur_zustand"],
+    ansichten: ["akteure"],
     arten: BEIDE,
     gruppe: "haupt",
   },

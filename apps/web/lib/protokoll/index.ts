@@ -74,6 +74,8 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   abgelaufen_aufgehoben: "Ablauf-Markierung aufgehoben",
   reverifiziert: "Erneut verifiziert",
   weitergegeben: "Weitergegeben",
+  akteur_geaendert: "Akteur geändert",
+  akteur_geloescht: "Akteur gelöscht (verwaist)",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",
