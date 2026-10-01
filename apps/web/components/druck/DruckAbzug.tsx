@@ -1,7 +1,7 @@
 import { DruckenKnopf } from "@/components/druck/DruckenKnopf";
 import {
   BKG_VERMERK,
-  EXPORT_SPALTEN,
+  spaltenFuer,
   GRUPPE_LABEL,
   MODUS_SATZ,
   ZUSTAENDE,
@@ -149,7 +149,7 @@ export function DruckAbzug({
                   <section key={g} className="druck-gruppe">
                     <h3>{GRUPPE_LABEL[g]}</h3>
                     <dl>
-                      {EXPORT_SPALTEN.filter((sp) => sp.gruppe === g).map((sp) => {
+                      {spaltenFuer(kontext.modus).filter((sp) => sp.gruppe === g).map((sp) => {
                         const { label, einheit, hinweis } = kopfUndEinheit(sp.kopf);
                         const zelle = zellenWert(sp, s, kontext.modus);
                         const text = zelleDruck(zelle);

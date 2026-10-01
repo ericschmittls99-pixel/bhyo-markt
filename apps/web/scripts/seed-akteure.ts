@@ -14,8 +14,11 @@
  *     auf ' · SEED-A25'). Bewusst dabei: Dubletten-Kandidaten (stark:
  *     aehnlicher Name, gleiche PLZ; schwach: nur aehnlicher Name), verwaiste
  *     (teils aelter als der Verwaist-Parameter), unvollstaendige (ohne
- *     Strasse oder ohne Pin), einige 'ohne Sektor'. Kontaktpersonen kommen
- *     mit PR b.
+ *     Strasse oder ohne Pin), einige 'ohne Sektor'.
+ *  3. PR b: Kontaktpersonen (Name mit Praefix 'Seed-A25 ') zu den Regelfaellen
+ *     und Dubletten — darunter Personen ohne Aktivitaet seit 25/30 Monaten
+ *     an Akteuren ohne Beleg-Aktivitaet (loesen die Loeschpruefung aus) und
+ *     eine junge Person.
  *
  * Loeschen: nur die SEED-A25-Zeilen (Stroeme, Belege, Akteure ohne fremde
  * Referenz) — nie TRUNCATE, nie den 'Seed: %'-Bestand (seed-preview.ts) und
@@ -205,6 +208,7 @@ async function main() {
     await tx`delete from biomassestrom where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from output_bedarf where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from beleg where metadata->>'seed' = ${BELEG_MARKER}`;
+    await tx`delete from kontaktperson where name like ${"Seed-A25 %"}`;
     await tx`delete from akteur where name like ${PRAEFIX + "%"}
       and not exists (select 1 from biomassestrom b where b.akteur_id = akteur.id)
       and not exists (select 1 from output_bedarf o where o.akteur_id = akteur.id)`;
@@ -255,6 +259,36 @@ async function main() {
     }
   });
 
+  // 3. PR b: Kontaktpersonen — Regel- und Dubletten-Akteure bekommen 1–2 Personen;
+  //    die Loeschpruefungs-Faelle haengen an verwaisten Akteuren (keine Beleg-Aktivitaet).
+  const PERSONEN: { akteurKey: string; name: string; funktion: string | null; mail: string | null; telefon: string | null; notiz: string | null; alterMonate?: number }[] = [
+    { akteurKey: "mueller-agrar-1", name: "Seed-A25 Anna Müller", funktion: "Geschäftsführung", mail: "a.mueller@example.org", telefon: "07261 100", notiz: null },
+    { akteurKey: "mueller-agrar-1", name: "Seed-A25 Jonas Weber", funktion: "Betriebsleitung", mail: "j.weber@example.org", telefon: null, notiz: "Ansprechpartner für Lieferzeiten." },
+    { akteurKey: "stadtwerke-speyer-1", name: "Seed-A25 Petra Klein", funktion: "Einkauf Energie", mail: "p.klein@example.org", telefon: "06232 200", notiz: null },
+    { akteurKey: "biogas-kraich-1", name: "Seed-A25 Markus Roth", funktion: "Anlagenleitung", mail: null, telefon: "07262 300", notiz: null },
+    { akteurKey: "papier-neckar-1", name: "Seed-A25 Sabine Lang", funktion: "Reststoffmanagement", mail: "s.lang@example.org", telefon: null, notiz: null },
+    { akteurKey: "r-1", name: "Seed-A25 Thomas Berg", funktion: "Werkleitung", mail: "t.berg@example.org", telefon: "06222 400", notiz: null },
+    { akteurKey: "r-4", name: "Seed-A25 Claudia Fuchs", funktion: "Nachhaltigkeit", mail: "c.fuchs@example.org", telefon: null, notiz: "Bevorzugt E-Mail." },
+    { akteurKey: "r-6", name: "Seed-A25 Dirk Hahn", funktion: "Disposition", mail: null, telefon: "06222 500", notiz: null },
+    { akteurKey: "r-9", name: "Seed-A25 Eva Wolf", funktion: "Forstamtsleitung", mail: "e.wolf@example.org", telefon: null, notiz: null },
+    { akteurKey: "r-15", name: "Seed-A25 Lukas Stein", funktion: "Vertrieb", mail: "l.stein@example.org", telefon: "06233 600", notiz: null },
+    { akteurKey: "ohne-1", name: "Seed-A25 Vereinsvorsitz Obst", funktion: "Vorsitz", mail: null, telefon: null, notiz: null },
+    // Loeschpruefung (E57): keine Aktivitaet seit 25 bzw. 30 Monaten an verwaisten Akteuren (kein Beleg, kein Ereignis).
+    { akteurKey: "verwaist-alt-1", name: "Seed-A25 Rainer Alt", funktion: "ehem. Einkauf", mail: null, telefon: null, notiz: null, alterMonate: 25 },
+    { akteurKey: "verwaist-alt-2", name: "Seed-A25 Heike Lang", funktion: "ehem. Leitung", mail: null, telefon: null, notiz: null, alterMonate: 30 },
+    // Jung: loest nichts aus.
+    { akteurKey: "verwaist-jung-1", name: "Seed-A25 Nina Neu", funktion: "Betriebsleitung", mail: "n.neu@example.org", telefon: null, notiz: null },
+  ];
+  await sql.begin(async (tx) => {
+    for (const p of PERSONEN) {
+      const stamp = p.alterMonate ? sql`now() - make_interval(months => ${p.alterMonate}::int)` : sql`now()`;
+      await tx`insert into kontaktperson (id, akteur_id, name, funktion, mail_dienstlich, telefon, notiz, created_at, updated_at)
+        values (${uuid("person:" + p.akteurKey + ":" + p.name)}, ${uuid("akteur:" + p.akteurKey)}, ${p.name}, ${p.funktion}, ${p.mail}, ${p.telefon}, ${p.notiz}, ${stamp}, ${stamp})
+        on conflict (id) do update set name = excluded.name, funktion = excluded.funktion, mail_dienstlich = excluded.mail_dienstlich,
+          telefon = excluded.telefon, notiz = excluded.notiz, created_at = excluded.created_at, updated_at = excluded.updated_at`;
+    }
+  });
+
   // Selbstpruefung
   const [z] = await sql`select
       (select count(*)::int from akteur where name like ${PRAEFIX + "%"}) as akteure,
@@ -264,13 +298,16 @@ async function main() {
       (select count(distinct sektor)::int from akteur where name like ${PRAEFIX + "%"}) as sektoren,
       (select count(distinct sitz_plz)::int from akteur where name like ${PRAEFIX + "%"}) as plz,
       (select count(distinct typ)::int from beleg where metadata->>'seed' = ${BELEG_MARKER}) as belegtypen,
-      (select count(*)::int from akteur where name like 'Seed: %' and sitz_plz is null) as bestand_ohne_sitz`;
+      (select count(*)::int from akteur where name like 'Seed: %' and sitz_plz is null) as bestand_ohne_sitz,
+      (select count(*)::int from kontaktperson where name like 'Seed-A25 %') as kontaktpersonen,
+      (select count(*)::int from kontaktperson where name like 'Seed-A25 %' and updated_at < now() - interval '24 months') as loeschpruefung_faelle`;
   console.log("SEED-A25 " + JSON.stringify({ ...z, stroeme: stroemeAngelegt }));
   const fehler: string[] = [];
   if (Number(z!.akteure) < 40) fehler.push(`nur ${z!.akteure} Akteure (mindestens 40)`);
   if (Number(z!.belegtypen) !== BELEG_TYPEN.length) fehler.push(`nur ${z!.belegtypen} Belegtypen (alle ${BELEG_TYPEN.length})`);
   if (Number(z!.sektoren) < 9) fehler.push(`nur ${z!.sektoren} Sektoren`);
   if (Number(z!.verwaist) < 3 || Number(z!.unvollstaendig) < 3 || Number(z!.ohne_sektor) < 2) fehler.push("Sonderfaelle fehlen (verwaist/unvollstaendig/ohne Sektor)");
+  if (Number(z!.kontaktpersonen) < 10 || Number(z!.loeschpruefung_faelle) < 2) fehler.push("Kontaktpersonen oder Loeschpruefungs-Faelle fehlen (PR b)");
   await sql.end();
   if (fehler.length) {
     console.error("VERLETZUNGEN:\n- " + fehler.join("\n- "));

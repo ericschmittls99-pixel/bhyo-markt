@@ -69,6 +69,9 @@ export const PARAMETER_GRUPPEN: Record<string, string> = {
   verifikationsfrist: "Verifikationsfristen",
   // AP2.4 PR b (E63): Vorlauf der Ablauf-Hinweise.
   verifikation: "Verifikation",
+  // AP2.5: Verwaist-Hinweis (akteur), Loeschpruefung (kontaktperson).
+  akteur: "Akteure",
+  kontaktperson: "Kontaktpersonen",
 };
 
 export function gruppeVon(schluessel: string): string {

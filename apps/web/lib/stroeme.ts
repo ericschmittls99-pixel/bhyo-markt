@@ -94,6 +94,7 @@ export function ladeStroeme(art: StromArt, nurId?: string, stichtag: string = he
           sektorLabel: sektorLabelSql,
           bezeichnung: biomassestrom.bezeichnung,
           kontaktperson: biomassestrom.kontaktperson,
+          kontaktpersonen: sql<unknown>`coalesce((select json_agg(k.name order by k.name) from kontaktperson k where k.akteur_id = ${biomassestrom.akteurId}), '[]'::json)`,
           ort: biomassestrom.ort,
           // F0b: raeumliche Ableitung ueber die View (E23: nie gespeichert);
           // json-Konvertierung zentral in stroeme-zeilen (verwaltungOderNull).
@@ -154,6 +155,7 @@ export function ladeStroeme(art: StromArt, nurId?: string, stichtag: string = he
         sektorLabel: sektorLabelSql,
         bezeichnung: outputBedarf.bezeichnung,
         kontaktperson: outputBedarf.kontaktperson,
+        kontaktpersonen: sql<unknown>`coalesce((select json_agg(k.name order by k.name) from kontaktperson k where k.akteur_id = ${outputBedarf.akteurId}), '[]'::json)`,
         ort: outputBedarf.ort,
         verwaltung: sql<unknown>`(select json_build_object('kreisArs', v.kreis_ars, 'kreisName', v.kreis_name, 'kreisBez', v.kreis_bez, 'landArs', v.land_ars, 'landName', v.land_name) from strom_verwaltung v where v.strom_id = ${outputBedarf.id} and v.kreis_ars is not null)`,
         regionIds: sql<unknown>`coalesce((select json_agg(r.id::text order by r.name) from region r where ${geom} is not null and ST_Contains(r.gebiet, ${geom})), '[]'::json)`,
@@ -333,6 +335,7 @@ export function ladeFormularWerte(
           lat: sql<unknown>`case when ${biomassestrom.standortGeom} is null then null else ST_Y(${biomassestrom.standortGeom}) end`,
           lng: sql<unknown>`case when ${biomassestrom.standortGeom} is null then null else ST_X(${biomassestrom.standortGeom}) end`,
           kontaktperson: biomassestrom.kontaktperson,
+          kontaktpersonen: sql<unknown>`coalesce((select json_agg(k.name order by k.name) from kontaktperson k where k.akteur_id = ${biomassestrom.akteurId}), '[]'::json)`,
           materialartCode: biomassestrom.materialartCode,
           cluster: materialart.cluster,
           zeitraumVon: biomassestrom.zeitraumVon,
@@ -396,6 +399,7 @@ export function ladeFormularWerte(
         lat: sql<unknown>`case when ${outputBedarf.standortGeom} is null then null else ST_Y(${outputBedarf.standortGeom}) end`,
         lng: sql<unknown>`case when ${outputBedarf.standortGeom} is null then null else ST_X(${outputBedarf.standortGeom}) end`,
         kontaktperson: outputBedarf.kontaktperson,
+        kontaktpersonen: sql<unknown>`coalesce((select json_agg(k.name order by k.name) from kontaktperson k where k.akteur_id = ${outputBedarf.akteurId}), '[]'::json)`,
         produktCode: outputBedarf.produktCode,
         zeitraumVon: outputBedarf.zeitraumVon,
         zeitraumBis: outputBedarf.zeitraumBis,

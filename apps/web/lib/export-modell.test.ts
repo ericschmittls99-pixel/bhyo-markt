@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   EINSTUFUNGEN,
+  spaltenFuer,
   EXPORT_SPALTEN,
   KEIN_BELEG,
   ZURUECKGEHALTEN,
@@ -127,7 +128,7 @@ const kontext: ExportKontext = {
 };
 
 describe("Exportmodell: Einstufung ist Pflicht", () => {
-  it("jede Spalte trägt genau eine der drei Einstufungen — eine neue ohne Einstufung schlägt hier fehl", () => {
+  it("jede Spalte trägt genau eine der vier Einstufungen — eine neue ohne Einstufung schlägt hier fehl", () => {
     const ohne = EXPORT_SPALTEN.filter((sp) => !EINSTUFUNGEN.includes(sp.einstufung));
     expect(ohne.map((sp) => sp.key)).toEqual([]);
     // Schlüssel eindeutig, Köpfe eindeutig.
@@ -139,12 +140,16 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
     const nach = (e: string) => EXPORT_SPALTEN.filter((sp) => sp.einstufung === e).map((sp) => sp.key);
     expect(nach("belegangabe")).toEqual(["belegnummer", "quellenangabe", "datei", "link"]);
     expect(nach("gekuerzt")).toEqual(["vergeben_an"]);
+    // AP2.5 PR b (E47): Kontaktpersonen sind personenbezogen — nur intern, extern fehlt die Spalte ganz.
+    expect(nach("intern")).toEqual(["kontaktpersonen"]);
+    expect(spaltenFuer("extern").map((sp) => sp.key)).not.toContain("kontaktpersonen");
+    expect(spaltenFuer("intern").map((sp) => sp.key)).toContain("kontaktpersonen");
     for (const sp of EXPORT_SPALTEN) if (sp.einstufung === "gekuerzt") expect(sp.wertExtern).toBeTypeOf("function");
   });
 
   it("Spaltenreihenfolge: Identität → Ort → Einordnung → Zeitraum → Mengen → Preise → Potenzial → Nachweis → Markt", () => {
     expect(EXPORT_SPALTEN.map((sp) => sp.key)).toEqual([
-      "art", "belegnummer", "bezeichnung", "akteur", "sektor",
+      "art", "belegnummer", "bezeichnung", "akteur", "sektor", "kontaktpersonen",
       "ort", "landkreis", "bundesland",
       "cluster_gruppe", "materialart_produkt",
       "zeitraum_von", "zeitraum_bis",
@@ -168,9 +173,12 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
 
 describe("Externe Datei: nichts Zurückgehaltenes kommt vor", () => {
   it("erzeugt eine echte externe CSV, liest sie ein — keine der vier Belegangaben, kein Abnehmername", () => {
-    const csv = erzeugeCsv([nichtFreigegeben, linkBeleg, freigegeben, ohneBeleg], kontext);
+    const csv = erzeugeCsv([{ ...nichtFreigegeben, kontaktpersonen: ["Petra Personenname"] }, linkBeleg, freigegeben, ohneBeleg], kontext);
     for (const wert of Object.values(GEHEIM)) expect(csv).not.toContain(wert);
     expect(csv).not.toContain("Biogas Nachbar GmbH");
+    // E47: keine Kontaktperson in der externen Datei — weder als Kopf noch als Wert.
+    expect(csv).not.toContain("Kontaktpersonen");
+    expect(csv).not.toContain("Petra Personenname");
 
     const zeilen = parseCsv(csv);
     const kopf = zeilen.find((z) => z[0] === "Art")!;
@@ -196,8 +204,10 @@ describe("Externe Datei: nichts Zurückgehaltenes kommt vor", () => {
   });
 
   it("intern steht alles, und die Datei sagt es in der Metazeile", () => {
-    const csv = erzeugeCsv([nichtFreigegeben, linkBeleg], { ...kontext, modus: "intern" });
+    const csv = erzeugeCsv([{ ...nichtFreigegeben, kontaktpersonen: ["Petra Personenname"] }, linkBeleg], { ...kontext, modus: "intern" });
     for (const wert of Object.values(GEHEIM)) expect(csv).toContain(wert);
+    expect(csv).toContain("Kontaktpersonen");
+    expect(csv).toContain("Petra Personenname");
     expect(csv).toContain("Biogas Nachbar GmbH");
     expect(csv).toContain("intern: enthält vertrauliche Angaben, nicht weitergeben");
   });
@@ -265,10 +275,12 @@ describe("Format für deutsches Excel", () => {
 describe("Druck: dieselben Zellen, Formatierung aus lib/format.ts", () => {
   it("hält extern dieselben Angaben zurück wie die CSV", () => {
     const zellen = exportZellen(nichtFreigegeben, "extern").map(zelleDruck);
-    const idx = (key: string) => EXPORT_SPALTEN.findIndex((sp) => sp.key === key);
-    for (const key of ["belegnummer", "quellenangabe", "datei", "link"]) expect(zellen[idx(key)]).toBe(ZURUECKGEHALTEN);
-    expect(zellen[idx("vergeben_an")]).not.toContain("Biogas Nachbar GmbH");
-    expect(exportZellen(nichtFreigegeben, "intern").map(zelleDruck)[idx("quellenangabe")]).toBe(GEHEIM.quelle);
+    // Extern fehlt die Spalte Kontaktpersonen ganz — die Indizes kommen aus den Spalten des Modus.
+    const idx = (modus: "extern" | "intern", key: string) => spaltenFuer(modus).findIndex((sp) => sp.key === key);
+    expect(idx("extern", "kontaktpersonen")).toBe(-1);
+    for (const key of ["belegnummer", "quellenangabe", "datei", "link"]) expect(zellen[idx("extern", key)]).toBe(ZURUECKGEHALTEN);
+    expect(zellen[idx("extern", "vergeben_an")]).not.toContain("Biogas Nachbar GmbH");
+    expect(exportZellen(nichtFreigegeben, "intern").map(zelleDruck)[idx("intern", "quellenangabe")]).toBe(GEHEIM.quelle);
   });
 
   it("Zahlen im Druck mit Tausenderpunkt (E20), in der CSV ohne — dieselbe Zelle", () => {

@@ -1305,6 +1305,60 @@ kontakt_telefon, ansprechperson und `strom.kontaktperson` durch die Tabelle
 kontaktperson ab (Contract nach Messung, dass alle Spalten auf Production
 leer sind; die fünf Preview-Texte sind Testdaten und werden verworfen).
 
+## 34. AP2.5 PR b: Kontaktpersonen und DSGVO (E66/E57/E47), 01.10.2026
+
+**Tabelle `kontaktperson`** (Migration 0036): akteur_id NOT NULL — jede Person
+gehört zu genau einem Akteur, **kein Umhängen** (Server setzt akteur_id nie,
+Trigger `kontaktperson_kein_umhaengen` weist jedes UPDATE ab; wechselt jemand
+den Arbeitgeber, wird eine neue Person angelegt); name NOT NULL; Längengrenzen
+per CHECK (Name 1–200, Funktion 120, Mail 200, Telefon 60, Notiz 1000); am
+Notizfeld „Keine privaten oder sensiblen Angaben". Die alten Felder am Akteur
+(rollen, kontakt_email, kontakt_telefon, ansprechperson) und `strom.kontakt-
+person` werden abgelöst; der **Contract folgt als eigener PR** nach der Messung,
+dass die Spalten auf Production leer sind (Freitext-Namen am Strom würden das
+echte Löschen aushebeln).
+
+**Rechte (E66, Matrix):** lesen alle mit Zugang (auch Betrachter);
+`kontaktperson.anlegen`/`.bearbeiten` ab bearbeiter; `.loeschen` Prüfer und
+Admin; `.auskunft` (Art. 15) nur Admin. Rot gezeigt: Betrachter schreibt eine
+Kontaktperson (Matrix testweise offen → Test rot).
+
+**Echtes Löschen inklusive Kopien (E57):** Protokoll und Inbox speichern nur
+IDs — Ereignisse `kontaktperson_angelegt/_geaendert/_geloescht` tragen im
+Freitext nur Akteur-ID und Feldnamen; der Loeschpruefungs-Hinweis trägt nur
+`kontaktperson_id`. `protokoll-check` (c) meldet jede Interpolation im Freitext
+eines Kontaktperson-Ereignisses, die keine ID und keine Feldliste ist (rot
+gezeigt mit `${alt.name}`); `inbox-check` meldet einen Loeschpruefungs-INSERT
+mit notiz/aufgabe. `kontaktperson-check` (DB, CI) legt eine Person mit
+Sentinel-Namen an, schreibt Ereignis und Hinweis, löscht sie und sucht den
+Namen in allen Text-/JSON-Spalten: null Treffer, Hinweis per CASCADE weg.
+Exporte werden nicht gespeichert; Backups halten gelöschte Daten 30 Tage
+(docs/betrieb.md).
+
+**Externer Export (E36/E47):** neue Einstufung `intern` — die Spalte
+„Kontaktpersonen" existiert nur im internen Modus, extern fehlt sie ganz (kein
+Kopf, keine Zelle); der Export-Wächter prüft die Einstufung und die externe
+Datei (rot gezeigt: Spalte ohne `intern` → Name in der externen Datei).
+
+**Auskunft (Art. 15):** Druckansicht je Person unter
+`/akteure/<id>/kontaktpersonen/<pid>/auskunft`, nur Admin (fail closed), mit
+allen gespeicherten Feldern und allen Protokollereignissen zur Person;
+gedruckt wird aus dem Browser (F6). Das Aufrufen wird nicht protokolliert
+(kein Schreibpfad in einer Leseansicht).
+
+**Löschprüfung (E57, Job):** Parameter `kontaktperson.loeschpruefung_monate` =
+24 (seit Einführung). Aktivität = jüngste Änderung an der Person
+(Zeitstempel oder Protokoll) oder an einem Beleg (Strom-Eintrag, E48) ihres
+Akteurs. Nach M Monaten Inbox-Typ `kontaktperson_loeschpruefung` an alle
+aktiven Admins, Bezugsdatum = letzte Aktivität, idempotent (Index NULLS NOT
+DISTINCT); neue Aktivität erledigt offene Hinweise. Gelöscht wird nur von
+Hand. Job-Probe: alt → Hinweis, zweiter Lauf → nichts, Beleg-Aktivität →
+erledigt, jung → nichts.
+
+**Seed:** 14 Kontaktpersonen `Seed-A25 …` an Regel- und Dubletten-Akteuren,
+zwei Löschprüfungs-Fälle (25/30 Monate ohne Aktivität an verwaisten
+Akteuren), eine junge Person.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

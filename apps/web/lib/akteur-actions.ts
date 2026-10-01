@@ -1,6 +1,6 @@
 "use server";
 
-import { akteur, akteurInteresse, biomassestrom, outputBedarf } from "@bhyo/db/schema";
+import { akteur, akteurInteresse, biomassestrom, kontaktperson, outputBedarf } from "@bhyo/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -83,13 +83,25 @@ export async function akteurLoeschen(id: string): Promise<AktionErgebnis> {
         const [o] = await tx.select({ n: sql<number>`count(*)::int` }).from(outputBedarf).where(eq(outputBedarf.akteurId, id));
         if ((b?.n ?? 0) + (o?.n ?? 0) > 0) throw new Error("Der Akteur ist nicht verwaist — es verweisen noch Ströme auf ihn.");
         const interessen = await tx.delete(akteurInteresse).where(eq(akteurInteresse.akteurId, id)).returning({ id: akteurInteresse.id });
+        // PR b (E57): Kontaktpersonen des verwaisten Akteurs gehen mit — je Person ein Ereignis, nur IDs.
+        const personen = await tx.delete(kontaktperson).where(eq(kontaktperson.akteurId, id)).returning({ id: kontaktperson.id });
+        for (const p of personen) {
+          await protokolliere(tx, {
+            art: "kontaktperson_geloescht",
+            entitaet: "kontaktperson",
+            id: p.id,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: wache.email,
+            text: `Akteur ${id} gelöscht`,
+          });
+        }
         await protokolliere(tx, {
           art: "akteur_geloescht",
           entitaet: "akteur",
           id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Verwaist gelöscht; ${interessen.length} Interesse(n) mitgelöscht`,
+          text: `Verwaist gelöscht; ${interessen.length} Interesse(n), ${personen.length} Kontaktperson(en) mitgelöscht`,
         });
         await tx.delete(akteur).where(eq(akteur.id, id));
       }),

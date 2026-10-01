@@ -36,6 +36,9 @@ export interface HinweisErgebnis {
   /** AP2.5 (E66): Verwaist-Hinweise an die Admins (neu zugestellt / wieder erledigt, weil der Akteur einen Strom hat). */
   verwaist: number;
   verwaistErledigt: number;
+  /** AP2.5 PR b (E57): Loeschpruefung — Kontaktpersonen ohne Aktivitaet seit M Monaten (neu / wieder erledigt). */
+  loeschpruefung: number;
+  loeschpruefungErledigt: number;
 }
 
 /**
@@ -138,11 +141,59 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
     returning h.id
   `)) as unknown as { id: string }[];
 
+  // AP2.5 PR b (E57): Loeschpruefung — letzte Aktivitaet = juengste Aenderung an der
+  // Person (Zeitstempel oder Protokoll) oder an einem Beleg (Strom, E48) ihres
+  // Akteurs. Nach parameter_wert('kontaktperson.loeschpruefung_monate') Monaten
+  // ein Hinweis an alle aktiven Admins, Bezugsdatum = letzte Aktivitaet; nur die
+  // ID der Person im Eintrag (E57). Geloescht wird nur von Hand.
+  const AKTIVITAET = sql`
+    with stroeme as (
+      select id, akteur_id from biomassestrom union all select id, akteur_id from output_bedarf
+    ), beleg_aktivitaet as (
+      select s.akteur_id, max(a.zeitpunkt) as zeitpunkt
+        from stroeme s join aenderung a on a.entitaet_id = s.id and a.entitaet_typ in ('biomassestrom', 'output_bedarf')
+       group by s.akteur_id
+    ), person_aktivitaet as (
+      select entitaet_id, max(zeitpunkt) as zeitpunkt from aenderung where entitaet_typ = 'kontaktperson' group by entitaet_id
+    ), letzte as (
+      select k.id as kontaktperson_id,
+             (greatest(k.updated_at, coalesce(pa.zeitpunkt, k.created_at), coalesce(ba.zeitpunkt, k.created_at)) at time zone 'Europe/Berlin')::date as seit
+        from kontaktperson k
+        left join person_aktivitaet pa on pa.entitaet_id = k.id
+        left join beleg_aktivitaet ba on ba.akteur_id = k.akteur_id
+    )`;
+  const loeschpruefung = (await tx.execute(sql`
+    ${AKTIVITAET}, faellig as (
+      select kontaktperson_id, seit from letzte
+       where seit + make_interval(months => parameter_wert('kontaktperson.loeschpruefung_monate', ${stichtag}::date)) <= ${stichtag}::date
+    ), admins as (
+      select id from benutzer where aktiv and rolle = 'admin'
+    )
+    insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, kontaktperson_id, ereignis_id, bezugsdatum,
+                               anzahl, erstellt_am, aktualisiert_am, zustand, zustand_seit)
+    select ad.id, null, 'kontaktperson_loeschpruefung'::inbox_typ, f.kontaktperson_id, null, f.seit, 1, now(), now(), 'offen', now()
+      from faellig f cross join admins ad
+    on conflict do nothing
+    returning id
+  `)) as unknown as { id: string }[];
+  // Gibt es wieder Aktivitaet (juenger als das Bezugsdatum), ist der offene Hinweis gegenstandslos.
+  const loeschpruefungErledigt = (await tx.execute(sql`
+    ${AKTIVITAET}
+    update inbox_eintrag h
+       set zustand = 'erledigt', zustand_seit = now()
+      from letzte l
+     where h.zustand = 'offen' and h.typ::text = 'kontaktperson_loeschpruefung'
+       and l.kontaktperson_id = h.kontaktperson_id and l.seit > h.bezugsdatum
+    returning h.id
+  `)) as unknown as { id: string }[];
+
   return {
     laeuftAb: eingefuegt.filter((z) => z.typ === "verifikation_laeuft_ab").length,
     abgelaufen: eingefuegt.filter((z) => z.typ === "verifikation_abgelaufen").length,
     vorabErledigt: erledigt.length,
     verwaist: verwaist.length,
     verwaistErledigt: verwaistErledigt.length,
+    loeschpruefung: loeschpruefung.length,
+    loeschpruefungErledigt: loeschpruefungErledigt.length,
   };
 }

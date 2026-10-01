@@ -36,6 +36,8 @@ export interface ZeilenDaten {
   aufgabe?: string | null;
   /** AP2.5: Name des Akteurs beim Typ akteur_verwaist (Objektbezug Akteur statt Strom). */
   akteurName?: string | null;
+  /** AP2.5 PR b: Name der Kontaktperson (erst bei der Anzeige aus der Tabelle aufgeloest, E57). */
+  kontaktpersonName?: string | null;
 }
 
 export interface TypDefinition {
@@ -80,6 +82,16 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
     text: (z) => `${z.ausloeserName} hat ${objektText(z)} geprüft`,
+  },
+  // AP2.5 PR b (E57): Loeschpruefung — Kontaktperson ohne Aktivitaet seit M Monaten,
+  // Hinweis des Jobs an alle aktiven Admins; geloescht wird nur von Hand.
+  kontaktperson_loeschpruefung: {
+    arten: [],
+    empfaengerregel: "alle aktiven Admins",
+    buendelung: "je Admin, Person und Bezugsdatum (letzte Aktivitaet) genau ein Eintrag, dauerhaft; erledigt, sobald es wieder Aktivitaet gibt",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `Löschprüfung: ${z.kontaktpersonName ?? "–"} (${z.akteurName ?? "–"}) ohne Aktivität seit ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"}`,
   },
   // AP2.5 PR a1 (E66): verwaister Akteur (kein Strom) seit N Monaten — Hinweis
   // des taeglichen Jobs an alle aktiven Admins, kein Ereignis, kein Urheber.

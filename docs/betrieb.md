@@ -125,3 +125,19 @@ Fehlertext, oder gar kein Lauf → Cron nicht gefeuert / Worker-Fehler vor
 dem Insert in den Logs). Ein Nachholen braucht keine Sonderaktion: der
 nächste Lauf stellt zustandsbasiert zu, was fällig ist. Kein manuelles
 Ausführen gegen Production ohne Freigabe.
+
+## Kontaktpersonen, echtes Löschen und Backups (AP2.5 PR b, E57, 01.10.2026)
+
+Kontaktpersonen werden **wirklich gelöscht** (DSGVO): die Zeile verschwindet,
+Inbox-Hinweise zur Person gehen per CASCADE mit, Protokoll und Inbox tragen
+nur die ID der Person (Namen werden erst bei der Anzeige aufgelöst). Der
+`kontaktperson-check` im Deploy-CI prüft nach einem Probe-Löschen, dass der
+Name in keiner Text- oder JSON-Spalte des Schemas mehr auffindbar ist.
+Exporte werden nicht gespeichert (CSV und Druckansicht entstehen je Aufruf).
+
+**Backups halten gelöschte Daten noch 30 Tage:** Der tägliche Backup-Job
+(backup.yml) bewahrt Dumps 30 Tage im R2-Bucket auf; danach sind gelöschte
+Personen auch dort nicht mehr enthalten. Eine Wiederherstellung aus einem
+Backup innerhalb dieser Frist bringt gelöschte Personen zurück — vor einem
+Restore ist das zu bedenken. Die Auskunft nach Art. 15 (Druckansicht je
+Person, nur Admin) nennt diese Frist.

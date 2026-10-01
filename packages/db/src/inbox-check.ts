@@ -65,7 +65,7 @@ async function main() {
                       'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx',
                       'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx',
                       'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx',
-                      'inbox_eintrag_akteur_hinweis_uidx')`;
+                      'inbox_eintrag_akteur_hinweis_uidx', 'inbox_eintrag_kontaktperson_hinweis_uidx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
   // PR b (0033): Hinweise ohne Urheber/Ereignis, Bezugsdatum, Urheber-CHECK.
   const [nullbar] = await sql`select count(*)::int as n from information_schema.columns
@@ -77,11 +77,13 @@ async function main() {
   const [ac] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_aufgabe_check'`;
   // AP2.5 PR a1 (0035): Objektbezug Akteur (akteur_id, ON DELETE CASCADE), Typ akteur_verwaist, Idempotenz-Index.
   const [ak] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'akteur_id'`;
+  // AP2.5 PR b (0036): Objektbezug Kontaktperson (CASCADE), Typ kontaktperson_loeschpruefung, Index.
+  const [kp] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'kontaktperson_id'`;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/10 typen=${typen.length}/10 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n}`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/11 typen=${typen.length}/11 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n}`,
   );
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 10 || typen.length !== 10 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur)");
+  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 11 || typen.length !== 11 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
+    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson)");
     await sql.end();
     process.exit(1);
   }

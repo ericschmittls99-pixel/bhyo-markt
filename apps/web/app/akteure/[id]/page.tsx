@@ -3,11 +3,13 @@ import { notFound } from "next/navigation";
 
 import { AkteurKarte } from "@/components/akteure/AkteurKarte";
 import { AkteurStammdaten } from "@/components/akteure/AkteurStammdaten";
+import { Kontaktpersonen } from "@/components/akteure/Kontaktpersonen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur, ladeAkteurStroeme } from "@/lib/akteure";
 import { AKTEUR_ZUSTAND_LABEL, zustaendeAus } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
 import { fmtDatum } from "@/lib/format";
+import { ladeKontaktpersonen } from "@/lib/kontaktpersonen";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { ladeSektoren } from "@/lib/register";
@@ -21,8 +23,10 @@ export const dynamic = "force-dynamic";
  * Karte mit Sitz-Pin und Strom-Standorten unterscheidbar; loeschen nur admin
  * und nur verwaist. Der Reiter Kontaktpersonen folgt mit PR b.
  */
-export default async function AkteurSeite({ params }: { params: Promise<{ id: string }> }) {
+export default async function AkteurSeite({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const { id } = await params;
+  const sp = await searchParams;
+  const reiter = (Array.isArray(sp.reiter) ? sp.reiter[0] : sp.reiter) === "kontaktpersonen" ? "kontaktpersonen" : "stammdaten";
   const zugang = await aktuellerZugang();
   if (zugang.art !== "erlaubt") {
     return (
@@ -31,10 +35,11 @@ export default async function AkteurSeite({ params }: { params: Promise<{ id: st
       </main>
     );
   }
-  const [a, stroeme, sektoren] = await Promise.all([
+  const [a, stroeme, sektoren, personen] = await Promise.all([
     withDb((db) => ladeAkteur(db, id)),
     withDb((db) => ladeAkteurStroeme(db, id)),
     ladeSektoren(),
+    withDb((db) => ladeKontaktpersonen(db, id)),
   ]);
   if (!a) notFound();
   const zustaende = zustaendeAus(a);
@@ -60,15 +65,27 @@ export default async function AkteurSeite({ params }: { params: Promise<{ id: st
           </span>
         </div>
         <div className="seg" role="tablist" aria-label="Reiter">
-          <span className="seg-opt" aria-pressed>
+          <Link href={`/akteure/${a.id}`} className="seg-opt" aria-pressed={reiter === "stammdaten"}>
             Stammdaten
-          </span>
-          <span className="seg-opt seg-opt--aus" title="Kommt mit AP2.5 PR b">
-            Kontaktpersonen
-          </span>
+          </Link>
+          <Link href={`/akteure/${a.id}?reiter=kontaktpersonen`} className="seg-opt" aria-pressed={reiter === "kontaktpersonen"}>
+            Kontaktpersonen{personen.length ? ` (${personen.length})` : ""}
+          </Link>
         </div>
       </div>
 
+      {reiter === "kontaktpersonen" ? (
+        <section className="ov-sec ak-sec">
+          <h3>kontaktpersonen.</h3>
+          <Kontaktpersonen
+            akteurId={a.id}
+            personen={personen}
+            darfSchreiben={darfRolle(zugang, "kontaktperson.anlegen")}
+            darfLoeschen={darfRolle(zugang, "kontaktperson.loeschen")}
+            darfAuskunft={darfRolle(zugang, "kontaktperson.auskunft")}
+          />
+        </section>
+      ) : (
       <div className="ak-spalten">
         <section className="ov-sec ak-sec">
           <h3>stammdaten.</h3>
@@ -112,6 +129,7 @@ export default async function AkteurSeite({ params }: { params: Promise<{ id: st
           )}
         </section>
       </div>
+      )}
     </main>
   );
 }

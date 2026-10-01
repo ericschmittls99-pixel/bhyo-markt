@@ -827,3 +827,25 @@ Sitz-Felder Straße · Nr. · PLZ * · Ort * (`akteur-neu-sitz`), vorbefüllt au
 dem Strom-Standort; der Knopf „… neu anlegen" bleibt gesperrt, bis PLZ, Ort
 und ein Pin da sind. **einstellungen. → Referenzlisten:** die Systemzeile
 „ohne Sektor" trägt die Pille „Systemzeile" statt der Aktionen.
+
+## Kontaktpersonen und Auskunft (AP2.5 PR b, E66/E57, 01.10.2026)
+
+**Reiter „Kontaktpersonen"** im Akteur-Detail (Segment neben „Stammdaten",
+mit Anzahl): Hinweiszeile „Jede Kontaktperson gehört zu genau diesem
+Akteur …", Tabelle `einst-tabelle` mit Name (Notiz als gedämpfte Zeile),
+Funktion, Kontakt (mailto-Link, Telefon), Letzte Aktivität, Aktionen
+(„Bearbeiten" ab bearbeiter, „Auskunft" nur Admin — öffnet die Druckansicht
+in neuem Tab, „Löschen" Prüfer/Admin mit Inline-Bestätigung „Endgültig
+löschen? Backups halten die Daten noch 30 Tage."). Formular `kp-formular`
+(Name *, Funktion, E-Mail dienstlich, Telefon, Notiz mit dem Hinweis „Keine
+privaten oder sensiblen Angaben."); Anlegen über „Kontaktperson anlegen"
+(`ph-user-plus`). Kein Feld zum Umhängen.
+
+**Auskunft (Art. 15):** eigene Seite im Druck-Layout (`druck druck--intern`),
+Kopf „bhyo · Auskunft zur Kontaktperson", Tabelle der gespeicherten Angaben,
+Tabelle der Protokollereignisse, Fußzeile mit der 30-Tage-Frist der Backups.
+
+**Inbox:** „Löschprüfung: <Name> (<Akteur>) ohne Aktivität seit TT.MM.JJJJ" —
+reiner Hinweis, Kalender-Zeichen statt Avatar; Öffnen führt zum Reiter
+Kontaktpersonen des Akteurs. **Export:** Spalte „Kontaktpersonen" nur im
+internen Modus (extern fehlt sie ganz).
