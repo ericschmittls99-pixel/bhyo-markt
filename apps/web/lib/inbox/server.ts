@@ -115,7 +115,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         bezugsdatum: z.bezugsdatum,
         aufgabe: z.aufgabe,
         akteurName: z.hinweisAkteurName,
-      }),
+      }, z.id),
     };
   });
 }

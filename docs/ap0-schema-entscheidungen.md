@@ -1309,6 +1309,20 @@ alle Sektoren und Orte mit Belegen aller sieben Typen, Dubletten stark/
 schwach, Verwaiste (teils älter als 6 Monate), Unvollständige, ohne Sektor,
 ohne Beleg. Idempotent, markiert, nur gegen die Preview (Schutz einmal rot:
 Production-Host und fehlende Variable).
+**Prüf-Ereignisse (Eric 04.10.2026):** Der erste Job-Lauf stellte auf der
+Preview 254 Hinweise „Prüfdatum unbekannt" zu, weil kein geprüfter
+Seed-Strom ein Prüf-Ereignis hatte. Der Seed schreibt deshalb für die
+geprüften Ströme beider Seeds Ereignisse `geprueft` mit Streuung
+(deterministisch aus der Strom-ID: gültig, läuft in 5 Tagen ab, abgelaufen,
+ein Zehntel bewusst ohne Prüfdatum als Altfall) und entfernt die alten
+Job-Hinweise der Seed-Ströme; der nächste Lauf stellt sie zustandsbasiert
+neu zu. Die bestehenden Hinweise erledigen sich **nicht** selbst: der Job
+erledigt nur Vorab-Hinweise, die ein Ablauf-Hinweis ersetzt, und
+Verwaist-Hinweise; „Prüfdatum unbekannt" räumt nur ein Ereignis über
+`protokolliere()` ab, und der Seed schreibt bewusst roh. „Prüfdatum
+unbekannt" bleibt eine Aufgabe, nicht abräumbar. Platzhalter für unbekannte
+Inbox-Typen (aus #153) loggt serverseitig `console.error` mit Typ und
+Eintrags-ID.
 
 **a2 (Contract, eigener PR):** NOT NULL auf `akteur.sektor`, `sitz_plz`,
 `sitz_ort` — nach dem Seed auf der Preview und der Messung auf Production
