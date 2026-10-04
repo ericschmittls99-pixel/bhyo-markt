@@ -107,7 +107,9 @@ async function main() {
         const nach5 = (await zaehle()).filter((z) => z.zustand === "offen" && z.typ === "verifikation_abgelaufen" && z.bezugsdatum !== null);
         const erwartet = pruefer.slice(1).map((p) => p.id).sort();
         const ist = nach5.filter((z) => z.bezugsdatum !== nach3[0]!.bezugsdatum).map((z) => z.empfaenger_id).sort();
-        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen === erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
+        // Gezaehlt wird am Probe-Strom, nicht global: Das Deaktivieren von p1 kann auf der
+        // Preview auch fremde Stroeme betreffen, deren Pruefer p1 ist (Seed-Pruefereignisse).
+        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen >= erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
         await tx.execute(sql`update benutzer set aktiv = true where id = ${p1}`);
       } else {
         console.log("3 Fallback uebersprungen: nur ein aktiver Pruefer/Admin auf der Preview");
