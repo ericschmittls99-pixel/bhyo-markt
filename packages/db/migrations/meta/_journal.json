@@ -260,13 +260,6 @@
       "when": 1790860657251,
       "tag": "0036_ap25_kontaktperson",
       "breakpoints": true
-    },
-    {
-      "idx": 37,
-      "version": "7",
-      "when": 1790864564697,
-      "tag": "0037_ap25_auskunft",
-      "breakpoints": true
     }
   ]
 }
