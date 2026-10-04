@@ -33,6 +33,9 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText } from "./journal-vergleich";
+import { systemzeileRegel } from "./sektor-regel";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -119,7 +122,15 @@ async function main() {
   const GESCHUETZT = ["abnehmer", "ohne_sektor"];
   const vorhanden = (await sql`select code from sektor where code in (${GESCHUETZT[0]!}, ${GESCHUETZT[1]!})`).map((r) => r.code as string);
   console.log(`GESCHUETZT_ALS_ZEILE ${JSON.stringify(vorhanden)}`);
-  if (vorhanden.length) fehler.push(`Geschuetzte Codes existieren als Sektor: ${vorhanden.join(", ")}`);
+  // Journal-Vergleich (Eric 04.10.2026): bei gleichem Journal gilt die Regel dieses Stands
+  // (keine Zeile ohne_sektor); ist die DB nachweislich voraus, wird die Systemzeile aus
+  // 0035 toleriert und das steht in der Ausgabe; andere Abweichung rot (sektor-regel.ts).
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  if (journal.modus === "rot") fehler.push(journal.grund);
+  const regel = systemzeileRegel(journal.modus, vorhanden);
+  if (regel.hinweis) console.log(`SYSTEMZEILE_TOLERIERT ${regel.hinweis}`);
+  if (regel.fehler) fehler.push(regel.fehler);
   for (const g of GESCHUETZT) {
     const grund = await probe(async (tx) => {
       await tx`update sektor set code = ${g} where code = ${erster!.code as string}`;
