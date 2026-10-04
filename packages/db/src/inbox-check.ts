@@ -26,6 +26,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -68,11 +70,22 @@ async function main() {
     where table_name = 'inbox_eintrag' and column_name in ('ausloeser_id', 'ereignis_id') and is_nullable = 'YES'`;
   const [bz] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'bezugsdatum'`;
   const [uc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_urheber_check'`;
+  // Journal-Vergleich (Eric 01.10.2026): exakt bei gleichem Journal, Mindestvergleich nur
+  // wenn die DB nachweislich voraus ist (geteilte Preview, gestapelte PRs); sonst rot.
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  if (journal.modus === "rot") {
+    console.error(`INBOXCHECK FEHLER: ${journal.grund}`);
+    await sql.end();
+    process.exit(1);
+  }
+  const modus = journal.modus;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/8 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n}`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/8 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} (${modus})`,
   );
-  if (t!.n !== 1 || e!.n !== 2 || idx.length !== 9 || typen.length !== 8 || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1) {
-    console.error("INBOXCHECK FEHLER: Migration 0027/0028/0032/0033 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten)");
+  const zaehler = [zaehlerPasst("indizes", idx.length, 9, modus), zaehlerPasst("typen", typen.length, 8, modus)].filter(Boolean);
+  if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1) {
+    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten) ${zaehler.join(" · ")}`);
     await sql.end();
     process.exit(1);
   }
