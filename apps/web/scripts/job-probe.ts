@@ -56,6 +56,12 @@ async function main() {
       }
       const p1 = pruefer[0]!.id;
       // Alle vorhandenen Hinweise und Pruef-Ereignisse zu diesem Strom beiseite (zurueckgerollt).
+      // Vorlauf (04.10.2026): Den Bestand der Preview einmal zustellen, damit die Zaehler
+      // der Proben nur den Probe-Strom zeigen — sonst ist die Probe rot, sobald die
+      // Preview offene Hinweise hat (z. B. nach einem Seed, der Stroeme neu aufbaut).
+      // Alles in derselben zurueckgerollten Transaktion.
+      const vorlauf = await stelleVerifikationsHinweiseZu(tx, heute);
+      console.log("VORLAUF " + JSON.stringify(vorlauf));
       await tx.execute(sql`delete from inbox_eintrag where biomassestrom_id = ${strom.id} and typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')`);
       await tx.execute(sql`delete from aenderung where entitaet_id = ${strom.id} and art::text in ('geprueft', 'reverifiziert')`);
       const zaehle = async () =>
