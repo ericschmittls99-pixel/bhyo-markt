@@ -77,6 +77,14 @@ describe("Inbox-Aktionen: nur der Empfaenger", () => {
     expect(await inboxGelesen("e1")).toEqual({ ok: true });
     expect(updates).toEqual([]);
   });
+  it("E65: Verwerfen der weitergegebenen Aufgabe aendert nur den eigenen Eintrag (FOR UPDATE per id) — der Absender-Eintrag bleibt offen, kein Ereignis", async () => {
+    eintrag = { ...eintrag!, typ: "aufgabe" };
+    const erg = await inboxVerwerfen("e1");
+    expect(erg).toEqual({ ok: true });
+    expect(updates).toHaveLength(1);
+    expect(updates[0]).toMatchObject({ zustand: "verworfen" });
+    expect(protokolliere).not.toHaveBeenCalled();
+  });
   it("erledigen/verwerfen nur aus offen", async () => {
     eintrag = { ...eintrag!, zustand: "erledigt" };
     const erg = await inboxVerwerfen("e1");

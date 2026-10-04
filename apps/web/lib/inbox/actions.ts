@@ -201,11 +201,13 @@ export async function inboxWeitergeben(id: string, empfaengerId: string, aufgabe
           .where(eq(benutzer.id, empfaengerId))
           .limit(1);
         if (!darfZugewiesenWerden(ziel)) throw new Error("Diese Person kann keine Aufgabe übernehmen (nicht aktiv oder nur Betrachter).");
-        const jetzt = new Date();
-        await tx
-          .update(inboxEintrag)
-          .set({ zustand: "erledigt", zustandSeit: jetzt, gelesenAm: e.gelesen ? undefined : jetzt })
-          .where(and(eq(inboxEintrag.id, e.id), eq(inboxEintrag.zustand, "offen")));
+        // E65 (Eric 04.10.2026): Der eigene Eintrag bleibt OFFEN, bis die Sache selbst
+        // erledigt ist (geprueft/reverifiziert/verworfen raeumen Hinweis und Aufgabe bei
+        // allen ab, zustellung.ts). Verwirft der Empfaenger die Aufgabe, bleibt der
+        // Absender-Eintrag offen. Weitergeben gilt nur als gelesen.
+        if (!e.gelesen) {
+          await tx.update(inboxEintrag).set({ gelesenAm: new Date() }).where(and(eq(inboxEintrag.id, e.id), eq(inboxEintrag.zustand, "offen")));
+        }
         await protokolliere(tx, {
           art: "weitergegeben",
           entitaet: e.strom.art === "biomasse" ? "biomassestrom" : "output_bedarf",

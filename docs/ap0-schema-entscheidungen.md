@@ -1168,8 +1168,15 @@ zurückgerollt.
 nurEmpfaenger): Der Empfänger eines Prüfauftrags oder Ablauf-Hinweises
 (`pruefauftrag`, `verifikation_laeuft_ab`, `verifikation_abgelaufen`) gibt
 ihn als Aufgabe an eine Person weiter — aktiv, Rolle ≥ bearbeiter
-(`darfZugewiesenWerden`), **nie an sich selbst**. Der eigene Eintrag ist damit
-erledigt. **Aufgabentext** vorbefüllt „Bitte aktualisieren", frei änderbar,
+(`darfZugewiesenWerden`), **nie an sich selbst**. **E65 (Eric 04.10.2026):
+Der eigene Eintrag des Absenders bleibt offen** (nur gelesen), bis die Sache
+selbst erledigt ist — geprüft, erneut verifiziert oder verworfen räumen
+Hinweis/Prüfauftrag und Aufgabe bei allen Empfängern ab. Verwirft der
+Empfänger die Aufgabe, bleibt der Absender-Eintrag offen. Tests:
+`lib/inbox/weitergeben.test.ts` („E65: der eigene Eintrag bleibt OFFEN"),
+`lib/inbox/zustellung.test.ts` („E65: geprueft erledigt den offenen
+Absender-Hinweis UND die weitergegebene Aufgabe"), `lib/inbox/actions.test.ts`
+(„E65: Verwerfen der weitergegebenen Aufgabe aendert nur den eigenen Eintrag"). **Aufgabentext** vorbefüllt „Bitte aktualisieren", frei änderbar,
 nicht leer, höchstens 500 Zeichen — serverseitig (`lib/inbox/aufgabe.ts`,
 Meldung) **und** als DB-CHECK `inbox_eintrag_aufgabe_check` (Migration 0034:
 Text nur beim Typ aufgabe, dort Pflicht; Rot-Nachweis leerer Text im Server

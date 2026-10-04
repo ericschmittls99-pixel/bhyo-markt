@@ -797,7 +797,8 @@ Zugriffsanfrage (`pop ov-anfrage ib-weiter`): Auswahl „An" (aktive Nutzer ab
 bearbeiter, die eigene Person fehlt), Feld „Aufgabe" vorbefüllt mit „Bitte
 aktualisieren", frei änderbar, Zähler `n/500`, „Abbrechen" und Primär-Button
 „Weitergeben" (gesperrt bei leerem oder zu langem Text). Der eigene Eintrag
-wandert nach „Erledigt".
+**bleibt offen** (E65, 04.10.2026) und gilt als gelesen; er wird erst mit der
+Sache selbst erledigt (geprüft, erneut verifiziert, verworfen).
 
 **Aufgabe (Typ `aufgabe`):** Zeile mit Avatar der weitergebenden Person und
 Text „Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren"".
