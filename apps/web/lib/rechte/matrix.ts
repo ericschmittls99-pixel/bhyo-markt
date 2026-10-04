@@ -60,6 +60,8 @@ export const AKTIONEN = [
   "beleg.abgelaufen_aufheben",
   // AP2.4 PR b (E63): erneut verifizieren — pruefer/admin, Objektregel wie das Bearbeiten.
   "strom.reverifizieren",
+  // AP2.4 PR c (E63, D5): weitergeben — ab bearbeiter, nur eigene Eintraege (nurEmpfaenger).
+  "inbox.weitergeben",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -102,6 +104,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "beleg.abgelaufen_markieren": SPERREN,
   "beleg.abgelaufen_aufheben": SPERREN,
   "strom.reverifizieren": SPERREN,
+  "inbox.weitergeben": ERFASSEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -173,6 +176,7 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "inbox.erledigen": nurEmpfaenger,
   "inbox.verwerfen": nurEmpfaenger,
   "inbox.ablehnen": nurEmpfaenger,
+  "inbox.weitergeben": nurEmpfaenger,
 };
 
 /** Aktionen, die ein Objekt verlangen (fuer Aufrufer, Wächter und Tests). */

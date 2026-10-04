@@ -11,7 +11,7 @@ import type { Zugang } from "@/lib/rechte";
 import type { Tx } from "@/lib/rechte/sperre-server";
 import type { StromArt } from "@/lib/stroeme-modell";
 
-import { INBOX_TYPEN, type InboxTyp } from "./register";
+import { type InboxTyp, zeilenText } from "./register";
 
 export type Leser = Pick<AppDb, "select">;
 
@@ -29,6 +29,8 @@ export interface InboxZeile {
   strom: { art: StromArt; id: string };
   /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
   bezugsdatum: string | null;
+  /** PR c: Aufgabentext beim Typ aufgabe. */
+  aufgabe: string | null;
   belegNr: string | null;
   bezeichnung: string | null;
   /** PR c: Notiz der Zugriffsanfrage. */
@@ -59,6 +61,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       zustandSeit: inboxEintrag.zustandSeit,
       notiz: inboxEintrag.notiz,
       bezugsdatum: inboxEintrag.bezugsdatum,
+      aufgabe: inboxEintrag.aufgabe,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       ausloeserId: benutzer.id,
@@ -98,12 +101,14 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       bezeichnung,
       notiz: z.notiz,
       bezugsdatum: z.bezugsdatum,
-      text: INBOX_TYPEN[z.typ].text({
+      aufgabe: z.aufgabe,
+      text: zeilenText(z.typ, {
         ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
         belegNr: z.belegNr,
         bezeichnung,
         anzahl: z.anzahl,
         bezugsdatum: z.bezugsdatum,
+        aufgabe: z.aufgabe,
       }),
     };
   });
