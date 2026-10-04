@@ -207,6 +207,14 @@ async function main() {
     await tx`delete from biomassestrom where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from output_bedarf where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from beleg where metadata->>'seed' = ${BELEG_MARKER}`;
+    // Geteilte Preview: Eine spaetere Migration (0036, PR b) haengt Kontaktpersonen an die
+    // SEED-A25-Akteure. Dieser Stand kennt die Tabelle nicht, muss aber loeschen koennen —
+    // nur wenn sie existiert, und nur die Personen der SEED-A25-Akteure (Testdaten).
+    const [kp] = await tx`select to_regclass('public.kontaktperson') is not null as da`;
+    if (kp!.da) {
+      await tx.unsafe(`delete from inbox_eintrag where kontaktperson_id in (select k.id from kontaktperson k join akteur a on a.id = k.akteur_id where a.name like $1)`, [PRAEFIX + "%"]);
+      await tx.unsafe(`delete from kontaktperson where akteur_id in (select id from akteur where name like $1)`, [PRAEFIX + "%"]);
+    }
     await tx`delete from akteur where name like ${PRAEFIX + "%"}
       and not exists (select 1 from biomassestrom b where b.akteur_id = akteur.id)
       and not exists (select 1 from output_bedarf o where o.akteur_id = akteur.id)`;
