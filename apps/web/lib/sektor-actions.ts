@@ -67,6 +67,9 @@ export async function sektorAnlegen(_prev: AktionErgebnis, formData: FormData): 
   return { ok: true };
 }
 
+/** AP2.5 PR a1 (E66): die Systemzeile „ohne Sektor" aendert kein Admin — der Trigger in der DB sichert dasselbe. */
+const TEXT_SYSTEMZEILE = "„ohne Sektor“ ist eine Systemzeile und lässt sich weder umbenennen noch deaktivieren.";
+
 export async function sektorUmbenennen(code: string, roh: string): Promise<AktionErgebnis> {
   const wache = await rechtFuerAction("sektor.umbenennen");
   if ("fehler" in wache) return wache;
@@ -76,6 +79,7 @@ export async function sektorUmbenennen(code: string, roh: string): Promise<Aktio
         const bestehende = await tx.select({ id: sektor.id, code: sektor.code, label: sektor.label }).from(sektor).for("update");
         const alt = bestehende.find((s) => s.code === code);
         if (!alt) throw new Error("Diesen Sektor gibt es nicht.");
+        if (code === "ohne_sektor") throw new Error(TEXT_SYSTEMZEILE);
         const pruefung = pruefeSektorLabel(roh, bestehende, code);
         if (!pruefung.ok) throw new Error(pruefung.text);
         if (pruefung.label === alt.label) throw new Error("Die Bezeichnung ist unverändert.");
@@ -117,6 +121,7 @@ async function aktivSetzen(
         .where(eq(sektor.code, code))
         .for("update");
       if (!alt) throw new Error("Diesen Sektor gibt es nicht.");
+      if (code === "ohne_sektor") throw new Error(TEXT_SYSTEMZEILE);
       if (alt.aktiv === aktiv) throw new Error(aktiv ? "Der Sektor ist schon aktiv." : "Der Sektor ist schon deaktiviert.");
       await tx.update(sektor).set({ aktiv }).where(eq(sektor.code, code));
       await protokolliere(tx, {

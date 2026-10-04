@@ -14,9 +14,11 @@ const STROM = "00000000-0000-4000-8000-00000000c001";
 
 /** Zeilen, die jede Abfrage der Attrappe liefert — breit genug für alle Pfade. */
 const ZEILEN = [
-  { ...ERIC, code: "landwirtschaft", status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0 },
-  { ...BERND, code: "kommune", status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0 },
+  { ...ERIC, code: "landwirtschaft", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
+  { ...BERND, code: "kommune", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
 ];
+/** AP2.5 (E66): vollstaendige Akteur-Eingabe — Name, Sektor, Sitz (PLZ, Ort), Pin. */
+const AKTEUR_EINGABE = { name: "Hof Müller", sektor: "landwirtschaft", sitz_plz: "74889", sitz_ort: "Sinsheim", sitz_strasse: "Hauptstraße", sitz_hausnummer: "1", lat: "49.25", lng: "8.88" };
 const EINGEFUEGT = [{ id: NEU, name: "x", sektor: null }];
 
 /** Kette, die jeden Methodenaufruf annimmt und beim Warten Zeilen liefert. */
@@ -68,6 +70,7 @@ vi.mock("@/lib/vergabe-fenster", async (orig) => ({
 }));
 
 const { statusSetzen, stromVerwerfen, stromPruefen, stromReverifizieren, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
+const { akteurBearbeiten, akteurLoeschen } = await import("@/lib/akteur-actions");
 const { stromSperren, stromEntsperren, stromZuweisen, zuweisungEntfernen } = await import("@/lib/sperre-actions");
 const { benutzerAnlegen, rolleSetzen, aktivSetzen } = await import("@/lib/benutzer-actions");
 const { stromSpeichern } = await import("@/lib/formular-actions");
@@ -169,10 +172,28 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     expect(await aktivSetzen(BERND.email, true)).toEqual({ ok: true });
     expect(ereignis()).toMatchObject({ art: "benutzer_aktiviert" });
   });
-  it("POST /api/akteure → akteur_angelegt", async () => {
-    const antwort = await akteure.POST(post({ name: "Hof Müller", sektor: "landwirtschaft" }));
+  it("POST /api/akteure → akteur_angelegt (ohne Namen im Freitext, E57)", async () => {
+    const antwort = await akteure.POST(post(AKTEUR_EINGABE));
     expect(antwort.status).toBe(201);
     expect(ereignis()).toMatchObject({ art: "akteur_angelegt", entitaet: "akteur", id: NEU, benutzerId: ERIC.id });
+    expect(ereignis().text).toBeUndefined();
+  });
+  it("AP2.5: POST /api/akteure ohne PLZ/Ort oder ohne Pin → 400, kein Ereignis", async () => {
+    for (const body of [{ ...AKTEUR_EINGABE, sitz_plz: "" }, { ...AKTEUR_EINGABE, sitz_ort: "" }, { ...AKTEUR_EINGABE, lat: "", lng: "" }]) {
+      expect((await akteure.POST(post(body))).status).toBe(400);
+    }
+    expect(protokolliere).not.toHaveBeenCalled();
+  });
+  it("AP2.5: akteurBearbeiten → akteur_geaendert mit Feldnamen; akteurLoeschen (verwaist) → akteur_geloescht", async () => {
+    const fd = new FormData();
+    for (const [k, v] of Object.entries({ ...AKTEUR_EINGABE, name: "Hof Müller GmbH" })) fd.set(k, v);
+    expect(await akteurBearbeiten(STROM, fd)).toEqual({ ok: true });
+    expect(ereignis()).toMatchObject({ art: "akteur_geaendert", entitaet: "akteur", id: STROM, benutzerId: ERIC.id });
+    expect(ereignis().text).toMatch(/^Felder: /);
+    expect(ereignis().text).not.toContain("Müller");
+    protokolliere.mockClear();
+    expect(await akteurLoeschen(STROM)).toEqual({ ok: true });
+    expect(ereignis()).toMatchObject({ art: "akteur_geloescht", entitaet: "akteur", id: STROM, benutzerId: ERIC.id });
   });
   it("POST /api/regionen → region_angelegt", async () => {
     const antwort = await regionen.POST(post({ name: "Kraichgau", bbox: [8.5, 49.0, 8.9, 49.3] }));
@@ -198,5 +219,14 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     const alt = await stromSpeichern("biomasse", STROM, {}, formular({ ...felder, begruendung: "Menge korrigiert" }));
     expect(alt).toEqual({ ok: true });
     expect(ereignis()).toMatchObject({ art: "geaendert", entitaet: "biomassestrom", id: STROM, benutzerId: ERIC.id, text: "Menge korrigiert" });
+    expect(protokolliere).toHaveBeenCalledTimes(1);
+  });
+  it("AP2.5 (E66/E23): Umhaengen eines Stroms schreibt akteur_geaendert am ALTEN Akteur — nur die ID im Text", async () => {
+    const felder = { akteur_id: "00000000-0000-4000-8000-0000000000a9", materialart_code: "stroh", menge_roh_fm: "100", ts_anteil_pct: "30", aschegehalt_pct: "5", zeitraum_von: "01/2026", lat: "49.1", lng: "8.7", begruendung: "Anderer Akteur" };
+    expect(await stromSpeichern("biomasse", STROM, {}, formular(felder))).toEqual({ ok: true });
+    const arten = (protokolliere.mock.calls as unknown as unknown[][]).map((c) => c[1] as { art: string; entitaet: string; id: string; text?: string });
+    const alt = arten.find((a) => a.art === "akteur_geaendert");
+    expect(alt).toMatchObject({ entitaet: "akteur", id: NEU, text: `Strom ${STROM} umgehängt` });
+    expect(arten.some((a) => a.art === "geaendert" && a.entitaet === "biomassestrom")).toBe(true);
   });
 });

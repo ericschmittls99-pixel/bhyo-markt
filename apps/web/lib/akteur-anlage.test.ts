@@ -9,10 +9,10 @@ describe("Sektor bei der Akteur-Anlage: nur Werte der Referenztabelle", () => {
     expect(sektorAusEingabe("energie", CODES)).toEqual({ ok: true, sektor: "energie" });
   });
 
-  it("leer, fehlend oder nur Leerraum heisst 'ohne Sektor' (null)", () => {
-    expect(sektorAusEingabe("", CODES)).toEqual({ ok: true, sektor: null });
-    expect(sektorAusEingabe(undefined, CODES)).toEqual({ ok: true, sektor: null });
-    expect(sektorAusEingabe("   ", CODES)).toEqual({ ok: true, sektor: null });
+  it("leer, fehlend oder nur Leerraum heisst 'ohne Sektor' — die Systemzeile ohne_sektor, nicht NULL (E66)", () => {
+    expect(sektorAusEingabe("", CODES)).toEqual({ ok: true, sektor: "ohne_sektor" });
+    expect(sektorAusEingabe(undefined, CODES)).toEqual({ ok: true, sektor: "ohne_sektor" });
+    expect(sektorAusEingabe("   ", CODES)).toEqual({ ok: true, sektor: "ohne_sektor" });
   });
 
   it("ein unbekannter Wert wird abgewiesen UND genannt — kein 500 aus dem Fremdschluessel", () => {

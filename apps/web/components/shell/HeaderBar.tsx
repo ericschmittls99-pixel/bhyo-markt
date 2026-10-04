@@ -12,6 +12,7 @@ const TITEL: [string, string][] = [
   ["/karte", "karte."],
   ["/auswertung", "auswertung."],
   ["/bewertung", "planer."],
+  ["/akteure", "akteure."],
   ["/import", "import."],
   ["/inbox", "inbox."],
   ["/einstellungen", "einstellungen."],

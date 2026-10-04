@@ -133,6 +133,8 @@ export function Sidebar({
       addLabel: "Projekt starten",
       addHref: "/bewertung",
     },
+    // AP2.5 (E66): Stammdaten der Akteure; Reiter Kontaktpersonen folgt mit PR b.
+    { key: "akteure", label: "akteure.", icon: "buildings", href: "/akteure" },
     { key: "import", label: "import.", icon: "upload-simple", href: "/import" },
   ];
 

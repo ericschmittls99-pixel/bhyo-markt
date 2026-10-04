@@ -3,6 +3,10 @@ name: Deploy
 on:
   push:
     branches: [main]
+  # ready_for_review: Ein Entwurf bekommt beim Umschalten auf „bereit" den
+  # Preview-Deploy samt Migration, den er als Entwurf nicht bekam (Regel Eric
+  # 01.10.2026: auf die geteilte Preview migriert nur der PR, der als Naechster
+  # gemergt wird; Entwuerfe laufen durch Typen und Tests, ohne Preview-Deploy).
   pull_request:
     # ready_for_review: Ein Entwurf bekommt beim Umschalten auf „bereit" den
     # Preview-Deploy samt Migration, den er als Entwurf nicht bekam (Regel Eric
@@ -171,6 +175,8 @@ jobs:
     # Typen/Tests sind IMMER Vorbedingung (auch bei PRs — sonst deployt ein
     # roter Stand auf die Preview). Zusaetzlich bei main-Pushes: nur wenn das
     # schema-gate gruen ist.
+    # Entwuerfe (draft) deployen NICHT auf die Preview und migrieren sie nicht
+    # (Regel Eric 01.10.2026) — sie laufen nur durch typen-und-tests.
     if: >-
       always() && !cancelled() &&
       needs.typen-und-tests.result == 'success' &&

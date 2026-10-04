@@ -66,7 +66,8 @@ async function main() {
     and indexname in ('inbox_eintrag_biomasse_offen_uidx', 'inbox_eintrag_output_offen_uidx', 'inbox_eintrag_zaehler_idx',
                       'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx',
                       'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx',
-                      'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx')`;
+                      'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx',
+                      'inbox_eintrag_akteur_hinweis_uidx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
   // PR b (0033): Hinweise ohne Urheber/Ereignis, Bezugsdatum, Urheber-CHECK.
   const [nullbar] = await sql`select count(*)::int as n from information_schema.columns
@@ -76,6 +77,8 @@ async function main() {
   // PR c (0034): Typ aufgabe, Spalte aufgabe, Aufgaben-CHECK.
   const [as] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'aufgabe'`;
   const [ac] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_aufgabe_check'`;
+  // AP2.5 PR a1 (0035): Objektbezug Akteur (akteur_id, ON DELETE CASCADE), Typ akteur_verwaist, Idempotenz-Index.
+  const [ak] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'akteur_id'`;
   // Journal-Vergleich (Eric 01.10.2026): exakt bei gleichem Journal, Mindestvergleich nur
   // wenn die DB nachweislich voraus ist (geteilte Preview, gestapelte PRs); sonst rot.
   const journal = await journalModus(sql, url!);
@@ -87,11 +90,11 @@ async function main() {
   }
   const modus = journal.modus;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/9 typen=${typen.length}/9 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} (${modus})`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/10 typen=${typen.length}/10 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} (${modus})`,
   );
-  const zaehler = [zaehlerPasst("indizes", idx.length, 9, modus), zaehlerPasst("typen", typen.length, 9, modus)].filter(Boolean);
-  if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1) {
-    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe) ${zaehler.join(" · ")}`);
+  const zaehler = [zaehlerPasst("indizes", idx.length, 10, modus), zaehlerPasst("typen", typen.length, 10, modus)].filter(Boolean);
+  if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1) {
+    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur) ${zaehler.join(" · ")}`);
     await sql.end();
     process.exit(1);
   }
@@ -168,6 +171,30 @@ async function main() {
     const ok = sollFehler ? !!r.fehler && /inbox_eintrag_aufgabe_check/.test(r.fehler) : !r.fehler;
     console.log(`${name} ${ok}${r.fehler ? ` (${r.fehler.slice(0, 80)})` : ""}`);
     if (!ok) fehler.push(`${name}: ${sollFehler ? "kam durch" : r.fehler}`);
+  }
+
+  // (4c) AP2.5 PR a1: Hinweis mit Objektbezug Akteur — ohne Urheber erlaubt, zweimal (NULLS NOT DISTINCT) abgewiesen,
+  //      Akteur UND Strom zugleich abgewiesen (genau ein Objekt).
+  const [einAkteur] = await sql`select id from akteur order by created_at limit 1`;
+  if (einAkteur) {
+    const verwaistHinweis = (tx: postgres.TransactionSql, bezugsdatum: string | null) => tx`
+      insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, akteur_id, ereignis_id, bezugsdatum)
+      values (${nutzer.id}, null, 'akteur_verwaist', ${einAkteur.id}, null, ${bezugsdatum})`;
+    const akteurProben: [string, (tx: postgres.TransactionSql) => Promise<unknown>, RegExp | null][] = [
+      ["AKTEUR_HINWEIS_ERLAUBT", (tx) => verwaistHinweis(tx, "2026-01-01"), null],
+      ["AKTEUR_HINWEIS_ZWEIMAL_ABGEWIESEN", async (tx) => { await verwaistHinweis(tx, "2026-01-01"); await verwaistHinweis(tx, "2026-01-01"); }, /inbox_eintrag_akteur_hinweis_uidx/],
+      ["AKTEUR_HINWEIS_ZWEIMAL_OHNE_DATUM_ABGEWIESEN", async (tx) => { await verwaistHinweis(tx, null); await verwaistHinweis(tx, null); }, /inbox_eintrag_akteur_hinweis_uidx/],
+      ["AKTEUR_UND_STROM_ABGEWIESEN", (tx) => tx`insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, akteur_id, biomassestrom_id, ereignis_id, bezugsdatum)
+        values (${nutzer.id}, null, 'akteur_verwaist', ${einAkteur.id}, ${strom.id}, null, '2026-01-01')`, /inbox_eintrag_genau_ein_strom_check/],
+    ];
+    for (const [name, fn, soll] of akteurProben) {
+      const r = await probe(fn);
+      const ok = soll ? !!r.fehler && soll.test(r.fehler) : !r.fehler;
+      console.log(`${name} ${ok}${r.fehler ? ` (${r.fehler.slice(0, 80)})` : ""}`);
+      if (!ok) fehler.push(`${name}: ${soll ? "kam durch" : r.fehler}`);
+    }
+  } else {
+    console.log("AKTEUR_HINWEIS uebersprungen: kein Akteur");
   }
 
   // (5) PR c: Zugriffsanfrage — Index (Empfaenger, Strom, Anfragender) greift.

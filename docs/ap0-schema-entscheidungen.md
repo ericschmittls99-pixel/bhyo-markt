@@ -1207,6 +1207,130 @@ Proben leer/501/fremder Typ) und `protokoll-check` decken den neuen Pfad ab.
 Im selben PR: Kopfkommentar in `lese-diagnose.yml` korrigiert
 (production-lesend erlaubt nur main, wie docs/betrieb.md).
 
+## 33. AP2.5 CRM Akteure: Stammdaten, Sitz, Verwaist-Hinweis (E66, Präzisierung F0a), 01.10.2026
+
+**Bestandsaufnahme (abgenommen 01.10.2026):** Der Sektor liegt seit 0020 am
+Akteur (FK auf `sektor.code`), nicht am Strom — kein Sektor-Umzug. Adresse
+und Pin liegen laut F0a (§7) am Strom; VG250 kennt nur Land und Kreis; die
+Felder rollen, kontakt_email, kontakt_telefon, ansprechperson sind nirgends
+gefüllt und `rollen` wird nirgends gelesen („Abnehmer" ist abgeleitet, E61);
+`akteur_interesse` (AP1a) hat weder Schreibpfad noch Oberfläche und ist
+leer; Seed-Akteure haben kein Anlage-Ereignis; pg_trgm fehlt (PR c).
+
+**E66 (Fassung nach Abnahme a1, Eric 01.10.2026).** Pflicht am Akteur:
+Name, Sektor (NOT NULL inkl. Systemzeile `ohne_sektor`, ab a2), Sitz mit
+PLZ, Ort und Pin (aus Adresssuche, vom Strom übernommen oder von Hand in der
+Karte gesetzt — dasselbe Bauteil wie beim Strom-Standort, der AdresseBlock)
+und der daraus bestimmte Kreis-ARS. **„Unvollständig" heißt: keine
+Adresse** (keine Straße am Sitz). Der Regionsfilter in akteure. wirkt auf
+den Sitz und heißt dort „Sitz in Region" (einzige Ausnahme von E32 „eine
+Beschriftung", weil die Facette ein anderes Objekt trifft); Karte, ströme.
+und auswertung. bleiben am Strom-Standort. Verwaist = kein Strom verweist auf den Akteur (E48; auch kein
+verworfener); Hinweis an die Admins nach `akteur.verwaist_hinweis_monate`
+(Startwert 6, seit Einführung). „Ohne Sektor" ist eine bewusste Auswahl als
+Systemzeile, nicht NULL (ersetzt E35). Keine Branche. Stammdaten bearbeiten
+ab bearbeiter ohne Sperre (E44); löschen nur Admin und nur verwaist;
+Zusammenführen (PR c) nur Prüfer und Admin. Kontaktpersonen (PR b): lesen
+alle, anlegen/bearbeiten ab bearbeiter, löschen Prüfer/Admin,
+Auskunfts-Export Admin; jede gehört zu genau einem Akteur, kein Umhängen.
+
+**Systemzeile ohne_sektor (a1, Migration 0035).** Zeile `ohne_sektor` /
+„ohne Sektor", aktiv, Sortierung am Ende. Der CHECK `sektor_code_check`
+verbietet nur noch `abnehmer`; der Trigger `sektor_systemzeile_wache`
+verbietet einen zweiten INSERT des Codes, jedes Umbenennen/Deaktivieren/
+Löschen der Systemzeile und das Umbenennen eines anderen Codes darauf. Die
+reservierte Bezeichnung „ohne Sektor" (E61) bleibt für alle anderen Zeilen
+gesperrt (CHECK mit Ausnahme der Systemzeile). Bestehende NULL wurden zu
+`ohne_sektor` — keine erfundene Fachangabe, NULL hieß laut E35 bereits „ohne
+Sektor". Der `sektor-check` ist umgekehrt (Zeile genau einmal, geschützt;
+Rot-Nachweis #155). Admin-Oberfläche: Systemzeile ohne Umbenennen/
+Deaktivieren; Server weist es ebenfalls ab.
+
+**Sitz des Akteurs — Präzisierung von F0a (§7), ein Ort je Bedeutung.** Der
+Akteur bekommt einen **Sitz** (`sitz_strasse`, `sitz_hausnummer`, `sitz_plz`,
+`sitz_ort`, `sitz_geom`): Adresse frei, PLZ und Ort Pflicht (NOT NULL ab a2),
+Pin über den Geocoder. Der Strom behält seinen **Standort**; kein Abgleich,
+kein Vererben. Karte, Regionsfilter, auswertung. und Logistik bleiben am
+Strom-Standort; der Sitz wirkt nur in akteure., beim Dublettenabgleich (PR c)
+und im Kontakt (PR b). Beschriftungen „Sitz" am Akteur, „Standort" am Strom.
+Beim Anlegen im Beleg ist der Sitz mit dem Strom-Standort vorbefüllt und
+änderbar; die Detailansicht zeigt Sitz-Pin (Waldgrün) und Strom-Standorte
+(Navy) unterscheidbar.
+
+**Kreis-ARS über den E25-Weg — die Pflicht-Eingabe ist die Koordinate.** Die
+View `akteur_verwaltung` bestimmt den Kreis wie `strom_verwaltung` (0016)
+per `ST_Covers` aus `sitz_geom`; PLZ und Ort als Text bestimmen keinen ARS.
+Deshalb verlangt der Server beim Anlegen und Bearbeiten PLZ, Ort **und** den
+Pin (lat/lng) und rollt zurück, wenn kein Kreis den Pin deckt („Der Ort ist
+nicht bestimmbar …"). Der Pin kommt aus der Adresssuche (Photon) oder vom
+Strom-Standort; „Pin frei" meint: nicht von Hand zu setzen. Kein Gemeinde-
+Import (für AP5 vorgemerkt).
+
+**Rechte und Protokoll.** `akteur.bearbeiten` = ERFASSEN ohne Objektregel
+(keine Sperre, E44); `akteur.loeschen` = VERWALTEN, Server prüft „kein Strom
+verweist" in der Transaktion, die DB weist per Fremdschlüssel jeden
+Strom-Bezug ab. Ereignisse `akteur_angelegt` (Freitext jetzt ohne Namen),
+`akteur_geaendert` (Feldnamen), `akteur_geloescht` — nur IDs und Feldnamen
+im Freitext (E57). Beim Umhängen eines Stroms bekommt der **alte** Akteur
+ein `akteur_geaendert` („Strom <id> umgehängt"), damit „seit wann verwaist"
+aus dem Protokoll lesbar bleibt (E23). `akteur_interesse` wird beim Löschen
+eines verwaisten Akteurs in derselben Transaktion mitgelöscht (im
+Ereignistext gezählt); beim Zusammenführen (PR c) wandert es mit, Duplikate
+derselben Region werden zusammengelegt.
+
+**Verwaist-Hinweis (Job).** Inbox-Typ `akteur_verwaist` mit Objektbezug
+`inbox_eintrag.akteur_id` (ON DELETE CASCADE), Idempotenz-Index (Empfänger,
+Typ, Akteur, Bezugsdatum) NULLS NOT DISTINCT, Urheber-CHECK um den Typ
+erweitert, CHECK „genau ein Objekt" um den Akteur. Seit wann: letztes
+Ereignis am Akteur (angelegt/geändert), für **Altbestand ohne Anlage-
+Ereignis** `created_at` — namentliche Ausnahme im Code (lib/akteure.ts,
+lib/inbox/hinweise.ts). Nach N Monaten Hinweis an alle aktiven Admins;
+hat der Akteur wieder einen Strom, werden offene Hinweise erledigt. Gelöscht
+wird nur von Hand. Job-Probe: alt → Hinweis, jung → nichts, zweiter Lauf →
+nichts, Strom → erledigt.
+
+**akteure.** Liste mit dem Filtermodell (E32, Ansicht `akteure`: „Sitz in
+Region" (ST_Contains auf `sitz_geom`, dieselbe Ableitung wie beim Strom),
+Hierarchie Sektor/Akteur, Facette Zustand); benannte Zustände abgeleitet
+(E23/E24): `unvollstaendig` (keine Adresse), `ohne_beleg` (Ströme, aber
+keiner mit Beleg), `verwaist`. Detail mit Stammdaten (AdresseBlock),
+Belegen/Strömen und Karte; Reiter Kontaktpersonen folgt mit PR b.
+
+**Bestand 117 → 110:** Die Bestandsaufnahme zählte 117 `Seed:`-Akteure, der
+Generator (seed-daten.ts) erzeugt 110. Die sieben übrigen stammten aus einer
+älteren Seed-Fassung; ihre Marker-Ströme werden beim Neuaufbau nicht mehr
+erzeugt, danach waren sie ohne Strom und der Strom-Seed entfernt verwaiste
+Seed-Akteure. Kein Datenverlust an Fachdaten.
+
+**Preview-Testdaten** (`scripts/seed-akteure.ts`, Workflow Seed Preview,
+zweiter Schritt): Sitz des Bestands aus dem Standort des ältesten Stroms
+(bei mehreren Orten wird die Wahl ausgegeben), 40+ Akteure `Seed-A25:` über
+alle Sektoren und Orte mit Belegen aller sieben Typen, Dubletten stark/
+schwach, Verwaiste (teils älter als 6 Monate), Unvollständige, ohne Sektor,
+ohne Beleg. Idempotent, markiert, nur gegen die Preview (Schutz einmal rot:
+Production-Host und fehlende Variable).
+**Prüf-Ereignisse (Eric 04.10.2026):** Der erste Job-Lauf stellte auf der
+Preview 254 Hinweise „Prüfdatum unbekannt" zu, weil kein geprüfter
+Seed-Strom ein Prüf-Ereignis hatte. Der Seed schreibt deshalb für die
+geprüften Ströme beider Seeds Ereignisse `geprueft` mit Streuung
+(deterministisch aus der Strom-ID: gültig, läuft in 5 Tagen ab, abgelaufen,
+ein Zehntel bewusst ohne Prüfdatum als Altfall) und entfernt die alten
+Job-Hinweise der Seed-Ströme; der nächste Lauf stellt sie zustandsbasiert
+neu zu. Die bestehenden Hinweise erledigen sich **nicht** selbst: der Job
+erledigt nur Vorab-Hinweise, die ein Ablauf-Hinweis ersetzt, und
+Verwaist-Hinweise; „Prüfdatum unbekannt" räumt nur ein Ereignis über
+`protokolliere()` ab, und der Seed schreibt bewusst roh. „Prüfdatum
+unbekannt" bleibt eine Aufgabe, nicht abräumbar. Platzhalter für unbekannte
+Inbox-Typen (aus #153) loggt serverseitig `console.error` mit Typ und
+Eintrags-ID.
+
+**a2 (Contract, eigener PR):** NOT NULL auf `akteur.sektor`, `sitz_plz`,
+`sitz_ort` — nach dem Seed auf der Preview und der Messung auf Production
+(Akteure ohne Sitz → stopp und melden). **PR b** löst rollen, kontakt_email,
+kontakt_telefon, ansprechperson und `strom.kontaktperson` durch die Tabelle
+kontaktperson ab (Contract nach Messung, dass alle Spalten auf Production
+leer sind; die fünf Preview-Texte sind Testdaten und werden verworfen).
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

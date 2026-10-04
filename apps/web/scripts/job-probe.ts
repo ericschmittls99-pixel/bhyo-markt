@@ -10,6 +10,10 @@
  *  3. Empfaenger: der Pruefer des letzten geprueft-Ereignisses; ist er
  *     deaktiviert, alle aktiven Pruefer/Admins (Fallback).
  *  4. D3: als abgelaufen markiert → kein Hinweis; ohne Beleg → kein Hinweis.
+ *  5. AP2.5 (E66): verwaister Akteur (kein Strom) aelter als
+ *     akteur.verwaist_hinweis_monate → akteur_verwaist an alle aktiven
+ *     Admins, zweiter Lauf nichts; bekommt er einen Strom, ist der Hinweis
+ *     erledigt. Ein junger verwaister Akteur bekommt nichts.
  *
  * Laeuft mit tsx (Pfadalias @/ wird nicht gebraucht: relative Importe).
  */
@@ -52,6 +56,12 @@ async function main() {
       }
       const p1 = pruefer[0]!.id;
       // Alle vorhandenen Hinweise und Pruef-Ereignisse zu diesem Strom beiseite (zurueckgerollt).
+      // Vorlauf (04.10.2026): Den Bestand der Preview einmal zustellen, damit die Zaehler
+      // der Proben nur den Probe-Strom zeigen — sonst ist die Probe rot, sobald die
+      // Preview offene Hinweise hat (z. B. nach einem Seed, der Stroeme neu aufbaut).
+      // Alles in derselben zurueckgerollten Transaktion.
+      const vorlauf = await stelleVerifikationsHinweiseZu(tx, heute);
+      console.log("VORLAUF " + JSON.stringify(vorlauf));
       await tx.execute(sql`delete from inbox_eintrag where biomassestrom_id = ${strom.id} and typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')`);
       await tx.execute(sql`delete from aenderung where entitaet_id = ${strom.id} and art::text in ('geprueft', 'reverifiziert')`);
       const zaehle = async () =>
@@ -97,7 +107,9 @@ async function main() {
         const nach5 = (await zaehle()).filter((z) => z.zustand === "offen" && z.typ === "verifikation_abgelaufen" && z.bezugsdatum !== null);
         const erwartet = pruefer.slice(1).map((p) => p.id).sort();
         const ist = nach5.filter((z) => z.bezugsdatum !== nach3[0]!.bezugsdatum).map((z) => z.empfaenger_id).sort();
-        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen === erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
+        // Gezaehlt wird am Probe-Strom, nicht global: Das Deaktivieren von p1 kann auf der
+        // Preview auch fremde Stroeme betreffen, deren Pruefer p1 ist (Seed-Pruefereignisse).
+        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen >= erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
         await tx.execute(sql`update benutzer set aktiv = true where id = ${p1}`);
       } else {
         console.log("3 Fallback uebersprungen: nur ein aktiver Pruefer/Admin auf der Preview");
@@ -110,6 +122,23 @@ async function main() {
       await tx.execute(sql`update biomassestrom set beleg_id = null where id = ${strom.id}`);
       const lauf7 = await stelleVerifikationsHinweiseZu(tx, heute);
       pruefe("4b ohne Beleg: kein Hinweis", lauf7.abgelaufen === 0 && lauf7.laeuftAb === 0, lauf7);
+
+      // 5. AP2.5 (E66): Verwaist-Hinweis an die Admins — alt → Hinweis, jung → nichts, Strom → erledigt.
+      const admins = (await tx.execute<{ id: string }>(sql`select id from benutzer where aktiv and rolle = 'admin'`)) as unknown as { id: string }[];
+      const altId = "00000000-0000-4000-8000-00000000a25a";
+      const jungId = "00000000-0000-4000-8000-00000000a25b";
+      await tx.execute(sql`insert into akteur (id, name, sektor, status, created_at) values
+        (${altId}, 'Job-Probe verwaist alt', 'ohne_sektor', 'entwurf', now() - interval '8 months'),
+        (${jungId}, 'Job-Probe verwaist jung', 'ohne_sektor', 'entwurf', now() - interval '1 month')`);
+      const lauf8 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const verwaistZeilen = (await tx.execute(sql`select empfaenger_id, akteur_id, zustand::text as zustand from inbox_eintrag where akteur_id in (${altId}, ${jungId})`)) as unknown as { empfaenger_id: string; akteur_id: string; zustand: string }[];
+      pruefe("5a verwaist 8 Monate: Hinweis an alle aktiven Admins, junger Akteur nichts", lauf8.verwaist === admins.length && verwaistZeilen.every((z) => z.akteur_id === altId) && verwaistZeilen.length === admins.length, { lauf8, admins: admins.length, zeilen: verwaistZeilen.length });
+      const lauf9 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("5b zweiter Lauf: kein weiterer Verwaist-Hinweis", lauf9.verwaist === 0 && lauf9.verwaistErledigt === 0, lauf9);
+      await tx.execute(sql`update biomassestrom set akteur_id = ${altId} where id = ${strom.id}`);
+      const lauf10 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const nach10 = (await tx.execute(sql`select count(*)::int as offen from inbox_eintrag where akteur_id = ${altId} and zustand = 'offen'`)) as unknown as { offen: number }[];
+      pruefe("5c Akteur hat wieder einen Strom: Verwaist-Hinweise erledigt", lauf10.verwaistErledigt === admins.length && Number(nach10[0]!.offen) === 0, { lauf10, offen: nach10[0]!.offen });
 
       throw new Error(ROLLBACK);
     });

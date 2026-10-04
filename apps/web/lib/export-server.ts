@@ -20,6 +20,7 @@ const ANSICHT_TEXT: Record<Ansicht, string> = {
   stroeme: "ströme.",
   karte: "karte.",
   auswertung: "auswertung.",
+  akteure: "akteure.",
 };
 const SICHT_TEXT: Record<Sicht, string> = {
   feedstock: "Feedstock",

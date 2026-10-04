@@ -57,6 +57,8 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "beleg.abgelaufen_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "strom.reverifizieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "inbox.weitergeben": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
+  "akteur.bearbeiten": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
+  "akteur.loeschen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";

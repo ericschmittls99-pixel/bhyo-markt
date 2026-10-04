@@ -34,6 +34,7 @@ import {
 } from "./filter-modell";
 import {
   filterAusSearchParams, angewandteSchluessel } from "./stroeme-modell";
+import { ANGEWANDTE_AKTEUR_SCHLUESSEL } from "./akteure-modell";
 
 describe("Vollständigkeit: jeder geltende Filter wird auch angewendet", () => {
   it("für jede Kombination aus Ansicht und Sicht ist die Zugehörigkeit festgelegt", () => {
@@ -48,8 +49,10 @@ describe("Vollständigkeit: jeder geltende Filter wird auch angewendet", () => {
     }
   });
 
-  it("jeder geltende Schlüssel wird von filterStroeme angewendet", () => {
+  it("jeder geltende Schlüssel wird von filterStroeme angewendet (akteure.: von filterAkteure)", () => {
     const angewandt = new Set(angewandteSchluessel());
+    // AP2.5: In akteure. filtert lib/akteure-modell.ts die Akteurliste — dieselbe Vollständigkeitsregel.
+    const angewandtAkteure = new Set(ANGEWANDTE_AKTEUR_SCHLUESSEL);
     const luecken: string[] = [];
 
     for (const ansicht of ANSICHTEN) {
@@ -58,6 +61,10 @@ describe("Vollständigkeit: jeder geltende Filter wird auch angewendet", () => {
           for (const art of f.arten) {
             // Gilt der Filter für diese Sicht überhaupt?
             if (sicht !== "alle" && sicht !== art) continue;
+            if (ansicht === "akteure") {
+              if (!angewandtAkteure.has(f.key)) luecken.push(`${f.key} gilt in akteure, wird aber nicht angewendet`);
+              continue;
+            }
             if (!angewandt.has(`${f.key}:${art}`)) {
               luecken.push(`${f.key} gilt in ${ansicht}/${art}, wird aber nicht angewendet`);
             }

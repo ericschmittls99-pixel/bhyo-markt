@@ -117,14 +117,23 @@ export function ReferenzlistenVerwaltung({ sektoren }: { sektoren: SektorZeile[]
                 <span className="pill pill--status pill--muted">{z.aktiv ? "aktiv" : "deaktiviert"}</span>
               </td>
               <td className="param-aktionen">
-                {bearbeitet !== z.code && (
-                  <button type="button" className="btn btn--ghost btn--sm" disabled={laeuft} onClick={() => setBearbeitet(z.code)}>
-                    Umbenennen
-                  </button>
+                {/* AP2.5 (E66): die Systemzeile „ohne Sektor" wird weder umbenannt noch deaktiviert (Server + Trigger). */}
+                {z.code === "ohne_sektor" ? (
+                  <span className="pill pill--muted" title="Systemzeile — der Zustand „ohne Sektor“ ist eine bewusste Auswahl (E66)">
+                    Systemzeile
+                  </span>
+                ) : (
+                  <>
+                    {bearbeitet !== z.code && (
+                      <button type="button" className="btn btn--ghost btn--sm" disabled={laeuft} onClick={() => setBearbeitet(z.code)}>
+                        Umbenennen
+                      </button>
+                    )}
+                    <button type="button" className="btn btn--sm" disabled={laeuft} onClick={() => aktivSetzen(z)}>
+                      {z.aktiv ? "Deaktivieren" : "Reaktivieren"}
+                    </button>
+                  </>
                 )}
-                <button type="button" className="btn btn--sm" disabled={laeuft} onClick={() => aktivSetzen(z)}>
-                  {z.aktiv ? "Deaktivieren" : "Reaktivieren"}
-                </button>
                 {zeilenFehler[z.code] && <p className="pf-fehler">{zeilenFehler[z.code]}</p>}
               </td>
             </tr>

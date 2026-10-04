@@ -2,7 +2,7 @@
  * Abfragen der Inbox (Zaehler, Liste) und die Objektstufe der Wache:
  * Eintraege liest und aendert nur der Empfaenger (Matrix: nurEmpfaenger).
  */
-import { benutzer, biomassestrom, inboxEintrag, outputBedarf } from "@bhyo/db/schema";
+import { akteur, benutzer, biomassestrom, inboxEintrag, outputBedarf } from "@bhyo/db/schema";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
@@ -26,7 +26,10 @@ export interface InboxZeile {
   zustandSeit: string;
   /** null bei den Hinweisen des Jobs (PR b). */
   ausloeser: { id: string; name: string | null; email: string } | null;
-  strom: { art: StromArt; id: string };
+  /** null beim Objektbezug Akteur (akteur_verwaist, AP2.5). */
+  strom: { art: StromArt; id: string } | null;
+  /** AP2.5: Objektbezug Akteur. */
+  akteur: { id: string; name: string } | null;
   /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
   bezugsdatum: string | null;
   /** PR c: Aufgabentext beim Typ aufgabe. */
@@ -64,6 +67,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       aufgabe: inboxEintrag.aufgabe,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
+      akteurId: inboxEintrag.akteurId,
+      hinweisAkteurName: akteur.name,
       ausloeserId: benutzer.id,
       ausloeserName: benutzer.name,
       ausloeserEmail: benutzer.email,
@@ -75,6 +80,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
     .leftJoin(benutzer, eq(benutzer.id, inboxEintrag.ausloeserId))
     .leftJoin(biomassestrom, eq(biomassestrom.id, inboxEintrag.biomassestromId))
     .leftJoin(outputBedarf, eq(outputBedarf.id, inboxEintrag.outputBedarfId))
+    .leftJoin(akteur, eq(akteur.id, inboxEintrag.akteurId))
     .where(
       and(
         eq(inboxEintrag.empfaengerId, nutzerId),
@@ -94,9 +100,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       aktualisiertAm: z.aktualisiertAm.toISOString(),
       zustandSeit: z.zustandSeit.toISOString(),
       ausloeser,
-      strom: z.biomassestromId
-        ? { art: "biomasse", id: z.biomassestromId }
-        : { art: "output", id: z.outputBedarfId! },
+      strom: z.biomassestromId ? { art: "biomasse", id: z.biomassestromId } : z.outputBedarfId ? { art: "output", id: z.outputBedarfId } : null,
+      akteur: z.akteurId ? { id: z.akteurId, name: z.hinweisAkteurName ?? "–" } : null,
       belegNr: z.belegNr,
       bezeichnung,
       notiz: z.notiz,
@@ -109,7 +114,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         anzahl: z.anzahl,
         bezugsdatum: z.bezugsdatum,
         aufgabe: z.aufgabe,
-      }),
+        akteurName: z.hinweisAkteurName,
+      }, z.id),
     };
   });
 }
@@ -138,7 +144,7 @@ export async function pruefeInboxEmpfaenger(
   typ: InboxTyp;
   zustand: "offen" | "erledigt" | "verworfen";
   gelesen: boolean;
-  strom: { art: StromArt; id: string };
+  strom: { art: StromArt; id: string } | null;
 }> {
   const [e] = await tx
     .select({
@@ -162,7 +168,7 @@ export async function pruefeInboxEmpfaenger(
     typ: e.typ,
     zustand: e.zustand,
     gelesen: e.gelesenAm != null,
-    strom: e.biomassestromId ? { art: "biomasse", id: e.biomassestromId } : { art: "output", id: e.outputBedarfId! },
+    strom: e.biomassestromId ? { art: "biomasse", id: e.biomassestromId } : e.outputBedarfId ? { art: "output", id: e.outputBedarfId } : null,
   };
 }
 

@@ -304,10 +304,24 @@ export const akteur = pgTable("akteur", {
   id: uuid("id").primaryKey().defaultRandom(),
   name: text("name").notNull(),
   /**
-   * F5 PR B: Referenz auf `sektor.code` statt Freitext. NULL ist der
-   * benannte Zustand "ohne Sektor" — fehlende Information, nicht "sonstige".
+   * F5 PR B: Referenz auf `sektor.code` statt Freitext. Seit AP2.5 PR a1
+   * (E66) ist „ohne Sektor" die Systemzeile 'ohne_sektor', nicht NULL;
+   * NOT NULL folgt in a2 (Contract), bis dahin bleibt NULL technisch moeglich.
    */
   sektor: text("sektor").references(() => sektor.code),
+  /**
+   * AP2.5 PR a1 (E66, Praezisierung von F0a): der SITZ des Akteurs — ein
+   * Ort je Bedeutung. Der Strom behaelt seinen Standort; kein Abgleich, kein
+   * Vererben. Der Sitz wirkt nur in akteure., beim Dublettenabgleich und im
+   * Kontakt. PLZ und Ort werden Pflicht (a2), Adresse frei; der Kreis-ARS
+   * kommt ueber den E25-Weg aus sitz_geom (View akteur_verwaltung) — darum
+   * ist der Pin die Eingabe, die der Server verlangt (Geocoder aus PLZ/Ort).
+   */
+  sitzStrasse: text("sitz_strasse"),
+  sitzHausnummer: text("sitz_hausnummer"),
+  sitzPlz: text("sitz_plz"),
+  sitzOrt: text("sitz_ort"),
+  sitzGeom: geometry("sitz_geom", { type: "point", srid: 4326 }),
   rollen: text("rollen")
     .array()
     .notNull()
@@ -359,14 +373,20 @@ export const sektor = pgTable(
     // sektor_label_norm (lower + btrim inkl. Tab/CR/LF); apps/web/lib/sektor.ts
     // (labelSchluessel) rechnet dieselbe Form, damit App und DB gleich urteilen.
     uniqueIndex("sektor_label_norm_idx").on(sql`sektor_label_norm(${t.label})`),
-    // Codes wie alle Enum-Werte: snake_case ohne Umlaute. 'ohne_sektor' ist der
-    // benannte Filterwert fuer NULL (lib/hierarchie-baeume.ts), 'abnehmer'
-    // eine Rolle (0020) — beide duerfen nie ein Sektor werden.
-    check("sektor_code_check", sql`${t.code} ~ '^[a-z0-9_]+$' and ${t.code} not in ('ohne_sektor', 'abnehmer')`),
+    // Codes wie alle Enum-Werte: snake_case ohne Umlaute. 'abnehmer' ist eine
+    // Rolle (0020) und darf nie ein Sektor werden. 'ohne_sektor' ist seit
+    // AP2.5 PR a1 (E66, Migration 0035) die SYSTEMZEILE: genau einmal
+    // vorhanden, von Admins weder anlegbar noch umbenennbar noch
+    // deaktivierbar noch loeschbar — das sichert der Trigger
+    // sektor_systemzeile_wache (0035), nicht dieser CHECK.
+    check("sektor_code_check", sql`${t.code} ~ '^[a-z0-9_]+$' and ${t.code} <> 'abnehmer'`),
     check("sektor_label_check", sql`length(btrim(${t.label})) > 0`),
-    // E61: „Abnehmer" (eine Rolle, E23) und „ohne Sektor" (der Zustand ohne
-    // Zuordnung) sind als Bezeichnung reserviert — wie ihre Codes oben.
-    check("sektor_label_reserviert_check", sql`sektor_label_norm(${t.label}) not in ('abnehmer', 'ohne sektor')`),
+    // E61: „Abnehmer" (eine Rolle, E23) und „ohne Sektor" sind als Bezeichnung
+    // reserviert — „ohne Sektor" traegt allein die Systemzeile.
+    check(
+      "sektor_label_reserviert_check",
+      sql`sektor_label_norm(${t.label}) <> 'abnehmer' and (sektor_label_norm(${t.label}) <> 'ohne sektor' or ${t.code} = 'ohne_sektor')`,
+    ),
   ],
 );
 
@@ -757,6 +777,9 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "reverifiziert",
   // AP2.4 PR c (E63, D5): Weitergabe eines Pruefauftrags/Ablauf-Hinweises als Aufgabe.
   "weitergegeben",
+  // AP2.5 PR a1 (E66): Stammdaten des Akteurs geaendert; verwaister Akteur geloescht (nur Admin).
+  "akteur_geaendert",
+  "akteur_geloescht",
 ]);
 
 export const aenderung = pgTable(
@@ -814,6 +837,8 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "verifikation_abgelaufen",
   // AP2.4 PR c (E63, D5): Aufgabe an eine Person („Bitte aktualisieren"), aus Weitergeben.
   "aufgabe",
+  // AP2.5 PR a1 (E66): verwaister Akteur (kein Strom) seit N Monaten — Hinweis des Jobs an die Admins.
+  "akteur_verwaist",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -837,6 +862,12 @@ export const inboxEintrag = pgTable(
     typ: inboxTyp("typ").notNull(),
     biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
     outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    /**
+     * AP2.5 PR a1 (E66): Objektbezug Akteur fuer den Hinweis akteur_verwaist.
+     * Wird der (verwaiste) Akteur von Hand geloescht, gehen seine Hinweise mit
+     * (ON DELETE CASCADE) — ein Hinweis auf ein geloeschtes Objekt waere leer.
+     */
+    akteurId: uuid("akteur_id").references(() => akteur.id, { onDelete: "cascade" }),
     /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
     ereignisId: uuid("ereignis_id").references(() => aenderung.id),
     /**
@@ -862,9 +893,10 @@ export const inboxEintrag = pgTable(
     aufgabe: text("aufgabe"),
   },
   (t) => [
+    // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf oder (PR a1) Akteur.
     check(
       "inbox_eintrag_genau_ein_strom_check",
-      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}) = 1`,
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}) = 1`,
     ),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
     // AP2.4 PR c: Aufgabentext nur beim Typ aufgabe, dort Pflicht (1–500 Zeichen ohne Rand).
@@ -876,7 +908,7 @@ export const inboxEintrag = pgTable(
     // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
     check(
       "inbox_eintrag_urheber_check",
-      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
+      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
     ),
     uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
       .on(t.empfaengerId, t.biomassestromId)
@@ -914,6 +946,12 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_output_hinweis_uidx")
       .on(t.empfaengerId, t.typ, t.outputBedarfId, t.bezugsdatum)
       .where(sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and ${t.outputBedarfId} is not null`),
+    // AP2.5 PR a1 (E66): Verwaist-Hinweis — je Empfaenger, Akteur und
+    // Bezugsdatum (seit wann verwaist) genau ein Eintrag, ueber alle Zustaende;
+    // NULLS NOT DISTINCT in der Migration (0035), die SQL-Datei ist massgeblich.
+    uniqueIndex("inbox_eintrag_akteur_hinweis_uidx")
+      .on(t.empfaengerId, t.typ, t.akteurId, t.bezugsdatum)
+      .where(sql`inbox_typ_text(${t.typ}) = 'akteur_verwaist' and ${t.akteurId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)
