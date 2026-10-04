@@ -308,6 +308,18 @@ jobs:
 
       # AP2.2 PR a: Ereignisprotokoll — Enum/Spalten/CHECK stehen, der CHECK
       # greift (Zeile ohne Urheber abgewiesen), Rollback hinterlaesst nichts.
+      # TMP ROT-NACHWEIS: Sektor-Check vorgezogen, damit er vor dem hier erwartbar roten Inbox-Check laeuft.
+      - name: Sektor-Check (sektor)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db sektor-check
+
+      # AP2.4 PR a (E62): Verifikationsmodell — strom_verifikation() steht und
+      # leitet jeden Zustand richtig ab (ungeprueft, in_pruefung, gueltig,
+      # abgelaufen, als_abgelaufen_markiert, pruefdatum_unbekannt), die
+      # Typ-Frist zaehlt ab dem Prueftag, gueltig_bis gilt fuer die oberen
+      # vier Typen, die Markierung wertet die Qualitaet ab (D3).
       - name: Protokoll-Check (Ereignisprotokoll)
         if: github.event_name == 'pull_request'
         env:
@@ -336,17 +348,6 @@ jobs:
       # ("abnehmer"/"ohne_sektor" nie ein Sektor), kein Akteur traegt einen
       # unbekannten Sektor, der Fremdschluessel greift, Akteur-Anlage mit/ohne
       # Sektor geht durch, ein Akteur an einem deaktivierten Sektor bleibt gueltig.
-      - name: Sektor-Check (sektor)
-        if: github.event_name == 'pull_request'
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: pnpm --filter @bhyo/db sektor-check
-
-      # AP2.4 PR a (E62): Verifikationsmodell — strom_verifikation() steht und
-      # leitet jeden Zustand richtig ab (ungeprueft, in_pruefung, gueltig,
-      # abgelaufen, als_abgelaufen_markiert, pruefdatum_unbekannt), die
-      # Typ-Frist zaehlt ab dem Prueftag, gueltig_bis gilt fuer die oberen
-      # vier Typen, die Markierung wertet die Qualitaet ab (D3).
       - name: Verifikation-Check (strom_verifikation)
         if: github.event_name == 'pull_request'
         env:
