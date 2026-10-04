@@ -1,4 +1,4 @@
-name: Job-Wache (Verifikations-Job, nur lesen)
+name: job-wache (Verifikations-Job, nur lesen)
 
 # AP2.4 PR b (E63), Betrieb 04.10.2026: Mehrfach taeglich pruefen, dass der
 # Verifikations-Job (Cloudflare Cron, 05:00 Berlin) fuer den faelligen

@@ -212,6 +212,9 @@ describe("job-wache.yml: jeder Lauf prueft (Betrieb 04.10.2026)", () => {
     expect(crons.length).toBeGreaterThanOrEqual(3);
     for (const [minute] of crons) expect(minute % 5, `Minute ${minute}`).not.toBe(0);
   });
+  it("der Workflow-Name beginnt mit 'job-wache' — Erics Mail-Filter haengt am Betreff (04.10.2026)", () => {
+    expect(wache).toMatch(/^name: job-wache\b/m);
+  });
   it("laeuft im Environment production-lesend mit dem lesenden Secret", () => {
     expect(wache).toMatch(/environment: production-lesend/);
     expect(wache).toMatch(/DATABASE_URL_PRODUCTION_LESEND/);
