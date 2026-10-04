@@ -4,6 +4,11 @@ on:
   push:
     branches: [main]
   pull_request:
+    # ready_for_review: Ein Entwurf bekommt beim Umschalten auf „bereit" den
+    # Preview-Deploy samt Migration, den er als Entwurf nicht bekam (Regel Eric
+    # 01.10.2026: auf die geteilte Preview migriert nur der PR, der als Naechster
+    # gemergt wird; Entwuerfe laufen durch Typen und Tests, ohne Preview-Deploy).
+    types: [opened, synchronize, reopened, ready_for_review]
   # Notausgang (kein Ersatz fuer den push-Trigger): beim PR-7-Merge hat
   # GitHub fuer den Squash-Commit kein PushEvent erzeugt (Events-API leer,
   # kein Token-/paths-Problem — Einzelfall-Drop). Damit laesst sich der
@@ -170,6 +175,7 @@ jobs:
       always() && !cancelled() &&
       needs.typen-und-tests.result == 'success' &&
       needs.ziel-wache.result == 'success' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
     runs-on: ubuntu-24.04

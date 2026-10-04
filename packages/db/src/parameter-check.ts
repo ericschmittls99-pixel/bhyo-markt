@@ -26,6 +26,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -69,8 +71,15 @@ async function main() {
   console.log("HEUTE " + JSON.stringify(heute.map((z) => `${z.schluessel}=${z.heute}`)));
   const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage"];
   const fehlendeStart = ERWARTET.filter((k) => !start.some((z) => z.schluessel === k));
-  if (start.length !== ERWARTET.length || fehlendeStart.length) fehler.push(`${start.length} Startwerte statt ${ERWARTET.length} (fehlend: ${fehlendeStart.join(", ") || "–"})`);
-  if (heute.length !== ERWARTET.length) fehler.push("nicht jeder Schluessel ist heute aufloesbar");
+  // Journal-Vergleich (Eric 01.10.2026): Startwerte exakt bei gleichem Journal, mindestens wenn die DB voraus ist.
+  const journal = await journalModus(sql, url!);
+  console.log(modusText(journal));
+  if (journal.modus === "rot") fehler.push(journal.grund);
+  const modus = journal.modus === "mindest" ? "mindest" : "exakt";
+  const z1 = zaehlerPasst("Startwerte", start.length, ERWARTET.length, modus);
+  if (z1 || fehlendeStart.length) fehler.push(`${z1 ?? `${start.length} Startwerte`} (fehlend: ${fehlendeStart.join(", ") || "–"})`);
+  const z2 = zaehlerPasst("aufloesbare Schluessel", heute.length, ERWARTET.length, modus);
+  if (z2) fehler.push("nicht jeder Schluessel ist heute aufloesbar: " + z2);
   const vorlauf = heute.find((z) => z.schluessel === "verifikation.vorlauf_tage");
   if (!vorlauf || Number(vorlauf.heute) !== 7) fehler.push(`verifikation.vorlauf_tage heute ${vorlauf?.heute} statt 7 (Startwert E63)`);
 
