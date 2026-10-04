@@ -35,6 +35,7 @@
  */
 import postgres from "postgres";
 
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");

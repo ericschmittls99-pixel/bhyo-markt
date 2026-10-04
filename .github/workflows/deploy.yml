@@ -8,6 +8,10 @@ on:
   # 01.10.2026: auf die geteilte Preview migriert nur der PR, der als Naechster
   # gemergt wird; Entwuerfe laufen durch Typen und Tests, ohne Preview-Deploy).
   pull_request:
+    # ready_for_review: Ein Entwurf bekommt beim Umschalten auf „bereit" den
+    # Preview-Deploy samt Migration, den er als Entwurf nicht bekam (Regel Eric
+    # 01.10.2026: auf die geteilte Preview migriert nur der PR, der als Naechster
+    # gemergt wird; Entwuerfe laufen durch Typen und Tests, ohne Preview-Deploy).
     types: [opened, synchronize, reopened, ready_for_review]
   # Notausgang (kein Ersatz fuer den push-Trigger): beim PR-7-Merge hat
   # GitHub fuer den Squash-Commit kein PushEvent erzeugt (Events-API leer,

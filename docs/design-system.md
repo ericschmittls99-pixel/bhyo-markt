@@ -797,13 +797,19 @@ Zugriffsanfrage (`pop ov-anfrage ib-weiter`): Auswahl „An" (aktive Nutzer ab
 bearbeiter, die eigene Person fehlt), Feld „Aufgabe" vorbefüllt mit „Bitte
 aktualisieren", frei änderbar, Zähler `n/500`, „Abbrechen" und Primär-Button
 „Weitergeben" (gesperrt bei leerem oder zu langem Text). Der eigene Eintrag
-wandert nach „Erledigt".
+**bleibt offen** (E65, 04.10.2026) und gilt als gelesen; er wird erst mit der
+Sache selbst erledigt (geprüft, erneut verifiziert, verworfen).
 
 **Aufgabe (Typ `aufgabe`):** Zeile mit Avatar der weitergebenden Person und
 Text „Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren"".
 Aufgaben sind Aufgaben (nicht in „Alle erledigt"); Aktionen Öffnen, Erledigt,
 Verwerfen, als ungelesen markieren. Sie werden automatisch erledigt, sobald
 der Strom geprüft, erneut verifiziert oder verworfen ist.
+
+**Schmale Fenster (< 1000 px):** Die Aktionen der Inbox-Zeile (Öffnen,
+Weitergeben, Erneut verifizieren, Erledigen, Verwerfen, Menü) rücken unter
+den Textblock (`grid-column: 3 / -1`, umbrechend), damit der Text nie auf
+0 px zusammenfällt (Befund 04.10.2026 bei 836 px Viewport).
 
 ## akteure. — Liste, Detail, Sitz (AP2.5 PR a1, E66, 01.10.2026)
 
