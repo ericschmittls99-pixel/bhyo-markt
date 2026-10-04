@@ -5218,6 +5218,14 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 8px;
   flex-wrap: wrap;
 }
+/* PR c: Weitergeben-Popover in der Inbox (Aufbau wie die Zugriffsanfrage). */
+.ib-weiter {
+  width: 320px;
+}
+.ib-weiter-an {
+  width: 100%;
+  margin-bottom: 8px;
+}
 /* PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen in der Avatar-Groesse. */
 .ib-system {
   color: var(--text-muted);
@@ -5254,6 +5262,25 @@ table.st-tabelle tbody tr:focus-visible {
   display: flex;
   align-items: center;
   gap: 2px;
+}
+/* AP2.4 PR c: Mit „Weitergeben" und „Erneut verifizieren" verdraengen die Aktionen
+   bei schmalem Inhalt (< 1000 px Fenster, Seitenleiste offen) den Textblock auf
+   0 px. Dann wandern die Aktionen unter den Text statt ihn zu verstecken. */
+@media (max-width: 1000px) {
+  .ib-zeile {
+    grid-template-columns: 8px 24px minmax(0, 1fr) auto;
+  }
+  .ib-zeile .ib-aktionen {
+    grid-column: 3 / -1;
+    justify-self: start;
+    flex-wrap: wrap;
+  }
+  /* Das Weitergeben-Popover haengt rechtsbuendig am Knopf und ragte unter die
+     Seitenleiste; schmal oeffnet es sich nach rechts. */
+  .ib-zeile .ib-weiter {
+    left: 0;
+    right: auto;
+  }
 }
 .ib-menue {
   right: 0;

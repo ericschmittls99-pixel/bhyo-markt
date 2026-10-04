@@ -755,6 +755,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "abgelaufen_aufgehoben",
   // AP2.4 PR b (E63): erneute Verifikation ohne Statuswechsel — neuer Prueftag.
   "reverifiziert",
+  // AP2.4 PR c (E63, D5): Weitergabe eines Pruefauftrags/Ablauf-Hinweises als Aufgabe.
+  "weitergegeben",
 ]);
 
 export const aenderung = pgTable(
@@ -810,6 +812,8 @@ export const inboxTyp = pgEnum("inbox_typ", [
   // AP2.4 PR b (E63): Hinweise des taeglichen Jobs, zustandsbasiert (lib/inbox/hinweise.ts).
   "verifikation_laeuft_ab",
   "verifikation_abgelaufen",
+  // AP2.4 PR c (E63, D5): Aufgabe an eine Person („Bitte aktualisieren"), aus Weitergeben.
+  "aufgabe",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -850,6 +854,12 @@ export const inboxEintrag = pgTable(
     zustandSeit: timestamp("zustand_seit", { withTimezone: true }).notNull().defaultNow(),
     /** PR c: Notiz der Zugriffsanfrage (max. 500 Zeichen, geprueft im Code). */
     notiz: text("notiz"),
+    /**
+     * AP2.4 PR c (E63, D5): Aufgabentext beim Typ aufgabe — nicht leer,
+     * hoechstens 500 Zeichen, bei jedem anderen Typ NULL (CHECK
+     * inbox_eintrag_aufgabe_check; dieselbe Regel serverseitig in lib/inbox/aufgabe.ts).
+     */
+    aufgabe: text("aufgabe"),
   },
   (t) => [
     check(
@@ -857,6 +867,11 @@ export const inboxEintrag = pgTable(
       sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}) = 1`,
     ),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
+    // AP2.4 PR c: Aufgabentext nur beim Typ aufgabe, dort Pflicht (1–500 Zeichen ohne Rand).
+    check(
+      "inbox_eintrag_aufgabe_check",
+      sql`(inbox_typ_text(${t.typ}) = 'aufgabe' and ${t.aufgabe} is not null and length(btrim(${t.aufgabe})) between 1 and 500) or (inbox_typ_text(${t.typ}) <> 'aufgabe' and ${t.aufgabe} is null)`,
+    ),
     // PR b: Nur die Job-Hinweise kommen ohne Urheber und Ereignis; jeder andere
     // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
     check(

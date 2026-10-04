@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { zeilenText } from "./register";
+
 import { INBOX_TYPEN, typenFuerArt, typFuerArt } from "./register";
 
 describe("Inbox-Register", () => {
@@ -57,5 +59,27 @@ describe("Inbox-Register", () => {
   it("Alle erledigt gilt fuer reine Hinweise", () => {
     expect(INBOX_TYPEN.aenderung_eintrag.reinerHinweis).toBe(true);
     expect(INBOX_TYPEN.aenderung_eintrag.aktionen).toContain("inbox.alle_erledigen");
+  });
+});
+
+// AP2.4 PR c (E63, D5)
+describe("Register — Aufgabe (PR c)", () => {
+  it("weitergegeben → aufgabe (nur dieser Typ), Aufgabe ist Aufgabe (nicht in Alle erledigt), Text nennt die Aufgabe", () => {
+    expect(typenFuerArt("weitergegeben")).toEqual(["aufgabe"]);
+    expect(INBOX_TYPEN.aufgabe.reinerHinweis).toBe(false);
+    expect(INBOX_TYPEN.aufgabe.aktionen).not.toContain("inbox.alle_erledigen");
+    expect(INBOX_TYPEN.aufgabe.text({ ausloeserName: "Petra Prüfer", belegNr: "B-000012", bezeichnung: "Stroh", anzahl: 1, aufgabe: "Bitte aktualisieren" })).toBe(
+      "Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren\"",
+    );
+    for (const t of ["pruefauftrag", "verifikation_laeuft_ab", "verifikation_abgelaufen"] as const) expect(INBOX_TYPEN[t].aktionen).toContain("inbox.weitergeben");
+    expect(INBOX_TYPEN.aufgabe.aktionen).not.toContain("inbox.weitergeben");
+  });
+});
+
+describe("zeilenText: unbekannter Typ eines spaeteren Stands", () => {
+  it("liefert einen benannten Platzhalter statt zu werfen", () => {
+    const z = { ausloeserName: "", belegNr: null, bezeichnung: "Strom A", anzahl: 1 };
+    expect(zeilenText("typ_aus_der_zukunft", z)).toBe("Hinweis eines neueren Stands (typ_aus_der_zukunft) — Strom A");
+    expect(zeilenText("freischaltung", { ...z, ausloeserName: "Eric" })).toMatch(/^Eric hat dir Zugriff/);
   });
 });

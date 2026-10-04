@@ -83,6 +83,7 @@ describe("protokolliere", () => {
       ausloeserId: BASIS.benutzerId,
       betrifftId: null,
       text: null,
+      aufgabe: null,
     });
   });
 

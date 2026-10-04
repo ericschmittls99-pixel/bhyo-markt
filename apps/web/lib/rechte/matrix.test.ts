@@ -56,6 +56,7 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "beleg.abgelaufen_markieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "beleg.abgelaufen_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "strom.reverifizieren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  "inbox.weitergeben": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -97,8 +98,9 @@ describe("E42 Rechte-Matrix (Rollenstufe)", () => {
       const o = passendesObjekt(a);
       if (darf({ rolle: "bearbeiter", id: ICH }, a, o)) expect(darf({ rolle: "pruefer", id: ICH }, a, o)).toBe(true);
       if (darf({ rolle: "pruefer", id: ICH }, a, o)) expect(darf({ rolle: "admin", id: ICH }, a, o)).toBe(true);
-      // Betrachter schreiben nichts Fachliches — ihre eigene Inbox duerfen sie bedienen (AP2.2).
-      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe(a.startsWith("inbox."));
+      // Betrachter schreiben nichts Fachliches — ihre eigene Inbox duerfen sie bedienen (AP2.2);
+      // Weitergeben (PR c) ist eine fachliche Handlung und beginnt bei bearbeiter.
+      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe(a.startsWith("inbox.") && a !== "inbox.weitergeben");
     }
   });
 
@@ -225,10 +227,11 @@ describe("E44 Sperren, Entsperren, Zuweisen", () => {
 
 // --- AP2.2: Inbox — nur der Empfaenger --------------------------------------
 describe("AP2.2 Inbox: Objektregel nur Empfaenger", () => {
-  for (const aktion of ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.ablehnen"] as const) {
+  for (const aktion of ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.ablehnen", "inbox.weitergeben"] as const) {
     it(`${aktion}: eigener Eintrag ja, fremder nein — auch fuer admin; ohne Objekt nie`, () => {
       for (const rolle of ROLLEN) {
-        expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ICH })).toBe(true);
+        // PR c: Weitergeben beginnt bei bearbeiter — der eigene Eintrag reicht dem Betrachter nicht.
+        expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ICH })).toBe(!(aktion === "inbox.weitergeben" && rolle === "betrachter"));
         expect(darf({ rolle, id: ICH }, aktion, { empfaengerId: ANDERE })).toBe(false);
         expect(darf({ rolle, id: ICH }, aktion)).toBe(false);
       }

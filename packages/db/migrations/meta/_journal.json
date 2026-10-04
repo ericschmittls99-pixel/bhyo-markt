@@ -239,6 +239,13 @@
       "when": 1790837606338,
       "tag": "0033_ap24_job_hinweise",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1790849380042,
+      "tag": "0034_ap24_aufgabe",
+      "breakpoints": true
     }
   ]
 }
