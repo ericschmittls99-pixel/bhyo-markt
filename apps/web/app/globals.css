@@ -5541,5 +5541,6 @@ table.st-tabelle tbody tr:focus-visible {
    (< 1000 px mit Seitenleiste); statt die Aktionen abzuschneiden, scrollt der Block
    horizontal und die Knopftexte brechen nicht um. */
 .kp { overflow-x: auto; }
+.kp td { overflow-wrap: anywhere; }
 .kp .param-aktionen .btn { white-space: nowrap; }
 .kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
