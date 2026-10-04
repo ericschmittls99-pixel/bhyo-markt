@@ -219,6 +219,8 @@ describe("job-wache.yml: jeder Lauf prueft (Betrieb 04.10.2026)", () => {
     expect(wache).toMatch(/environment: production-lesend/);
     expect(wache).toMatch(/DATABASE_URL_PRODUCTION_LESEND/);
     expect(wache).not.toMatch(/secrets\.DATABASE_URL_PRODUCTION\b/);
+  });
+});
 
 // Regel Eric 01.10.2026: Entwuerfe (draft) bekommen keinen Preview-Deploy und keine
 // Migration — nur der naechste zu mergende PR migriert die geteilte Preview.
