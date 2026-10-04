@@ -11,7 +11,7 @@ import type { Zugang } from "@/lib/rechte";
 import type { Tx } from "@/lib/rechte/sperre-server";
 import type { StromArt } from "@/lib/stroeme-modell";
 
-import { INBOX_TYPEN, type InboxTyp } from "./register";
+import { type InboxTyp, zeilenText } from "./register";
 
 export type Leser = Pick<AppDb, "select">;
 
@@ -102,7 +102,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       notiz: z.notiz,
       bezugsdatum: z.bezugsdatum,
       aufgabe: z.aufgabe,
-      text: INBOX_TYPEN[z.typ].text({
+      text: zeilenText(z.typ, {
         ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
         belegNr: z.belegNr,
         bezeichnung,

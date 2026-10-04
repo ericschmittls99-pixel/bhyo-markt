@@ -148,6 +148,17 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
   },
 };
 
+/**
+ * Zeilentext zu einem Typ. Kennt dieser Stand den Typ nicht (geteilte
+ * Preview, Datenbank mit spaeterer Migration — z. B. Hinweise von AP2.5),
+ * bleibt die Zeile sichtbar mit einem benannten Platzhalter statt die ganze
+ * Inbox abstuerzen zu lassen (Befund 04.10.2026).
+ */
+export function zeilenText(typ: string, z: ZeilenDaten): string {
+  const def = (INBOX_TYPEN as Record<string, TypDefinition | undefined>)[typ];
+  return def ? def.text(z) : `Hinweis eines neueren Stands (${typ}) — ${z.bezeichnung ?? z.belegNr ?? "ohne Objekt"}`;
+}
+
 /** Welche Typen entstehen aus einer Ereignisart, in Zustellreihenfolge? Leer = keine Zustellung. */
 export function typenFuerArt(art: EreignisArt): InboxTyp[] {
   return (Object.entries(INBOX_TYPEN) as [InboxTyp, TypDefinition][]).filter(([, def]) => def.arten.includes(art)).map(([typ]) => typ);
