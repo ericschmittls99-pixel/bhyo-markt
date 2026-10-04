@@ -204,9 +204,12 @@ async function main() {
   console.log("MIGRATION_0033 " + JSON.stringify({ stand: vollstaendig33 ? "vorhanden" : "fehlt", ...m33, fehlt: fehlt33 }));
   if (vs!.funktion_verifikation) {
     const [jl] = m33!.job_lauf
-      ? await sql`select count(*)::int as laeufe, max(stichtag)::text as letzter_stichtag,
-                         (select ergebnis from job_lauf where job = 'verifikation' order by stichtag desc limit 1) as letztes_ergebnis
-                    from job_lauf where job = 'verifikation'`
+      ? await sql`with l as (select * from job_lauf where job = 'verifikation' order by stichtag desc limit 1)
+                  select (select count(*)::int from job_lauf where job = 'verifikation') as laeufe,
+                         l.stichtag::text as letzter_stichtag, l.ergebnis as letztes_ergebnis, l.anzahl as letzte_anzahl,
+                         l.gestartet_am::text as gestartet_am, l.beendet_am::text as beendet_am,
+                         extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s
+                    from l`
       : [{ laeufe: null, letzter_stichtag: null, letztes_ergebnis: null }];
     console.log("JOB_LAUF " + JSON.stringify(jl));
     const zustaende = await sql`

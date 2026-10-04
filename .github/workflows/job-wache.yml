@@ -1,16 +1,21 @@
 name: Job-Wache (Verifikations-Job, nur lesen)
 
-# AP2.4 PR b (E63): Taeglich um 06:00 Berlin pruefen, dass der
-# Verifikations-Job (Cloudflare Cron, 05:00 Berlin) fuer heute mit ergebnis =
-# ok in job_lauf steht. Zwei Cron-Zeiten (04:00 und 05:00 UTC), die Wache
-# prueft nur in der Berliner Stunde 6 — genau einmal taeglich, auch ueber die
-# Zeitumstellung. Nur SELECT ueber die Lese-Berechtigung (Environment
+# AP2.4 PR b (E63), Betrieb 04.10.2026: Mehrfach taeglich pruefen, dass der
+# Verifikations-Job (Cloudflare Cron, 05:00 Berlin) fuer den faelligen
+# Stichtag mit ergebnis = ok in job_lauf steht — ab 05:30 Berlin heute, davor
+# gestern (packages/db/src/job-wache-stichtag.ts). JEDER Lauf prueft; es gibt
+# keine Stundensperre mehr (GitHub startete die geplanten Laeufe 5–6 Stunden
+# zu spaet, die alte Wache endete dann gruen ohne Pruefung). Krumme Minuten,
+# weil volle Stunden bei GitHub am staerksten verzoegert werden; Doppellaeufe
+# sind lesend und harmlos. Nur SELECT ueber die Lese-Berechtigung (Environment
 # production-lesend, Branch-Policy main). Rot = GitHub benachrichtigt per
 # Mail. Manuell: Stichtag angeben (Rot-Nachweis mit einem Tag ohne Lauf).
 on:
   schedule:
-    - cron: "0 4 * * *"
-    - cron: "0 5 * * *"
+    - cron: "17 4 * * *"
+    - cron: "43 6 * * *"
+    - cron: "29 10 * * *"
+    - cron: "11 15 * * *"
   workflow_dispatch:
     inputs:
       stichtag:
@@ -35,6 +40,4 @@ jobs:
       - name: Job-Wache (nur lesen)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
-          # Manuell gestartet: sofort pruefen, nicht auf die Stunde warten.
-          JOB_WACHE_STUNDE: ${{ github.event_name == 'workflow_dispatch' && 'immer' || '6' }}
         run: pnpm --filter @bhyo/db job-wache ${{ inputs.stichtag }}
