@@ -804,3 +804,8 @@ Text „Petra Prüfer bittet dich zu B-000012 Stroh: „Bitte aktualisieren"".
 Aufgaben sind Aufgaben (nicht in „Alle erledigt"); Aktionen Öffnen, Erledigt,
 Verwerfen, als ungelesen markieren. Sie werden automatisch erledigt, sobald
 der Strom geprüft, erneut verifiziert oder verworfen ist.
+
+**Schmale Fenster (< 1000 px):** Die Aktionen der Inbox-Zeile (Öffnen,
+Weitergeben, Erneut verifizieren, Erledigen, Verwerfen, Menü) rücken unter
+den Textblock (`grid-column: 3 / -1`, umbrechend), damit der Text nie auf
+0 px zusammenfällt (Befund 04.10.2026 bei 836 px Viewport).
