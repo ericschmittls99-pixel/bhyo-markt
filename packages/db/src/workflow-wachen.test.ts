@@ -190,6 +190,38 @@ describe("Environments: Leseweg und Restore getrennt", () => {
   });
 });
 
+describe("job-wache.yml: jeder Lauf prueft (Betrieb 04.10.2026)", () => {
+  const wache = readFileSync(new URL("../../../.github/workflows/job-wache.yml", import.meta.url), "utf8");
+  // Code ohne Kommentare — der Kopfkommentar darf die alte Sperre beim Namen nennen.
+  const skript = readFileSync(new URL("./job-wache.ts", import.meta.url), "utf8").replace(/\/\*[\s\S]*?\*\//g, "").replace(/^\s*\/\/.*$/gm, "");
+  it("keine Stundensperre: weder im Workflow (JOB_WACHE_STUNDE) noch im Skript (berlinStunde / 'prueft nicht')", () => {
+    expect(wache).not.toMatch(/JOB_WACHE_STUNDE/);
+    expect(skript).not.toMatch(/berlinStunde|istBerlinStunde|prueft nicht|JOB_WACHE_STUNDE/);
+  });
+  it("der faellige Stichtag kommt aus der reinen Funktion faelligerStichtag", () => {
+    expect(skript).toMatch(/import \{ faelligerStichtag \} from "\.\/job-wache-stichtag"/);
+    expect(skript).toMatch(/faelligerStichtag\(jetzt\)/);
+  });
+  it("jeder Fehlerpfad endet rot (exit 1/2), kein return mit Gruen vor der Pruefung", () => {
+    const rumpf = skript.slice(skript.indexOf("async function main()"));
+    expect(rumpf).not.toMatch(/^\s*return;\s*$/m);
+    expect(skript).toMatch(/main\(\)\.catch[\s\S]*process\.exit\(2\)/);
+  });
+  it("mehrere Cron-Zeiten taeglich, alle auf krummen Minuten", () => {
+    const crons = [...wache.matchAll(/- cron: "(\d+) (\d+) \* \* \*"/g)].map((m) => [Number(m[1]), Number(m[2])] as const);
+    expect(crons.length).toBeGreaterThanOrEqual(3);
+    for (const [minute] of crons) expect(minute % 5, `Minute ${minute}`).not.toBe(0);
+  });
+  it("der Workflow-Name beginnt mit 'job-wache' — Erics Mail-Filter haengt am Betreff (04.10.2026)", () => {
+    expect(wache).toMatch(/^name: job-wache\b/m);
+  });
+  it("laeuft im Environment production-lesend mit dem lesenden Secret", () => {
+    expect(wache).toMatch(/environment: production-lesend/);
+    expect(wache).toMatch(/DATABASE_URL_PRODUCTION_LESEND/);
+    expect(wache).not.toMatch(/secrets\.DATABASE_URL_PRODUCTION\b/);
+  });
+});
+
 // Regel Eric 01.10.2026: Entwuerfe (draft) bekommen keinen Preview-Deploy und keine
 // Migration — nur der naechste zu mergende PR migriert die geteilte Preview.
 describe("deploy.yml: Entwuerfe deployen nicht auf die Preview", () => {
