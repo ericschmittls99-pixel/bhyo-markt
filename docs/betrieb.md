@@ -79,7 +79,7 @@ abzuschalten statt einzelne Abfragen zu markieren.
 | Environment | Secrets (nur Namen, Zielstand nach Schritt 6 der Härtung) | Nutzer |
 |---|---|---|
 | `production` | DATABASE_URL_PRODUCTION | migrate-production.yml (schreibend, nur von main; ziel-wache davor) |
-| `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy), job-wache.yml (täglich 06:00 Berlin, AP2.4 PR b) |
+| `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy), job-wache.yml (mehrfach täglich, AP2.4 PR b / Betrieb 04.10.2026) |
 | `neon-restore` | NEON_API_KEY, NEON_PROJECT_ID, NEON_PARENT_BRANCH_ID | restore-woechentlich.yml (montags 03:00 UTC und manuell) |
 
 **Regel „nur main" auf allen dreien** (custom branch policy `main`, per
@@ -113,9 +113,19 @@ weiter, protokolliert sich in `job_lauf` und schreibt Hinweise in
 
 **Beobachten:** Workers-Logs (Observability ist an) mit Präfix
 `JOB verifikation`; in der Datenbank `job_lauf` (nur lesend über den
-Leseweg). `job-wache.yml` (Environment production-lesend, nur main) prüft
-täglich um 06:00 Berlin, dass für heute ein Lauf mit ergebnis = ok steht —
-sonst rot, GitHub benachrichtigt per Mail. Manuell mit Stichtag startbar.
+Leseweg; die JOB_LAUF-Zeile der Protokoll-Messung nennt Stichtag, Ergebnis,
+Anzahl, gestartet_am, beendet_am und Dauer des letzten Laufs).
+`job-wache.yml` (Environment production-lesend, nur main) läuft mehrfach
+täglich (Cron 04:17, 06:43, 10:29, 15:11 UTC — krumme Minuten, weil GitHub
+volle Stunden am stärksten verzögert; am 02./03.10.2026 kamen die geplanten
+Läufe fünf bis sechs Stunden zu spät) und prüft bei **jedem** Lauf, dass für
+den fälligen Stichtag ein Lauf mit ergebnis = ok steht: ab 05:30 Berlin heute,
+davor gestern (`packages/db/src/job-wache-stichtag.ts`, reine Funktion mit
+Tests über Sommer-/Winterzeit). Es gibt keinen Ausgang „prüft nicht" mehr;
+nicht prüfbar (keine Verbindung) ist rot. Doppelläufe sind lesend und
+harmlos. Rot = GitHub benachrichtigt per Mail (bei geplanten Läufen das
+Konto des letzten Commits an der Workflow-Datei, bei manuellen Läufen den
+Auslöser). Manuell mit Stichtag startbar (Rot-Nachweis).
 `bhyo_leser` liest `job_lauf` über die Standardrechte von neondb_owner
 (Leseweg STANDARDRECHTE: `bhyo_leser=r/neondb_owner` auf public) — kein
 zusätzlicher GRANT nötig.

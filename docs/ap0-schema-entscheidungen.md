@@ -1140,10 +1140,15 @@ verwerfen und „Erneut verifizieren" (Prüfer). Abgeräumt bei allen nach
 geprueft, reverifiziert, in_pruefung_gegeben, zurueckgesetzt, verworfen,
 als_abgelaufen_markiert (Zustellung, dieselbe Transaktion).
 
-**Job-Wache (`job-wache.yml`).** Täglich 06:00 Berlin (Cron 04:00 und 05:00
-UTC, Prüfung nur in der Berliner Stunde 6), Environment production-lesend
-(nur main), nur SELECT: rot, wenn für heute kein `job_lauf` mit ergebnis =
-ok steht; manuell mit Stichtag (Rot-Nachweis). `job_lauf` ist für bhyo_leser
+**Job-Wache (`job-wache.yml`).** Seit Betrieb 04.10.2026 (Entscheidung Eric):
+mehrfach täglich auf krummen Minuten (04:17, 06:43, 10:29, 15:11 UTC), jeder
+Lauf prüft — ab 05:30 Berlin den heutigen Stichtag, davor den gestrigen
+(reine Funktion `faelligerStichtag`, Tests über Sommer-/Winterzeit und die
+Umstellung 25.10.2026). Die frühere Stundensperre (Prüfung nur in der
+Berliner Stunde 6) ist ersatzlos weg: GitHub startete die geplanten Läufe
+fünf bis sechs Stunden zu spät, die Wache endete grün ohne Prüfung. Kein
+Ausgang „prüft nicht" mit Grün; nicht prüfbar ist rot. Environment
+production-lesend (nur main), nur SELECT; manuell mit Stichtag (Rot-Nachweis). `job_lauf` ist für bhyo_leser
 über die Standardrechte von neondb_owner lesbar (Leseweg, STANDARDRECHTE).
 
 **Freigegebene Abweichungen (Abnahme PR b, Eric 01.10.2026; werden später
@@ -1168,8 +1173,15 @@ zurückgerollt.
 nurEmpfaenger): Der Empfänger eines Prüfauftrags oder Ablauf-Hinweises
 (`pruefauftrag`, `verifikation_laeuft_ab`, `verifikation_abgelaufen`) gibt
 ihn als Aufgabe an eine Person weiter — aktiv, Rolle ≥ bearbeiter
-(`darfZugewiesenWerden`), **nie an sich selbst**. Der eigene Eintrag ist damit
-erledigt. **Aufgabentext** vorbefüllt „Bitte aktualisieren", frei änderbar,
+(`darfZugewiesenWerden`), **nie an sich selbst**. **E65 (Eric 04.10.2026):
+Der eigene Eintrag des Absenders bleibt offen** (nur gelesen), bis die Sache
+selbst erledigt ist — geprüft, erneut verifiziert oder verworfen räumen
+Hinweis/Prüfauftrag und Aufgabe bei allen Empfängern ab. Verwirft der
+Empfänger die Aufgabe, bleibt der Absender-Eintrag offen. Tests:
+`lib/inbox/weitergeben.test.ts` („E65: der eigene Eintrag bleibt OFFEN"),
+`lib/inbox/zustellung.test.ts` („E65: geprueft erledigt den offenen
+Absender-Hinweis UND die weitergegebene Aufgabe"), `lib/inbox/actions.test.ts`
+(„E65: Verwerfen der weitergegebenen Aufgabe aendert nur den eigenen Eintrag"). **Aufgabentext** vorbefüllt „Bitte aktualisieren", frei änderbar,
 nicht leer, höchstens 500 Zeichen — serverseitig (`lib/inbox/aufgabe.ts`,
 Meldung) **und** als DB-CHECK `inbox_eintrag_aufgabe_check` (Migration 0034:
 Text nur beim Typ aufgabe, dort Pflicht; Rot-Nachweis leerer Text im Server
@@ -1297,6 +1309,20 @@ alle Sektoren und Orte mit Belegen aller sieben Typen, Dubletten stark/
 schwach, Verwaiste (teils älter als 6 Monate), Unvollständige, ohne Sektor,
 ohne Beleg. Idempotent, markiert, nur gegen die Preview (Schutz einmal rot:
 Production-Host und fehlende Variable).
+**Prüf-Ereignisse (Eric 04.10.2026):** Der erste Job-Lauf stellte auf der
+Preview 254 Hinweise „Prüfdatum unbekannt" zu, weil kein geprüfter
+Seed-Strom ein Prüf-Ereignis hatte. Der Seed schreibt deshalb für die
+geprüften Ströme beider Seeds Ereignisse `geprueft` mit Streuung
+(deterministisch aus der Strom-ID: gültig, läuft in 5 Tagen ab, abgelaufen,
+ein Zehntel bewusst ohne Prüfdatum als Altfall) und entfernt die alten
+Job-Hinweise der Seed-Ströme; der nächste Lauf stellt sie zustandsbasiert
+neu zu. Die bestehenden Hinweise erledigen sich **nicht** selbst: der Job
+erledigt nur Vorab-Hinweise, die ein Ablauf-Hinweis ersetzt, und
+Verwaist-Hinweise; „Prüfdatum unbekannt" räumt nur ein Ereignis über
+`protokolliere()` ab, und der Seed schreibt bewusst roh. „Prüfdatum
+unbekannt" bleibt eine Aufgabe, nicht abräumbar. Platzhalter für unbekannte
+Inbox-Typen (aus #153) loggt serverseitig `console.error` mit Typ und
+Eintrags-ID.
 
 **a2 (Contract, eigener PR):** NOT NULL auf `akteur.sektor`, `sitz_plz`,
 `sitz_ort` — nach dem Seed auf der Preview und der Messung auf Production
