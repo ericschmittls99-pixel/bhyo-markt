@@ -5275,6 +5275,12 @@ table.st-tabelle tbody tr:focus-visible {
     justify-self: start;
     flex-wrap: wrap;
   }
+  /* Das Weitergeben-Popover haengt rechtsbuendig am Knopf und ragte unter die
+     Seitenleiste; schmal oeffnet es sich nach rechts. */
+  .ib-zeile .ib-weiter {
+    left: 0;
+    right: auto;
+  }
 }
 .ib-menue {
   right: 0;
