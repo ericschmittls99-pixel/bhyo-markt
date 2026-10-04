@@ -19,6 +19,8 @@
  */
 import postgres from "postgres";
 
+import { journalModus, modusText, zaehlerPasst } from "./journal-vergleich";
+
 const url = process.env.DATABASE_URL;
 if (!url) {
   console.error("DATABASE_URL fehlt.");
@@ -76,7 +78,14 @@ async function main() {
   console.log("ENUM " + JSON.stringify(werte));
   for (const t of TYPEN) if (!werte.includes(t)) fehler.push(`Enum-Wert ${t} fehlt`);
   if (werte.includes("dokument_link")) fehler.push("dokument_link existiert noch im Enum");
-  if (werte.length !== TYPEN.length) fehler.push(`Enum hat ${werte.length} Werte statt ${TYPEN.length}`);
+  {
+    // Journal-Vergleich (Eric 01.10.2026): exakt bei gleichem Journal, mindestens wenn die DB voraus ist.
+    const journal = await journalModus(sql, url!);
+    console.log(modusText(journal));
+    if (journal.modus === "rot") fehler.push(journal.grund);
+    const z = zaehlerPasst("Enum-Werte", werte.length, TYPEN.length, journal.modus === "mindest" ? "mindest" : "exakt");
+    if (z) fehler.push(z);
+  }
 
   // (2) CHECK greift — drei Arten von "keine Quellenangabe".
   for (const [fall, metadata] of [
