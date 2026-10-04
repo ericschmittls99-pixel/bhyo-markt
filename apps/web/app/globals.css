@@ -5542,5 +5542,6 @@ table.st-tabelle tbody tr:focus-visible {
    horizontal und die Knopftexte brechen nicht um. */
 .kp { overflow-x: auto; }
 .kp td { overflow-wrap: anywhere; }
+.kp td:nth-child(4) { white-space: nowrap; } /* Datum nie mitten in der Zahl trennen */
 .kp .param-aktionen .btn { white-space: nowrap; }
 .kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
