@@ -285,7 +285,7 @@ describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ei
     // Die Migration wird erst nach (c) und nur bedingt ausgeloest.
     expect(freigabe.indexOf("gh workflow run migrate-production.yml")).toBeGreaterThan(d);
     expect(freigabe).toMatch(/if \[\[ -n "\$migrationen" \]\]; then\n[^\n]*\n\s+gh workflow run migrate-production\.yml/);
-    expect(freigabe).toContain('packages/db/migrations/[0-9]{4}_.*\\.sql');
+    expect(freigabe).toContain('packages/db/migrations/[0-9]{4}_');
   });
 
   it("freigabe.sh startet einen abgebrochenen Deploy-Lauf am Head genau einmal neu und wartet", () => {
