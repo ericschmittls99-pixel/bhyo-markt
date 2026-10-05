@@ -17,6 +17,18 @@ describe("Migrations-Runner (Betrieb 05.10.2026)", () => {
     expect(text).toContain("Statement: ALTER TABLE gibt_es_nicht ADD COLUMN x int");
   });
 
+  it("ein von drizzle verpackter Fehler (cause) liefert Code und Meldung der Ursache und das Statement des Mantels", () => {
+    const mantel = Object.assign(new Error("Failed query: ALTER TABLE gibt_es_nicht ADD COLUMN probe integer"), {
+      query: "ALTER TABLE gibt_es_nicht ADD COLUMN probe integer",
+      cause: Object.assign(new Error('relation "gibt_es_nicht" does not exist'), { code: "42P01", position: "13" }),
+    });
+    const text = fehlerBericht(mantel);
+    expect(text).toContain("Code:      42P01");
+    expect(text).toContain('Meldung:   relation "gibt_es_nicht" does not exist');
+    expect(text).toContain("Position:  13");
+    expect(text).toContain("Statement: ALTER TABLE gibt_es_nicht ADD COLUMN probe integer");
+  });
+
   it("ein Nicht-Postgres-Fehler wird trotzdem lesbar", () => {
     expect(fehlerBericht(new Error("Verbindung weg"))).toContain("Meldung:   Verbindung weg");
     expect(fehlerBericht("x")).toContain("Code:      –");

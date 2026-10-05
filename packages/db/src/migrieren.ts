@@ -33,9 +33,19 @@ interface PgFehler {
   where?: string;
 }
 
-/** Fehlertext mit allem, was Postgres mitgibt — nie nur „Exit 1". */
+/**
+ * Fehlertext mit allem, was Postgres mitgibt — nie nur „Exit 1". drizzle
+ * verpackt den Postgres-Fehler (DrizzleQueryError mit `cause`); Code, Detail
+ * und Position stehen in der Ursache, das Statement im Mantel. Beides wird
+ * zusammengefuehrt (Rot-Nachweis 05.10.2026 zeigte sonst „Code: –").
+ */
 export function fehlerBericht(f: unknown): string {
-  const e = (f ?? {}) as PgFehler;
+  const mantel = (f ?? {}) as PgFehler & { cause?: unknown };
+  const ursache = (mantel.cause ?? {}) as PgFehler;
+  const e: PgFehler = { ...mantel, ...Object.fromEntries(Object.entries(ursache).filter(([, v]) => v !== undefined)) };
+  if (!e.query && mantel.query) e.query = mantel.query;
+  // `message` eines Error ist nicht aufzaehlbar — ausdruecklich uebernehmen.
+  e.message = ursache.message ?? mantel.message;
   const zeilen = [
     `Meldung:   ${e.message ?? String(f)}`,
     `Code:      ${e.code ?? "–"}`,
