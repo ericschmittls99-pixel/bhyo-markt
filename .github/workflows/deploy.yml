@@ -28,10 +28,15 @@ on:
         required: false
         default: ""
 
-# Pro Ziel-Ref nur ein Deploy gleichzeitig; laufende überholte Deploys abbrechen.
+# Pro Ziel-Ref nur ein Deploy gleichzeitig. Abgebrochen wird NUR ein ueberholter
+# PR-Lauf (neuer Push = synchronize); alles andere wartet in der Schlange:
+# main-Deploys laufen nacheinander (Betriebs-PR, Eric 05.10.2026), und
+# ready_for_review bricht den Push-Lauf desselben Heads nicht mehr ab — der
+# hinterliess einen „cancelled"-Check am Head, an dem das Merge-Skript scheiterte
+# (dreimal am 05.10.2026).
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
 
 jobs:
   # Review Eric (24.09.2026): Das Deploy-Ziel hing allein am EVENT —
@@ -157,11 +162,27 @@ jobs:
       # Der Notausgang greift nur hier: Bei einem Push existiert der Input
       # nicht (leer), das Gate laeuft also IMMER. Nur ein manueller
       # workflow_dispatch mit woertlich "ja" ueberspringt die Pruefung.
-      - name: Schema-Stand pruefen (read-only)
+      # Warteschlange statt Rot (Betriebs-PR, 05.10.2026): Nach dem Merge eines
+      # Migrations-PR startet scripts/freigabe.sh sofort migrate-production.yml.
+      # Das Gate wartet bis zu 20 Minuten darauf, dass Production den Stand des
+      # Journals erreicht (Exit 1 = DB zurueck -> erneut pruefen), statt den
+      # Push-Lauf rot zu beenden und einen zweiten Deploy per Dispatch zu
+      # brauchen. Exit 2 (DB nicht erreichbar) bleibt sofort rot — andere
+      # Fehlerklasse.
+      - name: Schema-Stand pruefen (read-only, wartet auf die Production-Migration)
         if: inputs.gate_umgehen != 'ja'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
-        run: pnpm --filter @bhyo/db schema-gate
+        run: |
+          for versuch in $(seq 1 40); do
+            if pnpm --filter @bhyo/db schema-gate; then exit 0; fi
+            rc=$?
+            if [ "$rc" = "2" ]; then echo "::error::Production-DB nicht erreichbar — kein Schema-Befund."; exit 2; fi
+            echo "GATE wartet (Versuch $versuch/40): Production liegt hinter dem Journal — migrate-production.yml ausstehend."
+            sleep 30
+          done
+          echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal. migrate-production.yml (bestaetigung=production) starten, dann diesen Lauf erneut starten."
+          exit 1
       - name: "NOTAUSGANG aktiv: Gate uebersprungen"
         if: inputs.gate_umgehen == 'ja'
         run: |

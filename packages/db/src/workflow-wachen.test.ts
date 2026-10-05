@@ -238,3 +238,70 @@ describe("deploy.yml: Entwuerfe deployen nicht auf die Preview", () => {
     expect(workflow.indexOf("Migrate Preview-DB")).toBeLessThan(workflow.indexOf("\n  lese-diagnose:\n"));
   });
 });
+
+describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ein Skript", () => {
+  const migrateWf = readFileSync(new URL("../../../.github/workflows/migrate-production.yml", import.meta.url), "utf8");
+  const freigabe = readFileSync(new URL("../../../scripts/freigabe.sh", import.meta.url), "utf8");
+  const mergeSicher = readFileSync(new URL("../../../scripts/merge-sicher.sh", import.meta.url), "utf8");
+
+  it("deploy.yml bricht nur ueberholte PR-Laeufe ab (synchronize); main und ready_for_review warten", () => {
+    expect(workflow).toMatch(/cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' && github\.event\.action == 'synchronize' \}\}/);
+    expect(workflow).not.toMatch(/cancel-in-progress: true/);
+  });
+
+  it("migrate-production.yml ist eine Warteschlange und loest keinen zweiten Deploy mehr aus", () => {
+    expect(migrateWf).toMatch(/group: migrate-production\n\s+cancel-in-progress: false/);
+    expect(migrateWf).not.toContain("gh workflow run deploy.yml");
+    expect(migrateWf).not.toMatch(/actions: write/);
+  });
+
+  it("das schema-gate wartet auf die Production-Migration, statt den Push-Lauf rot zu beenden; DB nicht erreichbar bleibt sofort rot", () => {
+    expect(workflow).toMatch(/for versuch in \$\(seq 1 40\); do\n\s+if pnpm --filter @bhyo\/db schema-gate; then exit 0; fi/);
+    expect(workflow).toMatch(/if \[ "\$rc" = "2" \]; then[^\n]*exit 2/);
+    expect(workflow).toMatch(/sleep 30/);
+  });
+
+  it("nach 20 Minuten (40 x 30 s) ohne Migration endet das Gate ROT mit klarer Meldung (Bedingung Eric 05.10.2026)", () => {
+    // Hinter der Schleife: Fehlermeldung mit Handlungsanweisung, dann exit 1 — kein stilles Weiterlaufen.
+    expect(workflow).toMatch(/done\n\s+echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal\. migrate-production\.yml \(bestaetigung=production\) starten, dann diesen Lauf erneut starten\."\n\s+exit 1\n/);
+    // Der Deploy-Job haengt weiterhin am Gate-Ergebnis: rot = kein Deploy.
+    expect(workflow).toMatch(/needs\.schema-gate\.result == 'success'/);
+  });
+
+  it("freigabe.sh bricht bei jedem Fehlschlag sofort ab (set -euo pipefail) und merged ueber merge-sicher.sh", () => {
+    expect(freigabe).toMatch(/^set -euo pipefail$/m);
+    expect(freigabe).toContain('"$HIER/merge-sicher.sh" "$PR" "$head" "$BETREFF"');
+    expect(mergeSicher).toMatch(/^set -euo pipefail$/m);
+  });
+
+  it("freigabe.sh: Reihenfolge a) Head/Zustand, b) Merge, c) main = Squash, d) Migration nur bei neuer Migrationsdatei, e) Deploy", () => {
+    const pos = (s: string) => {
+      const i = freigabe.indexOf(s);
+      expect(i, s).toBeGreaterThan(-1);
+      return i;
+    };
+    const a = pos('echo "==> (a)');
+    const b = pos('echo "==> (b)');
+    const c = pos('echo "==> (c)');
+    const d = pos('echo "==> (d)');
+    const e = pos('echo "==> (e)');
+    expect(a).toBeLessThan(b);
+    expect(b).toBeLessThan(c);
+    expect(c).toBeLessThan(d);
+    expect(d).toBeLessThan(e);
+    // Die Migration wird erst nach (c) und nur bedingt ausgeloest.
+    expect(freigabe.indexOf("gh workflow run migrate-production.yml")).toBeGreaterThan(d);
+    expect(freigabe).toMatch(/if \[\[ -n "\$migrationen" \]\]; then\n[^\n]*\n\s+gh workflow run migrate-production\.yml/);
+    expect(freigabe).toContain('packages/db/migrations/[0-9]{4}_');
+  });
+
+  it("freigabe.sh startet einen abgebrochenen Deploy-Lauf am Head genau einmal neu und wartet", () => {
+    expect(freigabe).toMatch(/select\(\.conclusion == "cancelled"\)/);
+    expect(freigabe).toMatch(/gh run rerun "\$lauf"\n\s+gh run watch "\$lauf" --exit-status/);
+  });
+
+  it("freigabe.sh prueft nach dem Merge, dass main auf dem Squash-Commit steht", () => {
+    expect(freigabe).toContain("--jq .mergeCommit.oid");
+    expect(freigabe).toMatch(/"\$main" != "\$squash"/);
+  });
+});
