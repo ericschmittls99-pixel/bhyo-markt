@@ -105,5 +105,11 @@ dep=$(lauf_am_commit deploy.yml "$squash" push) || { echo "ABBRUCH: Push-Deploy 
 echo "    deploy: $URL/actions/runs/$dep"
 gh run watch "$dep" --exit-status >/dev/null || { echo "ABBRUCH: Deploy rot: $URL/actions/runs/$dep" >&2; exit 1; }
 gh run view "$dep" --json jobs --jq '.jobs[] | "    \(.name): \(.conclusion)"'
-gh run view "$dep" --log | grep -a "Leseweg OK\|AKTEUR {\|JOB_LAUF" | sed 's/.*\t//' | sed 's/^/      /' || true
+# Das Log ist nach dem Ende des Laufs nicht sofort abrufbar — kurz nachfassen.
+for i in $(seq 1 6); do
+  if leseweg=$(gh run view "$dep" --log 2>/dev/null | grep -a "Leseweg OK\|AKTEUR {\|JOB_LAUF"); then
+    printf '%s\n' "$leseweg" | sed 's/.*\t//' | sed 's/^/      /'; break
+  fi
+  sleep 10
+done
 echo "FERTIG: PR #$PR gemergt ($squash), migriert=$([[ -n "$migrationen" ]] && echo ja || echo nein), Deploy $URL/actions/runs/$dep"

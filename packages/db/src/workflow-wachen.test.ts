@@ -349,3 +349,16 @@ describe("Betriebs-PR 2 (05.10.2026): Laeufe-Wache, krumme Minuten, Label previe
     expect(workflow).not.toContain("drizzle-kit migrate");
   });
 });
+
+describe("Betriebs-Nachtrag (05.10.2026)", () => {
+  const jobWache = readFileSync(new URL("../../../.github/workflows/job-wache.yml", import.meta.url), "utf8");
+  const freigabe = readFileSync(new URL("../../../scripts/freigabe.sh", import.meta.url), "utf8");
+
+  it("die Grenzen der Laeufe-Wache werden in Anfuehrungszeichen uebergeben — leere Eingabe bleibt an ihrer Stelle", () => {
+    expect(jobWache).toContain('laeufe-wache /tmp/backup.json /tmp/restore.json "${{ inputs.backup_max_stunden }}" "${{ inputs.restore_max_tage }}"');
+  });
+
+  it("freigabe.sh fasst beim Deploy-Log nach, statt ein noch nicht verfuegbares Log leer zu lassen", () => {
+    expect(freigabe).toMatch(/for i in \$\(seq 1 6\); do\n\s+if leseweg=\$\(gh run view "\$dep" --log/);
+  });
+});
