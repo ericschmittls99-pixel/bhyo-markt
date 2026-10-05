@@ -1,0 +1,63 @@
+name: tmp Rot-Nachweise Betrieb 2 (Laeufe-Wache Grenze 0, Runner kaputte Migration)
+# Wegwerf-Nachweise (05.10.2026), Branch wird danach geloescht. Beide Jobs ROT erwartet.
+on:
+  push:
+    branches: [tmp-betrieb2-rot]
+jobs:
+  laeufe-wache-rot:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Laeufe-Wache mit Grenze 0 (ERWARTET rot)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backup.yml/runs?status=success&per_page=1" > /tmp/backup.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/restore-woechentlich.yml/runs?status=success&per_page=1" > /tmp/restore.json
+          echo "--- erst mit Vorgabe (26 h / 8 Tage): erwartet gruen"
+          pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json
+          echo "--- dann Grenze 0: erwartet rot"
+          pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json 0 0
+  runner-rot:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_PASSWORD: wegwerf
+          POSTGRES_DB: bhyo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:wegwerf@localhost:5432/bhyo
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Runner: 0000-0040 anwenden (Journal ohne 0041) — erwartet gruen, NOTICE-Zeilen sichtbar
+        working-directory: packages/db
+        run: |
+          cp migrations/meta/_journal.json /tmp/voll.json
+          jq '.entries |= map(select(.tag != "0041_tmp_kaputt"))' /tmp/voll.json > migrations/meta/_journal.json
+          pnpm run migrate
+          cp /tmp/voll.json migrations/meta/_journal.json
+      - name: Runner: kaputte Migration 0041 — ERWARTET rot mit Statement, Code, Meldung
+        working-directory: packages/db
+        run: pnpm run migrate
