@@ -138,7 +138,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
   aenderung_eintrag: {
     arten: ["geaendert", "status_gesetzt", "verworfen", "in_pruefung_gegeben", "geprueft", "zurueckgegeben", "reaktiviert", "zurueckgesetzt", "reverifiziert"],
     empfaengerregel:
-      "alle Beteiligten des Stroms (Beteiligungs-Arten, lib/protokoll/ableitung.ts) ausser dem Ausloeser, Deaktivierten, Betrachtern — und ausser denen, die fuer dasselbe Ereignis schon pruefauftrag oder pruefung_erledigt bekommen",
+      "alle Beteiligten des Stroms (Beteiligungs-Arten, lib/protokoll/ableitung.ts) plus die im Ereignis benannte betroffene Person (AP2.5 PR c: der Sperrinhaber beim Zusammenfuehren) ausser dem Ausloeser, Deaktivierten, Betrachtern — und ausser denen, die fuer dasselbe Ereignis schon pruefauftrag oder pruefung_erledigt bekommen",
     buendelung: "je Empfaenger und Strom, solange der Eintrag offen ist",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,

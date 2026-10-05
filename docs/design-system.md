@@ -855,3 +855,39 @@ Tabelle der Protokollereignisse, Fußzeile mit der 30-Tage-Frist der Backups.
 reiner Hinweis, Kalender-Zeichen statt Avatar; Öffnen führt zum Reiter
 Kontaktpersonen des Akteurs. **Export:** Spalte „Kontaktpersonen" nur im
 internen Modus (extern fehlt sie ganz).
+
+## Dubletten und Zusammenführen (AP2.5 PR c, E66, 01.10.2026)
+
+**Liste `akteure./dubletten`:** Kopf wie das Akteur-Detail (`ak-detail-kopf`:
+Rücksprung „akteure.", Titel „mögliche dubletten.", Pillen „n stark" /
+„n schwach"), darunter ein `ov-note` mit den Schwellen in Prozent, dem Ortsbezug (PLZ
+oder Sitz-Abstand bis 2 km) und der Zusatzregel Wort-Teilmenge. Tabelle
+`einst-tabelle ak-tabelle db-tabelle` mit vier Spalten: Akteur A, Akteur B
+(Name als Link, Sektor als `param-schluessel`, Sitz · Kreis und Zähler
+„n Ströme · m Kontaktpersonen" als `c`), Ähnlichkeit (Grad als Pille —
+**stark** `pill--accent`, **schwach** `pill--muted`, keine Ampel — plus
+„NN % · gleicher Ort" als `c`; gerundet wird nur hier) und Aktionen („keine
+Dublette" `btn--ghost btn--sm` ab bearbeiter, „Zusammenführen" `btn--sm`
+mit `ph-arrows-merge` — beide nur Prüfer/Admin). Der Link „mögliche
+Dubletten (n)" (`ph-copy`) sitzt in der Kopfzeile von `akteure.`. Unter der
+Liste der Abschnitt **„als keine dublette markiert."** (`db-markiert`,
+gleiche Tabelle: Akteur A, Akteur B, Markiert am, „Markierung aufheben"
+`btn--ghost btn--sm` für Prüfer/Admin).
+
+**Zusammenführen-Panel** öffnet unter der Zeile (`db-panel-zeile` →
+`db-panel`: `surface-sunken` mit Haarlinie, **kein Glas** — es schwebt
+nicht). Inhalt: Fieldset „Ziel (bleibt bestehen)" mit zwei Radios
+(voreingestellt der Akteur mit mehr Strömen), Fieldset „Feldkonflikte —
+voreingestellt gewinnt das Ziel" nur für Felder, die sich unterscheiden
+(Name, Sektor, Sitz; je Feld Radios mit Wert und „(Ziel)"/„(Quelle)"),
+dann der `ov-note` mit den Zahlen („Endgültig, kein Rückgängig: n Ströme/
+Belege, m Kontaktpersonen und k Interesse(n) ziehen von „Quelle" nach
+„Ziel"; „Quelle" wird gelöscht.") und die zweistufige Bestätigung im
+`ak-confirm`-Muster („Zusammenführen …" → „Ja, endgültig zusammenführen" /
+„Abbrechen"). Fehlermeldungen (fremde Sperre) als `pf-fehler` über der
+Tabelle, Erfolg als `ov-note`-Toast.
+
+**„Meinten Sie …?"** in der Akteur-Combobox des Belegs: eigener Block
+`akteur-meinten` im Popover über „… neu anlegen" — Überschrift als
+`menu-leer`, je Treffer ein `menu-item` mit Name, PLZ Ort und der
+Grad-Pille; Klick wählt den Akteur. Anlegen bleibt darunter möglich.

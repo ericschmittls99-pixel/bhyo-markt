@@ -368,6 +368,16 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db kontaktperson-check
 
+      # AP2.5 PR c (E66): Dubletten — Struktur (pg_trgm, akteur_name_norm,
+      # akteur_keine_dublette), Paritaet SQL ↔ TypeScript ueber die geteilten
+      # Fixtures, Trigger-Ausnahme nur mit Zusammenfuehrungs-Ereignis, Loeschen
+      # eines Akteurs mit Strom per FK abgewiesen. Zurueckgerollt.
+      - name: Dubletten-Check (akteur_name_norm, keine Dublette, Trigger)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db dubletten-check
+
       # AP2.4 PR b (E63): Probe des Verifikations-Jobs gegen die Preview —
       # Idempotenz (zweiter Lauf erzeugt nichts), Nachholen am spaeteren
       # Stichtag, Empfaenger-Fallback, D3/ohne Beleg ohne Hinweis. Eine

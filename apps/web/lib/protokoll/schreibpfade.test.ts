@@ -71,6 +71,7 @@ vi.mock("@/lib/vergabe-fenster", async (orig) => ({
 
 const { statusSetzen, stromVerwerfen, stromPruefen, stromReverifizieren, belegAbgelaufenMarkieren } = await import("@/lib/stroeme-actions");
 const { akteurBearbeiten, akteurLoeschen } = await import("@/lib/akteur-actions");
+const { keineDubletteMarkieren, keineDubletteAufheben, akteureZusammenfuehren } = await import("@/lib/dubletten-actions");
 const { stromSperren, stromEntsperren, stromZuweisen, zuweisungEntfernen } = await import("@/lib/sperre-actions");
 const { benutzerAnlegen, rolleSetzen, aktivSetzen } = await import("@/lib/benutzer-actions");
 const { stromSpeichern } = await import("@/lib/formular-actions");
@@ -199,6 +200,45 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     for (const e of arten.slice(0, -1)) {
       expect(e).toMatchObject({ art: "kontaktperson_geloescht", entitaet: "kontaktperson" });
       expect(e.text).toBe(`Akteur ${STROM} gelöscht`);
+    }
+  });
+  it("AP2.5 PR c: keineDubletteMarkieren → keine_dublette_markiert an BEIDEN Akteuren, Text nur IDs", async () => {
+    const A = "00000000-0000-4000-8000-0000000000a1";
+    const B = "00000000-0000-4000-8000-0000000000a2";
+    expect(await keineDubletteMarkieren(B, A)).toEqual({ ok: true });
+    const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; entitaet: string; id: string; text?: string }][]).map((c) => c[1]);
+    expect(arten.map((e) => e.id)).toEqual([A, B]);
+    for (const e of arten) expect(e).toMatchObject({ art: "keine_dublette_markiert", entitaet: "akteur", benutzerId: ERIC.id, text: `Paar ${A} · ${B}` });
+  });
+  it("AP2.5 PR c: keineDubletteAufheben → keine_dublette_aufgehoben an beiden Akteuren des Paars", async () => {
+    const A = "00000000-0000-4000-8000-0000000000a1";
+    const B = "00000000-0000-4000-8000-0000000000a2";
+    aktuelleZeilen = [{ ...ZEILEN[0]!, a: A, b: B }];
+    expect(await keineDubletteAufheben("00000000-0000-4000-8000-0000000000d1")).toEqual({ ok: true });
+    const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; id: string; text?: string }][]).map((c) => c[1]);
+    expect(arten.map((e) => e.id)).toEqual([A, B]);
+    for (const e of arten) expect(e).toMatchObject({ art: "keine_dublette_aufgehoben", text: `Paar ${A} · ${B}` });
+  });
+  it("AP2.5 PR c: akteureZusammenfuehren → akteur_zusammengefuehrt an der Quelle ZUERST (Trigger liest es), akteur_geaendert am Ziel, geaendert je Strom, kontaktperson_geaendert je Person — nur IDs", async () => {
+    const Q = "00000000-0000-4000-8000-0000000000a1";
+    const Z = "00000000-0000-4000-8000-0000000000a2";
+    // Die Attrappe liefert fuer jede Abfrage ZEILEN: zwei „Akteure" (ids ERIC/BERND passen nicht) — deshalb eigene Zeilen mit Q und Z.
+    aktuelleZeilen = [
+      { ...ZEILEN[0]!, id: Q, name: "Quelle GmbH", sektor: "landwirtschaft", sitzStrasse: null, sitzHausnummer: null, sitzPlz: "1", sitzOrt: "X", bezeichnung: "Strom A" },
+      { ...ZEILEN[1]!, id: Z, name: "Ziel", sektor: "energie", sitzStrasse: null, sitzHausnummer: null, sitzPlz: "1", sitzOrt: "X", bezeichnung: "Strom B" },
+    ];
+    const erg = await akteureZusammenfuehren(Q, Z, { name: "quelle" });
+    expect(erg).toMatchObject({ ok: true, zielId: Z });
+    const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; entitaet: string; id: string; text?: string }][]).map((c) => c[1]);
+    expect(arten[0]).toMatchObject({ art: "akteur_zusammengefuehrt", entitaet: "akteur", id: Q, benutzerId: ERIC.id });
+    expect(arten[0]!.text).toContain(`Quelle ${Q} → Ziel ${Z}`);
+    expect(arten[0]!.text).toContain("Felder aus Quelle: name");
+    expect(arten[1]).toMatchObject({ art: "akteur_geaendert", entitaet: "akteur", id: Z });
+    expect(arten.some((e) => e.art === "geaendert" && e.entitaet === "biomassestrom" && e.text === `Akteur zusammengeführt: ${Q} → ${Z}`)).toBe(true);
+    expect(arten.some((e) => e.art === "kontaktperson_geaendert" && e.entitaet === "kontaktperson")).toBe(true);
+    for (const e of arten) {
+      expect(e.text ?? "").not.toContain("Quelle GmbH");
+      expect(e.text ?? "").not.toContain("Ziel\b");
     }
   });
   it("POST /api/regionen → region_angelegt", async () => {

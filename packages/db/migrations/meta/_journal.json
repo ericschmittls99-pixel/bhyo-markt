@@ -267,6 +267,13 @@
       "when": 1790864564697,
       "tag": "0037_ap25_auskunft",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1790865541916,
+      "tag": "0038_ap25_dubletten",
+      "breakpoints": true
     }
   ]
 }

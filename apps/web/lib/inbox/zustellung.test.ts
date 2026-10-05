@@ -10,6 +10,7 @@ const AUSLOESER = "00000000-0000-4000-8000-0000000000a1";
 const ERSTELLER = "00000000-0000-4000-8000-0000000000a2";
 const BEARBEITER = "00000000-0000-4000-8000-0000000000a3";
 const BETRACHTER = "00000000-0000-4000-8000-0000000000a4";
+const SPERRINHABER = "00000000-0000-4000-8000-0000000000a5";
 const STROM = "00000000-0000-4000-8000-0000000000c1";
 const EREIGNIS = "00000000-0000-4000-8000-0000000000e1";
 
@@ -27,6 +28,8 @@ function attrappe() {
     { id: BEARBEITER, rolle: "pruefer", aktiv: true },
     { id: BETRACHTER, rolle: "betrachter", aktiv: true },
     { id: AUSLOESER, rolle: "bearbeiter", aktiv: true },
+    // AP2.5 PR c: Sperrinhaber ohne Beteiligung (Sperren zaehlt nicht als Beteiligung).
+    { id: SPERRINHABER, rolle: "pruefer", aktiv: true },
   ];
   const kette = (zeilen: unknown[]) => ({ from: () => ({ where: async () => zeilen }) });
   const tx = {
@@ -63,6 +66,25 @@ describe("zustellen", () => {
     expect(set.ausloeserId).toBe(AUSLOESER);
     expect(set.ereignisId).toBe(EREIGNIS);
     expect(set.anzahl).toBeDefined();
+  });
+  it("AP2.5 PR c: beim Zusammenfuehren bekommt der Sperrinhaber jedes betroffenen Stroms die gebuendelte Mitteilung (betrifftId), obwohl er nicht beteiligt ist", async () => {
+    const { tx, upserts } = attrappe();
+    const n = await zustellen(tx, {
+      id: EREIGNIS,
+      art: "geaendert",
+      entitaet: "biomassestrom",
+      entitaetId: STROM,
+      ausloeserId: AUSLOESER,
+      betrifftId: SPERRINHABER,
+      text: "Akteur zusammengeführt: q → z",
+    });
+    expect(n).toBe(3);
+    expect(upserts.map((u) => u.werte.empfaengerId)).toEqual([ERSTELLER, BEARBEITER, SPERRINHABER]);
+    expect(upserts.every((u) => u.werte.typ === "aenderung_eintrag")).toBe(true);
+    // Ist der Sperrinhaber selbst der Ausloeser (Admin fuehrt ueber die eigene Sperre zusammen), bekommt er nichts.
+    const eigene = attrappe();
+    await zustellen(eigene.tx, { id: EREIGNIS, art: "geaendert", entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER, betrifftId: AUSLOESER });
+    expect(eigene.upserts.map((u) => u.werte.empfaengerId)).toEqual([ERSTELLER, BEARBEITER]);
   });
   it("Output-Bedarf laeuft ueber die Output-Spalte", async () => {
     const { tx, upserts } = attrappe();

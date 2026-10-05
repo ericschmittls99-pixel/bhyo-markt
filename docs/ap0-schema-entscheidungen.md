@@ -1388,6 +1388,96 @@ erledigt, jung → nichts.
 zwei Löschprüfungs-Fälle (25/30 Monate ohne Aktivität an verwaisten
 Akteuren), eine junge Person.
 
+## 35. AP2.5 PR c: Dubletten und Zusammenführen (E66), 01.10.2026
+
+**Normalisierung** (Migration 0038): `akteur_name_norm(text)` in SQL und
+dasselbe Spiegelbild in `apps/web/lib/akteur-norm.ts` — Kleinschreibung,
+Umlaute (ae/oe/ue/ss), e.K./e.V. als Wörter, alles Nicht-Alphanumerische zu
+Leerzeichen, Abkürzung **„SW" → „stadtwerke"** (eigenes Wort; „Gem." wird
+bewusst nicht aufgelöst, weil „gem. GmbH" gemeinnützig heißt und „Gem. X" ↔
+„Gemeinde X" am selben Ort ohnehin stark gefunden wird), Rechtsform-Wörter
+entfernt (gmbh, mbh, gbr, kg, kgaa, ag, ohg, ug, se, eg, ek, ev, co,
+haftungsbeschraenkt, ltd, inc), Leerraum zusammengezogen. **Eine
+Fixture-Liste** (`packages/db/src/dubletten-fixtures.ts`) für beide Seiten:
+Namen, Ähnlichkeits-Referenzen und die **Kalibrier-Paare** (echte Varianten:
+Tippfehler, Abkürzungen, Wortreihenfolge, Zusatzwörter; kommunale falsche
+Treffer derselben Stadt; Seed-Kandidaten) mit nachgerechneter Ähnlichkeit und
+Ergebnis — `akteur-norm.test.ts` und `dubletten-kalibrierung.test.ts` prüfen
+TypeScript, `dubletten-check` (CI, Preview) prüft SQL und `similarity()`
+dagegen. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
+Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
+
+**Schwellen** (Konstanten, Kalibrierung in `docs/ap25-dubletten-kalibrierung.md`):
+`DUBLETTE_STARK = 0,60` mit **Ortsbezug = gleiche PLZ oder Sitz-Abstand ≤
+`DUBLETTE_ORT_METER = 2 km`** (ST_DWithin über `sitz_geom` als geography;
+Entscheidung Eric 01.10.2026 — der gleiche Kreis allein reicht nicht, sonst
+erschienen kommunale Akteure desselben Kreises massenhaft als stark; 2 km
+decken dieselbe Stadt bei verschiedenen PLZ und lassen Nachbargemeinden
+draußen), `DUBLETTE_SCHWACH = 0,75` ohne Ortsbezug. **Zusatzregel „Wort-Teilmenge"**
+(Entscheidung Eric 01.10.2026, durch Messung entschieden): hat der kürzere
+normalisierte Name mindestens zwei Wörter, sind alle im längeren enthalten
+und besteht Ortsbezug, ist das Paar stark, unabhängig von der Ähnlichkeit —
+gleiche Form in SQL (`akteur_name_wortteilmenge`) und App (`wortTeilmenge`).
+Messung: ein Treffer mehr („AVR Abfallverwertung Rhein-Neckar" ↔ „AVR
+Rhein-Neckar" 0,515), kein neuer Fehlalarm, kein Seed-Paar neu stark.
+Ergebnis bei diesen Schwellen: alle Seed-Kandidaten gefunden; 15 von 18
+echten Varianten gefunden (nicht gefunden: drei ohne Ortsbezug knapp unter
+0,75); 3 von 11 kommunalen Paaren derselben Stadt als Fehlalarm stark (Stadt
+· Stadtwerke, Gemeinde · Gemeindewerke), keines schwach. Die Abfragen
+materialisieren die normalisierten Namen einmal und vergleichen paarweise
+(Ähnlichkeit ODER Teilmenge) — kein Trigramm-Index, weil das ODER keinen
+Index nutzen könnte und die Mengen klein sind. Begründung: Die Seed-Kandidaten liegen nach der Normalisierung alle bei
+1,000 (sie unterscheiden sich nur in Rechtsform/Umlaut), die Schwelle wird
+von den falschen Freunden bestimmt — am selben Ort bis 0,70 („Stadt X" ·
+„Stadtwerke X"), an verschiedenen Orten bis 0,69 (gleiche Betriebsart);
+echte Varianten (Tippfehler, Zusatzwort) liegen bei 0,65–0,83. Mit Ortsbezug
+zählt die Trefferquote, ohne die Genauigkeit. `dubletten-kalibrierung.test.ts`
+hält die Trennung gegen den Seed fest.
+
+**„Meinten Sie …?"** beim Anlegen im Beleg (`/api/akteure/aehnlich`, Lesen
+reicht): starke und schwache Treffer zum eingegebenen Namen, Ortsbezug über
+die PLZ oder den Abstand des Sitz-Pins (≤ 2 km); Anlegen bleibt möglich.
+
+**Liste `akteure./dubletten`:** Paare ab der Schwelle, stark vor schwach,
+ohne die als **„keine Dublette"** markierten (Tabelle `akteur_keine_dublette`,
+akteur_a < akteur_b, UNIQUE, zwei FKs ON DELETE CASCADE). Markieren
+(`akteur.keine_dublette`) und **Aufheben** (`akteur.keine_dublette_aufheben`,
+Abschnitt „als keine Dublette markiert" unter der Liste) nur Prüfer und Admin
+über darf() (Entscheidung Eric 01.10.2026); Ereignisse
+`keine_dublette_markiert` / `keine_dublette_aufgehoben` an beiden Akteuren,
+Text nur IDs. Rot gezeigt: Bearbeiter markiert → abgewiesen.
+
+**Zusammenführen** (`akteur.zusammenfuehren`, nur Prüfer und Admin,
+endgültig): Ziel wählen (voreingestellt der Akteur mit mehr Strömen),
+Feldkonflikte Name/Sektor/Sitz entscheidet der Nutzer, voreingestellt gewinnt
+das Ziel (der Sitz als Ganzes, weil der Pin den Kreis bestimmt). In **einer
+Transaktion**: beide Akteure gesperrt (FOR UPDATE), **Leitplanke Belege**
+— jeder Strom der Quelle wird mit der Objektregel von `strom.bearbeiten`
+(E44) geprüft; ist einer für den Handelnden gesperrt, Abweisung mit Meldung
+„Zusammenführen abgewiesen: Strom „…" ist von … gesperrt." (Admins dürfen
+laut E44 über fremde Sperren — dieselbe Regel wie beim Bearbeiten, keine
+zweite). Dann Ereignis `akteur_zusammengefuehrt` an der Quelle („Quelle <id>
+→ Ziel <id>; n Ströme; Felder aus Quelle: …") **zuerst**, `akteur_geaendert`
+am Ziel, Ströme umgehängt mit `geaendert` je Strom (→ die übliche gebündelte
+Änderungs-Mitteilung an die Beteiligten **einschließlich des Sperrinhabers**:
+das Ereignis trägt ihn als `betrifftId`, die Zustellung von `aenderung_eintrag`
+nimmt die benannte betroffene Person zu den Beteiligten dazu — Test in
+`zustellung.test.ts`), Kontaktpersonen umgehängt mit
+`kontaktperson_geaendert` (nur IDs), Interessen umgezogen (Duplikate
+derselben Region zusammengelegt), Quelle gelöscht (keine-Dublette-Paare und
+Verwaist-Hinweise per CASCADE). **Trigger-Ausnahme:** `kontaktperson_kein_
+umhaengen` lässt das Umhängen nur zu, wenn das Ereignis
+`akteur_zusammengefuehrt` der Quelle mit „Ziel <id>" in **derselben
+Transaktion** steht (`zeitpunkt = now()`); sonst bleibt jedes UPDATE von
+akteur_id abgewiesen. **Alte Links** `/akteure/<quelle>` leiten über dieses
+Ereignis aufs Ziel (Kette bis 10 Stufen).
+
+**Rot gezeigt:** Zusammenführen als bearbeiter (Matrix testweise offen →
+matrix.test und dubletten-actions.test rot); über eine fremde Sperre
+(Sperrprüfung testweise entfernt → Test rot); `dubletten-check` (CI) weist
+nach: Löschen eines Akteurs mit Strom scheitert am Fremdschlüssel,
+Umhängen ohne Ereignis am Trigger, Paar ungeordnet/doppelt an CHECK/UNIQUE.
+
 ## Noch offen – nicht raten
 
 Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit

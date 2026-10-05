@@ -5528,6 +5528,18 @@ table.st-tabelle tbody tr:focus-visible {
 .ak-confirm { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ak-formular { display: grid; gap: 12px; }
 .ak-leer-text { margin-top: 16px; }
+/* AP2.5 PR c: moegliche Dubletten — Panel unter der Zeile im Glas-Muster. */
+.db-tabelle td { vertical-align: top; }
+.db-panel-zeile > td { padding-top: 0; }
+/* Kein Glas: das Panel schwebt nicht, es ist Inhalt (design-system.md). */
+.db-panel { display: grid; gap: 12px; padding: 12px 14px; border-radius: 12px; background: var(--surface-sunken); border: 1px solid var(--glass-hairline); }
+.db-feld { display: grid; gap: 6px; border: 0; padding: 0; margin: 0; }
+.db-feld legend { font-weight: 600; margin-bottom: 4px; }
+.db-option { display: inline-flex; gap: 8px; align-items: center; margin-right: 16px; }
+.db-konflikt { display: flex; gap: 12px; flex-wrap: wrap; align-items: center; }
+.db-konflikt-label { min-width: 72px; font-weight: 600; }
+.akteur-meinten { display: grid; gap: 4px; padding: 8px 10px 4px; }
+.akteur-meinten .menu-leer { padding: 0; }
 .seg-opt--aus { opacity: 0.5; cursor: default; }
 /* AP2.5: Sitz-Felder in der Inline-Anlage des Akteurs (Beleg-Formular). */
 .akteur-neu-sitz { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr; gap: 6px; }

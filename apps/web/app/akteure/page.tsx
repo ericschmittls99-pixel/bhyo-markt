@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteure } from "@/lib/akteure";
 import { AKTEUR_ZUSTAENDE, AKTEUR_ZUSTAND_LABEL, filterAkteure, sortiereAkteure, type AkteureFilter } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
+import { ladeDubletten } from "@/lib/dubletten";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { ladeRegionOptionen } from "@/lib/stroeme";
@@ -31,7 +32,7 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
     );
   }
   const filter: AkteureFilter = { q: erster(sp.q), region: liste(sp.region), sektor: liste(sp.sektor), akteur: liste(sp.akteur), akteur_zustand: liste(sp.akteur_zustand) };
-  const [pool, regionen] = await Promise.all([withDb((db) => ladeAkteure(db)), ladeRegionOptionen()]);
+  const [pool, regionen, dubletten] = await Promise.all([withDb((db) => ladeAkteure(db)), ladeRegionOptionen(), withDb((db) => ladeDubletten(db))]);
   const gefiltert = sortiereAkteure(filterAkteure(pool, filter));
   // Optionen aus dem UNGEFILTERTEN Bestand (wie in stroeme.) — der Chip zeigt, was es gibt.
   const sektoren = new Map<string, string>();
@@ -55,6 +56,7 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
         irgendeinFilter={lst.irgendeinFilter || filter.q.trim() !== ""}
         ruecksetzParams={lst.ruecksetzParams}
         q={filter.q}
+        dubletten={dubletten.length}
       />
     </main>
   );

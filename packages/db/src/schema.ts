@@ -786,6 +786,12 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "kontaktperson_geloescht",
   // AP2.5 PR b: Auskunft nach Art. 15 erstellt (nur Admin) — die Druckansicht ist nur ueber dieses Ereignis erreichbar.
   "auskunft_erstellt",
+  // AP2.5 PR c (E66): Zusammenfuehren (Quelle → Ziel, nur IDs im Text; der
+  // Trigger kontaktperson_kein_umhaengen laesst das Umhaengen nur mit diesem
+  // Ereignis zu) und „keine Dublette" (Paar in akteur_keine_dublette).
+  "akteur_zusammengefuehrt",
+  "keine_dublette_markiert",
+  "keine_dublette_aufgehoben",
 ]);
 
 export const aenderung = pgTable(
@@ -881,6 +887,31 @@ export const kontaktperson = pgTable(
     check("kontaktperson_mail_check", sql`${t.mailDienstlich} is null or length(${t.mailDienstlich}) <= 200`),
     check("kontaktperson_telefon_check", sql`${t.telefon} is null or length(${t.telefon}) <= 60`),
     check("kontaktperson_notiz_check", sql`${t.notiz} is null or length(${t.notiz}) <= 1000`),
+  ],
+);
+
+/**
+ * AP2.5 PR c (E66): Ein Paar, das jemand als „keine Dublette" markiert hat —
+ * es wird nicht mehr vorgeschlagen. Geordnet (akteur_a < akteur_b, CHECK), je
+ * Paar genau einmal (UNIQUE). Zwei Fremdschluessel mit ON DELETE CASCADE:
+ * verschwindet ein Akteur (Zusammenfuehren, Loeschen verwaist), ist die
+ * Markierung gegenstandslos. Protokolliert als keine_dublette_markiert.
+ */
+export const akteurKeineDublette = pgTable(
+  "akteur_keine_dublette",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    akteurA: uuid("akteur_a")
+      .notNull()
+      .references(() => akteur.id, { onDelete: "cascade" }),
+    akteurB: uuid("akteur_b")
+      .notNull()
+      .references(() => akteur.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("akteur_keine_dublette_paar_uniq").on(t.akteurA, t.akteurB),
+    check("akteur_keine_dublette_ordnung_check", sql`${t.akteurA} < ${t.akteurB}`),
   ],
 );
 
