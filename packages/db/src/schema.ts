@@ -1144,6 +1144,8 @@ export const jobLauf = pgTable(
     anzahl: integer("anzahl"),
     /** Fehlertext (ergebnis = fehler). */
     fehler: text("fehler"),
+    /** Abgeraeumte Job-Hinweise (Bedingung zum Stichtag nicht mehr gueltig), seit Migration 0041. */
+    abgeraeumt: integer("abgeraeumt"),
   },
   (t) => [
     unique("job_lauf_job_stichtag_unique").on(t.job, t.stichtag),

@@ -39,6 +39,13 @@ export interface HinweisErgebnis {
   /** AP2.5 PR b (E57): Loeschpruefung — Kontaktpersonen ohne Aktivitaet seit M Monaten (neu / wieder erledigt). */
   loeschpruefung: number;
   loeschpruefungErledigt: number;
+  /**
+   * Betrieb 05.10.2026: offene Ablauf-Hinweise (laeuft_ab/abgelaufen), deren
+   * Bedingung zum Stichtag nicht mehr gilt — abgeleitet aus dem aktuellen
+   * Verifikationszustand, ohne Ereignisliste (in Pruefung, Frist verschoben,
+   * verworfen, geloescht …). Idempotent, im selben Lauf wie das Zustellen.
+   */
+  abgeraeumt: number;
 }
 
 /**
@@ -99,6 +106,39 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
        and a.empfaenger_id = h.empfaenger_id
        and a.bezugsdatum = h.bezugsdatum
        and coalesce(a.biomassestrom_id, a.output_bedarf_id) = coalesce(h.biomassestrom_id, h.output_bedarf_id)
+    returning h.id
+  `)) as unknown as { id: string }[];
+
+  // Betrieb 05.10.2026 (Eric): Jeder offene Ablauf-Hinweis des Jobs, dessen
+  // Bedingung zum Stichtag nicht mehr gilt, wird abgeraeumt. Die Bedingung ist
+  // genau die, unter der der Hinweis zugestellt wurde: laeuft_ab = Zustand
+  // laeuft_bald_ab mit demselben verifiziert_bis; abgelaufen = Zustand
+  // abgelaufen mit demselben verifiziert_bis ODER pruefdatum_unbekannt ohne
+  // Bezugsdatum. Alles andere (in_pruefung nach fachlicher Aenderung,
+  // verschobene Frist, verworfen, Strom ohne Zustand) raeumt ab. Laeuft NACH
+  // dem Zustellen: eine verschobene Frist liefert im selben Lauf den neuen
+  // Hinweis und raeumt den alten. Keine Ereignisliste, nur der Zustand.
+  const abgeraeumt = (await tx.execute(sql`
+    with v as (
+      select strom_id, zustand, verifiziert_bis from strom_verifikation(${stichtag}::date)
+    ), faellig as (
+      select h.id
+        from inbox_eintrag h
+        left join v on v.strom_id = coalesce(h.biomassestrom_id, h.output_bedarf_id)
+       where h.zustand = 'offen'
+         and h.ausloeser_id is null
+         and h.typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')
+         and not (
+           (h.typ::text = 'verifikation_laeuft_ab' and v.zustand = 'laeuft_bald_ab' and v.verifiziert_bis = h.bezugsdatum)
+           or (h.typ::text = 'verifikation_abgelaufen'
+               and ((v.zustand = 'abgelaufen' and v.verifiziert_bis = h.bezugsdatum)
+                    or (v.zustand = 'pruefdatum_unbekannt' and h.bezugsdatum is null)))
+         )
+    )
+    update inbox_eintrag h
+       set zustand = 'erledigt', zustand_seit = now()
+      from faellig f
+     where f.id = h.id
     returning h.id
   `)) as unknown as { id: string }[];
 
@@ -191,6 +231,7 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
     laeuftAb: eingefuegt.filter((z) => z.typ === "verifikation_laeuft_ab").length,
     abgelaufen: eingefuegt.filter((z) => z.typ === "verifikation_abgelaufen").length,
     vorabErledigt: erledigt.length,
+    abgeraeumt: abgeraeumt.length,
     verwaist: verwaist.length,
     verwaistErledigt: verwaistErledigt.length,
     loeschpruefung: loeschpruefung.length,

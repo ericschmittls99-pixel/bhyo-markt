@@ -193,3 +193,16 @@ Das `schema-gate` wartet bis zu 20 Minuten auf die Production-Migration (alle
   NOTICE-Zeilen der Zählbeweise erscheinen als `NOTICE …`; ein Fehler endet mit
   Statement, Postgres-Code, Meldung, Detail und Exit 1 — `drizzle-kit migrate`
   verschluckte das.
+
+## Hinweise zustandsbasiert abräumen (Betrieb, 05.10.2026)
+
+Der tägliche Verifikations-Job räumt jeden offenen `verifikation_laeuft_ab`- und
+`verifikation_abgelaufen`-Hinweis ab, dessen Bedingung zum Stichtag nicht mehr
+gilt — abgeleitet aus `strom_verifikation(stichtag)` (Zustand und
+`verifiziert_bis` müssen zum Hinweis passen), ohne Ereignisliste: fachliche
+Änderung (in Prüfung), verschobene Frist, verworfener Strom. Idempotent, im
+selben Lauf nach dem Zustellen (eine verschobene Frist liefert den neuen
+Hinweis und räumt den alten). Gezählt in `job_lauf.abgeraeumt` (Migration 0041,
+Leseweg-Zeile JOB_LAUF `letzte_abgeraeumt`). Job-Probe Fall 7 (a–e).
+Messung vor der Regel (Preview, 05.10.2026): 30 offene Job-Hinweise, alle mit
+gültiger Bedingung — kein Nachholbedarf im Bestand.

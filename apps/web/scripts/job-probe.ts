@@ -162,6 +162,41 @@ async function main() {
       const offen13 = (await tx.execute(sql`select count(*)::int as n from inbox_eintrag where kontaktperson_id = ${altP} and zustand = 'offen'`)) as unknown as { n: number }[];
       pruefe("6c Aktivitaet am Beleg des Akteurs: Loeschpruefung erledigt", lauf13.loeschpruefungErledigt === admins.length && Number(offen13[0]!.n) === 0, { lauf13, offen: offen13[0]!.n });
 
+      // 7. Betrieb 05.10.2026: zustandsbasiertes Abraeumen der Ablauf-Hinweise —
+      //    je ein Fall fachliche Aenderung (in Pruefung), Frist verschoben,
+      //    Strom verworfen; dazu ein Fall, in dem die Bedingung weiter gilt.
+      //    Frischer Ausgangszustand am Probe-Strom: Vertrag bis heute+3, geprueft.
+      await tx.execute(sql`update benutzer set aktiv = true where id = ${p1}`);
+      await tx.execute(sql`delete from inbox_eintrag where biomassestrom_id = ${strom.id} and typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')`);
+      const [beleg7] = (await tx.execute<{ id: string }>(sql`
+        insert into beleg (typ, metadata, gueltig_bis, datei_key, link_url, erstellt_am)
+        values ('vertrag', '{"quellenangabe": "Job-Probe 7"}'::jsonb, (${heute}::date + 3), 'belege/preview/job-probe-7.pdf', null, now())
+        returning id`)) as unknown as { id: string }[];
+      await tx.execute(sql`update biomassestrom set status = 'geprueft', beleg_id = ${beleg7!.id} where id = ${strom.id}`);
+      const offene = async () => (await zaehle()).filter((z) => z.zustand === "offen");
+      const lauf14 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const nach14 = await offene();
+      pruefe("7a Ausgang: Vorab-Hinweis offen, nichts abgeraeumt", lauf14.laeuftAb >= 1 && lauf14.abgeraeumt === 0 && nach14.length >= 1 && nach14.every((z) => z.typ === "verifikation_laeuft_ab"), { lauf14, nach14 });
+      const lauf15 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("7b Bedingung gilt weiter: zweiter Lauf raeumt nichts ab, Hinweis bleibt offen", lauf15.abgeraeumt === 0 && (await offene()).length === nach14.length, { lauf15 });
+      // Frist verschoben (heute+5, weiter „laeuft bald ab"): alter Hinweis abgeraeumt, neuer mit neuem Bezugsdatum.
+      await tx.execute(sql`update beleg set gueltig_bis = (${heute}::date + 5) where id = ${beleg7!.id}`);
+      const lauf16 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const nach16 = await offene();
+      pruefe("7c Frist verschoben: alter Hinweis abgeraeumt, neuer Hinweis mit neuem Bezugsdatum", lauf16.abgeraeumt === nach14.length && lauf16.laeuftAb === nach14.length && nach16.length === nach14.length && nach16.every((z) => z.bezugsdatum !== nach14[0]!.bezugsdatum), { lauf16, nach16 });
+      // Fachliche Aenderung: Strom zurueck in Pruefung → Bedingung weg, nichts Neues.
+      await tx.execute(sql`update biomassestrom set status = 'in_pruefung' where id = ${strom.id}`);
+      const lauf17 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("7d fachliche Aenderung (in Pruefung): Hinweis abgeraeumt, kein neuer", lauf17.abgeraeumt === nach16.length && lauf17.laeuftAb === 0 && (await offene()).length === 0, { lauf17 });
+      // Wieder geprueft mit neuer Frist (heute+6) → neuer Hinweis; dann verworfen → abgeraeumt.
+      await tx.execute(sql`update biomassestrom set status = 'geprueft' where id = ${strom.id}`);
+      await tx.execute(sql`update beleg set gueltig_bis = (${heute}::date + 6) where id = ${beleg7!.id}`);
+      const lauf18 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const nach18 = await offene();
+      await tx.execute(sql`update biomassestrom set status = 'verworfen' where id = ${strom.id}`);
+      const lauf19 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("7e Strom verworfen: Hinweis abgeraeumt", lauf18.laeuftAb === nach18.length && nach18.length >= 1 && lauf19.abgeraeumt === nach18.length && lauf19.laeuftAb === 0 && (await offene()).length === 0, { lauf18, lauf19 });
+
       throw new Error(ROLLBACK);
     });
   } catch (e) {
