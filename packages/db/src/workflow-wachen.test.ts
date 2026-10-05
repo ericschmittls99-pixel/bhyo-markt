@@ -300,6 +300,16 @@ describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ei
     expect(freigabe).toMatch(/gh run rerun "\$lauf"\n\s+gh run watch "\$lauf" --exit-status/);
   });
 
+  it("freigabe.sh haengt gestapelte PRs vor dem Merge auf main um und meldet sie (#160/#169, 05.10.2026)", () => {
+    const umhaengen = freigabe.indexOf('gh pr list --base "$branch" --state open');
+    const patch = freigabe.indexOf('gh api -X PATCH "repos/$REPO/pulls/$kind" -f base=main');
+    const merge = freigabe.indexOf('"$HIER/merge-sicher.sh"');
+    expect(umhaengen).toBeGreaterThan(-1);
+    expect(patch).toBeGreaterThan(umhaengen);
+    expect(merge).toBeGreaterThan(patch);
+    expect(freigabe).toContain('echo "    gestapelter PR #$kind: Base $branch -> main umgehaengt"');
+  });
+
   it("freigabe.sh prueft nach dem Merge, dass main auf dem Squash-Commit steht", () => {
     expect(freigabe).toContain("--jq .mergeCommit.oid");
     expect(freigabe).toMatch(/"\$main" != "\$squash"/);
