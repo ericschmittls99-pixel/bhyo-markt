@@ -170,8 +170,10 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
   ab. Jeder Fehlschlag bricht sofort ab, keine Folgeschritte. Kein Ergebnis
   ist kein Ergebnis.
 - Jeder PR deployt automatisch eine Preview; `/api/health` muss dort grün sein
-- Migrationen und Schemaänderungen bekommen einen eigenen PR, nie zusammen mit
-  Feature-Code
+- Additive Migrationen kommen mit ihrem ersten Verbraucher in denselben PR
+  (E21: das schema-gate sorgt dafür, dass die Migration vor dem Deploy läuft).
+  Entfernende Migrationen (Contract) kommen in einen eigenen PR, nachdem der
+  Code sie nicht mehr nutzt.
 - Kommentare erklären das Warum, nicht das Was
 - Bei Unklarheit: eine präzise Rückfrage ist besser als eine geratene Annahme
 
