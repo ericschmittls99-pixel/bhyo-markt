@@ -42,6 +42,8 @@ export function kreisKurz(name: string | null | undefined, bez?: string | null):
   if (!name) return null;
   if (bez == null) return name.replace(/^Landkreis\s+/u, "Lkr. ");
   const b = bez.trim().toLowerCase();
+  // „Rhein-Neckar-Kreis" traegt den Kreis schon im Namen — kein „Lkr." davor (Preview-Befund 05.10.2026).
+  if (/kreis$/iu.test(name)) return name;
   if (b === "landkreis") return `Lkr. ${name}`;
   if (b === "kreisfreie stadt" || b === "stadtkreis") return null;
   if (b === "") return name;
