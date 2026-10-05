@@ -1502,7 +1502,10 @@ Zeilenzahl.
 „unvollständig" heißt dort: Straße oder Pin fehlt, nie PLZ/Ort).
 
 **Schreibpfade (E21):** `api/akteure` setzt Sektor, PLZ und Ort seit a1;
-`scripts/seed-akteure.ts` ebenso; die Probe-Inserts in `job-probe.ts` und
+`scripts/seed-akteure.ts` ebenso; `scripts/seed-preview.ts` setzt den Sitz
+des Bestands jetzt beim Einfügen (erster Strom mit Ort, PLZ aus der
+Ortsliste), statt ihn wie bisher nachträglich per UPDATE zu setzen — eine
+Stelle statt zwei; die Probe-Inserts in `job-probe.ts` und
 `sektor-check.ts` tragen jetzt PLZ/Ort. `sektor-check` (Deploy-CI) prüft die
 drei NOT-NULL-Spalten und weist die Anlage mit NULL in Sektor, PLZ oder Ort
 nach (je ein abgewiesener INSERT in zurückgerollter Transaktion); die

@@ -24,6 +24,7 @@ import {
   validiereVergaben,
   vergabenZuFormZeilen,
 } from "../lib/verfuegbarkeit";
+import { A25_ORTE } from "./seed-akteure-daten";
 import { baueSeedDaten, MARKER, STICHTAG } from "./seed-daten";
 import { pruefeSeedZiel, pruefeStammdaten } from "./seed-guard";
 
@@ -92,19 +93,34 @@ async function main() {
   });
 
   // --- Einfuegen ---------------------------------------------------------------
+  // AP2.5 PR a2 (0039): sektor, sitz_plz und sitz_ort sind NOT NULL. Der Sitz
+  // eines Bestand-Akteurs ist der Standort seines ersten Stroms mit Ort (die
+  // Reihenfolge der Seed-Daten ist die Anlage-Reihenfolge; vorher tat das
+  // seed-akteure.ts nachtraeglich per UPDATE — jetzt eine Stelle). Die PLZ
+  // kommt aus derselben Ortsliste wie bei Seed-A25; ein Ort ohne Eintrag
+  // bekommt die Platzhalter-PLZ 00000 (Testdaten). Ein Akteur ohne Strom mit
+  // Ort ist im Seed nicht vorgesehen — dann bricht der Seed ab, statt einen
+  // Sitz zu erfinden.
+  const plzJeOrt = new Map(A25_ORTE.map((o) => [o.ort, o.plz]));
+  const sitzJeAkteur = new Map<number, { ort: string; plz: string; lng: number | null; lat: number | null }>();
+  for (const s of alle) {
+    if (sitzJeAkteur.has(s.akteurIndex) || !s.ort) continue;
+    sitzJeAkteur.set(s.akteurIndex, { ort: s.ort, plz: plzJeOrt.get(s.ort) ?? "00000", lng: s.lng, lat: s.lat });
+  }
   await sql.begin(async (tx) => {
-    for (const a of akteure) {
+    for (const [i, a] of akteure.entries()) {
+      const sitz = sitzJeAkteur.get(i);
+      if (!sitz) throw new Error(`Seed-Akteur ${a.name} hat keinen Strom mit Ort — kein Sitz ableitbar (NOT NULL seit 0039).`);
       // Idempotent auch dann, wenn ein Seed-Akteur wegen Nicht-Seed-Referenzen
       // (z. B. manuell erfasste Stroeme auf der Preview) nicht geloescht
       // wurde: dieselbe deterministische ID ist DERSELBE Akteur — er wird auf
       // den Generator-Stand aktualisiert statt am Primaerschluessel zu platzen.
-      // `rollen` bleibt unangetastet (E23: ableitbar, wird weder gelesen
-      // noch geschrieben) — der Spalten-Default '{}' greift beim Einfuegen.
-      // AP2.5 (E66): „ohne Sektor" ist die Systemzeile ohne_sektor, nicht NULL (NOT NULL ab a2).
-      await tx`INSERT INTO akteur (id, name, sektor, status)
-        VALUES (${a.id}, ${a.name}, ${a.sektor ?? "ohne_sektor"}, 'geprueft')
+      // AP2.5 (E66): „ohne Sektor" ist die Systemzeile ohne_sektor, nicht NULL.
+      await tx`INSERT INTO akteur (id, name, sektor, status, sitz_plz, sitz_ort, sitz_geom)
+        VALUES (${a.id}, ${a.name}, ${a.sektor ?? "ohne_sektor"}, 'geprueft', ${sitz.plz}, ${sitz.ort},
+          ${sitz.lng == null ? null : tx`ST_SetSRID(ST_MakePoint(${sitz.lng}, ${sitz.lat}), 4326)`})
         ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name,
-          sektor = EXCLUDED.sektor`;
+          sektor = EXCLUDED.sektor, sitz_plz = EXCLUDED.sitz_plz, sitz_ort = EXCLUDED.sitz_ort, sitz_geom = EXCLUDED.sitz_geom`;
     }
     for (const s of alle) {
       let belegId: string | null = null;

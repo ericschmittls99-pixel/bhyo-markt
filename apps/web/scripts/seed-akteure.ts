@@ -53,7 +53,6 @@ function uuid(key: string): string {
 
 /** Orte mit PLZ und Koordinate (Kreise der Region, wie seed-daten.ts). */
 const ORTE = A25_ORTE;
-const PLZ_JE_ORT = new Map(ORTE.map((o) => [o.ort, o.plz]));
 
 const BELEG_TYPEN = ["gespraech", "dokument", "webrecherche", "betriebsdaten", "vertrag", "absichtserklaerung", "angebot"] as const;
 
@@ -77,38 +76,10 @@ async function main() {
     process.exit(1);
   }
 
-  // 1. Sitz des Bestands aus dem aeltesten Strom-Standort (bewusst gewaehlt, Mehrfach-Orte werden genannt).
-  const bestand = await sql`
-    with s as (
-      select akteur_id, ort, standort_geom, created_at from biomassestrom
-      union all
-      select akteur_id, ort, standort_geom, created_at from output_bedarf
-    ), erster as (
-      select distinct on (akteur_id) akteur_id, ort, standort_geom from s where ort is not null order by akteur_id, created_at, ort
-    ), orte as (
-      select akteur_id, count(distinct lower(btrim(ort)))::int as n from s where ort is not null group by akteur_id
-    )
-    select a.id, a.name, e.ort, ST_X(e.standort_geom::geometry) as lng, ST_Y(e.standort_geom::geometry) as lat, coalesce(o.n, 0) as orte
-      from akteur a
-      left join erster e on e.akteur_id = a.id
-      left join orte o on o.akteur_id = a.id
-     where a.name like 'Seed: %' and a.sitz_plz is null`;
-  let sitzGesetzt = 0;
-  let sitzOhneStrom = 0;
-  for (const a of bestand) {
-    const ort = a.ort as string | null;
-    if (!ort) {
-      sitzOhneStrom += 1;
-      continue;
-    }
-    const plz = PLZ_JE_ORT.get(ort) ?? "00000";
-    if (Number(a.orte) > 1) console.log(`SITZ_WAHL ${a.name}: ${Number(a.orte)} Orte, gewaehlt ${ort} (aeltester Strom)`);
-    await sql`update akteur set sitz_plz = ${plz}, sitz_ort = ${ort},
-      sitz_geom = ${a.lng == null ? null : sql`ST_SetSRID(ST_MakePoint(${Number(a.lng)}, ${Number(a.lat)}), 4326)`}
-      where id = ${a.id}`;
-    sitzGesetzt += 1;
-  }
-  console.log(`SITZ_BESTAND gesetzt=${sitzGesetzt} ohne_strom_standort=${sitzOhneStrom}`);
+  // 1. Sitz des Bestands: setzt seit AP2.5 PR a2 (0039, NOT NULL) seed-preview.ts
+  //    beim Einfuegen aus dem ersten Strom-Standort — hier nur noch die Kontrolle.
+  const [sb] = await sql`select count(*)::int as ohne_sitz from akteur where name like 'Seed: %' and (sitz_plz is null or sitz_ort is null)`;
+  console.log(`SITZ_BESTAND ohne_sitz=${sb!.ohne_sitz}`);
 
   // 2. SEED-A25-Zeilen loeschen (Marker, FK-Reihenfolge), dann neu einfuegen.
   await sql.begin(async (tx) => {
