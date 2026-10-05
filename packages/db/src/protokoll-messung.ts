@@ -207,6 +207,7 @@ async function main() {
       ? await sql`with l as (select * from job_lauf where job = 'verifikation' order by stichtag desc limit 1)
                   select (select count(*)::int from job_lauf where job = 'verifikation') as laeufe,
                          l.stichtag::text as letzter_stichtag, l.ergebnis as letztes_ergebnis, l.anzahl as letzte_anzahl,
+                         l.abgeraeumt as letzte_abgeraeumt,
                          l.gestartet_am::text as gestartet_am, l.beendet_am::text as beendet_am,
                          extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s
                     from l`
