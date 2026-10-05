@@ -8,7 +8,9 @@
 #
 #   a) Pruefen: PR offen, Head = genannte SHA, MERGEABLE/CLEAN, alle Checks am
 #      Head gruen. Ein abgebrochener (cancelled) Deploy-Lauf am Head wird EINMAL
-#      neu gestartet und abgewartet. Pruefung und Merge macht merge-sicher.sh.
+#      neu gestartet und abgewartet. Offene PRs, deren Base dieser Branch ist,
+#      werden auf main umgehaengt (sonst schliesst sie das Loeschen des
+#      Branches). Pruefung und Merge macht merge-sicher.sh.
 #   b) Merge (squash, --match-head-commit).
 #   c) main steht auf dem Squash-Commit des PR.
 #   d) Nur wenn der PR eine neue Migration enthaelt: migrate-production.yml
@@ -46,6 +48,20 @@ if [[ -n "$abgebrochen" ]]; then
     gh run watch "$lauf" --exit-status >/dev/null || { echo "ABBRUCH: Neustart von Lauf $lauf nicht gruen. Nichts gemergt." >&2; exit 1; }
     echo "    Lauf $lauf nach Neustart gruen"
   done
+fi
+
+# Gestapelte PRs (Base = der Branch dieses PR) wuerden beim Loeschen des
+# Branches geschlossen (#160 und #169 am 05.10.2026). Vor dem Merge auf main
+# umhaengen und melden — der Branch faellt erst danach.
+branch=$(gh pr view "$PR" --json headRefName --jq .headRefName)
+gestapelt=$(gh pr list --base "$branch" --state open --json number --jq 'map(.number) | join(" ")')
+if [[ -n "$gestapelt" ]]; then
+  for kind in $gestapelt; do
+    gh api -X PATCH "repos/$REPO/pulls/$kind" -f base=main >/dev/null
+    echo "    gestapelter PR #$kind: Base $branch -> main umgehaengt"
+  done
+else
+  echo "    keine gestapelten PRs auf $branch"
 fi
 
 echo "==> (b) Merge ueber merge-sicher.sh"
