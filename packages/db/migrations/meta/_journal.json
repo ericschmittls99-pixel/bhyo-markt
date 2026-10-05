@@ -274,6 +274,13 @@
       "when": 1790865541916,
       "tag": "0038_ap25_dubletten",
       "breakpoints": true
+    },
+    {
+      "idx": 39,
+      "version": "7",
+      "when": 1791185637556,
+      "tag": "0039_ap25_akteur_pflichtfelder",
+      "breakpoints": true
     }
   ]
 }

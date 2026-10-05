@@ -131,9 +131,9 @@ async function main() {
       const admins = (await tx.execute<{ id: string }>(sql`select id from benutzer where aktiv and rolle = 'admin'`)) as unknown as { id: string }[];
       const altId = "00000000-0000-4000-8000-00000000a25a";
       const jungId = "00000000-0000-4000-8000-00000000a25b";
-      await tx.execute(sql`insert into akteur (id, name, sektor, status, created_at) values
-        (${altId}, 'Job-Probe verwaist alt', 'ohne_sektor', 'entwurf', now() - interval '8 months'),
-        (${jungId}, 'Job-Probe verwaist jung', 'ohne_sektor', 'entwurf', now() - interval '1 month')`);
+      await tx.execute(sql`insert into akteur (id, name, sektor, status, sitz_plz, sitz_ort, created_at) values
+        (${altId}, 'Job-Probe verwaist alt', 'ohne_sektor', 'entwurf', '00000', 'Probe', now() - interval '8 months'),
+        (${jungId}, 'Job-Probe verwaist jung', 'ohne_sektor', 'entwurf', '00000', 'Probe', now() - interval '1 month')`);
       const lauf8 = await stelleVerifikationsHinweiseZu(tx, heute);
       const verwaistZeilen = (await tx.execute(sql`select empfaenger_id, akteur_id, zustand::text as zustand from inbox_eintrag where akteur_id in (${altId}, ${jungId})`)) as unknown as { empfaenger_id: string; akteur_id: string; zustand: string }[];
       pruefe("5a verwaist 8 Monate: Hinweis an alle aktiven Admins, junger Akteur nichts", lauf8.verwaist === admins.length && verwaistZeilen.every((z) => z.akteur_id === altId) && verwaistZeilen.length === admins.length, { lauf8, admins: admins.length, zeilen: verwaistZeilen.length });

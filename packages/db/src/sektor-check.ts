@@ -191,29 +191,47 @@ async function main() {
   if ((z!.unbekannt as number) > 0) fehler.push(`${z!.unbekannt} Akteure mit unbekanntem Sektor`);
   if ((akt!.aktiv as number) < 1) fehler.push("Kein aktiver Sektor — die Auswahlliste waere leer");
   const fk = await probe(async (tx) => {
-    await tx`insert into akteur (name, sektor, status) values ('Sektor-Testzeile', 'gibt-es-nicht', 'entwurf')`;
+    await tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', 'gibt-es-nicht', 'entwurf', '00000', 'Probe')`;
   });
   console.log(`FREMDSCHLUESSEL_GREIFT ${fk !== null}`);
   if (fk === null) fehler.push("Ein unbekannter Sektor liess sich einfuegen");
 
-  // (5) Schreibfaelle der Akteur-Anlage
+  // (5) Schreibfaelle der Akteur-Anlage. Seit AP2.5 PR a2 (Migration 0039,
+  //     Contract zu E66) sind sektor, sitz_plz und sitz_ort NOT NULL: die
+  //     Systemzeile 'ohne_sektor' ersetzt NULL, PLZ und Ort sind Pflicht.
+  //     Vollstaendige Anlage muss gehen, jede Luecke muss das Schema abweisen.
   const [aktiver] = await sql`select code from sektor where aktiv order by sortierung, label limit 1`;
   for (const [fall, wert] of [
     ["MIT_SEKTOR", aktiver!.code as string],
-    ["OHNE_SEKTOR", null],
+    ["SYSTEMZEILE_OHNE_SEKTOR", "ohne_sektor"],
   ] as const) {
     let angelegt = false;
     const grund = await probe(async (tx) => {
-      const [row] = await tx`insert into akteur (name, sektor, status) values ('Sektor-Testzeile', ${wert}, 'entwurf') returning sektor`;
+      const [row] = await tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', ${wert}, 'entwurf', '00000', 'Probe') returning sektor`;
       angelegt = !!row && row.sektor === wert;
     });
     console.log(`ANLAGE_${fall} ${angelegt}${grund ? ` grund="${grund}"` : ""}`);
     if (!angelegt) fehler.push(`Akteur-Anlage ${fall} scheitert am Schema`);
   }
+  const [nn] = await sql`select count(*)::int as n from information_schema.columns
+    where table_name = 'akteur' and column_name in ('sektor', 'sitz_plz', 'sitz_ort') and is_nullable = 'NO'`;
+  console.log(`NOT_NULL_SPALTEN ${nn!.n}`);
+  if (nn!.n !== 3) fehler.push(`NOT NULL auf sektor/sitz_plz/sitz_ort fehlt (${nn!.n} von 3) — Migration 0039`);
+  for (const [fall, lauf] of [
+    ["SEKTOR_NULL", (tx: postgres.TransactionSql) => tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', null, 'entwurf', '00000', 'Probe')`],
+    ["PLZ_NULL", (tx: postgres.TransactionSql) => tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', ${aktiver!.code as string}, 'entwurf', null, 'Probe')`],
+    ["ORT_NULL", (tx: postgres.TransactionSql) => tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', ${aktiver!.code as string}, 'entwurf', '00000', null)`],
+  ] as const) {
+    const grund = await probe(async (tx) => {
+      await lauf(tx);
+    });
+    console.log(`ANLAGE_${fall} abgewiesen=${grund !== null}${grund ? ` grund="${grund}"` : ""}`);
+    if (grund === null) fehler.push(`Akteur-Anlage ${fall} ging durch — NOT NULL (0039) greift nicht`);
+  }
   let bleibt = false;
   const deakt = await probe(async (tx) => {
     await tx`insert into sektor (code, label, aktiv) values ('probe_deaktiviert', 'Probe deaktiviert', false)`;
-    const [row] = await tx`insert into akteur (name, sektor, status) values ('Sektor-Testzeile', 'probe_deaktiviert', 'entwurf') returning sektor`;
+    const [row] = await tx`insert into akteur (name, sektor, status, sitz_plz, sitz_ort) values ('Sektor-Testzeile', 'probe_deaktiviert', 'entwurf', '00000', 'Probe') returning sektor`;
     bleibt = row?.sektor === "probe_deaktiviert";
   });
   console.log(`AKTEUR_AN_DEAKTIVIERTEM_SEKTOR ${bleibt}${deakt ? ` grund="${deakt}"` : ""}`);
