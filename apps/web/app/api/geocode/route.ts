@@ -1,4 +1,4 @@
-import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } from "@/lib/geocode";
+import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, REVERSE_RADIUS_KM, waehleTrefferAusPin, type Adresse } from "@/lib/geocode";
 import { erstelleRateLimit } from "@/lib/rate-limit";
 import { zugangFuerRoute } from "@/lib/rechte/wache";
 
@@ -13,7 +13,10 @@ import { zugangFuerRoute } from "@/lib/rechte/wache";
  * durchgereicht), und je Nutzer gilt eine Ratenbegrenzung.
  *
  * ?q=          Suche (Autocomplete), Debounce liegt im Client
- * ?lat=&lon=   Rueckwaertssuche fuer den verschobenen Pin
+ * ?lat=&lon=   Rueckwaertssuche fuer den verschobenen Pin: bis zu 5 Treffer
+ *              im Radius (layer house/street, Photon kennt limit, radius und
+ *              layer bei /reverse — gemessen 05.10.2026), zurueck kommt nur
+ *              der naechstgelegene Treffer mit PLZ (lib/geocode).
  *
  * Die Suche ist Bequemlichkeit, kein Tor: Ist der Dienst nicht erreichbar,
  * antwortet die Route mit 502 und einem Klartext, der auf die vollstaendige
@@ -50,7 +53,7 @@ export async function GET(req: Request) {
   if (q.length >= 3) {
     url = `${PHOTON}/api?q=${encodeURIComponent(q)}&limit=5&lang=de&bbox=${BBOX_DE}`;
   } else if (latLonOk) {
-    url = `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=de`;
+    url = `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=de&limit=5&radius=${REVERSE_RADIUS_KM}&layer=house&layer=street`;
   } else {
     return Response.json({ adressen: [] });
   }
@@ -65,9 +68,13 @@ export async function GET(req: Request) {
     const alle = (data.features ?? [])
       .map(photonZuAdresse)
       .filter((a): a is Adresse => a != null);
-    // Sitz-Erfassung b: Die Suche bietet Adressen, Orte und PLZ an; die
-    // Rueckwaertssuche nimmt jeden Treffer (ein Bach kennt noch seinen Ort).
-    const adressen = dedupeAdressen(q.length >= 3 ? nurAdressenUndOrte(alle) : alle);
+    // Sitz-Erfassung b: Die Suche bietet Adressen, Orte und PLZ an. Die
+    // Rueckwaertssuche liefert genau den naechsten Treffer mit PLZ im Radius —
+    // oder nichts, dann bleibt das Feld leer und der Hinweis sagt es.
+    const adressen =
+      q.length >= 3
+        ? dedupeAdressen(nurAdressenUndOrte(alle))
+        : [waehleTrefferAusPin({ lng: lon, lat }, alle, REVERSE_RADIUS_KM)].filter((a): a is Adresse => a != null);
     return Response.json({ adressen });
   } catch {
     return Response.json(
