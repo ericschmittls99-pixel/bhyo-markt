@@ -1408,7 +1408,9 @@ TypeScript, `dubletten-check` (CI, Preview) prüft SQL und `similarity()`
 dagegen. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
 Migration). Ein GIN-Index war vorgesehen und ist mit der Zusatzregel
 Wort-Teilmenge (9d77451) entfallen: die Abfrage „Ähnlichkeit ODER Teilmenge
-mit Ortsbezug" nutzt ihn nicht, die Mengen sind klein. Die Combobox zeigt
+mit Ortsbezug" nutzt ihn nicht, die Mengen sind klein. **Ab etwa 10.000
+Akteuren** wird die Laufzeit des Dubletten-Vorschlags gemessen und ein Index
+erneut erwogen (Eric, 05.10.2026). Die Combobox zeigt
 höchstens drei Vorschläge, „neu anlegen" bleibt sticky am unteren Rand des
 Menüs (Eric 05.10.2026, PR a2).
 
