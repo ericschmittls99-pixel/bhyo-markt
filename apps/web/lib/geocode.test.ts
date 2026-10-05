@@ -25,6 +25,8 @@ describe("photonZuAdresse", () => {
       hausnummer: "12",
       plz: "67346",
       ort: "Speyer",
+      kreis: null,
+      land: "Rheinland-Pfalz",
       lng: 8.43,
       lat: 49.32,
     });
@@ -67,6 +69,8 @@ describe("dedupeAdressen", () => {
   const a = (lat: number, lng: number, hausnummer = "12"): Adresse => ({
     art: "adresse",
     strasse: "Maximilianstraße",
+    kreis: null,
+    land: "Rheinland-Pfalz",
     hausnummer,
     plz: "67346",
     ort: "Speyer",
@@ -131,5 +135,15 @@ describe("nurAdressenUndOrte (Suche)", () => {
       mk({ osm_key: "building", osm_value: "train_station", type: "house", name: "Speyer Hauptbahnhof", street: "Bahnhofstraße", postcode: "67346", city: "Speyer" }),
     ];
     expect(nurAdressenUndOrte(liste).map((a) => a.art)).toEqual(["ort", "plz", "adresse"]);
+  });
+});
+
+// Sitz-Erfassung c (05.10.2026): Kreis und Land je Treffer.
+describe("photonZuAdresse: Kreis und Land (Sitz-Erfassung c)", () => {
+  it("uebernimmt county und state; kreisfreie Stadt hat keinen county", () => {
+    const elbe = photonZuAdresse(feature({ osm_key: "place", osm_value: "village", name: "Freiburg (Elbe)", postcode: "21729", county: "Landkreis Stade", state: "Niedersachsen" }));
+    expect(elbe).toMatchObject({ kreis: "Landkreis Stade", land: "Niedersachsen" });
+    const breisgau = photonZuAdresse(feature({ osm_key: "place", osm_value: "city", name: "Freiburg im Breisgau", state: "Baden-Württemberg" }));
+    expect(breisgau).toMatchObject({ kreis: null, land: "Baden-Württemberg" });
   });
 });
