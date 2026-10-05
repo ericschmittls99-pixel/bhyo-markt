@@ -173,6 +173,9 @@ async function main() {
         values ('vertrag', '{"quellenangabe": "Job-Probe 7"}'::jsonb, (${heute}::date + 3), 'belege/preview/job-probe-7.pdf', null, now())
         returning id`)) as unknown as { id: string }[];
       await tx.execute(sql`update biomassestrom set status = 'geprueft', beleg_id = ${beleg7!.id} where id = ${strom.id}`);
+      // Schritt 6 hat das Protokoll des Stroms geleert; ohne Pruef-Ereignis waere der
+      // Zustand pruefdatum_unbekannt (Ablauf-Hinweis ohne Bezugsdatum) statt laeuft_bald_ab.
+      await tx.execute(sql`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id) values ('biomassestrom', ${strom.id}, 'Job-Probe 7', 'geprueft', ${p1})`);
       const offene = async () => (await zaehle()).filter((z) => z.zustand === "offen");
       const lauf14 = await stelleVerifikationsHinweiseZu(tx, heute);
       const nach14 = await offene();
