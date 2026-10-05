@@ -261,6 +261,13 @@ describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ei
     expect(workflow).toMatch(/sleep 30/);
   });
 
+  it("nach 20 Minuten (40 x 30 s) ohne Migration endet das Gate ROT mit klarer Meldung (Bedingung Eric 05.10.2026)", () => {
+    // Hinter der Schleife: Fehlermeldung mit Handlungsanweisung, dann exit 1 — kein stilles Weiterlaufen.
+    expect(workflow).toMatch(/done\n\s+echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal\. migrate-production\.yml \(bestaetigung=production\) starten, dann diesen Lauf erneut starten\."\n\s+exit 1\n/);
+    // Der Deploy-Job haengt weiterhin am Gate-Ergebnis: rot = kein Deploy.
+    expect(workflow).toMatch(/needs\.schema-gate\.result == 'success'/);
+  });
+
   it("freigabe.sh bricht bei jedem Fehlschlag sofort ab (set -euo pipefail) und merged ueber merge-sicher.sh", () => {
     expect(freigabe).toMatch(/^set -euo pipefail$/m);
     expect(freigabe).toContain('"$HIER/merge-sicher.sh" "$PR" "$head" "$BETREFF"');
