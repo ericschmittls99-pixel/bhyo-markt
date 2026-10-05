@@ -53,7 +53,6 @@ jobs:
     environment: production
     permissions:
       contents: read
-      actions: write # loest nach der Migration den Deploy-Workflow aus
     steps:
       - name: Bestaetigung pruefen
         if: inputs.bestaetigung != 'production'
@@ -139,10 +138,6 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: pnpm --filter @bhyo/db schema-stand
 
-      # Der blockierte (oder noch nicht gelaufene) Deploy folgt automatisch:
-      # workflow_dispatch-Events aus dem GITHUB_TOKEN duerfen — anders als
-      # push — neue Workflow-Laeufe erzeugen.
-      - name: Deploy-Workflow fuer main ausloesen
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: gh workflow run deploy.yml --ref main --repo "$GITHUB_REPOSITORY"
+      # Kein Dispatch des Deploys mehr (Betriebs-PR, 05.10.2026): Der Push-Lauf
+      # von deploy.yml wartet im schema-gate auf diese Migration und deployt
+      # danach selbst. Ein zweiter Lauf per Dispatch waere ein Doppel-Deploy.

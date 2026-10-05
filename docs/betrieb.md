@@ -151,3 +151,25 @@ Personen auch dort nicht mehr enthalten. Eine Wiederherstellung aus einem
 Backup innerhalb dieser Frist bringt gelöschte Personen zurück — vor einem
 Restore ist das zu bedenken. Die Auskunft nach Art. 15 (Druckansicht je
 Person, nur Admin) nennt diese Frist.
+
+## Freigabe-Ablauf als ein Skript und Warteschlange statt Abbruch (Betriebs-PR, 05.10.2026)
+
+Anlass: Am 05.10.2026 hatte eine Befehlskette mit Semikolon nach einem am
+Skript gescheiterten Merge trotzdem migrate-production und einen Deploy
+ausgelöst (beides wirkungslos, aber falsch). Außerdem brach `ready_for_review`
+dreimal den Push-Lauf desselben Heads ab und hinterließ einen „cancelled"-Check,
+an dem das Merge-Skript scheiterte.
+
+**`scripts/freigabe.sh <pr> <head-sha> "<betreff>"`** (set -euo pipefail):
+a) PR offen, Head = freigegebene SHA; ein abgebrochener Deploy-Lauf am Head
+wird einmal neu gestartet und abgewartet; b) Merge über `merge-sicher.sh`
+(MERGEABLE/CLEAN, grüne Checks, `--match-head-commit`); c) main steht auf dem
+Squash-Commit; d) nur bei neuer Migrationsdatei im PR: migrate-production
+starten, abwarten, Zählbeweis ausgeben; e) den Push-Deploy von main abwarten,
+Jobs, Leseweg und Links ausgeben. Jeder Fehlschlag bricht sofort ab.
+
+**Warteschlange:** `deploy.yml` bricht nur noch überholte PR-Läufe ab
+(`cancel-in-progress` nur bei `synchronize`); main-Deploys laufen nacheinander.
+Das `schema-gate` wartet bis zu 20 Minuten auf die Production-Migration (alle
+30 s), statt rot zu enden; nur „DB nicht erreichbar" bleibt sofort rot.
+`migrate-production.yml` löst deshalb keinen zweiten Deploy mehr aus.
