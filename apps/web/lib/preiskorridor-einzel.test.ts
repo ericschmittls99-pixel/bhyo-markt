@@ -12,7 +12,6 @@ const basis = (patch: Partial<Strom>): Strom =>
     sektor: null,
     sektorLabel: null,
     bezeichnung: null,
-    kontaktperson: null,
     ort: null,
     regionIds: [],
     regionNamen: [],

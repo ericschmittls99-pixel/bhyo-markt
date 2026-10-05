@@ -362,7 +362,6 @@ export interface DetailDaten {
   akteurName: string | null;
   sektor: string | null;
   ort: string | null;
-  kontaktperson: string | null;
   kategorie: string | null;
   zeitraumVon: string | null;
   zeitraumBis: string | null;
@@ -464,7 +463,6 @@ export function getDetail(
           akteurName: akteur.name,
           sektor: akteur.sektor,
           ort: biomassestrom.ort,
-          kontaktperson: biomassestrom.kontaktperson,
           kategorie: materialart.label,
           zeitraumVon: biomassestrom.zeitraumVon,
           zeitraumBis: biomassestrom.zeitraumBis,
@@ -495,7 +493,6 @@ export function getDetail(
         akteurName: r.akteurName,
         sektor: r.sektor,
         ort: r.ort,
-        kontaktperson: r.kontaktperson,
         kategorie: r.kategorie,
         zeitraumVon: r.zeitraumVon,
         zeitraumBis: r.zeitraumBis,
@@ -521,7 +518,6 @@ export function getDetail(
         akteurName: akteur.name,
         sektor: akteur.sektor,
         ort: outputBedarf.ort,
-        kontaktperson: outputBedarf.kontaktperson,
         produktLabel: outputProdukt.label,
         zeitraumVon: outputBedarf.zeitraumVon,
         zeitraumBis: outputBedarf.zeitraumBis,
@@ -546,7 +542,6 @@ export function getDetail(
       akteurName: r.akteurName,
       sektor: r.sektor,
       ort: r.ort,
-      kontaktperson: r.kontaktperson,
       kategorie: r.produktLabel,
       zeitraumVon: r.zeitraumVon,
       zeitraumBis: r.zeitraumBis,

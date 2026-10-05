@@ -7,7 +7,6 @@
 export interface VollstaendigkeitEingabe {
   art: "biomasse" | "output";
   bezeichnung: string | null;
-  kontaktperson: string | null;
   ort: string | null;
   /** F0b: statt des entfallenen manuellen Landkreises zaehlt die Koordinate. */
   koordinate: boolean;
@@ -62,7 +61,8 @@ export function vollstaendigkeit(e: VollstaendigkeitEingabe): number {
   const b = e.beleg;
   const checks: unknown[] = [
     e.bezeichnung,
-    e.kontaktperson,
+    // AP2.5 Contract (0040): kontaktperson ist kein Strom-Feld mehr — der
+    // Kontakt haengt am Akteur (Tabelle kontaktperson) und zaehlt hier nicht.
     e.ort,
     // F0b: Landkreis/Bundesland sind abgeleitet und keine Erfassungsfelder
     // mehr — der Pruefpunkt ist jetzt die Koordinate (aus ihr folgt beides).

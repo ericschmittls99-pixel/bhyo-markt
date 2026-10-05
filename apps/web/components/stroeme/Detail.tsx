@@ -560,7 +560,6 @@ export function Detail({
                   wert={[s.akteurName, s.sektorLabel ?? s.sektor].filter(Boolean).join(" · ") || "–"}
                 />
                 <Kv label="Bezeichnung" wert={s.bezeichnung ?? "–"} />
-                <Kv label="Kontaktperson" wert={s.kontaktperson ?? "–"} />
                 <Kv label="Ort" wert={s.ort ?? "–"} />
                 {/* F0b: abgeleitet aus der Koordinate (VG250) — nicht editierbar. */}
                 <Kv label="Landkreis" wert={`${kreisAnzeige(s)} · aus Koordinate`} />

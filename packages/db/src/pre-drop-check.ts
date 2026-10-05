@@ -32,6 +32,37 @@ async function main() {
     process.exit(1);
   }
 
+  // AP2.5 Contract (0040): die alten Kontaktfelder muessen leer sein, bevor
+  // sie fallen — Freitext dort waere ein Kontakt, den niemand uebertragen hat.
+  // Defensiv wie oben: entfaellt, sobald die Spalten weg sind.
+  const alt = await sql`
+    select table_name, column_name from information_schema.columns
+    where (table_name = 'akteur' and column_name in ('rollen', 'kontakt_email', 'kontakt_telefon', 'ansprechperson'))
+       or (table_name in ('biomassestrom', 'output_bedarf') and column_name = 'kontaktperson')`;
+  if (alt.length === 0) {
+    console.log("Alte Kontaktspalten existieren nicht (0040 bereits angewendet) — Vor-DROP-Zaehlung Kontakt entfaellt.");
+  } else if (alt.length !== 6) {
+    console.error(`::error::Abbruch OHNE DROP: nur ${alt.length} von 6 alten Kontaktspalten vorhanden — Schema unplausibel.`);
+    process.exit(1);
+  } else {
+    const [m] = await sql`
+      select (select count(*)::int from akteur where cardinality(rollen) > 0) as rollen,
+             (select count(*)::int from akteur where kontakt_email is not null and btrim(kontakt_email) <> '') as kontakt_email,
+             (select count(*)::int from akteur where kontakt_telefon is not null and btrim(kontakt_telefon) <> '') as kontakt_telefon,
+             (select count(*)::int from akteur where ansprechperson is not null and btrim(ansprechperson) <> '') as ansprechperson,
+             (select count(*)::int from biomassestrom where kontaktperson is not null and btrim(kontaktperson) <> '') as biomassestrom_kontaktperson,
+             (select count(*)::int from output_bedarf where kontaktperson is not null and btrim(kontaktperson) <> '') as output_bedarf_kontaktperson`;
+    console.log("VOR_DROP_KONTAKT " + JSON.stringify(m));
+    const befuellt = Object.entries(m!).filter(([, n]) => Number(n) > 0);
+    if (befuellt.length) {
+      console.error(
+        `::error::Abbruch OHNE DROP: alte Kontaktspalten sind nicht leer (${befuellt.map(([k, n]) => `${k}=${n}`).join(", ")}). Befund an Eric melden, nichts migrieren.`,
+      );
+      process.exit(1);
+    }
+    console.log("Vor-DROP-Zaehlung Kontakt OK: alle sechs Spalten leer — DROP darf laufen.");
+  }
+
   const spalten = await sql`
     select table_name from information_schema.columns
     where table_name in ('biomassestrom', 'output_bedarf') and column_name = 'qualitaet'`;

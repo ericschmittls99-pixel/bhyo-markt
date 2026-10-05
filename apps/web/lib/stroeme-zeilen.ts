@@ -141,7 +141,6 @@ type GemeinsameZeile = BelegZeile & VerifikationZeile & {
   sektor: string | null;
   sektorLabel: string | null;
   bezeichnung: string | null;
-  kontaktperson: string | null;
   /** AP2.5 PR b: Namen der Kontaktpersonen des Akteurs (nur intern, E47) — als json_agg geliefert. */
   kontaktpersonen?: unknown;
   ort: string | null;
@@ -218,7 +217,6 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     sektor: r.sektor,
     sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
-    kontaktperson: r.kontaktperson,
     kontaktpersonen: stringListe(r.kontaktpersonen),
     ort: r.ort,
     verwaltung: verwaltungOderNull(r.verwaltung),
@@ -265,7 +263,6 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     vollstaendigkeit: vollstaendigkeit({
       art: "biomasse",
       bezeichnung: basis.bezeichnung,
-      kontaktperson: basis.kontaktperson,
       ort: basis.ort,
       koordinate: basis.lng != null && basis.lat != null,
       zeitraumVon: basis.zeitraumVon,
@@ -299,7 +296,6 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     sektor: r.sektor,
     sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
-    kontaktperson: r.kontaktperson,
     kontaktpersonen: stringListe(r.kontaktpersonen),
     ort: r.ort,
     verwaltung: verwaltungOderNull(r.verwaltung),
@@ -346,7 +342,6 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     vollstaendigkeit: vollstaendigkeit({
       art: "output",
       bezeichnung: basis.bezeichnung,
-      kontaktperson: basis.kontaktperson,
       ort: basis.ort,
       koordinate: basis.lng != null && basis.lat != null,
       zeitraumVon: basis.zeitraumVon,

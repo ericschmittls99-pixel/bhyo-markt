@@ -324,13 +324,8 @@ export const akteur = pgTable("akteur", {
   sitzPlz: text("sitz_plz").notNull(),
   sitzOrt: text("sitz_ort").notNull(),
   sitzGeom: geometry("sitz_geom", { type: "point", srid: 4326 }),
-  rollen: text("rollen")
-    .array()
-    .notNull()
-    .default(sql`'{}'::text[]`),
-  kontaktEmail: text("kontakt_email"),
-  kontaktTelefon: text("kontakt_telefon"),
-  ansprechperson: text("ansprechperson"),
+  // rollen, kontakt_email, kontakt_telefon, ansprechperson: entfallen mit
+  // AP2.5 Contract (Migration 0040) — Kontakt lebt in der Tabelle kontaktperson.
   status: datensatzStatus("status").notNull(),
   createdAt: timestamp("created_at", { withTimezone: true })
     .notNull()
@@ -420,7 +415,6 @@ export const biomassestrom = pgTable("biomassestrom", {
   hausnummer: text("hausnummer"),
   plz: text("plz"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
-  kontaktperson: text("kontaktperson"),
   materialartCode: text("materialart_code")
     .notNull()
     .references(() => materialart.code),
@@ -505,7 +499,6 @@ export const outputBedarf = pgTable("output_bedarf", {
   hausnummer: text("hausnummer"),
   plz: text("plz"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
-  kontaktperson: text("kontaktperson"),
   // Output-Produkt (AP1f-a, ersetzt vektor). FK auf output_produkt.code.
   produktCode: text("produkt_code")
     .notNull()
