@@ -11,6 +11,9 @@ interface AkteurOption {
   sektor: string | null;
 }
 
+/** Hoechstens so viele „Meinten Sie"-Vorschlaege (Eric 05.10.2026) — der Rest ist die Dublettenliste. */
+const MAX_VORSCHLAEGE = 3;
+
 /** AP2.5 PR c: aehnlicher Akteur zum eingegebenen Namen (/api/akteure/aehnlich). */
 interface Aehnlich {
   id: string;
@@ -265,7 +268,8 @@ export function AkteurCombobox({
             {!laedt && query.trim() && !exakt && aehnliche.length > 0 && (
               <div className="akteur-meinten" role="group" aria-label="Meinten Sie">
                 <span className="menu-leer">Meinten Sie …?</span>
-                {aehnliche.map((a) => (
+                {/* Eric 05.10.2026: hoechstens drei Vorschlaege; „neu anlegen" bleibt unten im Menue sichtbar (sticky). */}
+                {aehnliche.slice(0, MAX_VORSCHLAEGE).map((a) => (
                   <button
                     key={a.id}
                     type="button"
