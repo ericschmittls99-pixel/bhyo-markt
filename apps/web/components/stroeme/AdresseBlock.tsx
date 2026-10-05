@@ -5,21 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import type { Map as MlMap, Marker as MlMarker } from "maplibre-gl";
 
 import { OSM_STYLE } from "@/components/karte/KarteMap";
+import { uebernimmAusPin, type AdresseWerte, type PinModus } from "@/lib/adresse-aus-pin";
 import { adresseLabel, type Adresse } from "@/lib/geocode";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /** Startausschnitt ohne Pin: Rhein-Neckar/Vorderpfalz (Kernregion). */
 const START: [number, number] = [8.55, 49.38];
-
-interface AdresseWerte {
-  strasse: string;
-  hausnummer: string;
-  plz: string;
-  ort: string;
-  lat: string;
-  lng: string;
-}
 
 interface Standort extends Omit<Adresse, "lng" | "lat"> {
   lng: number | null;
@@ -32,7 +24,11 @@ interface Standort extends Omit<Adresse, "lng" | "lat"> {
  * Adressfelder und ein Kartenausschnitt mit setz- und verschiebbarem Pin.
  * Wird der Pin verschoben, ist die KOORDINATE fuehrend: die Adressfelder
  * werden per Rueckwaertssuche aktualisiert und als "aus Pin uebernommen"
- * gekennzeichnet. Der Landkreis erscheint bewusst nicht im Formular
+ * gekennzeichnet. Sitz-Erfassung a (05.10.2026): Fehlt nach der Uebernahme
+ * eines Standorts oder Suchtreffers PLZ oder Ort, ergaenzt die Rueckwaerts-
+ * suche aus dem Pin nur das Fehlende; findet sie nichts, bleibt das Feld
+ * leer und der Hinweis sagt es. Der Pin bleibt dabei, wo er gesetzt wurde.
+ * Der Landkreis erscheint bewusst nicht im Formular
  * (bleibt Attribut am Datensatz; ab F0b raeumlich abgeleitet).
  */
 export function AdresseBlock({
@@ -67,6 +63,9 @@ export function AdresseBlock({
   const markerRef = useRef<MlMarker | null>(null);
   const mlRef = useRef<typeof import("maplibre-gl") | null>(null);
   const reverseAbort = useRef<AbortController | null>(null);
+  // Aktueller Feldstand fuer die asynchrone Rueckwaertssuche (kein Zustand im Updater).
+  const wRef = useRef(w);
+  wRef.current = w;
 
   const feld = (k: keyof AdresseWerte, v: string) => setW((alt) => ({ ...alt, [k]: v }));
 
@@ -92,8 +91,11 @@ export function AdresseBlock({
     if (zentrieren) map.flyTo({ center: [lng, lat], zoom: Math.max(map.getZoom(), 13) });
   }
 
-  /** Pin fuehrend: Adressfelder per Rueckwaertssuche nachziehen. */
-  async function adresseAusPin(lng: number, lat: number) {
+  /**
+   * Rueckwaertssuche aus dem Pin. "pin": Koordinate fuehrend, alle Felder aus
+   * dem Treffer. "ergaenzen": nur fehlende PLZ/Ort. Regel in lib/adresse-aus-pin.
+   */
+  async function adresseAusPin(lng: number, lat: number, modus: PinModus = "pin") {
     reverseAbort.current?.abort();
     const ac = new AbortController();
     reverseAbort.current = ac;
@@ -101,34 +103,33 @@ export function AdresseBlock({
       const res = await fetch(`/api/geocode?lat=${lat}&lon=${lng}`, { signal: ac.signal });
       if (!res.ok) throw new Error(String(res.status));
       const data = (await res.json()) as { adressen?: Adresse[] };
-      const a = data.adressen?.[0];
-      if (!a) throw new Error("leer");
-      setW((alt) => ({
-        ...alt,
-        strasse: a.strasse ?? "",
-        hausnummer: a.hausnummer ?? "",
-        plz: a.plz ?? "",
-        ort: a.ort ?? "",
-      }));
-      setHinweis("Adresse aus Pin übernommen.");
+      const r = uebernimmAusPin(wRef.current, data.adressen?.[0] ?? null, modus);
+      setW(r.werte);
+      setHinweis(r.hinweis);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setHinweis("Rückwärtssuche nicht erreichbar — Adressfelder unverändert.");
+      setHinweis("Rückwärtssuche nicht erreichbar — PLZ und Ort bitte von Hand eintragen.");
     }
   }
 
   function uebernehmen(a: Adresse | Standort, zentrieren: boolean) {
-    setW((alt) => ({
-      ...alt,
+    const neu: AdresseWerte = {
+      ...wRef.current,
       strasse: a.strasse ?? "",
       hausnummer: a.hausnummer ?? "",
       plz: a.plz ?? "",
       ort: a.ort ?? "",
-      lat: a.lat == null ? alt.lat : String(a.lat),
-      lng: a.lng == null ? alt.lng : String(a.lng),
-    }));
+      lat: a.lat == null ? wRef.current.lat : String(a.lat),
+      lng: a.lng == null ? wRef.current.lng : String(a.lng),
+    };
+    setW(neu);
+    wRef.current = neu;
     setHinweis(null);
     if (a.lng != null && a.lat != null) setzePin(a.lng, a.lat, zentrieren);
+    if (neu.plz && neu.ort) return;
+    // Standort oder Treffer ohne PLZ/Ort: aus dem Pin ergaenzen — ohne Pin nur melden.
+    if (neu.lat && neu.lng) void adresseAusPin(Number(neu.lng), Number(neu.lat), "ergaenzen");
+    else setHinweis(uebernimmAusPin(neu, null, "ergaenzen").hinweis);
   }
 
   // Karte einmalig aufbauen; beim Bearbeiten steht der Pin an der
