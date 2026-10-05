@@ -2,8 +2,9 @@ name: Backup
 
 on:
   schedule:
-    # Taeglich 02:00 UTC.
-    - cron: "0 2 * * *"
+    # Taeglich 02:23 UTC — krumme Minute: GitHub startet volle Stunden stark
+    # verzoegert (05.10.2026: 02:00-Cron lief um 08:45 UTC), wie bei der Job-Wache.
+    - cron: "23 2 * * *"
   # Manuelles Ausloesen (zum Testen, ohne bis zum naechsten Cron zu warten).
   workflow_dispatch:
 

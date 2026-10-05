@@ -80,7 +80,7 @@ abzuschalten statt einzelne Abfragen zu markieren.
 |---|---|---|
 | `production` | DATABASE_URL_PRODUCTION | migrate-production.yml (schreibend, nur von main; ziel-wache davor) |
 | `production-lesend` | DATABASE_URL_PRODUCTION_LESEND (Rolle bhyo_leser, nur SELECT) | lese-diagnose.yml (manuell), Job lese-diagnose in deploy.yml (nach jedem main-Deploy), job-wache.yml (mehrfach täglich, AP2.4 PR b / Betrieb 04.10.2026) |
-| `neon-restore` | NEON_API_KEY, NEON_PROJECT_ID, NEON_PARENT_BRANCH_ID | restore-woechentlich.yml (montags 03:00 UTC und manuell) |
+| `neon-restore` | NEON_API_KEY, NEON_PROJECT_ID, NEON_PARENT_BRANCH_ID | restore-woechentlich.yml (montags 03:41 UTC und manuell) |
 
 **Regel „nur main" auf allen dreien** (custom branch policy `main`, per
 API gesetzt 30.09.2026; Rot-Nachweis: Dispatch von einem Wegwerf-Branch
@@ -173,3 +173,23 @@ Jobs, Leseweg und Links ausgeben. Jeder Fehlschlag bricht sofort ab.
 Das `schema-gate` wartet bis zu 20 Minuten auf die Production-Migration (alle
 30 s), statt rot zu enden; nur „DB nicht erreichbar" bleibt sofort rot.
 `migrate-production.yml` löst deshalb keinen zweiten Deploy mehr aus.
+
+## Läufe-Wache, krumme Minuten, Label preview-migrieren, Migrations-Runner (Betriebs-PR 2, 05.10.2026)
+
+- **Läufe-Wache:** `job-wache.yml` prüft zusätzlich über die GitHub-API (nur
+  lesend, `actions: read`): letzter erfolgreicher Backup-Lauf höchstens 26 h,
+  letzter erfolgreicher Restore-Test höchstens 8 Tage alt, sonst rot
+  (`packages/db/src/laeufe-wache.ts`, reine Prüfung mit Test). Rot-Nachweis:
+  Dispatch mit `restore_max_tage=0`.
+- **Krumme Minuten:** Backup 02:23 UTC, Restore-Test montags 03:41 UTC —
+  GitHub startet volle Stunden stark verzögert (05.10.2026: 02:00 lief 08:45).
+- **Label `preview-migrieren`:** Der Schritt „Migrate Preview-DB" in `deploy.yml`
+  läuft nur, wenn der PR das Label trägt (das Label löst den Lauf aus). Alle
+  DB-Checks laufen ohne Label; ein PR mit neuer Migration ohne Label wird im
+  Journal-Vergleich rot („Journal voraus"), bis er das Label bekommt. Damit
+  migriert nur der nächste zu mergende PR die geteilte Preview.
+- **Migrations-Runner:** `pnpm --filter @bhyo/db migrate` = `src/migrieren.ts`
+  (drizzle-orm/postgres-js/migrator, gleiche Tabelle und Hashes wie drizzle-kit).
+  NOTICE-Zeilen der Zählbeweise erscheinen als `NOTICE …`; ein Fehler endet mit
+  Statement, Postgres-Code, Meldung, Detail und Exit 1 — `drizzle-kit migrate`
+  verschluckte das.

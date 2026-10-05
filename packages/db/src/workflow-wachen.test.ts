@@ -230,7 +230,7 @@ describe("deploy.yml: Entwuerfe deployen nicht auf die Preview", () => {
     expect(deployJob).toMatch(/github\.event\.pull_request\.draft == false/);
   });
   it("ready_for_review loest den Lauf aus, damit der fertige PR die Preview bekommt", () => {
-    expect(workflow).toMatch(/pull_request:\n(?:\s+#.*\n)*\s+types: \[opened, synchronize, reopened, ready_for_review\]/);
+    expect(workflow).toMatch(/pull_request:\n(?:\s+#.*\n)*\s+types: \[opened, synchronize, reopened, ready_for_review, labeled\]/);
   });
   it("Migration und Preview-Deploy liegen im deploy-Job — nirgends sonst", () => {
     expect(workflow.indexOf("Migrate Preview-DB")).toBeGreaterThan(workflow.indexOf("\n  deploy:\n"));
@@ -296,5 +296,39 @@ describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ei
   it("freigabe.sh prueft nach dem Merge, dass main auf dem Squash-Commit steht", () => {
     expect(freigabe).toContain("--jq .mergeCommit.oid");
     expect(freigabe).toMatch(/"\$main" != "\$squash"/);
+  });
+});
+
+describe("Betriebs-PR 2 (05.10.2026): Laeufe-Wache, krumme Minuten, Label preview-migrieren, Runner", () => {
+  const jobWache = readFileSync(new URL("../../../.github/workflows/job-wache.yml", import.meta.url), "utf8");
+  const backup = readFileSync(new URL("../../../.github/workflows/backup.yml", import.meta.url), "utf8");
+  const restore = readFileSync(new URL("../../../.github/workflows/restore-woechentlich.yml", import.meta.url), "utf8");
+  const minuten = (wf: string) => [...wf.matchAll(/cron: "(\d+) /g)].map((m) => Number(m[1]));
+
+  it("job-wache prueft Backup und Restore-Test ueber die GitHub-API, nur lesend, auch nach roter DB-Wache", () => {
+    expect(jobWache).toContain("actions/workflows/backup.yml/runs?status=success");
+    expect(jobWache).toContain("actions/workflows/restore-woechentlich.yml/runs?status=success");
+    expect(jobWache).toMatch(/if: always\(\)\n\s+env:\n\s+GH_TOKEN: \$\{\{ github\.token \}\}/);
+    expect(jobWache).toMatch(/actions: read/);
+    expect(jobWache).toContain("pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json");
+    expect(jobWache).not.toMatch(/actions: write/);
+  });
+
+  it("Backup und Restore-Test laufen auf krummen Minuten; Restore nach dem Backup", () => {
+    expect(minuten(backup)).toEqual([23]);
+    expect(minuten(restore)).toEqual([41]);
+    expect(backup).toContain('cron: "23 2 * * *"');
+    expect(restore).toContain('cron: "41 3 * * 1"');
+  });
+
+  it("die Preview wird nur mit dem Label preview-migrieren migriert; das Label loest den Lauf aus; DB-Checks laufen ohne Label", () => {
+    expect(workflow).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'preview-migrieren'\)/);
+    expect(workflow).toMatch(/types: \[opened, synchronize, reopened, ready_for_review, labeled\]/);
+    expect(workflow).toMatch(/- name: Inbox-Check \(Inbox\)\n\s+if: github\.event_name == 'pull_request'\n/);
+  });
+
+  it("Migration laeuft ueberall ueber den Runner (pnpm run migrate / @bhyo/db migrate)", () => {
+    expect(workflow).toMatch(/preview-migrieren'\)\n(?:[^\n]*\n){0,6}\s+run: pnpm run migrate/);
+    expect(workflow).not.toContain("drizzle-kit migrate");
   });
 });

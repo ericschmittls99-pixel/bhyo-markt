@@ -21,6 +21,12 @@ on:
       stichtag:
         description: "Stichtag JJJJ-MM-TT (leer = heute, Berlin)"
         required: false
+      backup_max_stunden:
+        description: "Backup: hoechstes Alter des letzten Erfolgs in Stunden (leer = 26; kleiner nur fuer den Rot-Nachweis)"
+        required: false
+      restore_max_tage:
+        description: "Restore-Test: hoechstes Alter des letzten Erfolgs in Tagen (leer = 8; kleiner nur fuer den Rot-Nachweis)"
+        required: false
 
 jobs:
   wache:
@@ -28,6 +34,7 @@ jobs:
     environment: production-lesend
     permissions:
       contents: read
+      actions: read # Laeufe von Backup und Restore-Test lesen (laeufe-wache)
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
@@ -41,3 +48,16 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
         run: pnpm --filter @bhyo/db job-wache ${{ inputs.stichtag }}
+
+      # Betriebs-PR (Eric, 05.10.2026): zusaetzlich ueber die GitHub-API, nur
+      # lesend — letzter erfolgreicher Backup-Lauf <= 26 h, letzter erfolgreicher
+      # restore-woechentlich <= 8 Tage, sonst rot. Laeuft auch, wenn die
+      # DB-Wache rot war (always), damit beide Befunde im selben Lauf stehen.
+      - name: Laeufe-Wache (Backup <= 26 h, Restore-Test <= 8 Tage, GitHub-API nur lesen)
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backup.yml/runs?status=success&per_page=1" > /tmp/backup.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/workflows/restore-woechentlich.yml/runs?status=success&per_page=1" > /tmp/restore.json
+          pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json ${{ inputs.backup_max_stunden }} ${{ inputs.restore_max_tage }}

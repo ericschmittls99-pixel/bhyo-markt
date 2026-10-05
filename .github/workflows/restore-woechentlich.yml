@@ -1,8 +1,9 @@
 name: Restore-Test woechentlich (Neon-Branch je Lauf)
 
 # Go-live (Entscheidung Eric, 28.09.2026): Ein Backup gilt erst als Backup,
-# wenn es regelmaessig zurueckgespielt wird. Jeden Montag 03:00 UTC (nach
-# dem Backup um 02:00) und manuell:
+# wenn es regelmaessig zurueckgespielt wird. Jeden Montag 03:41 UTC (nach
+# dem Backup um 02:23; krumme Minuten, weil GitHub volle Stunden stark
+# verzoegert startet) und manuell:
 #   1. Neon-Branch aus Production anlegen (Neon-API, Name restore-<run>),
 #   2. darin eine leere Datenbank, neuesten Dump aus R2 zurueckspielen,
 #   3. jede Tabelle gegen das ZAEHLPROTOKOLL des Dumps vergleichen (gleicher
@@ -22,7 +23,7 @@ name: Restore-Test woechentlich (Neon-Branch je Lauf)
 # dieser Lauf nicht auch nachweist.
 on:
   schedule:
-    - cron: "0 3 * * 1"
+    - cron: "41 3 * * 1"
   workflow_dispatch:
     inputs:
       # Nachweis, dass der Vergleich wirklich rot wird: verfaelscht das

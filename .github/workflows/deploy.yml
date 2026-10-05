@@ -12,7 +12,8 @@ on:
     # Preview-Deploy samt Migration, den er als Entwurf nicht bekam (Regel Eric
     # 01.10.2026: auf die geteilte Preview migriert nur der PR, der als Naechster
     # gemergt wird; Entwuerfe laufen durch Typen und Tests, ohne Preview-Deploy).
-    types: [opened, synchronize, reopened, ready_for_review]
+    # labeled: das Label preview-migrieren loest den Lauf aus, der die Preview migriert.
+    types: [opened, synchronize, reopened, ready_for_review, labeled]
   # Notausgang (kein Ersatz fuer den push-Trigger): beim PR-7-Merge hat
   # GitHub fuer den Squash-Commit kein PushEvent erzeugt (Events-API leer,
   # kein Token-/paths-Problem — Einzelfall-Drop). Damit laesst sich der
@@ -281,12 +282,17 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db beleg-frist-check
 
-      - name: Migrate Preview-DB
-        if: github.event_name == 'pull_request'
+      # Label preview-migrieren (Betriebs-PR, Eric 05.10.2026): Nur der naechste
+      # zu mergende PR migriert die geteilte Preview — er traegt das Label. Ohne
+      # Label laufen die DB-Checks trotzdem; traegt der PR eine neue Migration,
+      # melden sie „Journal voraus" (rot), bis das Label gesetzt ist. Der Runner
+      # (src/migrieren.ts) gibt Statement, Code und Meldung eines Fehlers aus.
+      - name: Migrate Preview-DB (nur mit Label preview-migrieren)
+        if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'preview-migrieren')
         working-directory: packages/db
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: pnpm exec drizzle-kit migrate
+        run: pnpm run migrate
 
       # E23: Paritaet der Qualitaets-Ableitung — DB-Funktion qualitaetsstufe()
       # gegen deriveQualitaet ueber alle Ankerfaelle, gegen die echte
