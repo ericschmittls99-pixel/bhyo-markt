@@ -5532,7 +5532,8 @@ table.st-tabelle tbody tr:focus-visible {
 .ak-sec h3 { margin-top: 16px; }
 .ak-karte { position: relative; height: 300px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle); }
 /* Sitz-Erfassung d: Kartenflaeche fuellt den Rahmen, Platzhalter liegt darueber bis MapLibre geladen hat; beim Bearbeiten ruht die Karte. */
-.ak-karte-flaeche { position: absolute; inset: 0; }
+/* Nicht absolut: MapLibre setzt dem Container selbst position: relative (eigenes Stylesheet, spaeter geladen) — mit inset waere die Hoehe 0 (Preview-Befund 05.10.2026). */
+.ak-karte-flaeche { width: 100%; height: 100%; }
 .ak-karte-platzhalter { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: 13px; color: var(--text-muted, #6b7a83); pointer-events: none; }
 .ak-karte--ruht { display: flex; align-items: center; justify-content: center; }
 .ak-aktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
