@@ -1406,7 +1406,11 @@ Treffer derselben Stadt; Seed-Kandidaten) mit nachgerechneter Ähnlichkeit und
 Ergebnis — `akteur-norm.test.ts` und `dubletten-kalibrierung.test.ts` prüfen
 TypeScript, `dubletten-check` (CI, Preview) prüft SQL und `similarity()`
 dagegen. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
-Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
+Migration). Ein GIN-Index war vorgesehen und ist mit der Zusatzregel
+Wort-Teilmenge (9d77451) entfallen: die Abfrage „Ähnlichkeit ODER Teilmenge
+mit Ortsbezug" nutzt ihn nicht, die Mengen sind klein. Die Combobox zeigt
+höchstens drei Vorschläge, „neu anlegen" bleibt sticky am unteren Rand des
+Menüs (Eric 05.10.2026, PR a2).
 
 **Schwellen** (Konstanten, Kalibrierung in `docs/ap25-dubletten-kalibrierung.md`):
 `DUBLETTE_STARK = 0,60` mit **Ortsbezug = gleiche PLZ oder Sitz-Abstand ≤

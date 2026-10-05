@@ -2109,9 +2109,16 @@ button.leg-toggle.aus {
   margin-top: 4px;
 }
 .scb-menu {
-  max-height: 240px;
+  /* AP2.5 a2 (Eric 05.10.2026): Platz fuer Treffer + bis zu drei Vorschlaege + die
+     Inline-Anlage; „neu anlegen" haengt sticky am unteren Rand (unten). */
+  max-height: min(60vh, 440px);
   overflow-y: auto;
   display: grid;
+}
+.scb-menu .akteur-neu {
+  position: sticky;
+  bottom: 0;
+  background: var(--glass-fill-strong);
 }
 .scb-menu .menu-item.aktiv {
   background: var(--surface-hover);
