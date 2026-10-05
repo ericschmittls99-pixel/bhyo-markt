@@ -185,7 +185,6 @@ export async function stromSpeichern(
       standortGeom: koordinate
         ? sql`ST_SetSRID(ST_MakePoint(${koordinate.lng}, ${koordinate.lat}), 4326)`
         : null,
-      kontaktperson: text(formData, "kontaktperson"),
       zeitraumVon: monatZuVon(eingaben.vonMonat),
       zeitraumBis: monatZuBis(eingaben.bisMonat),
       saisonalitaet: saisonAusFormData(formData),

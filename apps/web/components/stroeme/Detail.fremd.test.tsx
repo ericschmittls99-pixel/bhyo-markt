@@ -33,7 +33,6 @@ const strom = {
   sektor: "industrie",
   sektorLabel: "Industrie",
   bezeichnung: "Papierschlamm",
-  kontaktperson: null,
   ort: "Bad Dürkheim",
   verwaltung: null,
   regionIds: [],

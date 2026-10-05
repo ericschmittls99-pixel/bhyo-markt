@@ -30,7 +30,6 @@ const strom = (patch: Partial<Strom>): Strom =>
     sektor: "landwirtschaft",
     sektorLabel: "Landwirtschaft",
     bezeichnung: "Gülle",
-    kontaktperson: null,
     ort: "Rülzheim",
     regionIds: [],
     regionNamen: [],

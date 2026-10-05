@@ -281,6 +281,13 @@
       "when": 1791185637556,
       "tag": "0039_ap25_akteur_pflichtfelder",
       "breakpoints": true
+    },
+    {
+      "idx": 40,
+      "version": "7",
+      "when": 1791185844201,
+      "tag": "0040_ap25_kontakt_contract",
+      "breakpoints": true
     }
   ]
 }

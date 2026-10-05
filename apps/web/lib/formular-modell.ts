@@ -318,7 +318,6 @@ export interface FormularWerte {
   plz: string;
   lat: string;
   lng: string;
-  kontaktperson: string;
   cluster: string;
   materialartCode: string;
   produktCode: string;
@@ -356,7 +355,6 @@ export type FormularZeile = {
   plz: string | null;
   lat: number | null;
   lng: number | null;
-  kontaktperson: string | null;
   materialartCode: string | null;
   cluster: string | null;
   produktCode: string | null;
@@ -423,7 +421,6 @@ export function formularZeileZuWerte(
     plz: s(r.plz),
     lat: r.lat == null ? "" : String(r.lat),
     lng: r.lng == null ? "" : String(r.lng),
-    kontaktperson: s(r.kontaktperson),
     cluster: s(r.cluster),
     materialartCode: s(r.materialartCode),
     produktCode: s(r.produktCode),

@@ -354,18 +354,6 @@ export function FormularPanel({
               akteurId={akteurId}
               fehler={f.standort}
             />
-            <label className="pf">
-              <span>
-                Kontaktperson <em className="fp-optional">optional</em>
-              </span>
-              <span className="pf-feld">
-                <input
-                  type="text"
-                  name="kontaktperson"
-                  defaultValue={werte?.kontaktperson ?? ""}
-                />
-              </span>
-            </label>
           </section>
 
           <section className="ov-sec">

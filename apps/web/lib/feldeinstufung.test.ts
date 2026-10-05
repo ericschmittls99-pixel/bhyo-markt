@@ -8,9 +8,9 @@ describe("Feldeinstufung", () => {
   it("jede Spalte der vier Tabellen ist genau einmal eingestuft, keine Einstufung ohne Spalte", () => {
     expect(findeFeldLuecken()).toEqual([]);
   });
-  it("Entscheidung 0.5: kontaktperson und extern_nachvollziehbar redaktionell, Notizen redaktionell, Rest wie beschlossen", () => {
-    expect(FELD_EINSTUFUNG.biomassestrom.kontaktperson).toBe("redaktionell");
-    expect(FELD_EINSTUFUNG.output_bedarf.kontaktperson).toBe("redaktionell");
+  it("Entscheidung 0.5: extern_nachvollziehbar redaktionell, Notizen redaktionell, Rest wie beschlossen; kontaktperson ist seit dem AP2.5 Contract (0040) kein Strom-Feld mehr", () => {
+    expect(FELD_EINSTUFUNG.biomassestrom.kontaktperson).toBeUndefined();
+    expect(FELD_EINSTUFUNG.output_bedarf.kontaktperson).toBeUndefined();
     expect(FELD_EINSTUFUNG.beleg.extern_nachvollziehbar).toBe("redaktionell");
     expect(FELD_EINSTUFUNG.beleg.notiz).toBe("redaktionell");
     expect(METADATA_EINSTUFUNG).toEqual({ quellenangabe: "fachlich", kernnotiz: "redaktionell" });
@@ -27,7 +27,7 @@ describe("Feldeinstufung", () => {
     expect(FELD_EINSTUFUNG.beleg.beleg_nr).toBe("technisch");
   });
   it("fachlicheFelder: nur fachliche bleiben; unbekannte gelten als fachlich; metadata-Schluessel gesondert", () => {
-    expect(fachlicheFelder("biomassestrom", ["kontaktperson", "menge_roh_fm", "beleg.notiz", "beleg.typ", "beleg.metadata.kernnotiz", "beleg.metadata.quellenangabe", "vergabe_zeitraum.vergeben_an"])).toEqual([
+    expect(fachlicheFelder("biomassestrom", ["menge_roh_fm", "beleg.notiz", "beleg.typ", "beleg.metadata.kernnotiz", "beleg.metadata.quellenangabe", "vergabe_zeitraum.vergeben_an"])).toEqual([
       "menge_roh_fm",
       "beleg.typ",
       "beleg.metadata.quellenangabe",

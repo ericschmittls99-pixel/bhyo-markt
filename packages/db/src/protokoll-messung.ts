@@ -233,28 +233,24 @@ async function main() {
   // Protokollarten zum Akteur. Nur SELECT.
   const [ak] = await sql`select
       count(*)::int as akteure,
-      count(*) filter (where sektor is null)::int as ohne_sektor,
-      count(*) filter (where cardinality(rollen) > 0)::int as mit_rollen,
-      count(*) filter (where kontakt_email is not null and btrim(kontakt_email) <> '')::int as mit_kontakt_email,
-      count(*) filter (where kontakt_telefon is not null and btrim(kontakt_telefon) <> '')::int as mit_kontakt_telefon,
-      count(*) filter (where ansprechperson is not null and btrim(ansprechperson) <> '')::int as mit_ansprechperson,
+      count(*) filter (where sektor = 'ohne_sektor')::int as ohne_sektor,
+      (select count(*)::int from kontaktperson) as kontaktpersonen,
       (select count(*)::int from akteur_interesse) as interessen,
       (select array_agg(status || '=' || n order by status) from (select status::text as status, count(*) as n from akteur group by 1) s)::text as je_status,
       (select array_agg(coalesce(sektor, 'NULL') || '=' || n order by n desc) from (select sektor, count(*) as n from akteur group by 1) s)::text as je_sektor
     from akteur`;
   console.log("AKTEUR " + JSON.stringify(ak));
   const [as_] = await sql`with s as (
-      select akteur_id, ort, plz, standort_geom, beleg_id, kontaktperson from biomassestrom
+      select akteur_id, ort, plz, standort_geom, beleg_id from biomassestrom
       union all
-      select akteur_id, ort, plz, standort_geom, beleg_id, kontaktperson from output_bedarf
+      select akteur_id, ort, plz, standort_geom, beleg_id from output_bedarf
     ), je as (
       select a.id,
              count(s.akteur_id)::int as stroeme,
              count(s.beleg_id)::int as mit_beleg,
              count(s.standort_geom)::int as mit_pin,
              count(distinct s.plz) filter (where s.plz is not null)::int as plz_anzahl,
-             count(distinct lower(btrim(s.ort))) filter (where s.ort is not null)::int as orte_anzahl,
-             count(s.kontaktperson) filter (where btrim(s.kontaktperson) <> '')::int as mit_kontaktperson
+             count(distinct lower(btrim(s.ort))) filter (where s.ort is not null)::int as orte_anzahl
         from akteur a left join s on s.akteur_id = a.id group by a.id)
     select
       count(*) filter (where stroeme = 0)::int as verwaist_ohne_strom,
@@ -262,7 +258,6 @@ async function main() {
       count(*) filter (where stroeme > 0 and mit_pin = 0)::int as mit_strom_ohne_pin,
       count(*) filter (where plz_anzahl > 1)::int as mehrere_plz,
       count(*) filter (where orte_anzahl > 1)::int as mehrere_orte,
-      count(*) filter (where mit_kontaktperson > 0)::int as akteure_mit_strom_kontaktperson,
       max(stroeme)::int as max_stroeme_je_akteur,
       (select count(*)::int from s where plz is null and ort is null) as stroeme_ohne_ort_und_plz
     from je`;

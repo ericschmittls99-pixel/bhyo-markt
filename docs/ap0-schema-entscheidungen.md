@@ -1343,7 +1343,7 @@ Notizfeld „Keine privaten oder sensiblen Angaben". Die alten Felder am Akteur
 (rollen, kontakt_email, kontakt_telefon, ansprechperson) und `strom.kontakt-
 person` werden abgelöst; der **Contract folgt als eigener PR** nach der Messung,
 dass die Spalten auf Production leer sind (Freitext-Namen am Strom würden das
-echte Löschen aushebeln).
+echte Löschen aushebeln). Umgesetzt als Migration 0040, Abschnitt 37.
 
 **Rechte (E66, Matrix):** lesen alle mit Zugang (auch Betrachter);
 `kontaktperson.anlegen`/`.bearbeiten` ab bearbeiter; `.loeschen` Prüfer und
@@ -1507,3 +1507,29 @@ Zeilenzahl.
 drei NOT-NULL-Spalten und weist die Anlage mit NULL in Sektor, PLZ oder Ort
 nach (je ein abgewiesener INSERT in zurückgerollter Transaktion); die
 Systemzeile `ohne_sektor` bleibt anlegbar.
+
+## 37. AP2.5 Contract: alte Kontaktfelder entfallen (E66/E57), 05.10.2026
+
+**Migration 0040:** `akteur.rollen`, `akteur.kontakt_email`,
+`akteur.kontakt_telefon`, `akteur.ansprechperson` sowie
+`biomassestrom.kontaktperson` und `output_bedarf.kontaktperson` (Freitext)
+werden gelöscht. Seit PR b (0036) lebt der Kontakt in der Tabelle
+`kontaktperson`; Freitext-Namen am Strom würden das echte Löschen (E57)
+aushebeln.
+
+**Messung und Wächter (E21):** Production vor dem Lauf: 0 Akteure, kein Strom
+mit Kontaktperson-Text (Leseweg 05.10.2026, Lauf 37276168234). Der
+Vor-DROP-Wächter `pre-drop-check` (migrate-production.yml) zählt alle sechs
+Spalten unmittelbar vor der Migration und bricht bei einem Wert > 0 ohne DROP
+ab. Auf der Preview stehen Testtexte (Entscheidung 01.10.2026: Testdaten,
+werden verworfen); die Migration protokolliert die Zählung dort
+(`PR_CONTRACT verworfen …`) und bricht nicht ab. Zählbeweis danach: keine
+Altspalte mehr, Tabelle kontaktperson vorhanden.
+
+**Anwendung:** Das Feld „Kontaktperson" verschwindet aus dem Strom-Formular,
+der Detailansicht und dem Erfassungsgrad (`vollstaendigkeit`: ein
+Prüfpunkt weniger, der Grad bestehender Ströme kann sich dadurch ändern —
+Ableitung, kein gespeicherter Wert). `feldeinstufung` führt die Spalte
+nicht mehr (der Feld-Wächter vergleicht gegen das Schema). Die
+Leseweg-Messung AKTEUR zählt statt der alten Felder die Kontaktpersonen und
+die Systemzeile `ohne_sektor`.

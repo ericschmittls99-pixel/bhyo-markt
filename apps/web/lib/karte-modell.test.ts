@@ -28,7 +28,6 @@ const basis: Strom = {
   sektorLabel: "Landwirtschaft",
   sektor: "landwirtschaft",
   bezeichnung: "Rindergülle",
-  kontaktperson: null,
   ort: "Rülzheim",
   verwaltung: null,
   regionIds: ["r1"],

@@ -30,7 +30,6 @@ const zeile: FormularZeile = {
   plz: "76761",
   lat: 49.15,
   lng: 8.29,
-  kontaktperson: null,
   materialartCode: "rinderguelle",
   cluster: "guelle_mist",
   produktCode: null,
@@ -85,7 +84,6 @@ describe("formularZeileZuWerte", () => {
     expect(w.bisMonat).toBe("2028-12");
     expect(w.mengeRohFm).toBe("1200.00");
     expect(w.aschegehaltPct).toBe("");
-    expect(w.kontaktperson).toBe("");
     expect(w.saisonalitaet).toHaveLength(12);
     expect(w.beleg?.typ).toBe("gespraech");
     // E34: Gespraechsdatum/-partner werden nicht mehr gelesen — Altwerte in

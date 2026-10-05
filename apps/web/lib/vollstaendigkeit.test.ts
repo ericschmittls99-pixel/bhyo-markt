@@ -8,7 +8,6 @@ import {
 const vollerFeed: VollstaendigkeitEingabe = {
   art: "biomasse",
   bezeichnung: "Rindergülle Milchviehbetrieb",
-  kontaktperson: "Thomas Müller",
   ort: "Rülzheim",
   koordinate: true,
   zeitraumVon: "2026-01-01",
@@ -30,6 +29,9 @@ const vollerFeed: VollstaendigkeitEingabe = {
   status: "geprueft",
 };
 
+// AP2.5 Contract (0040): kontaktperson ist kein Strom-Feld mehr, die Checkliste
+// hat einen Pruefpunkt weniger — die Prozentwerte unten sind darauf nachgerechnet
+// (Feed 14 statt 15 Punkte: 13/14 = 93; Output-Entwurf ohne Beleg: 40).
 describe("vollstaendigkeit", () => {
   it("voll gepflegter Biomassestrom erreicht 100 %", () => {
     expect(vollstaendigkeit(vollerFeed)).toBe(100);
@@ -45,14 +47,14 @@ describe("vollstaendigkeit", () => {
     const mitFlag = (e: VollstaendigkeitEingabe, flag: boolean) =>
       ({ ...e, beleg: { ...e.beleg!, externNachvollziehbar: flag } }) as unknown as VollstaendigkeitEingabe;
     expect(vollstaendigkeit(mitFlag(vollerFeed, true))).toBe(vollstaendigkeit(mitFlag(vollerFeed, false)));
-    const teil = { ...vollerFeed, kontaktperson: null, preis: null };
+    const teil = { ...vollerFeed, preis: null };
     expect(vollstaendigkeit(mitFlag(teil, true))).toBe(vollstaendigkeit(mitFlag(teil, false)));
     expect(vollstaendigkeit(mitFlag(teil, true))).toBeLessThan(100);
   });
 
   it("Gleichverteilung zaehlt nicht als gepflegte Saisonalitaet", () => {
     const flach = { ...vollerFeed, saisonalitaet: Array(12).fill(100 / 12) };
-    expect(vollstaendigkeit(flach)).toBe(94);
+    expect(vollstaendigkeit(flach)).toBe(93);
   });
 
   it("Kernnotiz ist nur beim Gespraech ein Pruefpunkt", () => {
@@ -60,7 +62,7 @@ describe("vollstaendigkeit", () => {
       ...vollerFeed,
       beleg: { ...vollerFeed.beleg!, typ: "gespraech", kernnotiz: null },
     };
-    expect(vollstaendigkeit(gespraech)).toBe(94);
+    expect(vollstaendigkeit(gespraech)).toBe(93);
     const mitNotiz = {
       ...gespraech,
       beleg: { ...gespraech.beleg, kernnotiz: "Anbau ab 2027 geplant." },
@@ -72,7 +74,6 @@ describe("vollstaendigkeit", () => {
     const output: VollstaendigkeitEingabe = {
       art: "output",
       bezeichnung: "Fernwärmenetz Speyer-Nord",
-      kontaktperson: null,
       ort: "Speyer",
       koordinate: false,
       zeitraumVon: "2027-01-01",
@@ -90,7 +91,7 @@ describe("vollstaendigkeit", () => {
     // gefuellt: bezeichnung, ort, von, bis, menge, einheit = 6 von 16
     // (F7: Datei/Link ist Pruefpunkt; E34: die Freigabe ist keiner mehr —
     // 17 -> 16 Pruefpunkte, deshalb 38 statt 35 %).
-    expect(vollstaendigkeit(output)).toBe(38);
+    expect(vollstaendigkeit(output)).toBe(40);
   });
 
   it("fehlende Datei/Link senkt den Erfassungsgrad (F7)", () => {
@@ -98,7 +99,7 @@ describe("vollstaendigkeit", () => {
       ...vollerFeed,
       beleg: { ...vollerFeed.beleg!, dateiOderLink: false },
     };
-    expect(vollstaendigkeit(ohne)).toBe(94);
+    expect(vollstaendigkeit(ohne)).toBe(93);
   });
 });
 

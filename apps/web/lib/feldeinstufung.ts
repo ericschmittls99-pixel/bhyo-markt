@@ -12,9 +12,10 @@
  *                   gefuehrt, nicht weggelassen, damit eine NEUE Spalte ohne
  *                   Einstufung den Waechter (scripts/feld-check.ts) rot macht.
  *
- * Entscheidung Eric (30.09.2026, Schritt 0.5): kontaktperson und
- * extern_nachvollziehbar sind redaktionell (Kontakt wandert mit AP2.5 ins
- * CRM; die Freigabe regelt die Sichtbarkeit, nicht die Richtigkeit).
+ * Entscheidung Eric (30.09.2026, Schritt 0.5): extern_nachvollziehbar ist
+ * redaktionell (die Freigabe regelt die Sichtbarkeit, nicht die Richtigkeit).
+ * strom.kontaktperson (ebenfalls redaktionell) ist mit dem AP2.5 Contract
+ * (Migration 0040) entfallen — der Kontakt lebt am Akteur (kontaktperson).
  * beleg.metadata ist jsonb: quellenangabe fachlich, kernnotiz redaktionell —
  * die Schluessel stehen hier gesondert.
  */
@@ -31,7 +32,6 @@ const STROM_GEMEINSAM: Record<string, FeldKlasse> = {
   hausnummer: "fachlich",
   plz: "fachlich",
   standort_geom: "fachlich",
-  kontaktperson: "redaktionell",
   zeitraum_von: "fachlich",
   zeitraum_bis: "fachlich",
   saisonalitaet: "fachlich",
