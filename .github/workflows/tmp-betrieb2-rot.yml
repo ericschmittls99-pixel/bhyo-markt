@@ -5,7 +5,7 @@ on:
     branches: [tmp-betrieb2-rot]
 jobs:
   laeufe-wache-rot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       actions: read
@@ -28,7 +28,7 @@ jobs:
           echo "--- dann Grenze 0: erwartet rot"
           pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json 0 0
   runner-rot:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     services:
       postgres:
         image: postgis/postgis:18-3.6
@@ -51,13 +51,13 @@ jobs:
           node-version: 22
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Runner: 0000-0040 anwenden (Journal ohne 0041) — erwartet gruen, NOTICE-Zeilen sichtbar
+      - name: "Runner — 0000-0040 anwenden (Journal ohne 0041), erwartet gruen, NOTICE-Zeilen sichtbar"
         working-directory: packages/db
         run: |
           cp migrations/meta/_journal.json /tmp/voll.json
           jq '.entries |= map(select(.tag != "0041_tmp_kaputt"))' /tmp/voll.json > migrations/meta/_journal.json
           pnpm run migrate
           cp /tmp/voll.json migrations/meta/_journal.json
-      - name: Runner: kaputte Migration 0041 — ERWARTET rot mit Statement, Code, Meldung
+      - name: "Runner — kaputte Migration 0041, ERWARTET rot mit Statement, Code, Meldung"
         working-directory: packages/db
         run: pnpm run migrate
