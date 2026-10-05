@@ -25,6 +25,9 @@ describe("Sitz-Erfassung c: Kreis und Land als Kurzform", () => {
     expect(kreisKurz("Speyer", "Kreisfreie Stadt")).toBeNull();
     expect(kreisKurz("Freiburg im Breisgau", "Stadtkreis")).toBeNull();
     expect(kreisKurz("Saarbrücken", "Regionalverband")).toBe("Regionalverband Saarbrücken");
+    // Preview-Befund 05.10.2026: „Lkr. Rhein-Neckar-Kreis" — endet der Name schon auf „Kreis", kein Praefix.
+    expect(kreisKurz("Rhein-Neckar-Kreis", "Landkreis")).toBe("Rhein-Neckar-Kreis");
+    expect(kreisKurz("Rhein-Pfalz-Kreis", "Landkreis")).toBe("Rhein-Pfalz-Kreis");
   });
 
   it("regionLabel und adresseLabelMitRegion: Freiburg (Elbe) · Lkr. Stade · NI", () => {
