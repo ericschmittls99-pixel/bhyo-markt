@@ -1326,7 +1326,8 @@ Eintrags-ID.
 
 **a2 (Contract, eigener PR):** NOT NULL auf `akteur.sektor`, `sitz_plz`,
 `sitz_ort` — nach dem Seed auf der Preview und der Messung auf Production
-(Akteure ohne Sitz → stopp und melden). **PR b** löst rollen, kontakt_email,
+(Akteure ohne Sitz → stopp und melden). Umgesetzt als Migration 0039,
+Abschnitt 36. **PR b** löst rollen, kontakt_email,
 kontakt_telefon, ansprechperson und `strom.kontaktperson` durch die Tabelle
 kontaktperson ab (Contract nach Messung, dass alle Spalten auf Production
 leer sind; die fünf Preview-Texte sind Testdaten und werden verworfen).
@@ -1405,7 +1406,13 @@ Treffer derselben Stadt; Seed-Kandidaten) mit nachgerechneter Ähnlichkeit und
 Ergebnis — `akteur-norm.test.ts` und `dubletten-kalibrierung.test.ts` prüfen
 TypeScript, `dubletten-check` (CI, Preview) prüft SQL und `similarity()`
 dagegen. Die Ähnlichkeit kommt aus **pg_trgm** (Extension per
-Migration, GIN-Index auf `akteur_name_norm(name)` für den %-Operator).
+Migration). Ein GIN-Index war vorgesehen und ist mit der Zusatzregel
+Wort-Teilmenge (9d77451) entfallen: die Abfrage „Ähnlichkeit ODER Teilmenge
+mit Ortsbezug" nutzt ihn nicht, die Mengen sind klein. **Ab etwa 10.000
+Akteuren** wird die Laufzeit des Dubletten-Vorschlags gemessen und ein Index
+erneut erwogen (Eric, 05.10.2026). Die Combobox zeigt
+höchstens drei Vorschläge, „neu anlegen" bleibt sticky am unteren Rand des
+Menüs (Eric 05.10.2026, PR a2).
 
 **Schwellen** (Konstanten, Kalibrierung in `docs/ap25-dubletten-kalibrierung.md`):
 `DUBLETTE_STARK = 0,60` mit **Ortsbezug = gleiche PLZ oder Sitz-Abstand ≤
@@ -1484,3 +1491,28 @@ Qualitäts-Ableitungsmatrix A–D und Gültigkeitsdauern je Beleg-Typ sind seit
 31.08.2026 verbindlich (siehe Abschnitt 3). Weiterhin offen: Teilscore-Mapping der
 Bereitschaftsstufen – Geschäftsentscheidung, wird von Eric entschieden, nicht im
 Code festgelegt.
+
+## 36. AP2.5 PR a2: Pflichtfelder am Akteur (E66, Contract), 05.10.2026
+
+**Migration 0039:** `akteur.sektor`, `akteur.sitz_plz` und `akteur.sitz_ort`
+werden NOT NULL. Fachlich gilt das seit a1 (0035): NULL im Sektor wurde dort
+zur Systemzeile `ohne_sektor`, PLZ und Ort verlangt die Anlage seit a1 —
+hier zieht das Schema nach (Contract nach E21). Die Migration erfindet
+nichts: Vor dem ALTER zählt sie die Zeilen mit NULL je Spalte und bricht mit
+der Zählung ab, wenn eine Zeile betroffen ist (nachtragen in der Anwendung,
+nie in der Migration). Zählbeweis im selben Lauf: drei NOT-NULL-Spalten,
+Zeilenzahl.
+
+**Messung vor dem Lauf:** Production 0 Akteure (Leseweg 05.10.2026, Lauf
+37276168234); Preview mit Seed-A25 (42 Akteure, PLZ und Ort immer gesetzt,
+„unvollständig" heißt dort: Straße oder Pin fehlt, nie PLZ/Ort).
+
+**Schreibpfade (E21):** `api/akteure` setzt Sektor, PLZ und Ort seit a1;
+`scripts/seed-akteure.ts` ebenso; `scripts/seed-preview.ts` setzt den Sitz
+des Bestands jetzt beim Einfügen (erster Strom mit Ort, PLZ aus der
+Ortsliste), statt ihn wie bisher nachträglich per UPDATE zu setzen — eine
+Stelle statt zwei; die Probe-Inserts in `job-probe.ts` und
+`sektor-check.ts` tragen jetzt PLZ/Ort. `sektor-check` (Deploy-CI) prüft die
+drei NOT-NULL-Spalten und weist die Anlage mit NULL in Sektor, PLZ oder Ort
+nach (je ein abgewiesener INSERT in zurückgerollter Transaktion); die
+Systemzeile `ohne_sektor` bleibt anlegbar.

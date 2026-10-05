@@ -306,21 +306,23 @@ export const akteur = pgTable("akteur", {
   /**
    * F5 PR B: Referenz auf `sektor.code` statt Freitext. Seit AP2.5 PR a1
    * (E66) ist „ohne Sektor" die Systemzeile 'ohne_sektor', nicht NULL;
-   * NOT NULL folgt in a2 (Contract), bis dahin bleibt NULL technisch moeglich.
+   * seit AP2.5 PR a2 (Contract, Migration 0039) NOT NULL.
    */
-  sektor: text("sektor").references(() => sektor.code),
+  sektor: text("sektor")
+    .notNull()
+    .references(() => sektor.code),
   /**
    * AP2.5 PR a1 (E66, Praezisierung von F0a): der SITZ des Akteurs — ein
    * Ort je Bedeutung. Der Strom behaelt seinen Standort; kein Abgleich, kein
    * Vererben. Der Sitz wirkt nur in akteure., beim Dublettenabgleich und im
-   * Kontakt. PLZ und Ort werden Pflicht (a2), Adresse frei; der Kreis-ARS
+   * Kontakt. PLZ und Ort sind Pflicht (a2, Migration 0039), Adresse frei; der Kreis-ARS
    * kommt ueber den E25-Weg aus sitz_geom (View akteur_verwaltung) — darum
    * ist der Pin die Eingabe, die der Server verlangt (Geocoder aus PLZ/Ort).
    */
   sitzStrasse: text("sitz_strasse"),
   sitzHausnummer: text("sitz_hausnummer"),
-  sitzPlz: text("sitz_plz"),
-  sitzOrt: text("sitz_ort"),
+  sitzPlz: text("sitz_plz").notNull(),
+  sitzOrt: text("sitz_ort").notNull(),
   sitzGeom: geometry("sitz_geom", { type: "point", srid: 4326 }),
   rollen: text("rollen")
     .array()
