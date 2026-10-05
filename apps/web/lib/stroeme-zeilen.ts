@@ -142,6 +142,8 @@ type GemeinsameZeile = BelegZeile & VerifikationZeile & {
   sektorLabel: string | null;
   bezeichnung: string | null;
   kontaktperson: string | null;
+  /** AP2.5 PR b: Namen der Kontaktpersonen des Akteurs (nur intern, E47) — als json_agg geliefert. */
+  kontaktpersonen?: unknown;
   ort: string | null;
   verwaltung: unknown;
   regionIds: unknown;
@@ -217,6 +219,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
+    kontaktpersonen: stringListe(r.kontaktpersonen),
     ort: r.ort,
     verwaltung: verwaltungOderNull(r.verwaltung),
     regionIds: stringListe(r.regionIds),
@@ -297,6 +300,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     sektorLabel: r.sektorLabel,
     bezeichnung: r.bezeichnung,
     kontaktperson: r.kontaktperson,
+    kontaktpersonen: stringListe(r.kontaktpersonen),
     ort: r.ort,
     verwaltung: verwaltungOderNull(r.verwaltung),
     regionIds: stringListe(r.regionIds),

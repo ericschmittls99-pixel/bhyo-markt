@@ -75,6 +75,28 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
       luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: protokolliere() ohne Art des Enums ereignis_art als Literal` });
     }
   }
+  // (c) AP2.5 PR b (E57): Ereignisse zu Kontaktpersonen tragen im Freitext nur
+  //     IDs und Feldnamen — jede Interpolation in `text` eines protokolliere()-
+  //     Aufrufs mit entitaet "kontaktperson" muss ein Bezeichner sein, der auf
+  //     „Id"/„id" endet, oder die Feldliste. Alles andere (z. B. ${alt.name})
+  //     ist ein moeglicher Name und wird gemeldet. Quellentextbasiert.
+  for (const datei of dateien(wurzel)) {
+    const rel = datei.slice(wurzel.length + 1);
+    if (rel.startsWith(`scripts${sep}`) || /\.test\.tsx?$/.test(rel)) continue;
+    const quelle = readFileSync(datei, "utf8");
+    // Der Block endet mit einer Zeile „}" + „)" — die ${…}-Klammern im Text sind einzeilig.
+    for (const m of quelle.matchAll(/protokolliere\s*\(\s*tx\s*,\s*\{([\s\S]*?)\n\s*\}\s*\)/g)) {
+      const block = m[1]!;
+      if (!/entitaet:\s*"kontaktperson"/.test(block)) continue;
+      const text = block.match(/text:\s*`([^`]*)`/);
+      if (!text) continue;
+      for (const i of text[1]!.matchAll(/\$\{([^}]*)\}/g)) {
+        const ausdruck = i[1]!.trim();
+        const erlaubt = /^(id|[A-Za-z_][\w.]*[iI]d)$/.test(ausdruck) || /^felder\.join\(/.test(ausdruck);
+        if (!erlaubt) luecken.push({ datei: rel, pfad: "protokolliere(kontaktperson)", grund: `E57: Freitext interpoliert „${ausdruck}" — moeglicher Name; erlaubt sind nur IDs und die Feldliste` });
+      }
+    }
+  }
   return luecken;
 }
 

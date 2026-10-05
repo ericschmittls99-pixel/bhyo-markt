@@ -109,6 +109,8 @@ export interface Strom {
   sektorLabel: string | null;
   bezeichnung: string | null;
   kontaktperson: string | null;
+  /** AP2.5 PR b: Kontaktpersonen des Akteurs — nur im internen Export/Druck (E47). */
+  kontaktpersonen?: string[];
   ort: string | null;
   /**
    * F0b/E23: Landkreis und Bundesland werden NIE gespeichert — sie kommen

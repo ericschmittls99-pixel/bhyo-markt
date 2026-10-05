@@ -66,6 +66,12 @@ export const AKTIONEN = [
   // und nur verwaist (Server prueft, die DB weist per FK jeden Strom-Bezug ab).
   "akteur.bearbeiten",
   "akteur.loeschen",
+  // AP2.5 PR b (E66): Kontaktpersonen — lesen alle mit Zugang; anlegen/bearbeiten
+  // ab bearbeiter; loeschen pruefer/admin; Auskunfts-Export (Art. 15) nur admin.
+  "kontaktperson.anlegen",
+  "kontaktperson.bearbeiten",
+  "kontaktperson.loeschen",
+  "kontaktperson.auskunft",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -111,6 +117,10 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "inbox.weitergeben": ERFASSEN,
   "akteur.bearbeiten": ERFASSEN,
   "akteur.loeschen": VERWALTEN,
+  "kontaktperson.anlegen": ERFASSEN,
+  "kontaktperson.bearbeiten": ERFASSEN,
+  "kontaktperson.loeschen": SPERREN,
+  "kontaktperson.auskunft": VERWALTEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */

@@ -14,6 +14,10 @@
  *     akteur.verwaist_hinweis_monate → akteur_verwaist an alle aktiven
  *     Admins, zweiter Lauf nichts; bekommt er einen Strom, ist der Hinweis
  *     erledigt. Ein junger verwaister Akteur bekommt nichts.
+ *  6. AP2.5 PR b (E57): Kontaktperson ohne Aktivitaet seit 25 Monaten →
+ *     kontaktperson_loeschpruefung an alle Admins, zweiter Lauf nichts; eine
+ *     Aenderung am Beleg ihres Akteurs (Protokoll) erledigt den Hinweis;
+ *     eine junge Person bekommt nichts.
  *
  * Laeuft mit tsx (Pfadalias @/ wird nicht gebraucht: relative Importe).
  */
@@ -139,6 +143,24 @@ async function main() {
       const lauf10 = await stelleVerifikationsHinweiseZu(tx, heute);
       const nach10 = (await tx.execute(sql`select count(*)::int as offen from inbox_eintrag where akteur_id = ${altId} and zustand = 'offen'`)) as unknown as { offen: number }[];
       pruefe("5c Akteur hat wieder einen Strom: Verwaist-Hinweise erledigt", lauf10.verwaistErledigt === admins.length && Number(nach10[0]!.offen) === 0, { lauf10, offen: nach10[0]!.offen });
+
+      // 6. AP2.5 PR b (E57): Loeschpruefung — alt → Hinweis, jung → nichts, Aktivitaet → erledigt.
+      const altP = "00000000-0000-4000-8000-00000000b25a";
+      const jungP = "00000000-0000-4000-8000-00000000b25b";
+      await tx.execute(sql`insert into kontaktperson (id, akteur_id, name, created_at, updated_at) values
+        (${altP}, ${altId}, 'Job-Probe Person alt', now() - interval '25 months', now() - interval '25 months'),
+        (${jungP}, ${altId}, 'Job-Probe Person jung', now(), now())`);
+      // Der Akteur altId hat seit Schritt 5 einen Strom; dessen Protokoll darf nicht juenger als 25 Monate wirken:
+      await tx.execute(sql`delete from aenderung where entitaet_id = ${strom.id}`);
+      const lauf11 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const zeilen11 = (await tx.execute(sql`select kontaktperson_id, zustand::text as zustand from inbox_eintrag where kontaktperson_id in (${altP}, ${jungP})`)) as unknown as { kontaktperson_id: string; zustand: string }[];
+      pruefe("6a Person 25 Monate ohne Aktivitaet: Loeschpruefung an alle Admins, junge Person nichts", lauf11.loeschpruefung === admins.length && zeilen11.length === admins.length && zeilen11.every((z) => z.kontaktperson_id === altP), { lauf11, zeilen: zeilen11.length });
+      const lauf12 = await stelleVerifikationsHinweiseZu(tx, heute);
+      pruefe("6b zweiter Lauf: nichts", lauf12.loeschpruefung === 0 && lauf12.loeschpruefungErledigt === 0, lauf12);
+      await tx.execute(sql`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id) values ('biomassestrom', ${strom.id}, 'Job-Probe Aktivitaet', 'geaendert', ${p1})`);
+      const lauf13 = await stelleVerifikationsHinweiseZu(tx, heute);
+      const offen13 = (await tx.execute(sql`select count(*)::int as n from inbox_eintrag where kontaktperson_id = ${altP} and zustand = 'offen'`)) as unknown as { n: number }[];
+      pruefe("6c Aktivitaet am Beleg des Akteurs: Loeschpruefung erledigt", lauf13.loeschpruefungErledigt === admins.length && Number(offen13[0]!.n) === 0, { lauf13, offen: offen13[0]!.n });
 
       throw new Error(ROLLBACK);
     });

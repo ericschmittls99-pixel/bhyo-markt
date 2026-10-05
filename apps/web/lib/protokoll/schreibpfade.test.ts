@@ -193,7 +193,13 @@ describe("jeder Schreibpfad protokolliert — Art, Urheber, Objektbezug", () => 
     expect(ereignis().text).not.toContain("Müller");
     protokolliere.mockClear();
     expect(await akteurLoeschen(STROM)).toEqual({ ok: true });
-    expect(ereignis()).toMatchObject({ art: "akteur_geloescht", entitaet: "akteur", id: STROM, benutzerId: ERIC.id });
+    // PR b: die Attrappe liefert eine „Kontaktperson" beim Loeschen — je Person ein Ereignis (nur IDs), danach der Akteur.
+    const arten = (protokolliere.mock.calls as unknown as [unknown, { art: string; entitaet: string; id: string; text?: string }][]).map((c) => c[1]);
+    expect(arten.at(-1)).toMatchObject({ art: "akteur_geloescht", entitaet: "akteur", id: STROM, benutzerId: ERIC.id });
+    for (const e of arten.slice(0, -1)) {
+      expect(e).toMatchObject({ art: "kontaktperson_geloescht", entitaet: "kontaktperson" });
+      expect(e.text).toBe(`Akteur ${STROM} gelöscht`);
+    }
   });
   it("POST /api/regionen → region_angelegt", async () => {
     const antwort = await regionen.POST(post({ name: "Kraichgau", bbox: [8.5, 49.0, 8.9, 49.3] }));

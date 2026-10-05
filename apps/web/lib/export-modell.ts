@@ -51,8 +51,13 @@ export function exportModus(roh: string | null | undefined): ExportModus {
   return roh === "intern" ? "intern" : "extern";
 }
 
-export type Einstufung = "keine_belegangabe" | "belegangabe" | "gekuerzt";
-export const EINSTUFUNGEN: readonly Einstufung[] = ["keine_belegangabe", "belegangabe", "gekuerzt"];
+/**
+ * AP2.5 PR b (E47/E36): `intern` — die Spalte existiert NUR im internen Modus;
+ * extern wird sie weggelassen (kein Kopf, keine Zelle), nicht nur zurueckgehalten.
+ * Kontaktpersonen sind personenbezogen und erscheinen nie im externen Export.
+ */
+export type Einstufung = "keine_belegangabe" | "belegangabe" | "gekuerzt" | "intern";
+export const EINSTUFUNGEN: readonly Einstufung[] = ["keine_belegangabe", "belegangabe", "gekuerzt", "intern"];
 
 // Benannte Zustände — Wortlaut an genau einer Stelle.
 export const ENTFAELLT = "entfällt";
@@ -224,6 +229,8 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
   { key: "bezeichnung", gruppe: "identitaet", kopf: "Bezeichnung", einstufung: KEINE_BELEGANGABE, wert: (s) => s.bezeichnung ?? NICHT_ERFASST },
   { key: "akteur", gruppe: "identitaet", kopf: "Akteur", einstufung: KEINE_BELEGANGABE, wert: (s) => s.akteurName ?? NICHT_ERFASST },
   { key: "sektor", gruppe: "identitaet", kopf: "Sektor", einstufung: KEINE_BELEGANGABE, wert: (s) => s.sektorLabel ?? "ohne Sektor" },
+  // AP2.5 PR b: Kontaktpersonen des Akteurs — nur intern (E47), nie in der externen Datei.
+  { key: "kontaktpersonen", gruppe: "identitaet", kopf: "Kontaktpersonen", einstufung: "intern", wert: (s) => (s.kontaktpersonen?.length ? s.kontaktpersonen.join(" | ") : NICHT_ERFASST) },
   // 2. Ort
   { key: "ort", gruppe: "ort", kopf: "Ort", einstufung: KEINE_BELEGANGABE, wert: (s) => s.ort ?? NICHT_ERFASST },
   { key: "landkreis", gruppe: "ort", kopf: "Landkreis", einstufung: KEINE_BELEGANGABE, wert: (s) => kreisAnzeige(s) },
@@ -313,12 +320,20 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
   },
 ];
 
+/** Die Spalten eines Modus — `intern` eingestufte Spalten fehlen extern ganz (E47). */
+export function spaltenFuer(modus: ExportModus): readonly ExportSpalte[] {
+  return modus === "intern" ? EXPORT_SPALTEN : EXPORT_SPALTEN.filter((sp) => sp.einstufung !== "intern");
+}
+
 /** Zellenwert einer Spalte im gewählten Modus — hier greift die Einstufung, nirgends sonst. */
 export function zellenWert(spalte: ExportSpalte, s: Strom, modus: ExportModus): Zelle {
   if (modus === "intern") return spalte.wert(s);
   switch (spalte.einstufung) {
     case "keine_belegangabe":
       return spalte.wert(s);
+    case "intern":
+      // Darf extern nie erreicht werden — spaltenFuer() laesst die Spalte weg; falls doch: benannter Zustand, nie der Inhalt.
+      return ZURUECKGEHALTEN;
     case "belegangabe":
       // Ohne Beleg gibt es nichts zurückzuhalten — der Zustand heißt „kein Beleg".
       if (!s.beleg) return spalte.wert(s);
@@ -330,7 +345,7 @@ export function zellenWert(spalte: ExportSpalte, s: Strom, modus: ExportModus): 
 
 /** Rohzellen einer Zeile (für Druck und Tests). */
 export function exportZellen(s: Strom, modus: ExportModus): Zelle[] {
-  return EXPORT_SPALTEN.map((sp) => zellenWert(sp, s, modus));
+  return spaltenFuer(modus).map((sp) => zellenWert(sp, s, modus));
 }
 
 /** CSV-Zeile: Rohzellen im CSV-Format. */
@@ -386,7 +401,7 @@ export function erzeugeCsv(stroeme: Strom[], k: ExportKontext): string {
   const zeilen: string[][] = [
     ...metazeilen(k),
     [],
-    EXPORT_SPALTEN.map((sp) => sp.kopf),
+    spaltenFuer(k.modus).map((sp) => sp.kopf),
     ...stroeme.map((s) => exportZeile(s, k.modus)),
   ];
   return "﻿" + zeilen.map((z) => z.map(csvFeld).join(";")).join("\r\n") + "\r\n";

@@ -2,7 +2,7 @@
  * Abfragen der Inbox (Zaehler, Liste) und die Objektstufe der Wache:
  * Eintraege liest und aendert nur der Empfaenger (Matrix: nurEmpfaenger).
  */
-import { akteur, benutzer, biomassestrom, inboxEintrag, outputBedarf } from "@bhyo/db/schema";
+import { akteur, benutzer, biomassestrom, inboxEintrag, kontaktperson, outputBedarf } from "@bhyo/db/schema";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
@@ -30,6 +30,8 @@ export interface InboxZeile {
   strom: { art: StromArt; id: string } | null;
   /** AP2.5: Objektbezug Akteur. */
   akteur: { id: string; name: string } | null;
+  /** AP2.5 PR b: Objektbezug Kontaktperson (Name erst hier aufgeloest, E57). */
+  kontaktperson: { id: string; name: string; akteurId: string } | null;
   /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
   bezugsdatum: string | null;
   /** PR c: Aufgabentext beim Typ aufgabe. */
@@ -68,7 +70,10 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       akteurId: inboxEintrag.akteurId,
-      hinweisAkteurName: akteur.name,
+      hinweisAkteurName: sql<string | null>`coalesce(${akteur.name}, (select a2.name from akteur a2 where a2.id = ${kontaktperson.akteurId}))`,
+      kontaktpersonId: inboxEintrag.kontaktpersonId,
+      kontaktpersonName: kontaktperson.name,
+      kontaktpersonAkteurId: kontaktperson.akteurId,
       ausloeserId: benutzer.id,
       ausloeserName: benutzer.name,
       ausloeserEmail: benutzer.email,
@@ -81,6 +86,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
     .leftJoin(biomassestrom, eq(biomassestrom.id, inboxEintrag.biomassestromId))
     .leftJoin(outputBedarf, eq(outputBedarf.id, inboxEintrag.outputBedarfId))
     .leftJoin(akteur, eq(akteur.id, inboxEintrag.akteurId))
+    .leftJoin(kontaktperson, eq(kontaktperson.id, inboxEintrag.kontaktpersonId))
     .where(
       and(
         eq(inboxEintrag.empfaengerId, nutzerId),
@@ -102,6 +108,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       ausloeser,
       strom: z.biomassestromId ? { art: "biomasse", id: z.biomassestromId } : z.outputBedarfId ? { art: "output", id: z.outputBedarfId } : null,
       akteur: z.akteurId ? { id: z.akteurId, name: z.hinweisAkteurName ?? "–" } : null,
+      kontaktperson: z.kontaktpersonId ? { id: z.kontaktpersonId, name: z.kontaktpersonName ?? "–", akteurId: z.kontaktpersonAkteurId ?? "" } : null,
       belegNr: z.belegNr,
       bezeichnung,
       notiz: z.notiz,
@@ -115,6 +122,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         bezugsdatum: z.bezugsdatum,
         aufgabe: z.aufgabe,
         akteurName: z.hinweisAkteurName,
+        kontaktpersonName: z.kontaktpersonName,
       }, z.id),
     };
   });

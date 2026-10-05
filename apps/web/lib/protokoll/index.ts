@@ -27,7 +27,9 @@ export type Entitaet =
   /** AP2.3: Parameterwert (Verlaufszeile) — ueberdauert eine Ruecknahme. */
   | "parameter_wert"
   /** AP2.3 PR b: Sektor der Referenzliste (sektor.id; der Code ist kein uuid). */
-  | "sektor";
+  | "sektor"
+  /** AP2.5 PR b (E57): Kontaktperson — Freitext ohne Namen, nur IDs und Feldnamen. */
+  | "kontaktperson";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;
@@ -76,6 +78,10 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   weitergegeben: "Weitergegeben",
   akteur_geaendert: "Akteur geändert",
   akteur_geloescht: "Akteur gelöscht (verwaist)",
+  kontaktperson_angelegt: "Kontaktperson angelegt",
+  kontaktperson_geaendert: "Kontaktperson geändert",
+  kontaktperson_geloescht: "Kontaktperson gelöscht",
+  auskunft_erstellt: "Auskunft (Art. 15) erstellt",
   sektor_angelegt: "Sektor angelegt",
   sektor_umbenannt: "Sektor umbenannt",
   sektor_deaktiviert: "Sektor deaktiviert",

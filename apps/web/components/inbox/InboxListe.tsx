@@ -112,7 +112,13 @@ export function InboxListe({
       p.set("detail", z.strom.id);
       p.set("sicht", z.strom.art === "output" ? "outputs" : "feedstock");
     }
-    const ziel = z.strom ? `/inbox?${p.toString()}` : z.akteur ? `/akteure/${z.akteur.id}` : "/inbox";
+    const ziel = z.strom
+      ? `/inbox?${p.toString()}`
+      : z.kontaktperson
+        ? `/akteure/${z.kontaktperson.akteurId}?reiter=kontaktpersonen`
+        : z.akteur
+          ? `/akteure/${z.akteur.id}`
+          : "/inbox";
     if (z.gelesen) {
       router.push(ziel, { scroll: false });
       return;

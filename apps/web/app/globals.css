@@ -5532,3 +5532,16 @@ table.st-tabelle tbody tr:focus-visible {
 /* AP2.5: Sitz-Felder in der Inline-Anlage des Akteurs (Beleg-Formular). */
 .akteur-neu-sitz { display: grid; grid-template-columns: 2fr 1fr 1fr 2fr; gap: 6px; }
 .akteur-neu-hinweis { font-size: 12px; }
+/* AP2.5 PR b: Kontaktpersonen und Auskunft */
+.kp-formular { max-width: 560px; padding: 12px 0; }
+.kp-notiz-hinweis { font-size: 12px; }
+.kp-notiz { white-space: pre-wrap; max-width: 320px; }
+.kp-auskunft th { text-align: left; padding-right: 16px; }
+/* AP2.5 PR b: Die Tabelle der Kontaktpersonen ist breiter als ein schmaler Inhalt
+   (< 1000 px mit Seitenleiste); statt die Aktionen abzuschneiden, scrollt der Block
+   horizontal und die Knopftexte brechen nicht um. */
+.kp { overflow-x: auto; }
+.kp td { overflow-wrap: anywhere; }
+.kp td:nth-child(4) { white-space: nowrap; } /* Datum nie mitten in der Zahl trennen */
+.kp .param-aktionen .btn { white-space: nowrap; }
+.kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }

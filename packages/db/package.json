@@ -39,7 +39,8 @@
     "beleg-abweichung": "tsx src/beleg-abweichung.ts",
     "archiv-altfelder": "tsx src/archiv-altfelder.ts",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "kontaktperson-check": "tsx src/kontaktperson-check.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

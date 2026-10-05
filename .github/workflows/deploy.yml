@@ -359,6 +359,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db verifikation-check
 
+      # AP2.5 PR b (E66/E57): Kontaktpersonen — Struktur, kein Umhaengen,
+      # Laengengrenzen, Hinweis-Index und die DSGVO-Probe (Name nach dem
+      # Loeschen in keiner Spalte mehr auffindbar). Zurueckgerollt.
+      - name: Kontaktperson-Check (kontaktperson)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db kontaktperson-check
+
       # AP2.4 PR b (E63): Probe des Verifikations-Jobs gegen die Preview —
       # Idempotenz (zweiter Lauf erzeugt nichts), Nachholen am spaeteren
       # Stichtag, Empfaenger-Fallback, D3/ohne Beleg ohne Hinweis. Eine

@@ -780,6 +780,12 @@ export const ereignisArt = pgEnum("ereignis_art", [
   // AP2.5 PR a1 (E66): Stammdaten des Akteurs geaendert; verwaister Akteur geloescht (nur Admin).
   "akteur_geaendert",
   "akteur_geloescht",
+  // AP2.5 PR b (E57/E47): Kontaktpersonen — Freitext traegt nie den Namen, nur IDs.
+  "kontaktperson_angelegt",
+  "kontaktperson_geaendert",
+  "kontaktperson_geloescht",
+  // AP2.5 PR b: Auskunft nach Art. 15 erstellt (nur Admin) — die Druckansicht ist nur ueber dieses Ereignis erreichbar.
+  "auskunft_erstellt",
 ]);
 
 export const aenderung = pgTable(
@@ -839,8 +845,44 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "aufgabe",
   // AP2.5 PR a1 (E66): verwaister Akteur (kein Strom) seit N Monaten — Hinweis des Jobs an die Admins.
   "akteur_verwaist",
+  // AP2.5 PR b (E57): Loeschpruefung — Kontaktperson ohne Aktivitaet seit M Monaten, Hinweis an die Admins.
+  "kontaktperson_loeschpruefung",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
+
+/**
+ * AP2.5 PR b (E66/E57/E47): Kontaktperson eines Akteurs. Jede Person gehoert zu
+ * genau EINEM Akteur — kein Umhaengen (Trigger kontaktperson_kein_umhaengen in
+ * 0036; wechselt jemand den Arbeitgeber, wird eine neue Person angelegt).
+ * Laengengrenzen per CHECK. Die Notiz traegt den Hinweis „Keine privaten oder
+ * sensiblen Angaben". Echtes Loeschen (DSGVO): Protokoll und Inbox speichern
+ * nur die ID, Namen werden erst bei der Anzeige aufgeloest; Backups halten
+ * geloeschte Daten noch 30 Tage (docs/betrieb.md).
+ */
+export const kontaktperson = pgTable(
+  "kontaktperson",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    akteurId: uuid("akteur_id")
+      .notNull()
+      .references(() => akteur.id),
+    name: text("name").notNull(),
+    funktion: text("funktion"),
+    mailDienstlich: text("mail_dienstlich"),
+    telefon: text("telefon"),
+    notiz: text("notiz"),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    index("kontaktperson_akteur_id_idx").on(t.akteurId),
+    check("kontaktperson_name_check", sql`length(btrim(${t.name})) between 1 and 200`),
+    check("kontaktperson_funktion_check", sql`${t.funktion} is null or length(${t.funktion}) <= 120`),
+    check("kontaktperson_mail_check", sql`${t.mailDienstlich} is null or length(${t.mailDienstlich}) <= 200`),
+    check("kontaktperson_telefon_check", sql`${t.telefon} is null or length(${t.telefon}) <= 60`),
+    check("kontaktperson_notiz_check", sql`${t.notiz} is null or length(${t.notiz}) <= 1000`),
+  ],
+);
 
 /**
  * Inbox-Eintrag je Empfaenger. Buendelung per DB: je Strom-Typ ein
@@ -868,6 +910,8 @@ export const inboxEintrag = pgTable(
      * (ON DELETE CASCADE) — ein Hinweis auf ein geloeschtes Objekt waere leer.
      */
     akteurId: uuid("akteur_id").references(() => akteur.id, { onDelete: "cascade" }),
+    /** AP2.5 PR b (E57): Objektbezug Kontaktperson fuer die Loeschpruefung; echtes Loeschen nimmt die Hinweise mit (CASCADE). */
+    kontaktpersonId: uuid("kontaktperson_id").references(() => kontaktperson.id, { onDelete: "cascade" }),
     /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
     ereignisId: uuid("ereignis_id").references(() => aenderung.id),
     /**
@@ -893,10 +937,10 @@ export const inboxEintrag = pgTable(
     aufgabe: text("aufgabe"),
   },
   (t) => [
-    // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf oder (PR a1) Akteur.
+    // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf, (PR a1) Akteur oder (PR b) Kontaktperson.
     check(
       "inbox_eintrag_genau_ein_strom_check",
-      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}) = 1`,
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}) = 1`,
     ),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
     // AP2.4 PR c: Aufgabentext nur beim Typ aufgabe, dort Pflicht (1–500 Zeichen ohne Rand).
@@ -908,7 +952,7 @@ export const inboxEintrag = pgTable(
     // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
     check(
       "inbox_eintrag_urheber_check",
-      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
+      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist', 'kontaktperson_loeschpruefung') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
     ),
     uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
       .on(t.empfaengerId, t.biomassestromId)
@@ -952,6 +996,11 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_akteur_hinweis_uidx")
       .on(t.empfaengerId, t.typ, t.akteurId, t.bezugsdatum)
       .where(sql`inbox_typ_text(${t.typ}) = 'akteur_verwaist' and ${t.akteurId} is not null`),
+    // AP2.5 PR b (E57): Loeschpruefung — je Empfaenger, Kontaktperson und Bezugsdatum
+    // (letzte Aktivitaet) genau ein Eintrag; NULLS NOT DISTINCT in der Migration (0036).
+    uniqueIndex("inbox_eintrag_kontaktperson_hinweis_uidx")
+      .on(t.empfaengerId, t.typ, t.kontaktpersonId, t.bezugsdatum)
+      .where(sql`inbox_typ_text(${t.typ}) = 'kontaktperson_loeschpruefung' and ${t.kontaktpersonId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)

@@ -43,6 +43,7 @@ const zeile = (extra: Partial<Zeile>): Zeile => ({
   bezugsdatum: null,
   aufgabe: null,
   akteur: null,
+  kontaktperson: null,
   text: "Bernd Bearbeiter hat B-000012 Papierschlamm geändert",
   zeit: "vor 5 Min.",
   ...extra,
