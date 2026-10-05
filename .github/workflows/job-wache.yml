@@ -60,4 +60,7 @@ jobs:
         run: |
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/backup.yml/runs?status=success&per_page=1" > /tmp/backup.json
           gh api "repos/$GITHUB_REPOSITORY/actions/workflows/restore-woechentlich.yml/runs?status=success&per_page=1" > /tmp/restore.json
-          pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json ${{ inputs.backup_max_stunden }} ${{ inputs.restore_max_tage }}
+          # In Anfuehrungszeichen: eine leere Eingabe bleibt ein leeres Argument. Ohne
+          # sie rutschte restore_max_tage an die Stelle von backup_max_stunden
+          # (Rot-Nachweis 05.10.2026, Lauf 37327647001 meldete faelschlich das Backup).
+          pnpm --filter @bhyo/db laeufe-wache /tmp/backup.json /tmp/restore.json "${{ inputs.backup_max_stunden }}" "${{ inputs.restore_max_tage }}"
