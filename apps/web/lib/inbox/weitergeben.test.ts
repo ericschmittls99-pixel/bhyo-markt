@@ -95,11 +95,13 @@ describe("inboxWeitergeben (E63, D5)", () => {
     expect(updates).toEqual([]);
     expect(protokolliere).not.toHaveBeenCalled();
   });
-  it("Erfolg: eigener Eintrag erledigt, Ereignis weitergegeben mit Objektbezug Strom, betroffener Person und Aufgabe", async () => {
+  it("E65: der eigene Eintrag bleibt OFFEN (nur gelesen), Ereignis weitergegeben mit Objektbezug Strom, betroffener Person und Aufgabe", async () => {
     const erg = await inboxWeitergeben("e1", ANDERE, "  Bitte aktualisieren  ");
     expect(erg).toEqual({ ok: true });
+    // Kein Zustandswechsel: der Absender-Eintrag bleibt offen, bis die Sache selbst erledigt ist.
+    expect(updates.filter((u) => "zustand" in u)).toHaveLength(0);
     expect(updates).toHaveLength(1);
-    expect(updates[0]!.zustand).toBe("erledigt");
+    expect(updates[0]).toMatchObject({ gelesenAm: expect.any(Date) });
     expect(protokolliere).toHaveBeenCalledTimes(1);
     expect(protokolliere.mock.calls[0]![1]).toMatchObject({
       art: "weitergegeben",

@@ -197,6 +197,16 @@ describe("zustellen — Pruefauftrag (E62)", () => {
       ["aenderung_eintrag", ERSTELLER],
     ]);
   });
+  it("E65: geprueft erledigt den offenen Absender-Hinweis UND die weitergegebene Aufgabe (je Typ ein Abraeumen ueber alle Empfaenger); weitergegeben selbst raeumt nichts ab", async () => {
+    const a = attrappe2([[], []]);
+    await zustellen(a.tx, { id: EREIGNIS, art: "geprueft", entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER });
+    // Reihenfolge in zustellen(): pruefauftrag, verifikation_laeuft_ab, verifikation_abgelaufen, aufgabe — ohne ausloeserId, also bei ALLEN Empfaengern.
+    expect(a.updates).toHaveLength(4);
+    for (const u of a.updates) expect(u.set).toMatchObject({ zustand: "erledigt" });
+    const w = attrappe2([[], [{ id: BEARBEITER, rolle: "bearbeiter", aktiv: true }]]);
+    await zustellen(w.tx, { id: EREIGNIS, art: "weitergegeben", entitaet: "biomassestrom", entitaetId: STROM, ausloeserId: AUSLOESER, betrifftId: BEARBEITER, aufgabe: "Bitte aktualisieren" });
+    expect(w.updates).toEqual([]);
+  });
   it("prueft der Auftraggeber selbst, gibt es keine Rueckmeldung; zurueckgegeben und verworfen raeumen ebenfalls ab", async () => {
     const protokoll = [{ art: "in_pruefung_gegeben", benutzerId: AUSLOESER, zeitpunkt: new Date(2) }];
     const { tx, upserts } = attrappe2([protokoll, [], protokoll, [{ id: AUSLOESER, rolle: "admin", aktiv: true }]]);

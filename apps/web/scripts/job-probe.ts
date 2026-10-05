@@ -60,6 +60,12 @@ async function main() {
       }
       const p1 = pruefer[0]!.id;
       // Alle vorhandenen Hinweise und Pruef-Ereignisse zu diesem Strom beiseite (zurueckgerollt).
+      // Vorlauf (04.10.2026): Den Bestand der Preview einmal zustellen, damit die Zaehler
+      // der Proben nur den Probe-Strom zeigen — sonst ist die Probe rot, sobald die
+      // Preview offene Hinweise hat (z. B. nach einem Seed, der Stroeme neu aufbaut).
+      // Alles in derselben zurueckgerollten Transaktion.
+      const vorlauf = await stelleVerifikationsHinweiseZu(tx, heute);
+      console.log("VORLAUF " + JSON.stringify(vorlauf));
       await tx.execute(sql`delete from inbox_eintrag where biomassestrom_id = ${strom.id} and typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')`);
       await tx.execute(sql`delete from aenderung where entitaet_id = ${strom.id} and art::text in ('geprueft', 'reverifiziert')`);
       const zaehle = async () =>
@@ -105,7 +111,9 @@ async function main() {
         const nach5 = (await zaehle()).filter((z) => z.zustand === "offen" && z.typ === "verifikation_abgelaufen" && z.bezugsdatum !== null);
         const erwartet = pruefer.slice(1).map((p) => p.id).sort();
         const ist = nach5.filter((z) => z.bezugsdatum !== nach3[0]!.bezugsdatum).map((z) => z.empfaenger_id).sort();
-        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen === erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
+        // Gezaehlt wird am Probe-Strom, nicht global: Das Deaktivieren von p1 kann auf der
+        // Preview auch fremde Stroeme betreffen, deren Pruefer p1 ist (Seed-Pruefereignisse).
+        pruefe("3 Fallback: deaktivierter Pruefer → alle uebrigen aktiven Pruefer/Admins", lauf5.abgelaufen >= erwartet.length && JSON.stringify(ist) === JSON.stringify(erwartet), { lauf5, erwartet: erwartet.length, ist: ist.length });
         await tx.execute(sql`update benutzer set aktiv = true where id = ${p1}`);
       } else {
         console.log("3 Fallback uebersprungen: nur ein aktiver Pruefer/Admin auf der Preview");

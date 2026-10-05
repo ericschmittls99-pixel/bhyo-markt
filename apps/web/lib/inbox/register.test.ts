@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import { zeilenText } from "./register";
+
 import { INBOX_TYPEN, typenFuerArt, typFuerArt } from "./register";
 
 describe("Inbox-Register", () => {
@@ -71,5 +73,13 @@ describe("Register — Aufgabe (PR c)", () => {
     );
     for (const t of ["pruefauftrag", "verifikation_laeuft_ab", "verifikation_abgelaufen"] as const) expect(INBOX_TYPEN[t].aktionen).toContain("inbox.weitergeben");
     expect(INBOX_TYPEN.aufgabe.aktionen).not.toContain("inbox.weitergeben");
+  });
+});
+
+describe("zeilenText: unbekannter Typ eines spaeteren Stands", () => {
+  it("liefert einen benannten Platzhalter statt zu werfen", () => {
+    const z = { ausloeserName: "", belegNr: null, bezeichnung: "Strom A", anzahl: 1 };
+    expect(zeilenText("typ_aus_der_zukunft", z)).toBe("Hinweis eines neueren Stands (typ_aus_der_zukunft) — Strom A");
+    expect(zeilenText("freischaltung", { ...z, ausloeserName: "Eric" })).toMatch(/^Eric hat dir Zugriff/);
   });
 });

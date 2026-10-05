@@ -204,9 +204,12 @@ async function main() {
   console.log("MIGRATION_0033 " + JSON.stringify({ stand: vollstaendig33 ? "vorhanden" : "fehlt", ...m33, fehlt: fehlt33 }));
   if (vs!.funktion_verifikation) {
     const [jl] = m33!.job_lauf
-      ? await sql`select count(*)::int as laeufe, max(stichtag)::text as letzter_stichtag,
-                         (select ergebnis from job_lauf where job = 'verifikation' order by stichtag desc limit 1) as letztes_ergebnis
-                    from job_lauf where job = 'verifikation'`
+      ? await sql`with l as (select * from job_lauf where job = 'verifikation' order by stichtag desc limit 1)
+                  select (select count(*)::int from job_lauf where job = 'verifikation') as laeufe,
+                         l.stichtag::text as letzter_stichtag, l.ergebnis as letztes_ergebnis, l.anzahl as letzte_anzahl,
+                         l.gestartet_am::text as gestartet_am, l.beendet_am::text as beendet_am,
+                         extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s
+                    from l`
       : [{ laeufe: null, letzter_stichtag: null, letztes_ergebnis: null }];
     console.log("JOB_LAUF " + JSON.stringify(jl));
     const zustaende = await sql`
@@ -221,6 +224,58 @@ async function main() {
   } else {
     console.log("VERIFIKATION " + JSON.stringify({ ...struktur, hinweis: "vor 0032" }));
   }
+
+  // AP2.5 Schritt 0 (Bestandsaufnahme Akteur-Modell, Auftrag Eric 01.10.2026):
+  // Akteure je Status/Sektor, Pflegegrad der Kontaktfelder, Rollen, Interessen;
+  // Stroeme je Akteur (verwaist = ohne Strom, ohne Beleg = kein Strom mit
+  // Beleg, mehrere Orte/PLZ je Akteur, Pins), Namensdubletten in der
+  // Vergleichsform lower/btrim, Rechtsformen im Namen, VG250-Ebenen,
+  // Protokollarten zum Akteur. Nur SELECT.
+  const [ak] = await sql`select
+      count(*)::int as akteure,
+      count(*) filter (where sektor is null)::int as ohne_sektor,
+      count(*) filter (where cardinality(rollen) > 0)::int as mit_rollen,
+      count(*) filter (where kontakt_email is not null and btrim(kontakt_email) <> '')::int as mit_kontakt_email,
+      count(*) filter (where kontakt_telefon is not null and btrim(kontakt_telefon) <> '')::int as mit_kontakt_telefon,
+      count(*) filter (where ansprechperson is not null and btrim(ansprechperson) <> '')::int as mit_ansprechperson,
+      (select count(*)::int from akteur_interesse) as interessen,
+      (select array_agg(status || '=' || n order by status) from (select status::text as status, count(*) as n from akteur group by 1) s)::text as je_status,
+      (select array_agg(coalesce(sektor, 'NULL') || '=' || n order by n desc) from (select sektor, count(*) as n from akteur group by 1) s)::text as je_sektor
+    from akteur`;
+  console.log("AKTEUR " + JSON.stringify(ak));
+  const [as_] = await sql`with s as (
+      select akteur_id, ort, plz, standort_geom, beleg_id, kontaktperson from biomassestrom
+      union all
+      select akteur_id, ort, plz, standort_geom, beleg_id, kontaktperson from output_bedarf
+    ), je as (
+      select a.id,
+             count(s.akteur_id)::int as stroeme,
+             count(s.beleg_id)::int as mit_beleg,
+             count(s.standort_geom)::int as mit_pin,
+             count(distinct s.plz) filter (where s.plz is not null)::int as plz_anzahl,
+             count(distinct lower(btrim(s.ort))) filter (where s.ort is not null)::int as orte_anzahl,
+             count(s.kontaktperson) filter (where btrim(s.kontaktperson) <> '')::int as mit_kontaktperson
+        from akteur a left join s on s.akteur_id = a.id group by a.id)
+    select
+      count(*) filter (where stroeme = 0)::int as verwaist_ohne_strom,
+      count(*) filter (where stroeme > 0 and mit_beleg = 0)::int as mit_strom_ohne_beleg,
+      count(*) filter (where stroeme > 0 and mit_pin = 0)::int as mit_strom_ohne_pin,
+      count(*) filter (where plz_anzahl > 1)::int as mehrere_plz,
+      count(*) filter (where orte_anzahl > 1)::int as mehrere_orte,
+      count(*) filter (where mit_kontaktperson > 0)::int as akteure_mit_strom_kontaktperson,
+      max(stroeme)::int as max_stroeme_je_akteur,
+      (select count(*)::int from s where plz is null and ort is null) as stroeme_ohne_ort_und_plz
+    from je`;
+  console.log("AKTEUR_STROEME " + JSON.stringify(as_));
+  const [an] = await sql`select
+      (select count(*)::int from (select lower(btrim(name)) from akteur group by 1 having count(*) > 1) d) as namensdubletten_gruppen,
+      (select count(*)::int from akteur where name ~* '\\m(gmbh|mbh|gbr|kg|ag|e\\.?k\\.?|ohg|ug|se|e\\.?v\\.?|co\\.?)\\M') as namen_mit_rechtsform,
+      (select count(*)::int from akteur where name like 'Seed:%' or name like 'Test:%') as testdaten_namen,
+      (select array_agg(ebene || '=' || n) from (select ebene::text as ebene, count(*) as n from verwaltungsgebiet group by 1) v)::text as vg250_ebenen,
+      (select count(*)::int from pg_extension where extname = 'pg_trgm') as pg_trgm,
+      (select array_agg(art || '=' || n order by n desc) from (select art::text as art, count(*) as n from aenderung where entitaet_typ = 'akteur' group by 1) p)::text as protokoll_arten_akteur
+    `;
+  console.log("AKTEUR_NAMEN " + JSON.stringify(an));
 
   const beispiele = await sql`
     select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n

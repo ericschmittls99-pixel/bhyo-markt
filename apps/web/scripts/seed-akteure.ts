@@ -42,6 +42,8 @@ const sql = createSql(zielUrl);
 const PRAEFIX = "Seed-A25: ";
 const MARKER = " · SEED-A25";
 const BELEG_MARKER = "SEED-A25";
+/** Marker der Strom-Bezeichnungen des Seed-Bestands (seed-daten.ts) — fuer die Pruef-Ereignisse beider Seeds. */
+const SEED_V2_MARKER = " · SEED-v2";
 
 /** Deterministische UUID (v5-artig) aus einem Schluessel — derselbe Schluessel ist dieselbe Zeile. */
 function uuid(key: string): string {
@@ -117,7 +119,9 @@ async function main() {
     await tx`delete from biomassestrom where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from output_bedarf where bezeichnung like ${"%" + MARKER}`;
     await tx`delete from beleg where metadata->>'seed' = ${BELEG_MARKER}`;
-    await tx`delete from kontaktperson where name like ${"Seed-A25 %"}`;
+    // PR b: Kontaktpersonen der SEED-A25-Akteure samt ihrer Loeschpruefungs-Hinweise (Testdaten).
+    await tx`delete from inbox_eintrag where kontaktperson_id in (select k.id from kontaktperson k join akteur a on a.id = k.akteur_id where a.name like ${PRAEFIX + "%"} or k.name like ${"Seed-A25 %"})`;
+    await tx`delete from kontaktperson where name like ${"Seed-A25 %"} or akteur_id in (select id from akteur where name like ${PRAEFIX + "%"})`;
     await tx`delete from akteur where name like ${PRAEFIX + "%"}
       and not exists (select 1 from biomassestrom b where b.akteur_id = akteur.id)
       and not exists (select 1 from output_bedarf o where o.akteur_id = akteur.id)`;
@@ -198,6 +202,73 @@ async function main() {
     }
   });
 
+  // 4. Pruef-Ereignisse fuer die geprueften Seed-Stroeme BEIDER Seeds (Entscheidung
+  //    Eric 04.10.2026): verifiziert_am kommt aus dem letzten Ereignis geprueft/
+  //    reverifiziert (strom_verifikation, 0032). Ohne Ereignis stehen alle geprueften
+  //    Seed-Stroeme auf „Pruefdatum unbekannt" und der Job stellte 254 Hinweise zu.
+  //    Streuung deterministisch aus der Strom-ID: 0–4 gueltig (vor 10 Tagen), 5–6
+  //    laeuft in 5 Tagen ab (Pruefdatum = heute + 5 Tage - Typ-Frist), 7–8
+  //    abgelaufen (Frist + 30 Tage zurueck), 9 bewusst ohne Pruefdatum (Altfall).
+  //    Bei den oberen vier Belegtypen zaehlt gueltig_bis als Ablauf, das Ereignis
+  //    liefert dort nur das Pruefdatum. Idempotent ueber den Textmarker; die alten
+  //    Job-Hinweise der Seed-Stroeme werden entfernt (der Job erledigt
+  //    pruefdatum_unbekannt-Hinweise nicht selbst — nur Ereignisse ueber
+  //    protokolliere() raeumen ab, und der Seed schreibt bewusst roh), der naechste
+  //    Lauf stellt sie zustandsbasiert neu zu. Nur Preview (pruefeSeedZiel).
+  const PRUEF_MARKER = "Seed-A25 Pruefereignis";
+  const [pruefer] = await sql`select id, email from benutzer where rolle in ('admin', 'pruefer') and aktiv order by rolle, email limit 1`;
+  if (!pruefer) {
+    console.error("Abbruch: kein aktiver Pruefer/Admin fuer die Pruef-Ereignisse.");
+    process.exit(1);
+  }
+  const pruefung = await sql.begin(async (tx) => {
+    await tx`delete from aenderung where art::text = 'geprueft' and text like ${"%" + PRUEF_MARKER + "%"}`;
+    const hinweiseWeg = await tx`
+      with s as (
+        select b.id from biomassestrom b where b.bezeichnung like ${"%" + MARKER} or b.bezeichnung like ${"%" + SEED_V2_MARKER}
+        union all
+        select o.id from output_bedarf o where o.bezeichnung like ${"%" + MARKER} or o.bezeichnung like ${"%" + SEED_V2_MARKER}
+      )
+      delete from inbox_eintrag h using s
+       where coalesce(h.biomassestrom_id, h.output_bedarf_id) = s.id
+         and h.typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')
+      returning h.id`;
+    const eingefuegt = await tx`
+      with s as (
+        select b.id, 'biomassestrom' as typ, bl.typ::text as belegtyp from biomassestrom b join beleg bl on bl.id = b.beleg_id
+         where b.status = 'geprueft' and (b.bezeichnung like ${"%" + MARKER} or b.bezeichnung like ${"%" + SEED_V2_MARKER})
+        union all
+        select o.id, 'output_bedarf', bl.typ::text from output_bedarf o join beleg bl on bl.id = o.beleg_id
+         where o.status = 'geprueft' and (o.bezeichnung like ${"%" + MARKER} or o.bezeichnung like ${"%" + SEED_V2_MARKER})
+      ), k as (
+        select s.*,
+               (('x' || substr(md5(s.id::text), 1, 8))::bit(32)::int & 2147483647) % 10 as klasse,
+               case when s.belegtyp in ('gespraech', 'dokument', 'webrecherche')
+                    then parameter_wert('verifikationsfrist.' || s.belegtyp, current_date) else 6 end as frist
+          from s
+      ), z as (
+        select k.*, case
+            when klasse <= 4 then now() - interval '10 days'
+            when klasse <= 6 then ((current_date + 5)::timestamp - make_interval(months => frist))::timestamptz
+            when klasse <= 8 then now() - make_interval(months => frist) - interval '30 days'
+            else null end as zeitpunkt
+          from k
+      )
+      insert into aenderung (entitaet_typ, entitaet_id, zeitpunkt, text, art, benutzer_id, benutzer_email)
+      select typ, id, zeitpunkt, ${pruefer.email + ": Geprüft (" + PRUEF_MARKER + ")"}, 'geprueft', ${pruefer.id}, ${pruefer.email}
+        from z where zeitpunkt is not null
+      returning entitaet_id`;
+    const zustaende = await tx`
+      with s as (
+        select b.id from biomassestrom b where b.status = 'geprueft' and (b.bezeichnung like ${"%" + MARKER} or b.bezeichnung like ${"%" + SEED_V2_MARKER})
+        union all
+        select o.id from output_bedarf o where o.status = 'geprueft' and (o.bezeichnung like ${"%" + MARKER} or o.bezeichnung like ${"%" + SEED_V2_MARKER})
+      )
+      select v.zustand, count(*)::int as n from strom_verifikation(current_date) v join s on s.id = v.strom_id group by 1 order by 1`;
+    return { ereignisse: eingefuegt.length, hinweiseEntfernt: hinweiseWeg.length, zustaende: Object.fromEntries(zustaende.map((r) => [r.zustand as string, Number(r.n)])) };
+  });
+  console.log("PRUEFEREIGNISSE " + JSON.stringify(pruefung));
+
   // Selbstpruefung
   const [z] = await sql`select
       (select count(*)::int from akteur where name like ${PRAEFIX + "%"}) as akteure,
@@ -217,6 +288,9 @@ async function main() {
   if (Number(z!.sektoren) < 9) fehler.push(`nur ${z!.sektoren} Sektoren`);
   if (Number(z!.verwaist) < 3 || Number(z!.unvollstaendig) < 3 || Number(z!.ohne_sektor) < 2) fehler.push("Sonderfaelle fehlen (verwaist/unvollstaendig/ohne Sektor)");
   if (Number(z!.kontaktpersonen) < 10 || Number(z!.loeschpruefung_faelle) < 2) fehler.push("Kontaktpersonen oder Loeschpruefungs-Faelle fehlen (PR b)");
+  for (const zustand of ["gueltig", "laeuft_bald_ab", "abgelaufen", "pruefdatum_unbekannt"]) {
+    if (!pruefung.zustaende[zustand]) fehler.push(`Pruef-Ereignisse: Zustand ${zustand} fehlt in der Streuung`);
+  }
   await sql.end();
   if (fehler.length) {
     console.error("VERLETZUNGEN:\n- " + fehler.join("\n- "));
