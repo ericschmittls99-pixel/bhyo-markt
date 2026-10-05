@@ -19,14 +19,18 @@ export function AkteurStammdaten({
   sektoren,
   darfBearbeiten,
   darfLoeschen,
+  bearbeiten,
+  setBearbeiten,
 }: {
   akteur: AkteurZeile;
   sektoren: { code: string; label: string; aktiv: boolean }[];
   darfBearbeiten: boolean;
   darfLoeschen: boolean;
+  /** Sitz-Erfassung d: Zustand liegt in AkteurSpalten, damit die Lese-Karte beim Bearbeiten abgehaengt wird. */
+  bearbeiten: boolean;
+  setBearbeiten: (v: boolean) => void;
 }) {
   const router = useRouter();
-  const [bearbeiten, setBearbeiten] = useState(false);
   const [confirm, setConfirm] = useState(false);
   const [fehler, setFehler] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
