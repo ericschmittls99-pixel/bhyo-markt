@@ -125,7 +125,7 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
       select h.id
         from inbox_eintrag h
         left join v on v.strom_id = coalesce(h.biomassestrom_id, h.output_bedarf_id)
-       where h.zustand = 'offen'
+       where false and h.zustand = 'offen' -- WEGWERF: Regel abgeschaltet, nur Rot zeigen
          and h.ausloeser_id is null
          and h.typ::text in ('verifikation_laeuft_ab', 'verifikation_abgelaufen')
          and not (
