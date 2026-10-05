@@ -14,7 +14,17 @@
 //   "© OpenStreetMap-Mitwirkende", Open Source und damit selbst hostbar,
 //   falls die oeffentliche Instanz je nicht mehr reicht.
 
+/**
+ * Sitz-Erfassung b (05.10.2026): Art des Treffers, gemessen an Photon-Antworten.
+ * adresse = hat eine Strasse · ort = place (Stadt, Gemeinde, Ortsteil …) ·
+ * plz = place/postcode (Photon traegt die PLZ dort NUR im Namen, postcode ist
+ * leer) · objekt = alles andere ohne Strasse (Bach, Fluss, Flur) — fuer die
+ * Rueckwaertssuche noch brauchbar (city), in der Suche nicht als Ort anzubieten.
+ */
+export type TrefferArt = "adresse" | "ort" | "plz" | "objekt";
+
 export interface Adresse {
+  art: TrefferArt;
   strasse: string | null;
   hausnummer: string | null;
   plz: string | null;
@@ -39,21 +49,32 @@ export function photonZuAdresse(feature: unknown): Adresse | null {
 
   const s = (v: unknown): string | null =>
     typeof v === "string" && v.trim() !== "" ? v : null;
-  // Bei Orts-Treffern (type city/town/village/…) ist der Ortsname `name`,
-  // bei Adress-Treffern steht der Ort in `city`.
-  const ort = s(p.city) ?? (s(p.street) == null ? s(p.name) : null);
+  const strasse = s(p.street);
+  const istPlace = p.osm_key === "place";
+  const art: TrefferArt =
+    strasse != null ? "adresse" : istPlace ? (p.osm_value === "postcode" ? "plz" : "ort") : "objekt";
+  // Bei Orts-Treffern (place) ist der Ortsname `name`, sonst steht der Ort in
+  // `city`; ein Objekt (Bach, Flur) gibt seinen Namen nie als Ort aus.
+  const ort = s(p.city) ?? (art === "ort" ? s(p.name) : null);
   return {
-    strasse: s(p.street),
+    art,
+    strasse,
     hausnummer: s(p.housenumber),
-    plz: s(p.postcode),
+    plz: art === "plz" ? s(p.name) : s(p.postcode),
     ort,
     lng,
     lat,
   };
 }
 
+/** Suche: nur Adressen, Orte und PLZ anbieten — Objekte ohne Strasse (Fluss, Flur) nicht. */
+export function nurAdressenUndOrte(adressen: Adresse[]): Adresse[] {
+  return adressen.filter((a) => a.art !== "objekt");
+}
+
 /** Kompaktes Anzeige-Label ("Hauptstraße 12, 67346 Speyer"). */
-export function adresseLabel(a: Adresse): string {
+/** Nimmt jedes Objekt mit den vier Adressfeldern (Adresse, Standort, Fixture). */
+export function adresseLabel<T extends Pick<Adresse, "strasse" | "hausnummer" | "plz" | "ort">>(a: T): string {
   const strasse = [a.strasse, a.hausnummer].filter(Boolean).join(" ");
   const ort = [a.plz, a.ort].filter(Boolean).join(" ");
   return [strasse, ort].filter(Boolean).join(", ");

@@ -13,7 +13,7 @@ import "maplibre-gl/dist/maplibre-gl.css";
 /** Startausschnitt ohne Pin: Rhein-Neckar/Vorderpfalz (Kernregion). */
 const START: [number, number] = [8.55, 49.38];
 
-interface Standort extends Omit<Adresse, "lng" | "lat"> {
+interface Standort extends Omit<Adresse, "lng" | "lat" | "art"> {
   lng: number | null;
   lat: number | null;
 }
@@ -220,8 +220,7 @@ export function AdresseBlock({
     return () => ac.abort();
   }, [akteurId]);
 
-  const standortLabel = (st: Standort) =>
-    adresseLabel({ ...st, lng: st.lng ?? 0, lat: st.lat ?? 0 }) || "(ohne Adresse)";
+  const standortLabel = (st: Standort) => adresseLabel(st) || "(ohne Adresse)";
 
   return (
     <fieldset className="adr">

@@ -1,4 +1,4 @@
-import { dedupeAdressen, photonZuAdresse, type Adresse } from "@/lib/geocode";
+import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } from "@/lib/geocode";
 import { erstelleRateLimit } from "@/lib/rate-limit";
 import { zugangFuerRoute } from "@/lib/rechte/wache";
 
@@ -62,11 +62,12 @@ export async function GET(req: Request) {
     });
     if (!res.ok) throw new Error(`Photon ${res.status}`);
     const data = (await res.json()) as { features?: unknown[] };
-    const adressen = dedupeAdressen(
-      (data.features ?? [])
-        .map(photonZuAdresse)
-        .filter((a): a is Adresse => a != null),
-    );
+    const alle = (data.features ?? [])
+      .map(photonZuAdresse)
+      .filter((a): a is Adresse => a != null);
+    // Sitz-Erfassung b: Die Suche bietet Adressen, Orte und PLZ an; die
+    // Rueckwaertssuche nimmt jeden Treffer (ein Bach kennt noch seinen Ort).
+    const adressen = dedupeAdressen(q.length >= 3 ? nurAdressenUndOrte(alle) : alle);
     return Response.json({ adressen });
   } catch {
     return Response.json(
