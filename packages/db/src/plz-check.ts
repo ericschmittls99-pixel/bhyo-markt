@@ -30,7 +30,7 @@ const sql = postgres(url, { max: 1, fetch_types: false });
 const fehler: string[] = [];
 /** postgres-js ohne fetch_types liefert text[] als Text („{a,b}") — deshalb array_to_json(...)::text und JSON.parse. */
 const pruefung = async (plz: string, ort: string | null) => {
-  const [r] = await sql`select plz_bekannt, ort_passt, array_to_json(orte)::text as orte_json from plz_pruefung(plz, ort)`;
+  const [r] = await sql`select plz_bekannt, ort_passt, array_to_json(orte)::text as orte_json from plz_pruefung(${plz}, ${ort})`;
   return { plz_bekannt: r!.plz_bekannt as boolean, ort_passt: r!.ort_passt as boolean, orte: JSON.parse(r!.orte_json as string) as string[] };
 };
 const pruefe = (name: string, ok: boolean, detail?: unknown) => {
