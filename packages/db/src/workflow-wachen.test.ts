@@ -359,6 +359,7 @@ describe("Betriebs-Nachtrag (05.10.2026)", () => {
   });
 
   it("freigabe.sh fasst beim Deploy-Log nach, statt ein noch nicht verfuegbares Log leer zu lassen", () => {
-    expect(freigabe).toMatch(/for i in \$\(seq 1 6\); do\n\s+if leseweg=\$\(gh run view "\$dep" --log/);
+    // Kommentarzeilen zwischen „do" und dem Aufruf sind erlaubt (seit dem Leseweg-Filter, #188).
+    expect(freigabe).toMatch(/for i in \$\(seq 1 6\); do\n(\s*#.*\n)*\s+if leseweg=\$\(gh run view "\$dep" --log/);
   });
 });

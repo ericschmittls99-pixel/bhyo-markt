@@ -84,17 +84,17 @@ vi.mock("@/lib/db", () => ({
 const photonAufrufe: string[] = [];
 let photonAntwort: (q: string) => unknown[] = () => [];
 let photonWeg = false;
-vi.mock("@/lib/photon-server", () => ({
-  PhotonNichtErreichbar: class PhotonNichtErreichbar extends Error {},
-  photonSuche: async (q: string) => {
-    photonAufrufe.push(q);
-    if (photonWeg) {
-      const { PhotonNichtErreichbar } = await import("@/lib/photon-server");
-      throw new PhotonNichtErreichbar("weg");
-    }
-    return photonAntwort(q);
-  },
-}));
+vi.mock("@/lib/photon-server", async (orig) => {
+  const echt = await orig<typeof import("./photon-server")>();
+  return {
+    ...echt,
+    photonSuche: async (q: string) => {
+      photonAufrufe.push(q);
+      if (photonWeg) throw new echt.PhotonNichtErreichbar({ ursache: "netz", status: null, dauerMs: 1, antwort: "weg" });
+      return photonAntwort(q);
+    },
+  };
+});
 const bausteinAufrufe: string[] = [];
 const belegDaten: { typ: string; erhebungsdatum: string | null; gueltigBis: string | null }[] = [];
 let stromFehltAb: Set<string> = new Set();

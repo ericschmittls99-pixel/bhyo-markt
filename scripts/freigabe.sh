@@ -134,7 +134,9 @@ fi
 gh run view "$dep" --json jobs --jq '.jobs[] | "    \(.name): \(.conclusion)"'
 # Das Log ist nach dem Ende des Laufs nicht sofort abrufbar — kurz nachfassen.
 for i in $(seq 1 6); do
-  if leseweg=$(gh run view "$dep" --log 2>/dev/null | grep -a "Leseweg OK\|AKTEUR {\|JOB_LAUF"); then
+  # Nur der Job lese-diagnose: seit #183 druckt der Testschritt im Job
+  # typen-und-tests dieselben Woerter aus der Attrappe („Leseweg OK (Attrappe)").
+  if leseweg=$(gh run view "$dep" --log 2>/dev/null | grep -a "^lese-diagnose	" | grep -a "Leseweg OK\|AKTEUR {\|JOB_LAUF"); then
     printf '%s\n' "$leseweg" | sed 's/.*\t//' | sed 's/^/      /'; break
   fi
   sleep 10

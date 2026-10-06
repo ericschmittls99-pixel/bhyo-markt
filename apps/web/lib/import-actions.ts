@@ -499,7 +499,7 @@ export async function importAdressenAufloesen(laufId: string): Promise<AdressenE
       try {
         e = waehleSitz(g, await photonSuche(text));
       } catch (err) {
-        if (err instanceof PhotonNichtErreichbar) return { fehler: "Adresssuche nicht erreichbar — später fortsetzen, der Stand bleibt erhalten." };
+        if (err instanceof PhotonNichtErreichbar) return { fehler: `${err.message} Später fortsetzen, der Stand bleibt erhalten.` };
         throw err;
       }
     }

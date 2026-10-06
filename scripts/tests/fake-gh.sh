@@ -123,7 +123,10 @@ case "${POS[0]:-} ${POS[1]:-}" in
 
   "run view")
     if [[ -n "$F_LOG" ]]; then
-      printf 'deploy\tlese-diagnose\t2026-10-06T00:00:00Z Leseweg OK (Attrappe)\n'
+      # Wie im echten Deploy-Log seit #183: der Testschritt im Job typen-und-tests
+      # druckt die Ausgabe der Attrappe mit, darunter „Leseweg OK (Attrappe)".
+      printf 'typen-und-tests\tfreigabe-test (Waechter freigabe.sh)\t2026-10-06T00:00:00Z       |       2026-10-06T00:00:00Z Leseweg OK (Attrappe)\n'
+      printf 'lese-diagnose\tLeseweg\t2026-10-06T00:00:00Z Leseweg OK (Attrappe)\n'
     else
       jq ".[] | select(.databaseId == ${POS[2]})" "$D/runs.json" | ausgabe
     fi ;;
