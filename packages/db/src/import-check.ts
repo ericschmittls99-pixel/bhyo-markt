@@ -1,7 +1,7 @@
 /**
  * AP2.7 PR a (E67): DB-Check des Import-Datenmodells gegen die echte Preview-DB
  * (Deploy-CI, nur in zurueckgerollten Transaktionen).
- * 1. Struktur (Migration 0042): drei Tabellen, zwei Enum-Werte, Lauf-ID-Spalten,
+ * 1. Struktur (Migration 0043): drei Tabellen, zwei Enum-Werte, Lauf-ID-Spalten,
  *    Index inbox_eintrag_import_uidx, CHECK import_zeile_felder_check.
  * 2. Schema-Probe: keine Spalte der Import-Tabellen mit Personen-Bezug.
  * 3. Rot-Nachweis am CHECK: eine Zeile mit Schluessel „email" in felder wird

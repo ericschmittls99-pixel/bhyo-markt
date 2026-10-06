@@ -1606,7 +1606,7 @@ danach geändert, geprüft oder weitergegeben wurde; entfernt Ströme,
 Lauf-Belege und die vom Lauf neu angelegten, dadurch verwaisten Akteure,
 alles protokolliert (PR d).
 
-**Migration 0042 (PR a, additiv mit Verbraucher, E21):** `import_vorlage`,
+**Migration 0043 (PR a, additiv mit Verbraucher, E21; 0042 ist die Job-Laufzeitmessung):** `import_vorlage`,
 `import_lauf`, `import_zeile`; `aenderung.import_lauf_id` und
 `inbox_eintrag.import_lauf_id` (FK); partieller Unique-Index
 `inbox_eintrag_import_uidx` (Empfänger, Typ, Lauf, Prädikat über

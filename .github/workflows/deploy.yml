@@ -395,7 +395,7 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db kontaktperson-check
 
-      # AP2.7 PR a (E67): Import-Datenmodell — Struktur (Migration 0042), keine
+      # AP2.7 PR a (E67): Import-Datenmodell — Struktur (Migration 0043), keine
       # Personen-Spalte in den Import-Tabellen, CHECK gegen Personen-Schluessel
       # in import_zeile.felder (Rot-Nachweis im Check selbst, zurueckgerollt).
       - name: import-check (Import-Datenmodell, E67)

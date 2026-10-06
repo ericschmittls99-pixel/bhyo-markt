@@ -817,7 +817,7 @@ export const aenderung = pgTable(
      */
     art: ereignisArt("art").notNull(),
     benutzerId: uuid("benutzer_id").references(() => benutzer.id),
-    /** AP2.7 PR a (E67): Lauf-ID an jedem Ereignis des Imports (Migration 0042); sonst NULL. */
+    /** AP2.7 PR a (E67): Lauf-ID an jedem Ereignis des Imports (Migration 0043); sonst NULL. */
     importLaufId: uuid("import_lauf_id").references(() => importLauf.id),
   },
   (t) => [
@@ -945,7 +945,7 @@ export const inboxEintrag = pgTable(
     akteurId: uuid("akteur_id").references(() => akteur.id, { onDelete: "cascade" }),
     /** AP2.5 PR b (E57): Objektbezug Kontaktperson fuer die Loeschpruefung; echtes Loeschen nimmt die Hinweise mit (CASCADE). */
     kontaktpersonId: uuid("kontaktperson_id").references(() => kontaktperson.id, { onDelete: "cascade" }),
-    /** AP2.7 PR a (E67): Lauf-Bezug des Typs import_abgeschlossen (Migration 0042). */
+    /** AP2.7 PR a (E67): Lauf-Bezug des Typs import_abgeschlossen (Migration 0043). */
     importLaufId: uuid("import_lauf_id").references(() => importLauf.id),
     /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
     ereignisId: uuid("ereignis_id").references(() => aenderung.id),
@@ -1174,7 +1174,7 @@ export const jobLauf = pgTable(
   ],
 );
 
-// --- AP2.7 Excel-Import (E67, Migration 0042) -------------------------------
+// --- AP2.7 Excel-Import (E67, Migration 0043) -------------------------------
 // Entscheidung E67 (docs/ap0-schema-entscheidungen.md): Ein Lauf importiert
 // Stroeme einer Art samt Akteur. Zeilen tragen NUR zugeordnete Zielfelder als
 // jsonb — nie Personen-Spalten (CHECK import_zeile_felder_check); deren
