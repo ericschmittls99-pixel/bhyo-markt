@@ -96,6 +96,12 @@ export interface AkteurOption {
   id: string;
   name: string;
   sektor: string | null;
+  /** Sitz-Erfassung c: Sitz und Region (View akteur_verwaltung, E25) zur Unterscheidung gleichnamiger Akteure. */
+  sitzPlz: string | null;
+  sitzOrt: string | null;
+  kreisName: string | null;
+  kreisBez: string | null;
+  landName: string | null;
 }
 
 export interface RegisterZeile {
@@ -214,14 +220,31 @@ export function ladeSektoren(): Promise<SektorOption[]> {
 /** Live-Suche fuer die Akteur-Combobox (Name oder Sektor). */
 export function sucheAkteure(query: string): Promise<AkteurOption[]> {
   const q = query.trim();
-  return withDb((db) => {
-    const base = db
-      .select({ id: akteur.id, name: akteur.name, sektor: akteur.sektor })
-      .from(akteur);
-    const filtered = q
-      ? base.where(or(ilike(akteur.name, `%${q}%`), ilike(akteur.sektor, `%${q}%`)))
-      : base;
-    return filtered.orderBy(akteur.name).limit(20);
+  return withDb(async (db) => {
+    // Sitz-Erfassung c: Kreis und Land kommen raeumlich aus dem Sitz-Pin
+    // (View akteur_verwaltung, E25), nie aus einem Textfeld am Akteur.
+    const filter = q ? sql`where a.name ilike ${"%" + q + "%"} or a.sektor ilike ${"%" + q + "%"}` : sql``;
+    const rows = (await db.execute(sql`
+      select a.id, a.name, a.sektor, a.sitz_plz, a.sitz_ort,
+             v.kreis_name, v.kreis_bez, v.land_name
+        from akteur a
+        left join akteur_verwaltung v on v.akteur_id = a.id
+        ${filter}
+       order by a.name
+       limit 20`)) as unknown as {
+      id: string; name: string; sektor: string | null; sitz_plz: string | null; sitz_ort: string | null;
+      kreis_name: string | null; kreis_bez: string | null; land_name: string | null;
+    }[];
+    return rows.map((r) => ({
+      id: r.id,
+      name: r.name,
+      sektor: r.sektor,
+      sitzPlz: r.sitz_plz,
+      sitzOrt: r.sitz_ort,
+      kreisName: r.kreis_name,
+      kreisBez: r.kreis_bez,
+      landName: r.land_name,
+    }));
   });
 }
 

@@ -1159,6 +1159,14 @@ export const jobLauf = pgTable(
     fehler: text("fehler"),
     /** Abgeraeumte Job-Hinweise (Bedingung zum Stichtag nicht mehr gueltig), seit Migration 0041. */
     abgeraeumt: integer("abgeraeumt"),
+    /**
+     * Betrieb 06.10.2026 (Eric): Laufzeit messen. ausgeloest_am = Cron-Zeitpunkt
+     * (scheduledTime); gestartet_am (DB-Zeit des ersten Schreibens) minus
+     * ausgeloest_am ist der Verbindungsaufbau (Hyperdrive, Neon-Kaltstart).
+     */
+    ausgeloestAm: timestamp("ausgeloest_am", { withTimezone: true }),
+    /** Millisekunden je Schritt des Laufs ({ verbindung, zustellen, …, gesamt }), seit Migration 0042. */
+    schritte: jsonb("schritte").$type<Record<string, number>>(),
   },
   (t) => [
     unique("job_lauf_job_stichtag_unique").on(t.job, t.stichtag),

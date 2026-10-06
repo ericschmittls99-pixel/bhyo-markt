@@ -1,5 +1,5 @@
 {
-  "id": "ecd1a70d-6707-426b-8c2b-7b7e6975039b",
+  "id": "5a794405-7c4d-4384-b4c9-d9e06160fab0",
   "prevId": "9825073c-ba7b-4800-b8bd-009a88c55aae",
   "version": "7",
   "dialect": "postgresql",
@@ -58,12 +58,6 @@
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
-        },
-        "import_lauf_id": {
-          "name": "import_lauf_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         }
       },
       "indexes": {
@@ -87,21 +81,6 @@
           "concurrently": false,
           "method": "btree",
           "with": {}
-        },
-        "aenderung_import_lauf_idx": {
-          "name": "aenderung_import_lauf_idx",
-          "columns": [
-            {
-              "expression": "import_lauf_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
         }
       },
       "foreignKeys": {
@@ -111,19 +90,6 @@
           "tableTo": "benutzer",
           "columnsFrom": [
             "benutzer_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "aenderung_import_lauf_id_import_lauf_id_fk": {
-          "name": "aenderung_import_lauf_id_import_lauf_id_fk",
-          "tableFrom": "aenderung",
-          "tableTo": "import_lauf",
-          "columnsFrom": [
-            "import_lauf_id"
           ],
           "columnsTo": [
             "id"
@@ -1126,433 +1092,6 @@
       },
       "isRLSEnabled": false
     },
-    "public.import_lauf": {
-      "name": "import_lauf",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "art": {
-          "name": "art",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "dateiname": {
-          "name": "dateiname",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "datei_hash": {
-          "name": "datei_hash",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "beleg_typ": {
-          "name": "beleg_typ",
-          "type": "beleg_typ",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "standard_sektor": {
-          "name": "standard_sektor",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "vorlage_id": {
-          "name": "vorlage_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "ersteller_id": {
-          "name": "ersteller_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'angelegt'"
-        },
-        "zaehler": {
-          "name": "zaehler",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "abgeschlossen_am": {
-          "name": "abgeschlossen_am",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "zurueckgenommen_am": {
-          "name": "zurueckgenommen_am",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        }
-      },
-      "indexes": {
-        "import_lauf_datei_hash_idx": {
-          "name": "import_lauf_datei_hash_idx",
-          "columns": [
-            {
-              "expression": "datei_hash",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "import_lauf_standard_sektor_sektor_code_fk": {
-          "name": "import_lauf_standard_sektor_sektor_code_fk",
-          "tableFrom": "import_lauf",
-          "tableTo": "sektor",
-          "columnsFrom": [
-            "standard_sektor"
-          ],
-          "columnsTo": [
-            "code"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_lauf_vorlage_id_import_vorlage_id_fk": {
-          "name": "import_lauf_vorlage_id_import_vorlage_id_fk",
-          "tableFrom": "import_lauf",
-          "tableTo": "import_vorlage",
-          "columnsFrom": [
-            "vorlage_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_lauf_ersteller_id_benutzer_id_fk": {
-          "name": "import_lauf_ersteller_id_benutzer_id_fk",
-          "tableFrom": "import_lauf",
-          "tableTo": "benutzer",
-          "columnsFrom": [
-            "ersteller_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {
-        "import_lauf_art_check": {
-          "name": "import_lauf_art_check",
-          "value": "\"import_lauf\".\"art\" in ('biomasse', 'output')"
-        },
-        "import_lauf_status_check": {
-          "name": "import_lauf_status_check",
-          "value": "\"import_lauf\".\"status\" in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'fehler')"
-        },
-        "import_lauf_datei_hash_check": {
-          "name": "import_lauf_datei_hash_check",
-          "value": "\"import_lauf\".\"datei_hash\" ~ '^[0-9a-f]{64}$'"
-        },
-        "import_lauf_dateiname_check": {
-          "name": "import_lauf_dateiname_check",
-          "value": "length(btrim(\"import_lauf\".\"dateiname\")) between 1 and 255"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.import_vorlage": {
-      "name": "import_vorlage",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "name": {
-          "name": "name",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "quelle": {
-          "name": "quelle",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "spalten": {
-          "name": "spalten",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "werte": {
-          "name": "werte",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "ersteller_id": {
-          "name": "ersteller_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "import_vorlage_ersteller_id_benutzer_id_fk": {
-          "name": "import_vorlage_ersteller_id_benutzer_id_fk",
-          "tableFrom": "import_vorlage",
-          "tableTo": "benutzer",
-          "columnsFrom": [
-            "ersteller_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "import_vorlage_name_unique": {
-          "name": "import_vorlage_name_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "name"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "import_vorlage_name_check": {
-          "name": "import_vorlage_name_check",
-          "value": "length(btrim(\"import_vorlage\".\"name\")) between 1 and 120"
-        }
-      },
-      "isRLSEnabled": false
-    },
-    "public.import_zeile": {
-      "name": "import_zeile",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "lauf_id": {
-          "name": "lauf_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "zeilennummer": {
-          "name": "zeilennummer",
-          "type": "integer",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "felder": {
-          "name": "felder",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "status": {
-          "name": "status",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'offen'"
-        },
-        "fehlergrund": {
-          "name": "fehlergrund",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "biomassestrom_id": {
-          "name": "biomassestrom_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "output_bedarf_id": {
-          "name": "output_bedarf_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "import_zeile_status_idx": {
-          "name": "import_zeile_status_idx",
-          "columns": [
-            {
-              "expression": "lauf_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "status",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "import_zeile_lauf_id_import_lauf_id_fk": {
-          "name": "import_zeile_lauf_id_import_lauf_id_fk",
-          "tableFrom": "import_zeile",
-          "tableTo": "import_lauf",
-          "columnsFrom": [
-            "lauf_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "import_zeile_biomassestrom_id_biomassestrom_id_fk": {
-          "name": "import_zeile_biomassestrom_id_biomassestrom_id_fk",
-          "tableFrom": "import_zeile",
-          "tableTo": "biomassestrom",
-          "columnsFrom": [
-            "biomassestrom_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        },
-        "import_zeile_output_bedarf_id_output_bedarf_id_fk": {
-          "name": "import_zeile_output_bedarf_id_output_bedarf_id_fk",
-          "tableFrom": "import_zeile",
-          "tableTo": "output_bedarf",
-          "columnsFrom": [
-            "output_bedarf_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {
-        "import_zeile_lauf_zeile_unique": {
-          "name": "import_zeile_lauf_zeile_unique",
-          "nullsNotDistinct": false,
-          "columns": [
-            "lauf_id",
-            "zeilennummer"
-          ]
-        }
-      },
-      "policies": {},
-      "checkConstraints": {
-        "import_zeile_status_check": {
-          "name": "import_zeile_status_check",
-          "value": "\"import_zeile\".\"status\" in ('offen', 'fehler', 'aehnlich', 'importiert', 'uebersprungen')"
-        },
-        "import_zeile_strom_check": {
-          "name": "import_zeile_strom_check",
-          "value": "not (\"import_zeile\".\"biomassestrom_id\" is not null and \"import_zeile\".\"output_bedarf_id\" is not null)"
-        },
-        "import_zeile_felder_check": {
-          "name": "import_zeile_felder_check",
-          "value": "jsonb_typeof(\"import_zeile\".\"felder\") = 'object' and not (\"import_zeile\".\"felder\" ?| array['ansprechpartner', 'ansprechperson', 'kontakt', 'kontaktperson', 'person', 'email', 'e_mail', 'mail', 'telefon', 'mobil', 'handy', 'fax'])"
-        }
-      },
-      "isRLSEnabled": false
-    },
     "public.inbox_eintrag": {
       "name": "inbox_eintrag",
       "schema": "",
@@ -1603,12 +1142,6 @@
         },
         "kontaktperson_id": {
           "name": "kontaktperson_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "import_lauf_id": {
-          "name": "import_lauf_id",
           "type": "uuid",
           "primaryKey": false,
           "notNull": false
@@ -1961,34 +1494,6 @@
           "method": "btree",
           "with": {}
         },
-        "inbox_eintrag_import_uidx": {
-          "name": "inbox_eintrag_import_uidx",
-          "columns": [
-            {
-              "expression": "empfaenger_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "typ",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "import_lauf_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "where": "inbox_typ_text(\"inbox_eintrag\".\"typ\") = 'import_abgeschlossen' and \"inbox_eintrag\".\"import_lauf_id\" is not null",
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "inbox_eintrag_zaehler_idx": {
           "name": "inbox_eintrag_zaehler_idx",
           "columns": [
@@ -2083,19 +1588,6 @@
             "id"
           ],
           "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "inbox_eintrag_import_lauf_id_import_lauf_id_fk": {
-          "name": "inbox_eintrag_import_lauf_id_import_lauf_id_fk",
-          "tableFrom": "inbox_eintrag",
-          "tableTo": "import_lauf",
-          "columnsFrom": [
-            "import_lauf_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "no action",
           "onUpdate": "no action"
         },
         "inbox_eintrag_ereignis_id_aenderung_id_fk": {
@@ -2193,6 +1685,18 @@
         "abgeraeumt": {
           "name": "abgeraeumt",
           "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ausgeloest_am": {
+          "name": "ausgeloest_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "schritte": {
+          "name": "schritte",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         }
@@ -3488,8 +2992,7 @@
         "auskunft_erstellt",
         "akteur_zusammengefuehrt",
         "keine_dublette_markiert",
-        "keine_dublette_aufgehoben",
-        "kontaktdaten_uebersprungen"
+        "keine_dublette_aufgehoben"
       ]
     },
     "public.feedstock_cluster": {
@@ -3517,8 +3020,7 @@
         "verifikation_abgelaufen",
         "aufgabe",
         "akteur_verwaist",
-        "kontaktperson_loeschpruefung",
-        "import_abgeschlossen"
+        "kontaktperson_loeschpruefung"
       ]
     },
     "public.inbox_zustand": {

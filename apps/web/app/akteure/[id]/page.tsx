@@ -1,8 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { AkteurKarte } from "@/components/akteure/AkteurKarte";
-import { AkteurStammdaten } from "@/components/akteure/AkteurStammdaten";
+import { AkteurSpalten } from "@/components/akteure/AkteurSpalten";
 import { Kontaktpersonen } from "@/components/akteure/Kontaktpersonen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur, ladeAkteurStroeme } from "@/lib/akteure";
@@ -92,15 +91,14 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
           />
         </section>
       ) : (
-      <div className="ak-spalten">
-        <section className="ov-sec ak-sec">
-          <h3>stammdaten.</h3>
-          <AkteurStammdaten akteur={a} sektoren={sektoren.filter((s) => s.aktiv || s.code === a.sektor)} darfBearbeiten={darfBearbeiten} darfLoeschen={darfLoeschen} />
-        </section>
-        <section className="ov-sec ak-sec">
-          <h3>sitz und standorte.</h3>
-          <AkteurKarte sitz={a.sitzLng != null && a.sitzLat != null ? { lng: a.sitzLng, lat: a.sitzLat } : null} standorte={stroeme.filter((s) => s.lng != null && s.lat != null).map((s) => ({ id: s.id, lng: s.lng!, lat: s.lat!, label: s.bezeichnung ?? s.belegNr ?? s.art }))} />
-          <p className="ov-note">Grüner Pin: Sitz des Akteurs. Dunkle Pins: Standorte seiner Ströme (bleiben am Strom, F0a).</p>
+      <AkteurSpalten
+        akteur={a}
+        sektoren={sektoren.filter((s) => s.aktiv || s.code === a.sektor)}
+        darfBearbeiten={darfBearbeiten}
+        darfLoeschen={darfLoeschen}
+        sitz={a.sitzLng != null && a.sitzLat != null ? { lng: a.sitzLng, lat: a.sitzLat } : null}
+        standorte={stroeme.filter((s) => s.lng != null && s.lat != null).map((s) => ({ id: s.id, lng: s.lng!, lat: s.lat!, label: s.bezeichnung ?? s.belegNr ?? s.art }))}
+      >
           <h3>belege und ströme.</h3>
           {stroeme.length === 0 ? (
             <p className="ov-note">Kein Strom verweist auf diesen Akteur — er gilt als verwaist.</p>
@@ -133,8 +131,7 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
               </tbody>
             </table>
           )}
-        </section>
-      </div>
+      </AkteurSpalten>
       )}
     </main>
   );

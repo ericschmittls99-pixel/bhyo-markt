@@ -25,22 +25,30 @@ export type JobErgebnis =
 
 export async function fuehreVerifikationsJobAus(db: AppDb, jetzt: Date): Promise<JobErgebnis> {
   const stichtag = kalendertag(jetzt);
+  // Betrieb 06.10.2026 (Eric): Laufzeit messen. `jetzt` ist der Cron-Zeitpunkt;
+  // gestartet_am setzt die DB beim ersten Schreiben (Default now()) — die
+  // Differenz ist der Verbindungsaufbau. Dazu die Dauer des ersten Statements
+  // aus Sicht des Workers (schritte.verbindung) und je Schritt die Millisekunden.
+  const t0 = Date.now();
   const gestartet = await db
     .insert(jobLauf)
-    .values({ job: JOB_VERIFIKATION, stichtag, gestartetAm: jetzt })
+    .values({ job: JOB_VERIFIKATION, stichtag, ausgeloestAm: jetzt })
     .onConflictDoNothing({ target: [jobLauf.job, jobLauf.stichtag] })
     .returning({ id: jobLauf.id });
+  const verbindung = Date.now() - t0;
   const lauf = gestartet[0];
   if (!lauf) return { lauf: "uebersprungen", stichtag };
 
   try {
     const hinweise = await db.transaction((tx) => stelleVerifikationsHinweiseZu(tx, stichtag));
+    const schritte = { verbindung, ...hinweise.schritteMs, gesamt: Date.now() - t0 };
     await db
       .update(jobLauf)
       .set({
         ergebnis: "ok",
         anzahl: hinweise.laeuftAb + hinweise.abgelaufen + hinweise.verwaist + hinweise.loeschpruefung,
         abgeraeumt: hinweise.abgeraeumt,
+        schritte,
         beendetAm: new Date(),
       })
       .where(eq(jobLauf.id, lauf.id));

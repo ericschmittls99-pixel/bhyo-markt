@@ -208,8 +208,11 @@ async function main() {
                   select (select count(*)::int from job_lauf where job = 'verifikation') as laeufe,
                          l.stichtag::text as letzter_stichtag, l.ergebnis as letztes_ergebnis, l.anzahl as letzte_anzahl,
                          l.abgeraeumt as letzte_abgeraeumt,
+                         l.ausgeloest_am::text as ausgeloest_am,
                          l.gestartet_am::text as gestartet_am, l.beendet_am::text as beendet_am,
-                         extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s
+                         extract(epoch from (l.gestartet_am - l.ausgeloest_am))::numeric(10,3) as verbindung_s,
+                         extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s,
+                         l.schritte as letzte_schritte
                     from l`
       : [{ laeufe: null, letzter_stichtag: null, letztes_ergebnis: null }];
     console.log("JOB_LAUF " + JSON.stringify(jl));

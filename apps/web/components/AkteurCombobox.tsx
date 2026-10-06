@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 
+import { regionLabel } from "@/lib/region-label";
 import { sektorAnzeige } from "@/lib/sektor";
 
 interface AkteurOption {
@@ -9,6 +10,19 @@ interface AkteurOption {
   name: string;
   /** Sektor-Code der Referenztabelle (0020) oder null = "ohne Sektor". */
   sektor: string | null;
+  sitzPlz?: string | null;
+  sitzOrt?: string | null;
+  kreisName?: string | null;
+  kreisBez?: string | null;
+  landName?: string | null;
+}
+
+/** Sitz-Erfassung c: „67346 Speyer · RP" bzw. „21729 Freiburg (Elbe) · Lkr. Stade · NI" hinter jedem Treffer. */
+function sitzMitRegion(a: Pick<AkteurOption, "sitzPlz" | "sitzOrt" | "kreisName" | "kreisBez" | "landName">): string {
+  const sitz = [a.sitzPlz, a.sitzOrt].filter(Boolean).join(" ");
+  return [sitz, regionLabel({ kreis: a.kreisName ?? null, kreisBez: a.kreisBez ?? null, land: a.landName ?? null })]
+    .filter(Boolean)
+    .join(" · ");
 }
 
 /** Hoechstens so viele „Meinten Sie"-Vorschlaege (Eric 05.10.2026) — der Rest ist die Dublettenliste. */
@@ -21,6 +35,9 @@ interface Aehnlich {
   sektor: string;
   sitzPlz: string | null;
   sitzOrt: string | null;
+  kreisName: string | null;
+  kreisBez: string | null;
+  landName: string | null;
   aehnlichkeit: number;
   grad: "stark" | "schwach";
 }
@@ -259,7 +276,9 @@ export function AkteurCombobox({
                   }}
                 >
                   <span className="lbl">{a.name}</span>
-                  {a.sektor && <span className="scb-meta">{sektorLabel(a.sektor)}</span>}
+                  {(sitzMitRegion(a) || a.sektor) && (
+                    <span className="scb-meta">{[sitzMitRegion(a), a.sektor ? sektorLabel(a.sektor) : ""].filter(Boolean).join(" · ")}</span>
+                  )}
                 </button>
               ))}
             {!laedt && !treffer.length && (
@@ -281,7 +300,7 @@ export function AkteurCombobox({
                   >
                     <span className="lbl">{a.name}</span>
                     <span className="scb-meta">
-                      {[a.sitzPlz, a.sitzOrt].filter(Boolean).join(" ")}
+                      {sitzMitRegion(a)}
                       {" · "}
                       <span className={`pill ${a.grad === "stark" ? "pill--accent" : "pill--muted"}`}>{a.grad}</span>
                     </span>

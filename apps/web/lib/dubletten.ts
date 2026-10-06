@@ -118,6 +118,10 @@ export interface Treffer {
   sektor: string;
   sitzPlz: string | null;
   sitzOrt: string | null;
+  /** Sitz-Erfassung c: Region aus der View akteur_verwaltung. */
+  kreisName: string | null;
+  kreisBez: string | null;
+  landName: string | null;
   aehnlichkeit: number;
   grad: DublettenGrad;
 }
@@ -134,20 +138,22 @@ export async function sucheAehnliche(db: AppDb, name: string, plz: string | null
       with eingabe as (select akteur_name_norm(${name}) as norm, ${plz || null}::text as plz, ${punkt} as punkt),
       k as (
         select a.id, a.name, coalesce(a.sektor, 'ohne_sektor') as sektor, a.sitz_plz, a.sitz_ort,
+               v.kreis_name, v.kreis_bez, v.land_name,
                similarity(akteur_name_norm(a.name), e.norm)::float8 as sim,
                akteur_name_wortteilmenge(akteur_name_norm(a.name), e.norm) as teilmenge,
                ((e.plz is not null and a.sitz_plz = e.plz)
                 or (e.punkt is not null and a.sitz_geom is not null and ST_DWithin(a.sitz_geom::geography, e.punkt::geography, ${DUBLETTE_ORT_METER}))) as gleicher_ort
           from akteur a cross join eingabe e
+          left join akteur_verwaltung v on v.akteur_id = a.id
       )
       select * from k
        where sim >= ${DUBLETTE_STARK} or (gleicher_ort and teilmenge)
        order by sim desc, name
-       limit 8`)) as unknown as { id: string; name: string; sektor: string; sitz_plz: string | null; sitz_ort: string | null; sim: number | string; teilmenge: boolean | null; gleicher_ort: boolean | null }[];
+       limit 8`)) as unknown as { id: string; name: string; sektor: string; sitz_plz: string | null; sitz_ort: string | null; kreis_name: string | null; kreis_bez: string | null; land_name: string | null; sim: number | string; teilmenge: boolean | null; gleicher_ort: boolean | null }[];
   const treffer: Treffer[] = [];
   for (const r of rows) {
     const grad = dublettenGrad(Number(r.sim), !!r.gleicher_ort, !!r.teilmenge);
-    if (grad) treffer.push({ id: r.id, name: r.name, sektor: r.sektor, sitzPlz: r.sitz_plz, sitzOrt: r.sitz_ort, aehnlichkeit: Number(r.sim), grad });
+    if (grad) treffer.push({ id: r.id, name: r.name, sektor: r.sektor, sitzPlz: r.sitz_plz, sitzOrt: r.sitz_ort, kreisName: r.kreis_name, kreisBez: r.kreis_bez, landName: r.land_name, aehnlichkeit: Number(r.sim), grad });
   }
   return treffer.sort((x, y) => (x.grad === y.grad ? y.aehnlichkeit - x.aehnlichkeit : x.grad === "stark" ? -1 : 1));
 }

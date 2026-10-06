@@ -2114,6 +2114,10 @@ button.leg-toggle.aus {
   max-height: min(60vh, 440px);
   overflow-y: auto;
   display: grid;
+  /* Sitz-Erfassung c: Mit Kreis und Land wurde die Spalte breiter als der Dialog
+     (Preview-Befund 05.10.2026, „Meinten Sie"); minmax(0, 1fr) laesst die Eintraege
+     nicht ueber den Rahmen wachsen, der Meta-Text bricht rechtsbuendig um. */
+  grid-template-columns: minmax(0, 1fr);
 }
 .scb-menu .akteur-neu {
   position: sticky;
@@ -2133,7 +2137,10 @@ button.leg-toggle.aus {
 .scb-meta {
   font: var(--type-caption);
   color: var(--text-tertiary);
-  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
 }
 .akteur-gewaehlt {
   display: flex;
@@ -5530,7 +5537,12 @@ table.st-tabelle tbody tr:focus-visible {
 .ak-spalten { display: grid; grid-template-columns: minmax(320px, 1fr) minmax(320px, 1.4fr); gap: 24px; margin-top: 16px; }
 @media (max-width: 900px) { .ak-spalten { grid-template-columns: 1fr; } }
 .ak-sec h3 { margin-top: 16px; }
-.ak-karte { height: 300px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle); }
+.ak-karte { position: relative; height: 300px; border-radius: 12px; overflow: hidden; border: 1px solid var(--border-subtle); }
+/* Sitz-Erfassung d: Kartenflaeche fuellt den Rahmen, Platzhalter liegt darueber bis MapLibre geladen hat; beim Bearbeiten ruht die Karte. */
+/* Nicht absolut: MapLibre setzt dem Container selbst position: relative (eigenes Stylesheet, spaeter geladen) — mit inset waere die Hoehe 0 (Preview-Befund 05.10.2026). */
+.ak-karte-flaeche { width: 100%; height: 100%; }
+.ak-karte-platzhalter { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; padding: 16px; text-align: center; font-size: 13px; color: var(--text-muted, #6b7a83); pointer-events: none; }
+.ak-karte--ruht { display: flex; align-items: center; justify-content: center; }
 .ak-aktionen { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
 .ak-confirm { display: inline-flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .ak-formular { display: grid; gap: 12px; }
