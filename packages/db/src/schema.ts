@@ -1231,6 +1231,14 @@ export const importLauf = pgTable(
     status: text("status").notNull().default("angelegt"),
     /** Zaehler je Lauf ({ zeilen, importiert, uebersprungen, fehler, aehnlich, akteure_neu, … }) — bleiben nach dem Aufraeumen der Zeilen. */
     zaehler: jsonb("zaehler").$type<Record<string, number>>(),
+    /**
+     * AP2.7 PR b: Belegdaten des Lauf-Belegs (ein Beleg je Lauf und Belegtyp,
+     * E48/E67). Erhebungsdatum und — bei den oberen vier Typen (E33) —
+     * Gueltig-bis fragt der Probelauf ab; E67 legt sie nicht fest, geraten
+     * wird nichts (Entscheidung fuer Eric markiert, PR b).
+     */
+    belegErhebungsdatum: date("beleg_erhebungsdatum"),
+    belegGueltigBis: date("beleg_gueltig_bis"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),

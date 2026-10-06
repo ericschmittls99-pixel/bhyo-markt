@@ -120,6 +120,13 @@ describe("erstelleBeleg — Pflichtfelder je Belegtyp", () => {
     expect(inserts[0]!.werte.dateiKey).toBe(uploads[0]);
   });
 
+  it("ein vorhandener dateiKey (bereinigte Importkopie) wird übernommen, nichts hochgeladen", async () => {
+    const { db, inserts } = fakeDb();
+    await erstelleBeleg(db, eingabe({ typ: "betriebsdaten", dateiKey: "belege/test/import/lauf-1/bereinigt.csv", datei: new File(["x"], "egal.csv") }));
+    expect(uploads).toHaveLength(0);
+    expect(inserts[0]!.werte.dateiKey).toBe("belege/test/import/lauf-1/bereinigt.csv");
+  });
+
   it("eine leere Datei zählt nicht als Datei", async () => {
     const { db, inserts } = fakeDb();
     await erstelleBeleg(db, eingabe({ typ: "betriebsdaten", datei: new File([], "leer.pdf") }));
