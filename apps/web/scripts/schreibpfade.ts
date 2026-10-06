@@ -54,10 +54,18 @@ export function rumpf(quelle: string, ab: number): string {
   return naechster === -1 ? rest : rest.slice(0, naechster + 1);
 }
 
-/** Rumpf samt aufgerufener LOKALER Helfer (eine Ebene). */
+/**
+ * Rumpf samt aufgerufener Helfer DESSELBEN Moduls (eine Ebene). Exportierte
+ * zaehlen mit: Ein Baustein hat eine Variante mit eigener Transaktion
+ * (`akteurAnlegen`) und eine fuer fremde Transaktionen (`akteurAnlegenInTx`,
+ * AP2.7 PR b); Rechte und Protokoll sitzen in der InTx-Variante, die erste
+ * ruft sie nur. Vorher sah der Scanner nur nicht-exportierte Helfer — bei
+ * a0 fiel das nicht auf, weil derselbe Schreibpfad (stromSpeichern) im
+ * Bearbeiten-Zweig selbst protokolliert.
+ */
 function mitLokalen(quelle: string, text: string): string {
   const lokale = new Map<string, string>();
-  for (const m of quelle.matchAll(/^(?:async )?function (\w+)\(/gm)) {
+  for (const m of quelle.matchAll(/^(?:export )?(?:async )?function (\w+)\(/gm)) {
     lokale.set(m[1]!, rumpf(quelle, m.index!));
   }
   let erweitert = text;
