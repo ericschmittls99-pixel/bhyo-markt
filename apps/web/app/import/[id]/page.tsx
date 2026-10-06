@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
 import { Ausfuehren } from "@/components/import/Ausfuehren";
+import { Nacharbeit } from "@/components/import/Nacharbeit";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
@@ -88,6 +89,18 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
   const alleZeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id));
   const zeilen = alleZeilen.slice(0, ZEILEN_ANZEIGE);
   const gruppen = akteurGruppenAnzeige(alleZeilen);
+  const nacharbeit = alleZeilen.filter((z) => z.status === "fehler");
+  let nacharbeitOptionen: CodeOptionen | null = null;
+  if (nacharbeit.length > 0) {
+    const [materialarten, produkte, sektoren] = await Promise.all([listMaterialarten(), listOutputProdukte(), ladeSektoren()]);
+    nacharbeitOptionen = {
+      materialart: materialarten.map((m) => ({ code: m.code, label: m.label })),
+      produkt: produkte.map((p) => ({ code: p.code, label: p.label })),
+      sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
+      beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
+      menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+    };
+  }
 
   return (
     <main className="einst imp">
@@ -141,7 +154,9 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             optionen={zuordnung.optionen}
           />
         )}
-        {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest") && <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />}
+        {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest" || gruppen.some((g) => g.ergebnis === "offen")) && (
+          <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />
+        )}
         {lauf.status === "aufgeloest" && gruppen.some((g) => g.ergebnis === "neu") && <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />}
         {(lauf.status === "aufgeloest" || lauf.status === "probelauf") && (
           <Probelauf
@@ -154,6 +169,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
+        {nacharbeitOptionen && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
         {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
           <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
         )}

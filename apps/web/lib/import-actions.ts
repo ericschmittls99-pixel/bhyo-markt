@@ -6,7 +6,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
-import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
+import { istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, offeneAkteurGruppen } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
@@ -333,7 +333,7 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
   const lauf = await withDb((db) => ladeImportLauf(db, laufId));
   if (!lauf) return { fehler: "Lauf nicht gefunden." };
-  if (lauf.status !== "zugeordnet" && lauf.status !== "aufgeloest") return { fehler: `Der Lauf ist „${lauf.status}" — Akteure werden nach der Zuordnung aufgelöst.` };
+  if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Akteure werden nach der Zuordnung aufgelöst.` };
 
   try {
     return await withDb((db) =>
@@ -376,9 +376,11 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
           }
         }
         zaehler.aehnlich = zaehler.akteure_vorschlag;
+        // Nach Nacharbeit (Probelauf/ausgefuehrt) bleibt der Zustand des Laufs; nur aus der Zuordnung heraus wird er „aufgeloest".
+        const statusNeu = fertig && (lauf.status === "zugeordnet" || lauf.status === "aufgeloest") ? { status: "aufgeloest" } : {};
         await tx
           .update(importLauf)
-          .set({ zaehler, ...(fertig ? { status: "aufgeloest" } : {}), updatedAt: new Date() })
+          .set({ zaehler, ...statusNeu, updatedAt: new Date() })
           .where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: fertig ? "status_gesetzt" : "geaendert",
@@ -630,7 +632,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
   const lauf = await withDb((db) => ladeImportLauf(db, laufId));
   if (!lauf) return { fehler: "Lauf nicht gefunden." };
-  if (lauf.status !== "aufgeloest" && lauf.status !== "probelauf") return { fehler: `Der Lauf ist „${lauf.status}" — der Probelauf kommt nach dem Auflösen der Akteure.` };
+  if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — der Probelauf kommt nach dem Auflösen der Akteure.` };
   if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen: bitte Erhebungsdatum (und bei den oberen vier Belegtypen Gültig bis) setzen." };
   if (istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp) && !lauf.belegGueltigBis) return { fehler: "Gültig bis fehlt für den Belegtyp des Laufs (E33)." };
 
@@ -991,5 +993,111 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
   } catch (e) {
     console.error("Import ausführen fehlgeschlagen:", e);
     return { fehler: "Das Ausführen ist technisch abgebrochen — der aktuelle Stapel wurde zurückgerollt, frühere Stapel bleiben." };
+  }
+}
+
+/**
+ * Nacharbeit (PR c, E67): eine Zeile mit Fehler korrigieren — nur bekannte
+ * Zielfelder, nie Personen-Schluessel; aendert sich der Akteur (Name oder
+ * PLZ), faellt seine Aufloesung weg und „Akteure aufloesen" laeuft fuer die
+ * Zeile erneut. Die Zeile wird wieder „offen" und geht durch Probelauf und
+ * Ausfuehren. Ueberspringen setzt „uebersprungen" — die Zeile bleibt als
+ * Beleg der Entscheidung stehen, nichts wird geloescht.
+ */
+export interface ZeileErgebnisAction {
+  ok?: boolean;
+  fehler?: string;
+}
+
+const AKTEUR_AUFLOESUNG = ["akteur_id", "akteur_neu", "akteur_gruppe", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_sitz_lat", "akteur_sitz_lng", "akteur_sitz_quelle", "akteur_sitz_offen"] as const;
+const NACHARBEIT_ZUSTAENDE = ["zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt"];
+
+export async function importZeileBearbeiten(laufId: string, zeileId: string, eingabe: Record<string, string>): Promise<ZeileErgebnisAction> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId) || !/^[0-9a-f-]{36}$/.test(zeileId)) return { fehler: "Ungültige ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Nacharbeit gibt es nach der Zuordnung.` };
+  const art = lauf.art as StromArt;
+  const patch: Record<string, string> = {};
+  for (const [k, v] of Object.entries(eingabe)) {
+    if (istPersonenSchluessel(k)) return { fehler: `Feld „${k}": Personen-Daten werden nicht übernommen.` };
+    const def = zielfeld(k);
+    if (!def || !def.arten.includes(art) || def.typ === "einheit") return { fehler: `Feld „${k}" ist kein Zielfeld dieses Laufs.` };
+    patch[k] = typeof v === "string" ? v.trim() : "";
+  }
+  if (Object.keys(patch).length === 0) return { fehler: "Keine Änderung." };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const [zeile] = await tx
+          .select({ id: importZeile.id, zeilennummer: importZeile.zeilennummer, status: importZeile.status, felder: importZeile.felder })
+          .from(importZeile)
+          .where(and(eq(importZeile.id, zeileId), eq(importZeile.laufId, lauf.id)))
+          .limit(1);
+        if (!zeile) return { fehler: "Zeile nicht gefunden." };
+        if (zeile.status !== "fehler" && zeile.status !== "offen") return { fehler: `Zeile ${zeile.zeilennummer} ist „${zeile.status}" — nur offene und fehlerhafte Zeilen lassen sich bearbeiten.` };
+        const alt = zeile.felder as Record<string, string>;
+        const akteurGeaendert = ("akteur_name" in patch && patch.akteur_name !== (alt.akteur_name ?? "")) || ("akteur_sitz_plz" in patch && patch.akteur_sitz_plz !== (alt.akteur_sitz_plz ?? ""));
+        const entfernen: string[] = [...Object.keys(patch).filter((k) => patch[k] === ""), "probelauf", ...(akteurGeaendert ? AKTEUR_AUFLOESUNG : [])];
+        const setzen = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== ""));
+        await tx
+          .update(importZeile)
+          .set({ felder: felderPatch(setzen, entfernen), status: "offen", fehlergrund: null })
+          .where(eq(importZeile.id, zeile.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          // E57: nur Feldnamen, keine Werte.
+          text: `Nacharbeit Zeile ${zeile.zeilennummer}: Felder ${Object.keys(patch).join(", ")}${akteurGeaendert ? " — Akteur wird erneut aufgelöst" : ""}`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true };
+      }),
+    );
+  } catch (e) {
+    console.error("Nacharbeit speichern fehlgeschlagen:", e);
+    return { fehler: "Die Zeile konnte nicht gespeichert werden." };
+  }
+}
+
+export async function importZeileUeberspringen(laufId: string, zeileId: string): Promise<ZeileErgebnisAction> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId) || !/^[0-9a-f-]{36}$/.test(zeileId)) return { fehler: "Ungültige ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}".` };
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const [zeile] = await tx
+          .select({ id: importZeile.id, zeilennummer: importZeile.zeilennummer, status: importZeile.status })
+          .from(importZeile)
+          .where(and(eq(importZeile.id, zeileId), eq(importZeile.laufId, lauf.id)))
+          .limit(1);
+        if (!zeile) return { fehler: "Zeile nicht gefunden." };
+        if (zeile.status === "importiert") return { fehler: `Zeile ${zeile.zeilennummer} ist schon importiert.` };
+        await tx.update(importZeile).set({ status: "uebersprungen" }).where(eq(importZeile.id, zeile.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Nacharbeit Zeile ${zeile.zeilennummer}: übersprungen`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true };
+      }),
+    );
+  } catch (e) {
+    console.error("Überspringen fehlgeschlagen:", e);
+    return { fehler: "Die Zeile konnte nicht übersprungen werden." };
   }
 }

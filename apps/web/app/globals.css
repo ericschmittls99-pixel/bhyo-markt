@@ -5639,3 +5639,15 @@ table.st-tabelle tbody tr:focus-visible {
   font: var(--type-title-sm);
   letter-spacing: var(--tracking-tight);
 }
+.imp-nacharbeit-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px 12px;
+  padding: 8px 0;
+}
+.imp-nacharbeit-form .imp-aktionen {
+  grid-column: 1 / -1;
+}
+.imp-nacharbeit-offen td {
+  vertical-align: top;
+}

@@ -150,7 +150,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -631,5 +631,62 @@ describe("importAusfuehren (PR c: COMMIT, Savepoint je Zeile, Akteur je Gruppe, 
     expect(protokolle.some((p) => (p as { art: string }).art === "kontaktdaten_uebersprungen")).toBe(false);
     expect(updates[updates.length - 1]).not.toHaveProperty("status");
     expect(inboxZustellungen).toHaveLength(0);
+  });
+});
+
+describe("Nacharbeit (PR c): importZeileBearbeiten / importZeileUeberspringen", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const ZEILE = "22222222-2222-4222-8222-222222222222";
+  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: {}, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const zeile = (teil: Record<string, unknown> = {}) => ({ id: ZEILE, zeilennummer: 7, status: "fehler", felder: { akteur_name: "Hof A", akteur_sitz_plz: "67346", akteur_id: "a1", akteur_gruppe: "hof a|67346", materialart_code: "", menge_roh_fm: "100" }, ...teil });
+
+  it("Rot: Bearbeiter abgewiesen; Personen-Schluessel und fremde Felder vor jeder Wirkung abgewiesen", async () => {
+    rolle = "bearbeiter";
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { menge_roh_fm: "5" })).fehler).toMatch(/recht/i);
+    rolle = "pruefer";
+    dbSelects.push([lauf()]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { email: "x@example.invalid" })).fehler).toMatch(/Personen-Daten/);
+    dbSelects.push([lauf()]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { produkt_code: "x" })).fehler).toMatch(/kein Zielfeld dieses Laufs/);
+    dbSelects.push([lauf()]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, {})).fehler).toMatch(/Keine Änderung/);
+    expect(updates).toHaveLength(0);
+    expect(protokolle).toHaveLength(0);
+  });
+
+  it("korrigiert Felder, setzt die Zeile offen; Akteur-Aenderung loescht die Aufloesung; Ereignis nennt nur Feldnamen", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile()]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { materialart_code: "guelle", menge_roh_fm: "", akteur_name: "Hof A neu" })).toEqual({ ok: true });
+    expect(updates[0]).toMatchObject({ status: "offen", fehlergrund: null });
+    // Der Feld-Patch ist ein SQL-Ausdruck (jsonb || … - 'schluessel'); seine Texte genuegen als Beleg.
+    const texte = (o: unknown, seen = new Set<object>()): string[] => {
+      if (!o || typeof o !== "object" || seen.has(o)) return [];
+      seen.add(o);
+      return Object.values(o as Record<string, unknown>).flatMap((v) => (typeof v === "string" ? [v] : texte(v, seen)));
+    };
+    const sqlText = texte(updates[0]!.felder).join(" ");
+    expect(sqlText).toContain("guelle");
+    expect(sqlText).toContain("akteur_id");
+    expect(sqlText).toContain("akteur_gruppe");
+    expect(sqlText).toContain("probelauf");
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Nacharbeit Zeile 7: Felder materialart_code, menge_roh_fm, akteur_name — Akteur wird erneut aufgelöst" });
+    expect(JSON.stringify(protokolle)).not.toContain("Hof A");
+  });
+
+  it("importierte Zeilen lassen sich nicht bearbeiten oder ueberspringen; Ueberspringen setzt uebersprungen", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ status: "importiert" })]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { menge_roh_fm: "5" })).fehler).toMatch(/nur offene und fehlerhafte/);
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ status: "importiert" })]);
+    expect((await importZeileUeberspringen(LAUF, ZEILE)).fehler).toMatch(/schon importiert/);
+    dbSelects.push([lauf("probelauf")]);
+    txSelects.push([zeile()]);
+    expect(await importZeileUeberspringen(LAUF, ZEILE)).toEqual({ ok: true });
+    expect(updates[updates.length - 1]).toEqual({ status: "uebersprungen" });
+    expect(protokolle[protokolle.length - 1]).toMatchObject({ text: "Nacharbeit Zeile 7: übersprungen" });
   });
 });
