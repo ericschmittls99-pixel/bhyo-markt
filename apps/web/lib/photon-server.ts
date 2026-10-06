@@ -14,7 +14,14 @@ import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, REVERSE_RADIUS_KM,
  * Nutzereingaben im Klartext: nur die Laenge der Suche bzw. das Pin-Raster.
  */
 export const PHOTON = "https://photon.komoot.io";
-export const PHOTON_ZEITLIMIT_MS = 5000;
+/**
+ * Messung 06.10.2026 (Preview-Worker, Diagnose-Stand): /api lief dreimal ins
+ * 5-s-Limit, /reverse kam mit ≈5,2 s gesamt knapp durch; vom Rechner aus
+ * antwortet Photon in 2,9–4,0 s. Ursache ist Latenz, keine Sperre (kein
+ * HTTP-Status). 12 s geben dem Dienst Luft; die Oberflaeche nennt die
+ * Wartezeit, der Import ruft ohnehin stapelweise.
+ */
+export const PHOTON_ZEITLIMIT_MS = 12000;
 /** Aussagekraeftige Kennung statt „intern" — Photon bittet darum (Fair Use). */
 export const PHOTON_USER_AGENT = "bhyo-markt/1.0 (+kontakt@bhyo.de)";
 // Grober Deutschland-Rahmen; zusaetzlich filtert der Mapper auf countrycode DE.
@@ -80,7 +87,14 @@ async function hole(url: string, kennung: string): Promise<Adresse[]> {
   } catch (e) {
     return scheitere({ ursache: "antwort", status: res.status, antwort: (e instanceof Error ? e.message : String(e)).slice(0, 200) });
   }
+  letzteDauerMs = Date.now() - start;
   return (data.features ?? []).map(photonZuAdresse).filter((a): a is Adresse => a != null);
+}
+
+/** Dauer des letzten erfolgreichen Aufrufs in diesem Isolate — fuer die Messung im Proxy (dauerMs in der Antwort). */
+let letzteDauerMs: number | null = null;
+export function photonLetzteDauerMs(): number | null {
+  return letzteDauerMs;
 }
 
 /** Suche (Autocomplete und Import): Adressen, Orte, PLZ — keine Objekte. */

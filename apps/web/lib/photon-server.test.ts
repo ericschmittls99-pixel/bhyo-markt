@@ -5,7 +5,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { PHOTON_USER_AGENT, PhotonNichtErreichbar, photonMeldung, photonSuche, ursacheAusFehler } from "./photon-server";
+import { PHOTON_USER_AGENT, PhotonNichtErreichbar, photonLetzteDauerMs, photonMeldung, photonSuche, ursacheAusFehler } from "./photon-server";
 
 const logs: string[] = [];
 afterEach(() => {
@@ -37,7 +37,7 @@ describe("photonSuche — Diagnose", () => {
     vi.stubGlobal("fetch", vi.fn(async () => { throw timeout; }));
     const e = await photonSuche("Speyer").catch((x) => x);
     expect(e.diagnose).toMatchObject({ ursache: "zeitlimit", status: null });
-    expect(e.message).toMatch(/nach 5 s nicht geantwortet/);
+    expect(e.message).toMatch(/nach 12 s nicht geantwortet/);
     vi.stubGlobal("fetch", vi.fn(async () => { throw new TypeError("fetch failed: getaddrinfo ENOTFOUND"); }));
     const n = await photonSuche("Speyer").catch((x) => x);
     expect(n.diagnose).toMatchObject({ ursache: "netz", status: null, antwort: "TypeError: fetch failed: getaddrinfo ENOTFOUND" });
@@ -55,10 +55,11 @@ describe("photonSuche — Diagnose", () => {
     expect(a).toHaveLength(1);
     expect(a[0]).toMatchObject({ art: "ort", ort: "Speyer", plz: "67346" });
     expect(logs).toHaveLength(1);
+    expect(photonLetzteDauerMs()).toBeGreaterThanOrEqual(0);
   });
 
   it("photonMeldung nennt jede Ursache in Klartext", () => {
-    expect(photonMeldung({ ursache: "zeitlimit", status: null, dauerMs: 5001, antwort: "" })).toMatch(/5 s/);
+    expect(photonMeldung({ ursache: "zeitlimit", status: null, dauerMs: 12001, antwort: "" })).toMatch(/12 s/);
     expect(photonMeldung({ ursache: "http", status: 429, dauerMs: 10, antwort: "" })).toMatch(/429/);
   });
 });

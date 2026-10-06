@@ -1,5 +1,5 @@
 import { REVERSE_RADIUS_KM, waehleTrefferAusPin, type Adresse } from "@/lib/geocode";
-import { PhotonNichtErreichbar, photonMeldung, photonReverse, photonSuche } from "@/lib/photon-server";
+import { PhotonNichtErreichbar, photonLetzteDauerMs, photonMeldung, photonReverse, photonSuche } from "@/lib/photon-server";
 import { erstelleRateLimit } from "@/lib/rate-limit";
 import { zugangFuerRoute } from "@/lib/rechte/wache";
 
@@ -58,7 +58,8 @@ export async function GET(req: Request) {
       q.length >= 3
         ? await photonSuche(q)
         : [waehleTrefferAusPin({ lng: lon, lat }, await photonReverse(lat, lon), REVERSE_RADIUS_KM)].filter((a): a is Adresse => a != null);
-    return Response.json({ adressen });
+    // Dauer des Upstream-Aufrufs auch bei Erfolg — fuer die Messung (Diagnose 06.10.2026).
+    return Response.json({ adressen, dauerMs: photonLetzteDauerMs() });
   } catch (e) {
     // Diagnose mit an die Oberflaeche: Ursache, Status und Dauer stehen auch im
     // Log (GEOCODE_FEHLER) — hier, damit sich der Fehler im Browser belegen laesst.
