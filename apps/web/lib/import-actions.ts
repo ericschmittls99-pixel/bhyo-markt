@@ -992,7 +992,9 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
     );
   } catch (e) {
     console.error("Import ausführen fehlgeschlagen:", e);
-    return { fehler: "Das Ausführen ist technisch abgebrochen — der aktuelle Stapel wurde zurückgerollt, frühere Stapel bleiben." };
+    // Interne Oberflaeche (Pruefer/Admin): der Grund gehoert in die Meldung, nicht nur ins Log.
+    const grund = e instanceof Error ? e.message : String(e);
+    return { fehler: `Das Ausführen ist technisch abgebrochen — der aktuelle Stapel wurde zurückgerollt, frühere Stapel bleiben. Grund: ${grund.slice(0, 300)}` };
   }
 }
 
