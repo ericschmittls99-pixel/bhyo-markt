@@ -54,7 +54,7 @@ async function main() {
     // Probe je Schritt mit Fehlertext: „abgewiesen" zaehlt nur, wenn GENAU der
     // CHECK import_zeile_felder_check greift — jeder andere Fehler ist ein
     // Fehler der Probe selbst und wird benannt (Rolle, Vorbedingung, Treiber).
-    const probe = async (felder: Record<string, unknown>): Promise<string> => {
+    const probe = async (felder: Record<string, string>): Promise<string> => {
       let ergebnis = "angenommen";
       try {
         await sql.begin(async (tx) => {
