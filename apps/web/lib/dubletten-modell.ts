@@ -42,7 +42,7 @@ export function entscheidungenAus(roh: unknown): Entscheidungen {
   return e;
 }
 
-export const GRAD_LABEL = { stark: "stark", schwach: "schwach" } as const;
+export const GRAD_LABEL = { identisch: "identisch", stark: "stark", schwach: "schwach" } as const;
 
 /** Ergebnis der Server-Action akteureZusammenfuehren (Typen leben hier, die Action-Datei exportiert nur async-Funktionen). */
 export interface ZusammenfuehrenErgebnis {

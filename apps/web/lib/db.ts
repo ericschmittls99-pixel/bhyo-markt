@@ -27,6 +27,10 @@ export interface BelegeBucket {
     options?: { httpMetadata?: { contentType?: string } },
   ): Promise<unknown>;
   get(key: string): Promise<R2ObjectBody | null>;
+  /** AP2.7 PR b: Roh-Upload des Imports nach der Zuordnung loeschen (E67). */
+  delete(key: string): Promise<void>;
+  /** AP2.7 PR b: liegengebliebene Roh-Uploads finden (Job, 24 h). */
+  list(options: { prefix: string; cursor?: string }): Promise<{ objects: { key: string; uploaded: Date }[]; truncated: boolean; cursor?: string }>;
 }
 
 interface AppBindings {

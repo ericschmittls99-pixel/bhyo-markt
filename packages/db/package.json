@@ -44,6 +44,7 @@
     "test:watch": "vitest",
     "kontaktperson-check": "tsx src/kontaktperson-check.ts",
     "import-check": "tsx src/import-check.ts",
+    "probelauf-rollback-check": "tsx src/probelauf-rollback-check.ts",
     "dubletten-check": "tsx src/dubletten-check.ts"
   },
   "dependencies": {

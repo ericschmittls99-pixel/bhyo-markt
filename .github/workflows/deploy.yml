@@ -411,6 +411,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db import-check
 
+      # AP2.7 PR b (E67): Rot-Nachweis gegen die Preview-DB — der Probelauf
+      # veraendert nichts (Zaehler vorher = nachher nach absichtlichem Rollback)
+      # und ein gescheiterter Savepoint laesst die uebrigen Zeilen durch.
+      - name: probelauf-rollback-check (Rollback und Savepoint, E67)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db probelauf-rollback-check
+
       # AP2.5 PR c (E66): Dubletten — Struktur (pg_trgm, akteur_name_norm,
       # akteur_keine_dublette), Paritaet SQL ↔ TypeScript ueber die geteilten
       # Fixtures, Trigger-Ausnahme nur mit Zusammenfuehrungs-Ereignis, Loeschen

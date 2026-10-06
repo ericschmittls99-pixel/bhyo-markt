@@ -57,10 +57,12 @@ const gueltigBiomasse = {
 /** Fake-Transaktion: zaehlt Inserts und liefert IDs; schreibt nichts. */
 function fakeTx() {
   const inserts: string[] = [];
+  const werte: Record<string, Record<string, unknown>> = {};
   const kette = (tabelle: string) => ({
-    values: () => ({
+    values: (v: Record<string, unknown>) => ({
       returning: async () => {
         inserts.push(tabelle);
+        werte[tabelle] = v;
         return [{ id: `${tabelle}-neu` }];
       },
       then: (res: (v: unknown) => void) => {
@@ -73,7 +75,7 @@ function fakeTx() {
     insert: (t: unknown) => kette(getTableName(t as never)),
     delete: () => ({ where: async () => {} }),
   };
-  return { tx, inserts };
+  return { tx, inserts, werte };
 }
 
 describe("stromEingabeAusFormData", () => {
@@ -108,6 +110,13 @@ describe("stromAnlegenInTx", () => {
     expect(inserts).toEqual(["beleg", "biomassestrom", "vergabe_zeitraum"]);
     expect(protokolle).toHaveLength(1);
     expect(protokolle[0]).toMatchObject({ art: "angelegt", entitaet: "biomassestrom", id: "biomassestrom-neu", benutzerId: "u1" });
+  });
+
+  it("mit belegId (geteilter Lauf-Beleg, E48/E67) wird kein eigener Beleg angelegt", async () => {
+    const { tx, inserts, werte } = fakeTx();
+    await stromAnlegenInTx(tx as never, { id: "u1", email: "petra@bhyo.de", rolle: "pruefer" }, { ...e(), belegId: "beleg-geteilt" }, "2026-10-06");
+    expect(inserts).toEqual(["biomassestrom", "vergabe_zeitraum"]);
+    expect(werte.biomassestrom?.belegId).toBe("beleg-geteilt");
   });
 
   it("Rot: ein Betrachter kommt am Baustein nicht vorbei — kein Insert, kein Protokoll", async () => {

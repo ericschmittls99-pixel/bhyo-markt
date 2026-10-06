@@ -49,6 +49,11 @@ export interface BelegEingabe {
   externNachvollziehbar: boolean;
   /** Hochzuladende Datei; null = keine neue Datei. */
   datei: File | null;
+  /**
+   * AP2.7 PR b (E67): Datei liegt schon in R2 (bereinigte Kopie der
+   * Importdatei) — Key uebernehmen statt hochladen. Hat Vorrang vor `datei`.
+   */
+  dateiKey?: string | null;
 }
 
 export function belegEingabeAus(formData: FormData): BelegEingabe {
@@ -146,7 +151,7 @@ export async function erstelleBeleg(
 ): Promise<BelegErgebnis | null> {
   const d = belegDatenAus(e);
   if (!d) return null;
-  const dateiKey = await ladeDateiHoch(e.datei);
+  const dateiKey = e.dateiKey ?? (await ladeDateiHoch(e.datei));
 
   const [row] = await db
     .insert(beleg)

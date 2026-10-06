@@ -5576,3 +5576,66 @@ table.st-tabelle tbody tr:focus-visible {
 .kp td:nth-child(4) { white-space: nowrap; } /* Datum nie mitten in der Zahl trennen */
 .kp .param-aktionen .btn { white-space: nowrap; }
 .kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* import. (AP2.7 PR b): Start-Formular und Lauf-Seite nutzen die einstellungen.-Huelle. */
+.imp .einst-inhalt {
+  max-width: 1080px;
+}
+.imp-start .imp-start-datei {
+  flex: 2 1 320px;
+}
+.imp-start input[type="file"] {
+  font: var(--type-body);
+}
+.imp-zuordnung,
+.imp-werte {
+  display: grid;
+  gap: 12px;
+}
+.imp-zuordnung h3,
+.imp-werte h4 {
+  margin: 0;
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+}
+.imp-werte h4 .c {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.imp-tabelle select {
+  max-width: 100%;
+}
+.imp-beispiele {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.imp-person td {
+  color: var(--text-tertiary);
+}
+.imp-meldungen {
+  margin: 0;
+  padding-left: 18px;
+}
+.imp-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.imp-vorlage-wahl {
+  max-width: 420px;
+}
+.imp-vorlage {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border, rgba(31, 46, 56, 0.12));
+  background: none;
+}
+.imp-akteure {
+  display: grid;
+  gap: 12px;
+}
+.imp-akteure h3 {
+  margin: 0;
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+}

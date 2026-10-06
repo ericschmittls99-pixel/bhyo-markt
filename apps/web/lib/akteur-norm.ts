@@ -82,7 +82,12 @@ export const DUBLETTE_SCHWACH = 0.75;
  */
 export const DUBLETTE_ORT_METER = 2000;
 
-export type DublettenGrad = "stark" | "schwach";
+/**
+ * AP2.7 PR b (E67): „identisch" = gleicher Normname UND gleiche PLZ — der
+ * Import uebernimmt den Akteur automatisch, das Formular zeigt ihn als
+ * obersten Vorschlag. Eine Funktion fuer beide.
+ */
+export type DublettenGrad = "identisch" | "stark" | "schwach";
 
 /**
  * Zusatzregel „Wort-Teilmenge" (Entscheidung Eric 01.10.2026, durch Messung
@@ -99,7 +104,8 @@ export function wortTeilmenge(a: string, b: string): boolean {
   return kurz.length >= 2 && kurz.every((w) => lang.includes(w));
 }
 
-export function dublettenGrad(sim: number, gleicherOrt: boolean, teilmenge = false): DublettenGrad | null {
+export function dublettenGrad(sim: number, gleicherOrt: boolean, teilmenge = false, identisch = false): DublettenGrad | null {
+  if (identisch) return "identisch";
   if (gleicherOrt && (sim >= DUBLETTE_STARK || teilmenge)) return "stark";
   if (sim >= DUBLETTE_SCHWACH) return "schwach";
   return null;

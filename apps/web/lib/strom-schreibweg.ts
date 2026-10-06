@@ -63,6 +63,11 @@ export interface StromEingabe {
   reserviertBhyo: boolean;
   /** null = kein Beleg (nur beim Bearbeiten ohne bisherigen Beleg moeglich). */
   beleg: BelegEingabe | null;
+  /**
+   * AP2.7 PR b (E67/E48): ein schon angelegter, geteilter Beleg (ein Beleg je
+   * Import-Lauf und Belegtyp) — dann wird kein eigener Beleg erstellt.
+   */
+  belegId?: string | null;
 }
 
 /** Feldfehler als Ausnahme — fuer Aufrufer, die nicht inline anzeigen, sondern je Zeile scheitern. */
@@ -260,19 +265,19 @@ export async function stromAnlegenInTx(
 
   const entitaet = e.art === "biomasse" ? "biomassestrom" : "output_bedarf";
   const { werte } = stromWerte(e);
-  const belegErgebnis = e.beleg ? await erstelleBeleg(tx, e.beleg) : null;
+  const belegId = e.belegId ?? (e.beleg ? (await erstelleBeleg(tx, e.beleg))?.belegId ?? null : null);
   const reserviertSeit = naechsteReserviertSeit(e.reserviertBhyo, null, heute);
   let id: string;
   if (e.art === "biomasse") {
     const [row] = await tx
       .insert(biomassestrom)
-      .values({ ...werte, reserviertSeit, belegId: belegErgebnis?.belegId ?? null, status: "entwurf" } as never)
+      .values({ ...werte, reserviertSeit, belegId, status: "entwurf" } as never)
       .returning({ id: biomassestrom.id });
     id = row!.id;
   } else {
     const [row] = await tx
       .insert(outputBedarf)
-      .values({ ...werte, reserviertSeit, belegId: belegErgebnis?.belegId ?? null, status: "entwurf" } as never)
+      .values({ ...werte, reserviertSeit, belegId, status: "entwurf" } as never)
       .returning({ id: outputBedarf.id });
     id = row!.id;
   }

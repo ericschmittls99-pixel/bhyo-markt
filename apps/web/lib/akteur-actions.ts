@@ -5,7 +5,7 @@ import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { kreisArsDesSitzes } from "@/lib/akteure";
-import { pruefeAkteurEingabe } from "@/lib/akteur-eingabe";
+import { OHNE_ORT, pruefeAkteurEingabe } from "@/lib/akteur-eingabe";
 import { withDb } from "@/lib/db";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
@@ -43,7 +43,7 @@ export async function akteurBearbeiten(id: string, fd: FormData): Promise<Aktion
           .set({ ...neu, sitzGeom: sql`ST_SetSRID(ST_MakePoint(${geom.lng}, ${geom.lat}), 4326)`, updatedAt: new Date() })
           .where(eq(akteur.id, id));
         const ars = await kreisArsDesSitzes(tx, id);
-        if (!ars) throw new Error(OHNE_ORT_TEXT);
+        if (!ars) throw new Error(OHNE_ORT);
         await protokolliere(tx, {
           art: "akteur_geaendert",
           entitaet: "akteur",
@@ -62,8 +62,6 @@ export async function akteurBearbeiten(id: string, fd: FormData): Promise<Aktion
   revalidatePath(`/akteure/${id}`);
   return { ok: true };
 }
-
-const OHNE_ORT_TEXT = "Der Ort ist nicht bestimmbar: PLZ, Ort und ein Pin in Deutschland sind nötig (Kreis-ARS, E25).";
 
 /**
  * Loeschen nur verwaist: kein Strom (auch kein verworfener) verweist auf den

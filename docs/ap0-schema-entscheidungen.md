@@ -1625,3 +1625,64 @@ Personen-Bezug in den Import-Tabellen (`packages/db/src/import-schema.test.ts`);
 `import-check` gegen die Preview: CHECK weist `felder` mit Schlüssel `email`
 ab.
 
+**PR b (06.10.2026): Bausteine, Upload, Zuordnung, Vorlagen, Akteure,
+Adressen, Probelauf.** Vorab (Testlücken aus #180): die Akteur-Anlage ist ein
+Baustein (`lib/akteur-schreibweg.ts`, `akteurAnlegenInTx`), den
+`POST /api/akteure` und der Import teilen; die Beleg-Regeln sind am
+Schreibpfad getestet (`beleg-server.test.ts`, Belegtyp → Stufe über alle
+Ankerfälle). Import: Datei lesen mit SheetJS (`lib/import-datei.ts`, Grenze
+5.000 Zeilen / 5 MB, Zahlen als Text mit Komma — E31 gilt wie im Formular,
+CSV UTF-8/BOM/Windows-1252), Roh-Upload in R2 unter `import/<env>/<lauf>/`,
+nach der Zuordnung gelöscht, Rest durch den Job nach 24 h
+(`lib/jobs/import-aufraeumen.ts`). **Zuordnung:** Zielfelder sind die
+FormData-Schlüssel des Formulars (`akteur_*` für den Akteur-Baustein); der
+Probelauf schickt jede Zeile durch dieselben Bausteine. Personen-Spalten
+werden erkannt oder markiert und liefern dem Browser keinen Wert;
+Pflichtfelder ohne Spalte weisen die Zuordnung ab (sonst scheitert jede
+Zeile — Frage an Eric: blockieren oder warnen). Einheiten nur t/kg je
+Jahr/Monat, TM/atro Zeilenfehler; Werte → Codes, nicht zugeordneter Wert
+ist Zeilenfehler. Die bereinigte Kopie (nur Spalten mit Zielfeld) liegt
+unter `belege/<env>/import/<lauf>/bereinigt.csv` und ist die Datei des
+Lauf-Belegs. **Vorlagen** (`import_vorlage`, Upsert nach Name, Ereignis an
+der neuen Protokoll-Entität `import_vorlage`, `entitaet_typ` ist Text).
+**Akteure:** Klasse „identisch" (Normname + PLZ) im Matcher, eine Funktion
+für Import und Formular-Vorschlag; Auflösung je Gruppe (ein Matcher-Aufruf
+je eindeutigem Akteur), identisch → übernommen, stark → Vorschlag mit
+Bestätigung (einzeln oder gesammelt), sonst neu; Stand in
+`import_zeile.felder` (`akteur_id`, `akteur_vorschlag_*`, `akteur_neu`,
+`akteur_gruppe`). **Adressen:** Sitz neuer Akteure per Photon
+(`lib/photon-server.ts`, auch der Proxy nutzt ihn), je Adresse einmal, acht
+je Request, Treffer ohne Raten (PLZ muss stimmen; mit Straße nur
+Adress-Treffer); offen mit Grund → Nacharbeit. **Probelauf:** Migration 0044
+(`import_lauf.beleg_erhebungsdatum`, `beleg_gueltig_bis`) — E67 legt
+Erhebungsdatum und Gültig-bis (E33) des Lauf-Belegs nicht fest, der
+Probelauf fragt sie ab (Frage an Eric: Pflichtfeld am Lauf, kein Standard).
+Je Request ≤ 100 Zeilen in einer Transaktion mit Savepoint je Beleg (einer
+je Belegtyp, Quelle = Dateiname · Lauf-ID), je neuem Akteur (einmal je
+Gruppe) und je Zeile; am Ende absichtlicher Rollback — angelegt wird nichts;
+Ergebnisse je Zeile (ok | fehler mit Grund) in einer zweiten Transaktion.
+`StromEingabe.belegId` (geteilter Beleg) und `BelegEingabe.dateiKey`
+(vorhandene Datei) sind die beiden Erweiterungen der Bausteine.
+
+**Entscheidungen Eric (06.10.2026, PR b):** (1) Ein Pflichtfeld, das weder
+einer Spalte zugeordnet noch per Lauf-Standard belegt ist, blockiert die
+Zuordnung — „Weiter" ist gesperrt, die fehlenden Felder werden genannt, kein
+bloßes Warnen. (2) Erhebungsdatum und Gültig-bis des Lauf-Belegs sind
+ausdrücklich einzugeben, kein Standardwert (kein „heute"); Gültig-bis nur
+Pflicht für die Belegtypen nach E33; eine zugeordnete Spalte
+(`beleg_erhebungsdatum`, `beleg_gueltig_bis`, auch `beleg_typ`) geht dem
+Lauf-Wert je Zeile vor — der geteilte Beleg gilt damit je (Lauf, Belegtyp,
+Erhebungsdatum, Gültig-bis). (3) Akteure auflösen läuft browser-gesteuert in
+Stapeln von 200 eindeutigen Akteuren je Request, fortsetzbar wie Adressen und
+Probelauf; der Matcher läuft je Stapel mengenbasiert
+(`sucheAehnlicheMenge`: eine Abfrage für alle Kandidaten des Stapels), nicht
+als Schleife mit einer Abfrage je Akteur. Messung je Stapel mit dem
+Preview-Seed im PR.
+
+**Rot gezeigt (PR b):** Akteur-Baustein fehlte (Modul); Quellenangabe-Pflicht
+entfernt → 7 von 43 Beleg-Tests rot; CSV ohne Dekodierung → „Straße" als
+Fremdzeichen; Personen-Ziel vor „unbekannt"; Bearbeiter an jeder
+Import-Action abgewiesen ohne Schreibversuch; Matcher je Gruppe (zwei
+Aufrufe für drei Zeilen); Photon nicht erreichbar → nichts geschrieben;
+Probelauf ohne Belegdaten oder mit offenen Vorschlägen startet nicht.
+

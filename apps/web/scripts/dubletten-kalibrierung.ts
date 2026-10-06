@@ -9,7 +9,7 @@
  * Kandidaten und dem staerksten Nicht-Kandidaten, und die gewaehlten
  * Schwellen. dubletten-kalibrierung.test.ts haelt die Trennung fest.
  */
-import { aehnlichkeit, akteurNameNorm, DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad, wortTeilmenge } from "../lib/akteur-norm";
+import { aehnlichkeit, akteurNameNorm, DUBLETTE_SCHWACH, DUBLETTE_STARK, dublettenGrad, wortTeilmenge, type DublettenGrad } from "../lib/akteur-norm";
 import { A25_AKTEURE, A25_ORTE } from "./seed-akteure-daten";
 import { baueSeedDaten } from "./seed-daten";
 import { AEHNLICHKEIT_FIXTURES, KALIBRIER_PAARE, type KalibrierKlasse, type KalibrierPaar } from "@bhyo/db/dubletten-fixtures";
@@ -20,7 +20,7 @@ export interface Paar {
   norm: [string, string];
   sim: number;
   /** Kandidat laut Seed-Hinweis: "stark" / "schwach" / null. */
-  kandidat: "stark" | "schwach" | null;
+  kandidat: DublettenGrad | null;
   gleichePlz: boolean;
   teilmenge: boolean;
 }
@@ -45,7 +45,7 @@ export function kalibrierungsPaare(ab = 0.3): Paar[] {
 }
 
 /** Die Kalibrier-Paare der geteilten Fixture-Liste, nachgerechnet bei den gewaehlten Schwellen. */
-export function kalibrierPaare(): (KalibrierPaar & { gerechnet: number; teilmenge: boolean; ohneRegel: "stark" | "schwach" | null; ergebnis: "stark" | "schwach" | null; norm: [string, string] })[] {
+export function kalibrierPaare(): (KalibrierPaar & { gerechnet: number; teilmenge: boolean; ohneRegel: DublettenGrad | null; ergebnis: DublettenGrad | null; norm: [string, string] })[] {
   return KALIBRIER_PAARE.map((p) => {
     const norm: [string, string] = [akteurNameNorm(p.a), akteurNameNorm(p.b)];
     const gerechnet = aehnlichkeit(norm[0], norm[1]);

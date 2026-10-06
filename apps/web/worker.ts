@@ -13,12 +13,17 @@ import { createSql } from "@bhyo/db";
 import * as schema from "@bhyo/db/schema";
 import { drizzle } from "drizzle-orm/postgres-js";
 
+import type { BelegeBucket } from "./lib/db";
+
+import { loescheAlteImportUploads } from "./lib/jobs/import-aufraeumen";
 import { fuehreVerifikationsJobAus } from "./lib/jobs/verifikation";
 import { JOB_STUNDE_BERLIN, istBerlinStunde } from "./lib/jobs/zeit";
 
 interface Umgebung {
   HYPERDRIVE?: { connectionString: string };
   ENVIRONMENT?: string;
+  /** AP2.7 PR b: Roh-Uploads des Imports (import/…) aelter als 24 h loeschen (E67). */
+  BELEGE?: BelegeBucket;
 }
 interface CronEreignis {
   scheduledTime: number;
@@ -42,6 +47,13 @@ async function lauf(env: Umgebung, jetzt: Date): Promise<void> {
     console.log(`JOB verifikation ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(ergebnis)}`);
   } finally {
     await sql.end().catch(() => {});
+  }
+  // Unabhaengig von der Datenbank: liegengebliebene Roh-Uploads des Imports.
+  if (env.BELEGE) {
+    const aufgeraeumt = await loescheAlteImportUploads(env.BELEGE, jetzt);
+    console.log(`JOB import-aufraeumen ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(aufgeraeumt)}`);
+  } else {
+    console.error("JOB import-aufraeumen: BELEGE-Bindung fehlt");
   }
 }
 

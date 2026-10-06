@@ -39,7 +39,7 @@ interface Aehnlich {
   kreisBez: string | null;
   landName: string | null;
   aehnlichkeit: number;
-  grad: "stark" | "schwach";
+  grad: "identisch" | "stark" | "schwach";
 }
 
 interface SektorOption {
@@ -302,7 +302,7 @@ export function AkteurCombobox({
                     <span className="scb-meta">
                       {sitzMitRegion(a)}
                       {" · "}
-                      <span className={`pill ${a.grad === "stark" ? "pill--accent" : "pill--muted"}`}>{a.grad}</span>
+                      <span className={`pill ${a.grad === "schwach" ? "pill--muted" : "pill--accent"}`}>{a.grad}</span>
                     </span>
                   </button>
                 ))}
