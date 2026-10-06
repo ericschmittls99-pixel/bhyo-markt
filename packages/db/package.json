@@ -11,7 +11,8 @@
     "./journal": "./migrations/meta/_journal.json",
     "./client": "./src/client.ts",
     "./fehler": "./src/fehler.ts",
-    "./dubletten-fixtures": "./src/dubletten-fixtures.ts"
+    "./dubletten-fixtures": "./src/dubletten-fixtures.ts",
+    "./plz": "./src/plz.ts"
   },
   "scripts": {
     "generate": "drizzle-kit generate",

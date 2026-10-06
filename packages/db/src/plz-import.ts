@@ -10,7 +10,9 @@
  * 11.500 ist eine Plausibilitaet (Destatis: rund 10.750 Gemeinden), die
  * genaue Zahl wird protokolliert und beim naechsten Stand als Soll gesetzt.
  *
- * Geometrie: ST_MakeValid, ST_SimplifyPreserveTopology mit 0,00005 Grad
+ * Geometrie: ST_MakeValid je Feature VOR der Union (wegwerf 07.10.2026: die
+ * rohen OSM-Flaechen enthalten Selbstueberschneidungen, GEOS bricht die Union
+ * sonst mit TopologyException ab), ST_SimplifyPreserveTopology mit 0,00005 Grad
  * (~4-5 m, weit unter der Unschaerfe der OSM-PLZ-Grenzen), dann Rundung auf
  * 1e-6 Grad. plz_ort.geom ist der Schnitt PLZ x Gemeinde; eine Gemeinde
  * gehoert zur PLZ, wenn der Schnitt >= 10 % der Gemeinde- ODER der PLZ-Flaeche
@@ -77,13 +79,13 @@ async function main() {
     await tx`CREATE TEMP TABLE plz_tmp ON COMMIT DROP AS
       SELECT plz,
              ST_Multi(ST_ReducePrecision(
-               ST_SimplifyPreserveTopology(ST_MakeValid(ST_Union(${tx(geomPlz)})), ${SIMPLIFY_TOLERANZ}),
+               ST_SimplifyPreserveTopology(ST_MakeValid(ST_Union(ST_MakeValid(${tx(geomPlz)}))), ${SIMPLIFY_TOLERANZ}),
                ${RUNDUNG}))::geometry(MultiPolygon,4326) AS geom
       FROM plz_import_gebiet GROUP BY plz`;
     await tx`CREATE TEMP TABLE gem_tmp ON COMMIT DROP AS
       SELECT ars, max(gen) AS gen,
              ST_Multi(ST_ReducePrecision(
-               ST_SimplifyPreserveTopology(ST_MakeValid(ST_Union(${tx(geomGem)})), ${SIMPLIFY_TOLERANZ}),
+               ST_SimplifyPreserveTopology(ST_MakeValid(ST_Union(ST_MakeValid(${tx(geomGem)}))), ${SIMPLIFY_TOLERANZ}),
                ${RUNDUNG}))::geometry(MultiPolygon,4326) AS geom
       FROM plz_import_gem GROUP BY ars`;
     await tx`CREATE INDEX ON plz_tmp USING GIST (geom)`;
