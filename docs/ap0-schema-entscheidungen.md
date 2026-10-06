@@ -1679,6 +1679,30 @@ Probelauf; der Matcher läuft je Stapel mengenbasiert
 als Schleife mit einer Abfrage je Akteur. Messung je Stapel mit dem
 Preview-Seed im PR.
 
+**PR c (06.10.2026): Ausführen, Nacharbeit, Verlauf, Aufbewahrung.**
+`importAusfuehren` nur nach durchgelaufenem Probelauf: höchstens 100 offene
+Zeilen je Request, Savepoint je Zeile, COMMIT je Stapel; Akteure je Gruppe
+einmal (akteur_id in alle Zeilen der Gruppe zurückgeschrieben, Folge-Stapel
+kennen ihn), Belege je (Typ, Erhebungsdatum, Gültig-bis) einmal je Lauf
+(Wiederverwendung über die Quellenangabe, E48); das Ereignis „angelegt" des
+Stroms trägt die Lauf-ID. Importierte Zeilen verweisen auf den Strom,
+gescheiterte bleiben mit Grund in der Nacharbeit. Nach dem letzten Stapel:
+Lauf `ausgefuehrt` mit `abgeschlossen_am`, Ereignis `kontaktdaten_uebersprungen`
+je Akteur einmal je Lauf (nur wenn die Datei Personen-Spalten hatte),
+Inbox `import_abgeschlossen` gebündelt an alle aktiven Prüfer und Admins
+(`lib/inbox/zustellung.ts` `stelleImportAbschlussZu`, Index
+`inbox_eintrag_import_uidx`). **Nacharbeit:** `importZeileBearbeiten` (nur
+Zielfelder der Art, nie Personen-Schlüssel; Akteur-Änderung löst die
+Auflösung auf, Zeile wird „offen" und geht erneut durch Probelauf und
+Ausführen — beides auch aus `ausgefuehrt` heraus) und
+`importZeileUeberspringen` (`uebersprungen`, nichts wird gelöscht).
+**Verlauf am Akteur:** Abschnitt „verlauf." aus dem Protokoll, Einträge mit
+Lauf-ID verlinken den Lauf. **Aufbewahrung:** Migration 0045, Parameter
+`import.zeilen_aufbewahrung_tage` = 30 (1–365); der 05:00-Job löscht die
+Zeilen abgeschlossener Läufe (`ausgefuehrt`/`zurueckgenommen`) ab
+`abgeschlossen_am` + Frist, Zähler und Protokoll bleiben am Lauf. Rücknahme
+folgt in PR d.
+
 **Rot gezeigt (PR b):** Akteur-Baustein fehlte (Modul); Quellenangabe-Pflicht
 entfernt → 7 von 43 Beleg-Tests rot; CSV ohne Dekodierung → „Straße" als
 Fremdzeichen; Personen-Ziel vor „unbekannt"; Bearbeiter an jeder

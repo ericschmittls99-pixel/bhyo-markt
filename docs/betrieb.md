@@ -249,3 +249,12 @@ bleibt (abgebrochener Lauf, Löschen gescheitert), räumt der Cron im
 `JOB import-aufraeumen <env> {"gesehen","geloescht","fehler"}`). Die
 bereinigte Kopie (ohne Personen-Spalten) liegt dauerhaft unter
 `belege/<env>/import/<lauf>/bereinigt.csv` als Datei des Lauf-Belegs.
+
+## Import-Zeilen: Aufbewahrung (AP2.7 PR c, 06.10.2026)
+
+Zeilen abgeschlossener Import-Läufe (`import_zeile`, Zwischendaten) löscht der
+05:00-Berlin-Lauf nach `import.zeilen_aufbewahrung_tage` Tagen (Parameter,
+Startwert 30, einstellungen. → Parameter) ab `abgeschlossen_am`; nur Läufe
+`ausgefuehrt` oder `zurueckgenommen`. Zähler und Protokoll bleiben am Lauf.
+Log-Zeile `JOB import-zeilen <env> {"laeufe","zeilen"}` nach dem
+Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
