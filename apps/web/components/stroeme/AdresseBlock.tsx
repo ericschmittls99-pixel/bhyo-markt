@@ -102,14 +102,19 @@ export function AdresseBlock({
     reverseAbort.current = ac;
     try {
       const res = await fetch(`/api/geocode?lat=${lat}&lon=${lng}`, { signal: ac.signal });
-      if (!res.ok) throw new Error(String(res.status));
+      if (!res.ok) {
+        const data = (await res.json().catch(() => null)) as { error?: string } | null;
+        throw new Error(data?.error ?? String(res.status));
+      }
       const data = (await res.json()) as { adressen?: Adresse[] };
       const r = uebernimmAusPin(wRef.current, data.adressen?.[0] ?? null, modus);
       setW(r.werte);
       setHinweis(r.hinweis);
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
-      setHinweis("Rückwärtssuche nicht erreichbar — PLZ und Ort bitte von Hand eintragen.");
+      // Die Ursache kommt vom Proxy (Zeitlimit, Status, Netz); der Pin bleibt, PLZ und Ort gehen von Hand.
+      const grund = (e as Error).message;
+      setHinweis(`${/Adresssuche/.test(grund) ? grund.replace(/ — Adresse und Pin.*$/, "") : "Rückwärtssuche nicht erreichbar"} — PLZ und Ort bitte von Hand eintragen.`);
     }
   }
 
@@ -190,9 +195,9 @@ export function AdresseBlock({
       } catch (e) {
         if ((e as Error).name === "AbortError") return;
         setVorschlaege([]);
-        setHinweis(
-          "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.",
-        );
+        // Meldung des Proxys (nennt Zeitlimit, Status oder Netz), sonst der Pauschaltext.
+        const grund = (e as Error).message;
+        setHinweis(/Adresssuche/.test(grund) ? grund : "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.");
       }
     }, 350);
     return () => {
