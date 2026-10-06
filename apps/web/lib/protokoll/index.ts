@@ -29,7 +29,9 @@ export type Entitaet =
   /** AP2.3 PR b: Sektor der Referenzliste (sektor.id; der Code ist kein uuid). */
   | "sektor"
   /** AP2.5 PR b (E57): Kontaktperson — Freitext ohne Namen, nur IDs und Feldnamen. */
-  | "kontaktperson";
+  | "kontaktperson"
+  /** AP2.7 PR a (E67): Import-Lauf (import_lauf.id) — Anlegen, Ausfuehren, Ruecknahme. */
+  | "import_lauf";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;
@@ -49,6 +51,8 @@ export interface Ereignis {
   betrifftId?: string;
   /** AP2.4 PR c: Aufgabentext bei weitergegeben — geht als inbox_eintrag.aufgabe an die betroffene Person. */
   aufgabe?: string;
+  /** AP2.7 PR a (E67): Lauf-ID an jedem Ereignis des Imports (aenderung.import_lauf_id). */
+  importLaufId?: string;
 }
 
 /** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
@@ -97,6 +101,8 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   region_angelegt: "Region angelegt",
   akteur_angelegt: "Akteur angelegt",
   projekt_angelegt: "Projekt gestartet",
+  // AP2.7 PR a (E67): ohne Namen — nur dass die Quelle Ansprechpartner enthielt.
+  kontaktdaten_uebersprungen: "Quelle enthielt Ansprechpartner, nicht übernommen",
 };
 
 /**
@@ -120,6 +126,8 @@ export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<
       benutzerEmail: ereignis.benutzerEmail,
       // Praefix bleibt, weil die Verlaufsanzeige ihn heute so zeigt (F8/E30).
       text: `${ereignis.benutzerEmail}: ${text}`,
+      // AP2.7 (E67): nur gesetzt, wenn der Import schreibt — sonst bleibt die Zeile wie bisher.
+      ...(ereignis.importLaufId ? { importLaufId: ereignis.importLaufId } : {}),
     })
     .returning({ id: aenderung.id });
   // AP2.2 PR b: Zustellung in derselben Transaktion — Rollback = keine Zustellung.
