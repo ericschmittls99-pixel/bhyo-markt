@@ -1,3 +1,4 @@
+import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
 import { akteur } from "@bhyo/db/schema";
 import { sql } from "drizzle-orm";
 
@@ -58,6 +59,7 @@ export async function akteurAnlegenInTx(tx: Tx, handelnder: Handelnder, a: Akteu
       sitzPlz: w.sitzPlz,
       sitzOrt: w.sitzOrt,
       sitzGeom: sql`ST_SetSRID(ST_MakePoint(${geom.lng}, ${geom.lat}), 4326)`,
+      sitzGenauigkeit: genauigkeitFuerPin(w.genauigkeit),
       status: "entwurf",
     })
     .returning({ id: akteur.id, name: akteur.name, sektor: akteur.sektor });

@@ -4,7 +4,7 @@ import { filterAkteure, sitzText, zustaendeAus, type AkteurZeile } from "./akteu
 
 const basis: AkteurZeile = {
   id: "a1", name: "Hof Müller", sektor: "landwirtschaft", sektorLabel: "Landwirtschaft",
-  sitzStrasse: "Hauptstraße", sitzHausnummer: "1", sitzPlz: "74889", sitzOrt: "Sinsheim", sitzLng: 8.88, sitzLat: 49.25,
+  sitzStrasse: "Hauptstraße", sitzHausnummer: "1", sitzPlz: "74889", sitzOrt: "Sinsheim", sitzLng: 8.88, sitzLat: 49.25, sitzGenauigkeit: "unbekannt",
   kreisArs: "08226", kreisName: "Rhein-Neckar-Kreis", regionIds: ["r1"], stroeme: 2, mitBeleg: 1, verwaistSeit: null, erstelltAm: "2026-01-01",
 };
 

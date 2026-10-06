@@ -1819,3 +1819,56 @@ OSM-Snapshot (addr:city). (2) Schwelle 10 % und Vereinfachung 0,00005° —
 nach der Messung auf `wegwerf` bestätigen. (3) Exklaven außerhalb
 Deutschlands (87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (4)
 ODbL-Share-alike für die abgeleitete Tabelle `plz_ort` (juristisch offen).
+
+## 40. E68 PR 2: Prüfen-Knopf und Genauigkeit, 07.10.2026
+
+**Ablauf (ein Klick, höchstens eine externe Anfrage):** `lib/adresse-pruefung-server.ts`
+1. lokal PLZ↔Ort (`plz_pruefung`, PR 1): unbekannte PLZ oder Ort passt nicht
+   → sofort „Meinten Sie …?" mit den Orten der PLZ, **keine** externe Anfrage;
+2. **eine** strukturierte Anfrage an den Adressdienst („Straße Hausnummer,
+   PLZ Ort", Photon wie heute, Zeitlimit 12 s, Diagnose wie bisher);
+3. Entscheidung in `lib/adresse-pruefung.ts` (pure, getestet): Treffer mit
+   Pin im PLZ-Gebiet (`punkt_in_plz`) und gleicher Straße → Pin, Genauigkeit
+   `hausnummer` (Hausnummer gefunden) oder `strasse`; Abweichung → höchstens
+   drei Kandidaten im PLZ-Gebiet zum Übernehmen; kein Treffer oder Zeitlimit
+   → Pin auf `ST_PointOnSurface(plz_gebiet)` mit Genauigkeit `plz_gebiet` und
+   Hinweis „ungefährer Standort, bitte auf der Karte verschieben". Liegt die
+   PLZ über einer Kreisgrenze (≥ 2 Kreise mit ≥ 5 % Flächenanteil,
+   `plzKreise`), sagt der Hinweis es — der Kreis folgt dem Pin (E25).
+   Straßenvergleich mit `normalisiereStrasse` („Str." = „Straße").
+
+**Oberfläche:** Autocomplete entfernt. Felder Straße, Hausnummer, PLZ, Ort,
+Knopf „Adresse prüfen", daneben die Genauigkeits-Pille und „freie Suche"
+(„Kläranlage Mannheim", bis fünf Treffer, eine Anfrage je Klick, derselbe
+Weg `/api/adresse?q=`). Klick oder Ziehen des Pins → `manuell`, PLZ und Ort
+aus dem PLZ-Gebiet (PR 1). Übernahme eines bestehenden Standorts → die
+Genauigkeit ist `unbekannt` (der Standort trägt sie nicht mit; nichts wird
+erfunden). Route `/api/adresse` ist ein lesender GET wie `/api/geocode`
+(Firmenadressen, keine Personendaten).
+
+**Genauigkeit (Migration 0048):** Enum `standort_genauigkeit` (hausnummer ·
+strasse · plz_gebiet · manuell · unbekannt, E53: nie umbenennen), Spalten
+`biomassestrom.standort_genauigkeit`, `output_bedarf.standort_genauigkeit`,
+`akteur.sitz_genauigkeit`, NOT NULL DEFAULT `unbekannt` — der Altbestand
+bleibt `unbekannt`, keine erfundenen Werte. Feldeinstufung: redaktionell
+(beschreibt die Qualität des Pins, ändert die Aussage nicht). Schreibwege:
+Hidden-Input `genauigkeit` aus dem AdresseBlock; nur ein gültiger Wert wird
+gespeichert, sonst `unbekannt` (`genauigkeitFuerPin`); ohne Pin immer
+`unbekannt`. Beim Bearbeiten geht der gespeicherte Wert unverändert zurück,
+solange der Pin nicht angefasst wird. Sichtbar als Pille am Standort
+(Strom-Detail) und am Sitz (Akteur-Stammdaten).
+
+**Dienst-URL:** Worker-Variable `GEOCODE_URL` (wrangler.jsonc, Standard
+Photon); außerhalb des Workers gilt der Standard. Nutzungsregeln bleiben:
+User-Agent mit Kontakt, eine Anfrage je Klick, nur Einzelabfragen.
+
+**Rot gezeigt (PR 2, Vitest):** Zeitlimit/Ausfall → Pin auf das PLZ-Gebiet
+mit `plz_gebiet`; Tippfehler in der Straße („Igelheimer Str") → „Meinten Sie
+…?" mit höchstens drei Kandidaten ohne Server-Interna; Treffer außerhalb des
+PLZ-Gebiets zählt nicht; Straße gefunden, Hausnummer nicht → `strasse` mit
+Hinweis; ohne PLZ-Gebiet und ohne Treffer → Pin von Hand.
+
+**Offen (nicht entschieden):** Nominatim als Ausweich für die strukturierte
+Suche (Photon kennt nur Freitext; die Felder werden zu einem Text gefügt);
+Genauigkeit in der Karten-Popup („am Pin") — im Entwurf nur Detail und
+Stammdaten; Import setzt die Genauigkeit erst mit PR 3.

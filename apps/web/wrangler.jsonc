@@ -54,6 +54,8 @@
   ],
   "vars": {
     "ENVIRONMENT": "production",
+    // E68 PR 2: Adressdienst (Vorwaertssuche); Standard Photon, Ausweich z. B. eine eigene Instanz.
+    "GEOCODE_URL": "https://photon.komoot.io",
     "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
     // AUD-Tag der Access-App "bhyo-markt" (Production). Kein Secret, aber pro App
     // verschieden.
@@ -82,6 +84,7 @@
       ],
       "vars": {
         "ENVIRONMENT": "preview",
+        "GEOCODE_URL": "https://photon.komoot.io",
         "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
         // AUD-Tag der Access-App "bhyo-markt-preview".
         "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd"

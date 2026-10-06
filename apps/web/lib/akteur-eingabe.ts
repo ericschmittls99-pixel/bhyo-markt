@@ -17,6 +17,8 @@ export interface AkteurEingabe {
   sitzOrt: string;
   lat: string;
   lng: string;
+  /** E68 PR 2: Genauigkeit des Sitz-Pins (AdresseBlock); leer = unbekannt. */
+  genauigkeit: string;
 }
 
 export const OHNE_ORT = "Der Ort ist nicht bestimmbar: PLZ, Ort und ein Pin in Deutschland sind nötig (Kreis-ARS, E25).";
@@ -39,6 +41,7 @@ export function pruefeAkteurEingabe(src: FormData | Record<string, unknown>, akt
     sitzOrt: feld(src, "sitz_ort") || feld(src, "ort"),
     lat: feld(src, "lat"),
     lng: feld(src, "lng"),
+    genauigkeit: feld(src, "genauigkeit"),
   };
   if (!w.name) return { ok: false, fehler: "Name ist Pflicht." };
   const sektor = sektorAusEingabe(w.sektor, aktiveCodes);

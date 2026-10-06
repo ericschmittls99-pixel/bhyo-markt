@@ -351,6 +351,7 @@ export function FormularPanel({
                 Datensatz; ab F0b raeumlich abgeleitet). */}
             <AdresseBlock
               initial={werte}
+              initialGenauigkeit={werte?.genauigkeit}
               akteurId={akteurId}
               fehler={f.standort}
             />

@@ -32,6 +32,8 @@ const STROM_GEMEINSAM: Record<string, FeldKlasse> = {
   hausnummer: "fachlich",
   plz: "fachlich",
   standort_geom: "fachlich",
+  // E68 PR 2: Herkunft des Pins — beschreibt die Qualitaet, aendert die Aussage nicht.
+  standort_genauigkeit: "redaktionell",
   zeitraum_von: "fachlich",
   zeitraum_bis: "fachlich",
   saisonalitaet: "fachlich",

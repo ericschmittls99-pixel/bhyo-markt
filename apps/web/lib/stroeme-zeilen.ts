@@ -1,3 +1,4 @@
+import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
 import {
   GRUPPE_LABEL,
   type Strom,
@@ -149,6 +150,7 @@ type GemeinsameZeile = BelegZeile & VerifikationZeile & {
   regionNamen: unknown;
   lng: unknown;
   lat: unknown;
+  standortGenauigkeit?: unknown;
   zeitraumVon: string | null;
   zeitraumBis: string | null;
   saisonalitaet: unknown;
@@ -224,6 +226,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     regionNamen: stringListe(r.regionNamen),
     lng: zahlOderNull(r.lng),
     lat: zahlOderNull(r.lat),
+    standortGenauigkeit: genauigkeitFuerPin(r.standortGenauigkeit),
     cluster: r.cluster,
     materialartCode: r.materialartCode,
     materialartLabel: r.materialartLabel,
@@ -303,6 +306,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     regionNamen: stringListe(r.regionNamen),
     lng: zahlOderNull(r.lng),
     lat: zahlOderNull(r.lat),
+    standortGenauigkeit: genauigkeitFuerPin(r.standortGenauigkeit),
     cluster: null,
     materialartCode: null,
     materialartLabel: null,
