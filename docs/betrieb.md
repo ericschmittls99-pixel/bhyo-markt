@@ -179,6 +179,24 @@ noch als Aufräumen mit Hinweis (am 06.10.2026 scheiterte gh am lokalen
 Löschen eines in einem Worktree ausgecheckten Branches, und freigabe.sh
 brach vor Migration und Deploy ab).
 
+**Wächter-Tests** (`scripts/tests/freigabe-test.sh`, Schritt „freigabe-test"
+im Job typen-und-tests): `gh` wird durch `scripts/tests/fake-gh.sh` ersetzt,
+die den GitHub-Zustand aus Dateien beantwortet und den Squash-Merge echt in
+einem lokalen Bare-Repo ausführt; freigabe.sh läuft unverändert in einem Klon.
+Geprüft wird das Verhalten, nicht die Ausgabe allein: Neustarts werden in der
+Aufrufliste gezählt, der Kind-Branch im Bare-Repo gemessen. Fälle: e) grün →
+kein Neustart; von GitHub abgebrochen → genau ein Neustart (`rerun --failed`),
+nach erneutem Abbruch kein zweiter, Abbruch; roter Job → kein Neustart;
+roter Check am Head → kein Merge. f) gestapelter PR wird in a) umgehängt
+(API-Aufruf), danach ist der neue Head ein Merge mit genau zwei Eltern (alter
+Head, Squash) und Patch-ID vorher = nachher (unabhängig nachgerechnet);
+Konflikt mechanisch zur Branch-Seite aufgelöst und gemeldet; abweichende
+Patch-ID oder Squash-Baum ≠ Basis-Baum → kein Push, Head bleibt. Rot-Nachweis
+06.10.2026: gegen die Skripte von main vor diesem PR
+(`FREIGABE_SKRIPT_DIR=<alt>`) 17 von 41 Prüfungen rot, genau die neuen
+Verhalten; gegen die neuen Skripte 41 grün. Läuft mit bash 3.2 (macOS) und 5
+(CI), braucht `jq` und git ≥ 2.38 (`merge-tree --write-tree`).
+
 **Warteschlange:** `deploy.yml` bricht nur noch überholte PR-Läufe ab
 (`cancel-in-progress` nur bei `synchronize`); main-Deploys laufen nacheinander.
 Das `schema-gate` wartet bis zu 20 Minuten auf die Production-Migration (alle
