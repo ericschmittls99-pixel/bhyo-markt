@@ -103,6 +103,9 @@ freigabe_laufen
 erwarte "Exit 0" [ "$RC" -eq 0 ]
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+# #183-Nachlese: Der Leseweg-Auszug nimmt nur den Job lese-diagnose, nicht die
+# Attrappen-Zeilen des Testschritts im selben Deploy-Log.
+erwarte "Leseweg-Auszug genau einmal, nicht aus dem Testschritt" [ "$(grep -c 'Leseweg OK' <<<"$AUSGABE")" -eq 1 ]
 aufraeumen
 
 fall_aufbauen "(e) Deploy von GitHub abgebrochen, Neustart gruen: genau ein Neustart"
