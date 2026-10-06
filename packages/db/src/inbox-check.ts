@@ -67,7 +67,8 @@ async function main() {
                       'inbox_eintrag_biomasse_anfrage_uidx', 'inbox_eintrag_output_anfrage_uidx',
                       'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx',
                       'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx',
-                      'inbox_eintrag_akteur_hinweis_uidx', 'inbox_eintrag_kontaktperson_hinweis_uidx')`;
+                      'inbox_eintrag_akteur_hinweis_uidx', 'inbox_eintrag_kontaktperson_hinweis_uidx',
+                      'inbox_eintrag_import_uidx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
   // PR b (0033): Hinweise ohne Urheber/Ereignis, Bezugsdatum, Urheber-CHECK.
   const [nullbar] = await sql`select count(*)::int as n from information_schema.columns
@@ -92,11 +93,11 @@ async function main() {
   }
   const modus = journal.modus;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/11 typen=${typen.length}/11 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n} (${modus})`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/12 typen=${typen.length}/12 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n} (${modus})`,
   );
-  const zaehler = [zaehlerPasst("indizes", idx.length, 11, modus), zaehlerPasst("typen", typen.length, 11, modus)].filter(Boolean);
+  const zaehler = [zaehlerPasst("indizes", idx.length, 12, modus), zaehlerPasst("typen", typen.length, 12, modus)].filter(Boolean);
   if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
-    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson) ${zaehler.join(" · ")}`);
+    console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036/0043 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson / Import) ${zaehler.join(" · ")}`);
     await sql.end();
     process.exit(1);
   }
