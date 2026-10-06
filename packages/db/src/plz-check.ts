@@ -28,6 +28,11 @@ if (!url) {
 const fixture = process.env.PLZ_FIXTURE === "ja";
 const sql = postgres(url, { max: 1, fetch_types: false });
 const fehler: string[] = [];
+/** postgres-js ohne fetch_types liefert text[] als Text („{a,b}") — deshalb array_to_json(...)::text und JSON.parse. */
+const pruefung = async (plz: string, ort: string | null) => {
+  const [r] = await sql`select plz_bekannt, ort_passt, array_to_json(orte)::text as orte_json from plz_pruefung(plz, ort)`;
+  return { plz_bekannt: r!.plz_bekannt as boolean, ort_passt: r!.ort_passt as boolean, orte: JSON.parse(r!.orte_json as string) as string[] };
+};
 const pruefe = (name: string, ok: boolean, detail?: unknown) => {
   console.log(`${ok ? "OK " : "ROT"} ${name}${detail === undefined ? "" : ": " + JSON.stringify(detail)}`);
   if (!ok) fehler.push(name);
@@ -55,14 +60,14 @@ async function main() {
     const [{ plz, ort }] = fixture
       ? [{ plz: "11111", ort: "Altstadt" }]
       : ((await sql`select plz, ort from plz_ort order by plz, ort limit 1`) as unknown as { plz: string; ort: string }[]);
-    const [bekannt] = await sql`select * from plz_pruefung(${plz}, ${ort})`;
-    pruefe("plz_pruefung: bekannte PLZ, passender Ort", bekannt!.plz_bekannt === true && bekannt!.ort_passt === true && (bekannt!.orte as string[]).includes(ort), bekannt);
-    const [falsch] = await sql`select * from plz_pruefung(${plz}, 'Xyzzy')`;
-    pruefe("Rot: falscher Ort passt nicht, Vorschlaege sind die Orte der PLZ", falsch!.plz_bekannt === true && falsch!.ort_passt === false && (falsch!.orte as string[]).length >= 1, falsch);
-    const [unbekannt] = await sql`select * from plz_pruefung('00000', ${ort})`;
-    pruefe("Rot: unbekannte PLZ wird abgewiesen (plz_bekannt false, keine Orte)", unbekannt!.plz_bekannt === false && unbekannt!.ort_passt === false && (unbekannt!.orte as string[]).length === 0, unbekannt);
-    const [nullOrt] = await sql`select * from plz_pruefung(${plz}, null)`;
-    pruefe("plz_pruefung: ohne Ort nur PLZ-Existenz", nullOrt!.plz_bekannt === true && nullOrt!.ort_passt === false, nullOrt);
+    const bekannt = await pruefung(plz, ort);
+    pruefe("plz_pruefung: bekannte PLZ, passender Ort", bekannt.plz_bekannt === true && bekannt.ort_passt === true && bekannt.orte.includes(ort), bekannt);
+    const falsch = await pruefung(plz, 'Xyzzy');
+    pruefe("Rot: falscher Ort passt nicht, Vorschlaege sind die Orte der PLZ", falsch.plz_bekannt === true && falsch.ort_passt === false && falsch.orte.length >= 1, falsch);
+    const unbekannt = await pruefung('00000', ort);
+    pruefe("Rot: unbekannte PLZ wird abgewiesen (plz_bekannt false, keine Orte)", unbekannt.plz_bekannt === false && unbekannt.ort_passt === false && unbekannt.orte.length === 0, unbekannt);
+    const nullOrt = await pruefung(plz, null);
+    pruefe("plz_pruefung: ohne Ort nur PLZ-Existenz", nullOrt.plz_bekannt === true && nullOrt.ort_passt === false, nullOrt);
 
     // Punkt im Inneren der ersten Schnittflaeche
     const [innen] = await sql`select ST_AsText(ST_PointOnSurface(geom)) as p, plz, ort from plz_ort where plz = ${plz} and ort = ${ort} limit 1`;
@@ -78,8 +83,8 @@ async function main() {
     pruefe("plz_fuer_punkt: Punkt ausserhalb -> keine Zeile", nirgends.length === 0);
 
     if (fixture) {
-      const [kurz] = await sql`select * from plz_pruefung('11111', 'Gross')`;
-      pruefe("Fixture: Kurzform „Gross“ passt zu „Groß Köris“", kurz!.ort_passt === true, kurz);
+      const kurz = await pruefung('11111', 'Gross');
+      pruefe("Fixture: Kurzform „Gross“ passt zu „Groß Köris“", kurz.ort_passt === true, kurz);
       const [zweiPlz] = await sql`select count(*)::int as n from plz_ort where ort = 'Groß Köris'`;
       pruefe("Fixture: Groß Köris steht an zwei PLZ (je 50 % der Gemeinde)", zweiPlz!.n === 2, zweiPlz);
       const [splitter] = await sql`select count(*)::int as n from plz_ort where ort = 'Splitter'`;
