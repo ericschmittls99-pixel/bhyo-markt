@@ -118,7 +118,9 @@ export function InboxListe({
         ? `/akteure/${z.kontaktperson.akteurId}?reiter=kontaktpersonen`
         : z.akteur
           ? `/akteure/${z.akteur.id}`
-          : "/inbox";
+          : z.importLauf
+            ? `/import/${z.importLauf.id}`
+            : "/inbox";
     if (z.gelesen) {
       router.push(ziel, { scroll: false });
       return;
