@@ -21,6 +21,11 @@
 # FREIGABE_SKRIPT_DIR zeigt auf die zu pruefenden Skripte (Vorgabe: scripts/).
 # Der Rot-Nachweis laeuft mit dem Stand von main vor #183.
 set -euo pipefail
+# Die Attrappe committet den Squash im Bare-Repo, freigabe.sh merged im
+# Wegwerf-Worktree: beides braucht eine Identitaet, die der CI-Runner nicht
+# hat. Nur fuer diesen Prozess gesetzt, keine globale Konfiguration.
+export GIT_AUTHOR_NAME=freigabe-test GIT_AUTHOR_EMAIL=freigabe-test@example.invalid
+export GIT_COMMITTER_NAME=freigabe-test GIT_COMMITTER_EMAIL=freigabe-test@example.invalid
 HIER="$(cd "$(dirname "$0")" && pwd)"
 SKRIPTE="${FREIGABE_SKRIPT_DIR:-$HIER/..}"
 SKRIPTE="$(cd "$SKRIPTE" && pwd)"
