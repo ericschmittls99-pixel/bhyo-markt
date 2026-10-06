@@ -5,10 +5,10 @@
  *   plz_import_gem     (ars, gen, geom)   — VG250-Gemeinden (GF=4), BKG
  * und ersetzt plz_gebiet und plz_ort in EINER Transaktion — ganz oder gar
  * nicht. Sollwert aus der Quelle (Release 2026.02, lokal gemessen 06.10.2026):
- * 8.175 verschiedene PLZ (8.176 Features, 75378 doppelt -> Union). Fuer die
- * Gemeinden gibt es noch keinen gemessenen Sollwert; die Spanne 10.500 bis
- * 11.500 ist eine Plausibilitaet (Destatis: rund 10.750 Gemeinden), die
- * genaue Zahl wird protokolliert und beim naechsten Stand als Soll gesetzt.
+ * 8.175 verschiedene PLZ (8.176 Features, 75378 doppelt -> Union); VG250
+ * 01.01.2026: 10.939 Gemeinden mit GF=4 (gemessen auf wegwerf, Lauf
+ * 37542836467, 07.10.2026). Ergebnis dort: 13.058 Orte, 4 PLZ ohne Ort
+ * (Exklaven), bis 39 Orte je PLZ, 48 MB + 62 MB, 60 s.
  *
  * Geometrie: ST_MakeValid je Feature VOR der Union (wegwerf 07.10.2026: die
  * rohen OSM-Flaechen enthalten Selbstueberschneidungen, GEOS bricht die Union
@@ -25,8 +25,7 @@ import postgres from "postgres";
 
 export const PLZ_STICHTAG = "2026-02-20";
 export const SOLL_PLZ = 8175;
-export const GEMEINDEN_MIN = 10_500;
-export const GEMEINDEN_MAX = 11_500;
+export const SOLL_GEMEINDEN = 10_939;
 const SIMPLIFY_TOLERANZ = 0.00005;
 const RUNDUNG = 0.000001;
 const ANTEIL_MIN = 0.1;
@@ -63,8 +62,7 @@ async function main() {
   if (vor!.gem_ars_falsch) fehler.push(`${vor!.gem_ars_falsch} Gemeinde-ARS nicht 12-stellig`);
   if (sollPruefen) {
     if (vor!.plz !== SOLL_PLZ) fehler.push(`${vor!.plz} PLZ statt ${SOLL_PLZ}`);
-    if (vor!.gemeinden < GEMEINDEN_MIN || vor!.gemeinden > GEMEINDEN_MAX)
-      fehler.push(`${vor!.gemeinden} Gemeinden ausserhalb ${GEMEINDEN_MIN}-${GEMEINDEN_MAX}`);
+    if (vor!.gemeinden !== SOLL_GEMEINDEN) fehler.push(`${vor!.gemeinden} Gemeinden statt ${SOLL_GEMEINDEN}`);
   }
   if (fehler.length) {
     console.error("::error::Abbruch, Bestand unangetastet: " + fehler.join(" · "));
