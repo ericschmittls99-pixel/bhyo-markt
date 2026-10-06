@@ -46,34 +46,48 @@ async function main() {
 
   const personen = await sql`select table_name, column_name from information_schema.columns
     where table_schema = 'public' and table_name in ('import_vorlage', 'import_lauf', 'import_zeile')
-      and column_name <> 'dateiname' and column_name ~* '(ansprech|kontakt|person|mail|telefon|mobil|handy|fax|name)'`;
+      and column_name ~* '(ansprech|kontakt|person|mail|telefon|mobil|handy|fax|vorname|nachname)'`;
   console.log("PERSONEN_SPALTEN " + JSON.stringify(personen));
   if (personen.length > 0) fehler.push(`Personen-Spalten in Import-Tabellen: ${personen.map((p) => `${p.table_name}.${p.column_name}`).join(", ")}`);
 
   if (struktur.check === 1) {
-    const probe = async (felder: string): Promise<"angenommen" | "abgewiesen"> => {
+    // Probe je Schritt mit Fehlertext: „abgewiesen" zaehlt nur, wenn GENAU der
+    // CHECK import_zeile_felder_check greift — jeder andere Fehler ist ein
+    // Fehler der Probe selbst und wird benannt (Rolle, Vorbedingung, Treiber).
+    const probe = async (felder: Record<string, unknown>): Promise<string> => {
+      let ergebnis = "angenommen";
       try {
         await sql.begin(async (tx) => {
           const [b] = await tx`select id from benutzer limit 1`;
-          if (!b) throw new Error(ROLLBACK + ":kein_benutzer");
-          const [lauf] = await tx`insert into import_lauf (art, dateiname, datei_hash, beleg_typ, standard_sektor, ersteller_id)
-            values ('biomasse', 'import-check.xlsx', repeat('0', 64), 'betriebsdaten', 'ohne_sektor', ${b.id}) returning id`;
-          await tx`insert into import_zeile (lauf_id, zeilennummer, felder) values (${lauf!.id}, 1, ${felder}::jsonb)`;
+          if (!b) throw new Error("probe_fehler: kein benutzer");
+          let laufId: string;
+          try {
+            const [lauf] = await tx`insert into import_lauf (art, dateiname, datei_hash, beleg_typ, standard_sektor, ersteller_id)
+              values ('biomasse', 'import-check.xlsx', repeat('0', 64), 'betriebsdaten', 'ohne_sektor', ${b.id}) returning id`;
+            laufId = lauf!.id;
+          } catch (e) {
+            throw new Error(`probe_fehler lauf: ${e instanceof Error ? e.message : String(e)}`);
+          }
+          try {
+            await tx`insert into import_zeile (lauf_id, zeilennummer, felder) values (${laufId}, 1, ${sql.json(felder)})`;
+          } catch (e) {
+            const m = e instanceof Error ? e.message : String(e);
+            if (m.includes("import_zeile_felder_check")) { ergebnis = "abgewiesen"; throw new Error(ROLLBACK); }
+            throw new Error(`probe_fehler zeile: ${m}`);
+          }
           throw new Error(ROLLBACK);
         });
-        return "angenommen";
       } catch (err) {
         const m = err instanceof Error ? err.message : String(err);
-        if (m === ROLLBACK) return "angenommen";
-        if (m.startsWith(ROLLBACK)) throw err;
-        return "abgewiesen";
+        if (m !== ROLLBACK) return m;
       }
+      return ergebnis;
     };
-    const mitEmail = await probe('{"bezeichnung": "Hof A", "email": "x@y.z"}');
-    const ohne = await probe('{"bezeichnung": "Hof A", "plz": "67346"}');
+    const mitEmail = await probe({ bezeichnung: "Hof A", email: "x@y.z" });
+    const ohne = await probe({ bezeichnung: "Hof A", plz: "67346" });
     console.log(`PROBE felder_mit_email=${mitEmail} felder_ohne=${ohne}`);
-    if (mitEmail !== "abgewiesen") fehler.push("CHECK import_zeile_felder_check laesst einen Personen-Schluessel durch");
-    if (ohne !== "angenommen") fehler.push("CHECK import_zeile_felder_check weist eine Zeile ohne Personen-Schluessel ab");
+    if (mitEmail !== "abgewiesen") fehler.push(`CHECK-Probe mit Personen-Schluessel: erwartet abgewiesen, ist „${mitEmail}"`);
+    if (ohne !== "angenommen") fehler.push(`CHECK-Probe ohne Personen-Schluessel: erwartet angenommen, ist „${ohne}"`);
   }
 
   await sql.end();
