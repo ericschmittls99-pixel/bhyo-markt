@@ -45,7 +45,6 @@
     "kontaktperson-check": "tsx src/kontaktperson-check.ts",
     "import-check": "tsx src/import-check.ts",
     "probelauf-rollback-check": "tsx src/probelauf-rollback-check.ts",
-    "akteur-matcher-messung": "tsx src/akteur-matcher-messung.ts",
     "dubletten-check": "tsx src/dubletten-check.ts"
   },
   "dependencies": {
