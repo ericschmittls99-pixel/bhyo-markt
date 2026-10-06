@@ -5,7 +5,7 @@
  * oder akteur_geaendert), fuer Altbestand ohne Anlage-Ereignis aus created_at
  * (namentliche Ausnahme, Entscheidung Eric 01.10.2026).
  */
-import { sql } from "drizzle-orm";
+import { sql, desc } from "drizzle-orm";
 
 import type { AppDb } from "./db";
 import type { AkteurZeile } from "./akteure-modell";
@@ -130,4 +130,22 @@ export async function ladeAkteurStroeme(db: Leser, id: string): Promise<AkteurSt
 export async function kreisArsDesSitzes(db: Leser, id: string): Promise<string | null> {
   const rows = (await db.execute(sql`select kreis_ars from akteur_verwaltung where akteur_id = ${id}`)) as unknown as { kreis_ars: string | null }[];
   return rows[0]?.kreis_ars ?? null;
+}
+
+/**
+ * AP2.7 PR c (E67): Verlauf des Akteurs aus dem Ereignisprotokoll — Anlegen,
+ * Aenderungen, Zusammenfuehrung, kontaktdaten_uebersprungen (Import, mit
+ * Lauf-ID). Vorbild: Strom-Historie (lib/stroeme.ts ladeHistorie), neueste
+ * zuerst, hoechstens 50. Nur IDs und Feldnamen im Text (E57).
+ */
+export async function ladeAkteurVerlauf(db: Leser, id: string): Promise<{ zeitpunkt: string; text: string; importLaufId: string | null }[]> {
+  const rows = (await db.execute(sql`
+    select zeitpunkt, text, import_lauf_id from aenderung
+     where entitaet_typ = 'akteur' and entitaet_id = ${id}
+     order by zeitpunkt desc limit 50`)) as unknown as { zeitpunkt: string | Date; text: string; import_lauf_id: string | null }[];
+  return rows.map((r) => ({
+    zeitpunkt: new Date(r.zeitpunkt).toLocaleString("de-DE", { timeZone: "Europe/Berlin" }),
+    text: r.text,
+    importLaufId: r.import_lauf_id ?? null,
+  }));
 }

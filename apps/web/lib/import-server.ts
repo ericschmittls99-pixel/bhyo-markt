@@ -103,6 +103,9 @@ export interface ImportZeileZeile {
   felder: Record<string, string>;
   status: string;
   fehlergrund: string | null;
+  /** PR c: der angelegte Strom nach dem Ausfuehren. */
+  biomassestromId: string | null;
+  outputBedarfId: string | null;
 }
 
 export function ladeImportZeilen(db: Leser, laufId: string, limit = 5000): Promise<ImportZeileZeile[]> {
@@ -113,6 +116,8 @@ export function ladeImportZeilen(db: Leser, laufId: string, limit = 5000): Promi
       felder: importZeile.felder,
       status: importZeile.status,
       fehlergrund: importZeile.fehlergrund,
+      biomassestromId: importZeile.biomassestromId,
+      outputBedarfId: importZeile.outputBedarfId,
     })
     .from(importZeile)
     .where(eq(importZeile.laufId, laufId))

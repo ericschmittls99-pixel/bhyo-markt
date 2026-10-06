@@ -68,6 +68,8 @@ export interface StromEingabe {
    * Import-Lauf und Belegtyp) — dann wird kein eigener Beleg erstellt.
    */
   belegId?: string | null;
+  /** AP2.7 PR c (E67): Lauf-ID am Ereignis „angelegt" (aenderung.import_lauf_id). */
+  importLaufId?: string;
 }
 
 /** Feldfehler als Ausnahme — fuer Aufrufer, die nicht inline anzeigen, sondern je Zeile scheitern. */
@@ -289,6 +291,7 @@ export async function stromAnlegenInTx(
     benutzerId: handelnder.id,
     benutzerEmail: handelnder.email,
     text: e.eingaben.begruendung,
+    importLaufId: e.importLaufId,
   });
   return { id };
 }

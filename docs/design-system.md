@@ -924,3 +924,17 @@ Adressen ohne eindeutigen Treffer mit Befund. **Probelauf:** Belegdaten
 `btn--primary`, Fortschritt als Caption; in der Zeilen-Tabelle Pillen
 „vorhanden" / „neu · Pin" / „neu · Sitz offen" und „Probelauf ok", der
 Fehlergrund als Caption neben der Zustands-Pille.
+
+## import. — Ausführen, Nacharbeit, Verlauf (AP2.7 PR c, E67, 06.10.2026)
+
+**Ausführen:** eigener Abschnitt unter dem Probelauf, Schaltfläche
+`btn--primary` „Import ausführen" (gesperrt ohne offene Zeile oder vor dem
+Probelauf), Fortschritt als Caption; die Liste der Läufe zeigt
+„importiert · Fehler · übersprungen". **Zeilen:** importierte Zeilen tragen
+die Zustands-Pille und den Link „zum Strom" (Karten-Detail), Fehlerzeilen den
+Grund als Caption. **Nacharbeit:** Tabelle der Fehlerzeilen (Zeile · Akteur ·
+Fehler) mit „Korrigieren" (öffnet die Zielfelder der Art als Inline-Formular
+`imp-nacharbeit-form`, Code-Felder als Auswahl, Pflichtfelder mit „*") und
+„Überspringen" (`btn--ghost`). **Akteur-Detail:** neuer Abschnitt „verlauf."
+unter „belege und ströme." im Stil der Änderungshistorie (`historie2`);
+Einträge aus einem Import verlinken den Lauf.

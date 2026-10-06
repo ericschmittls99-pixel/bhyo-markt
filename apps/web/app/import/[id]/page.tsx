@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 
 import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
+import { Ausfuehren } from "@/components/import/Ausfuehren";
+import { Nacharbeit } from "@/components/import/Nacharbeit";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
@@ -87,6 +89,18 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
   const alleZeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id));
   const zeilen = alleZeilen.slice(0, ZEILEN_ANZEIGE);
   const gruppen = akteurGruppenAnzeige(alleZeilen);
+  const nacharbeit = alleZeilen.filter((z) => z.status === "fehler");
+  let nacharbeitOptionen: CodeOptionen | null = null;
+  if (nacharbeit.length > 0) {
+    const [materialarten, produkte, sektoren] = await Promise.all([listMaterialarten(), listOutputProdukte(), ladeSektoren()]);
+    nacharbeitOptionen = {
+      materialart: materialarten.map((m) => ({ code: m.code, label: m.label })),
+      produkt: produkte.map((p) => ({ code: p.code, label: p.label })),
+      sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
+      beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
+      menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+    };
+  }
 
   return (
     <main className="einst imp">
@@ -140,8 +154,12 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             optionen={zuordnung.optionen}
           />
         )}
-        {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest") && <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />}
-        {lauf.status === "aufgeloest" && gruppen.some((g) => g.ergebnis === "neu") && <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />}
+        {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest" || gruppen.some((g) => g.ergebnis === "offen")) && (
+          <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />
+        )}
+        {["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status) && gruppen.some((g) => g.ergebnis === "neu") && (lauf.status === "aufgeloest" || adressStand(alleZeilen).gesamt > adressStand(alleZeilen).gefunden) && (
+          <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />
+        )}
         {(lauf.status === "aufgeloest" || lauf.status === "probelauf") && (
           <Probelauf
             laufId={lauf.id}
@@ -153,13 +171,17 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
+        {nacharbeitOptionen && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
+        {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
+          <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
+        )}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
               <h3>zeilen.</h3>
               <p className="c">
                 {zeilen.length < alleZeilen.length ? `Die ersten ${zeilen.length} von ${alleZeilen.length} Zeilen. ` : ""}
-                Ausführen und Nacharbeit folgen in PR c.
+                Importierte Zeilen verweisen auf ihren Strom; Zeilen mit Fehler lassen sich in der Nacharbeit korrigieren oder überspringen.
               </p>
             </header>
             <table className="einst-tabelle imp-tabelle">
@@ -182,8 +204,10 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                       {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? (
                         <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span>
                       ) : null}
-                      {z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
-                      {z.felder.akteur_neu === "1" && <span className="pill pill--muted"> neu{z.felder.akteur_sitz_lat ? " · Pin" : z.felder.akteur_sitz_offen ? " · Sitz offen" : ""}</span>}
+                      {z.status !== "importiert" && z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
+                      {z.status !== "importiert" && z.felder.akteur_neu === "1" && (
+                        <span className="pill pill--muted"> neu{z.felder.akteur_sitz_lat ? " · Pin" : z.felder.akteur_sitz_offen ? " · Sitz offen" : ""}</span>
+                      )}
                     </td>
                     <td>{art === "biomasse" ? z.felder.materialart_code || "—" : z.felder.produkt_code || "—"}</td>
                     <td className="kv--num">{art === "biomasse" ? z.felder.menge_roh_fm : `${z.felder.menge_wert ?? ""} ${z.felder.menge_einheit ?? ""}`}</td>
@@ -192,7 +216,13 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                     </td>
                     <td>
                       <span className="pill pill--status pill--muted">{z.status}</span>
-                      {z.felder.probelauf === "ok" && <span className="pill pill--muted"> Probelauf ok</span>}
+                      {z.felder.probelauf === "ok" && z.status !== "importiert" && <span className="pill pill--muted"> Probelauf ok</span>}
+                      {z.status === "importiert" && (z.biomassestromId || z.outputBedarfId) && (
+                        <>
+                          {" "}
+                          <Link href={`/karte?detail=${z.biomassestromId ?? z.outputBedarfId}&art=${art}`}>zum Strom</Link>
+                        </>
+                      )}
                       {z.fehlergrund && <span className="c"> {z.fehlergrund}</span>}
                     </td>
                   </tr>

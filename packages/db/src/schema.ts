@@ -972,10 +972,12 @@ export const inboxEintrag = pgTable(
     aufgabe: text("aufgabe"),
   },
   (t) => [
-    // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf, (PR a1) Akteur oder (PR b) Kontaktperson.
+    // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf, (PR a1) Akteur, (PR b) Kontaktperson
+    // oder (AP2.7 PR c, Migration 0046) Import-Lauf — 0043 hatte die Spalte, aber nicht den CHECK
+    // erweitert; der erste echte Abschluss eines Laufs scheiterte daran (Befund 06.10.2026).
     check(
       "inbox_eintrag_genau_ein_strom_check",
-      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}) = 1`,
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}) = 1`,
     ),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
     // AP2.4 PR c: Aufgabentext nur beim Typ aufgabe, dort Pflicht (1–500 Zeichen ohne Rand).

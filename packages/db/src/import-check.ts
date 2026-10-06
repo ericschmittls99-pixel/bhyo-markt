@@ -90,6 +90,40 @@ async function main() {
     if (ohne !== "angenommen") fehler.push(`CHECK-Probe ohne Personen-Schluessel: erwartet angenommen, ist „${ohne}"`);
   }
 
+  // 4. AP2.7 PR c (Migration 0046): ein Eintrag import_abgeschlossen nur mit
+  //    Lauf-Bezug wird angenommen, einer ohne jeden Bezug abgewiesen —
+  //    beides zurueckgerollt. Vor 0046 schlug der erste Fall fehl.
+  const inboxProbe = async (mitLauf: boolean): Promise<string> => {
+    let ergebnis = "angenommen";
+    try {
+      await sql.begin(async (tx) => {
+        const [b] = await tx`select id from benutzer limit 1`;
+        if (!b) throw new Error("probe_fehler: kein benutzer");
+        const [lauf] = await tx`insert into import_lauf (art, dateiname, datei_hash, beleg_typ, standard_sektor, ersteller_id)
+          values ('biomasse', 'import-check.xlsx', repeat('2', 64), 'betriebsdaten', 'ohne_sektor', ${b.id}) returning id`;
+        const [ev] = await tx`insert into aenderung (entitaet_typ, entitaet_id, art, benutzer_id, benutzer_email, text, import_lauf_id)
+          values ('import_lauf', ${lauf!.id}, 'status_gesetzt', ${b.id}, 'import-check@example.invalid', 'import-check', ${lauf!.id}) returning id`;
+        try {
+          await tx`insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, import_lauf_id, ereignis_id, anzahl)
+            values (${b.id}, ${b.id}, 'import_abgeschlossen', ${mitLauf ? lauf!.id : null}, ${ev!.id}, 1)`;
+        } catch (e) {
+          const m = e instanceof Error ? e.message : String(e);
+          if (m.includes("inbox_eintrag_genau_ein_strom_check")) { ergebnis = "abgewiesen"; throw new Error(ROLLBACK); }
+          throw new Error(`probe_fehler inbox: ${m}`);
+        }
+        throw new Error(ROLLBACK);
+      });
+    } catch (err) {
+      if (!(err instanceof Error) || err.message !== ROLLBACK) return `probe_fehler: ${err instanceof Error ? err.message : String(err)}`;
+    }
+    return ergebnis;
+  };
+  const inboxMit = await inboxProbe(true);
+  const inboxOhne = await inboxProbe(false);
+  console.log(`INBOX_LAUFBEZUG mit_lauf=${inboxMit} ohne_bezug=${inboxOhne}`);
+  if (inboxMit !== "angenommen") fehler.push(`Inbox-Eintrag import_abgeschlossen nur mit Lauf-Bezug: ${inboxMit} (Migration 0046)`);
+  if (inboxOhne !== "abgewiesen") fehler.push(`Inbox-Eintrag ohne Objektbezug: ${inboxOhne} statt abgewiesen`);
+
   await sql.end();
   if (fehler.length) {
     console.error("::error::IMPORTCHECK VERLETZT: " + fehler.join(" · "));
