@@ -1,4 +1,6 @@
-import type { BelegeBucket } from "@/lib/db";
+import { sql } from "drizzle-orm";
+
+import type { AppDb, BelegeBucket } from "@/lib/db";
 
 /**
  * AP2.7 PR b (E67): Roh-Uploads des Imports liegen unter import/<env>/<lauf>/
@@ -45,4 +47,32 @@ export async function loescheAlteImportUploads(bucket: Pick<BelegeBucket, "list"
     cursor = seite.truncated ? seite.cursor : undefined;
   } while (cursor);
   return erg;
+}
+
+/**
+ * AP2.7 PR c (E67): Zeilen abgeschlossener Laeufe nach der Aufbewahrungsfrist
+ * loeschen — Parameter import.zeilen_aufbewahrung_tage (Migration 0045),
+ * aufgeloest am Stichtag wie die anderen Fristen (parameter_wert in SQL).
+ * Nur Laeufe ausgefuehrt/zurueckgenommen mit abgeschlossen_am; Zaehler und
+ * Protokoll bleiben am Lauf. Ein Statement, der Zeitpunkt kommt herein.
+ */
+export interface ZeilenAufraeumErgebnis {
+  laeufe: number;
+  zeilen: number;
+}
+
+export async function loescheAlteImportZeilen(db: Pick<AppDb, "execute">, stichtag: string): Promise<ZeilenAufraeumErgebnis> {
+  const rows = (await db.execute(sql`
+    with faellig as (
+      select id from import_lauf
+       where status in ('ausgefuehrt', 'zurueckgenommen')
+         and abgeschlossen_am is not null
+         and (abgeschlossen_am::date + make_interval(days => parameter_wert('import.zeilen_aufbewahrung_tage', ${stichtag}::date))) <= ${stichtag}::date
+         and exists (select 1 from import_zeile z where z.lauf_id = import_lauf.id)
+    ),
+    geloescht as (
+      delete from import_zeile where lauf_id in (select id from faellig) returning lauf_id
+    )
+    select (select count(*)::int from faellig) as laeufe, (select count(*)::int from geloescht) as zeilen`)) as unknown as { laeufe: number; zeilen: number }[];
+  return { laeufe: Number(rows[0]?.laeufe ?? 0), zeilen: Number(rows[0]?.zeilen ?? 0) };
 }

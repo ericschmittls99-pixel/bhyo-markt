@@ -15,9 +15,10 @@ import { drizzle } from "drizzle-orm/postgres-js";
 
 import type { BelegeBucket } from "./lib/db";
 
-import { loescheAlteImportUploads } from "./lib/jobs/import-aufraeumen";
+import { loescheAlteImportUploads, loescheAlteImportZeilen } from "./lib/jobs/import-aufraeumen";
 import { fuehreVerifikationsJobAus } from "./lib/jobs/verifikation";
 import { JOB_STUNDE_BERLIN, istBerlinStunde } from "./lib/jobs/zeit";
+import { kalendertag } from "./lib/datum";
 
 interface Umgebung {
   HYPERDRIVE?: { connectionString: string };
@@ -45,6 +46,9 @@ async function lauf(env: Umgebung, jetzt: Date): Promise<void> {
   try {
     const ergebnis = await fuehreVerifikationsJobAus(db, jetzt);
     console.log(`JOB verifikation ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(ergebnis)}`);
+    // AP2.7 PR c (E67): Zeilen abgeschlossener Import-Laeufe nach der Aufbewahrungsfrist.
+    const zeilen = await loescheAlteImportZeilen(db, kalendertag(jetzt));
+    console.log(`JOB import-zeilen ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(zeilen)}`);
   } finally {
     await sql.end().catch(() => {});
   }

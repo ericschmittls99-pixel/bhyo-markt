@@ -5,7 +5,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { IMPORT_ROH_AUFBEWAHRUNG_MS, loescheAlteImportUploads, zuLoeschen } from "./import-aufraeumen";
+import { IMPORT_ROH_AUFBEWAHRUNG_MS, loescheAlteImportUploads, loescheAlteImportZeilen, zuLoeschen } from "./import-aufraeumen";
 
 const jetzt = new Date("2026-10-07T03:00:00Z");
 const vor = (ms: number) => new Date(jetzt.getTime() - ms);
@@ -42,5 +42,29 @@ describe("loescheAlteImportUploads", () => {
     const erg = await loescheAlteImportUploads(bucket, jetzt);
     expect(erg).toEqual({ gesehen: 4, geloescht: 2, fehler: 1 });
     expect(geloescht).toEqual(["import/x/1/roh.csv", "import/x/3/roh.csv"]);
+  });
+});
+
+describe("loescheAlteImportZeilen (PR c, Parameter import.zeilen_aufbewahrung_tage)", () => {
+  it("ein Statement: faellige Laeufe (ausgefuehrt/zurueckgenommen, abgeschlossen + Frist <= Stichtag) verlieren ihre Zeilen; Zaehlung zurueck", async () => {
+    const ausgefuehrt: string[] = [];
+    const db = {
+      execute: async (q: { queryChunks?: unknown[] }) => {
+        const texte = (o: unknown, seen = new Set<object>()): string[] => {
+          if (!o || typeof o !== "object" || seen.has(o)) return [];
+          seen.add(o);
+          return Object.values(o as Record<string, unknown>).flatMap((v) => (typeof v === "string" ? [v] : texte(v, seen)));
+        };
+        ausgefuehrt.push(texte(q).join(" "));
+        return [{ laeufe: 2, zeilen: 150 }];
+      },
+    };
+    const erg = await loescheAlteImportZeilen(db as never, "2026-11-06");
+    expect(erg).toEqual({ laeufe: 2, zeilen: 150 });
+    expect(ausgefuehrt).toHaveLength(1);
+    expect(ausgefuehrt[0]).toContain("parameter_wert('import.zeilen_aufbewahrung_tage'");
+    expect(ausgefuehrt[0]).toContain("status in ('ausgefuehrt', 'zurueckgenommen')");
+    expect(ausgefuehrt[0]).toContain("delete from import_zeile");
+    expect(ausgefuehrt[0]).toContain("2026-11-06");
   });
 });
