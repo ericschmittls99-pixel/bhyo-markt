@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseImportDatei } from "./import-datei";
-import { IGNORIEREN, PERSON, einheitFaktor, monatAusText, pruefeZuordnung, spaltenWerte, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
+import { IGNORIEREN, PERSON, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
 
 const fixture = (() => {
   const b = readFileSync(join(__dirname, "..", "..", "..", "docs", "beispiele", "import-biomasse.csv"));
@@ -174,5 +174,31 @@ describe("Werte-Zuordnung", () => {
       maissilage: "maissilage",
       Festmist: "",
     });
+  });
+});
+
+describe("Vorlagen", () => {
+  it("pruefeVorlage weist Personen-Ziele, unbekannte Ziele und Werte fuer Nicht-Code-Felder ab", () => {
+    expect(pruefeVorlage({ spalten: { Betrieb: "akteur_name", Telefon: PERSON, Nr: IGNORIEREN, Rest: "" }, werte: { materialart_code: {} } })).toEqual([]);
+    const f = pruefeVorlage({ spalten: { Mail: "email", X: "irgendwas" }, werte: { menge_roh_fm: { a: "b" } } });
+    expect(f).toHaveLength(3);
+    expect(f[0]).toMatch(/Personen-Daten/);
+    expect(f[1]).toMatch(/unbekanntes Zielfeld „irgendwas"/);
+    expect(f[2]).toMatch(/kein Code-Zielfeld/);
+  });
+
+  it("vorlageAnwenden: Vorlagen-Ziel nach Spaltenname (Normalform), Personen bleiben erkannt, Rest aus dem Vorschlag, Werte ueberdeckt", () => {
+    const spalten = ["Betrieb", "Material", "E-Mail", "Menge", "Bemerkung"];
+    const vorschlag = vorschlagZuordnung("biomasse", spalten);
+    expect(vorschlag).toMatchObject({ Betrieb: "akteur_name", Material: "materialart_code", "E-Mail": PERSON, Menge: "menge_roh_fm", Bemerkung: "bezeichnung" });
+    const vorlage: Zuordnung = {
+      spalten: { betrieb: "bezeichnung", MATERIAL: "materialart_code", Bemerkung: IGNORIEREN, "E-Mail": "akteur_name" },
+      werte: { materialart_code: { Gülle: "guelle_rind", Fremd: "x" } },
+    };
+    const erg = vorlageAnwenden(vorlage, spalten, vorschlag, { materialart_code: { Gülle: "", Mais: "maissilage" } });
+    // Betrieb → bezeichnung (Vorlage), Material → materialart_code (Vorlage), E-Mail bleibt PERSON trotz Vorlage,
+    // Menge aus dem Vorschlag (Vorlage kennt sie nicht), Bemerkung ignoriert (Vorlage).
+    expect(erg.spalten).toEqual({ Betrieb: "bezeichnung", Material: "materialart_code", "E-Mail": PERSON, Menge: "menge_roh_fm", Bemerkung: IGNORIEREN });
+    expect(erg.werte).toEqual({ materialart_code: { Gülle: "guelle_rind", Mais: "maissilage" } });
   });
 });

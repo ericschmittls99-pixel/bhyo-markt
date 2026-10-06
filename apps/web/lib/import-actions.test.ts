@@ -31,7 +31,8 @@ vi.mock("@/lib/db", () => ({
   }),
   withDb: async (fn: (db: unknown) => unknown) => {
     const tx = {
-      select: () => ({ from: () => ({ where: async () => [] }) }),
+      // tx.select(...).from(...).where(...) [.limit(1)] → leer (kein gleicher Hash, keine Vorlage gleichen Namens)
+      select: () => ({ from: () => ({ where: () => ({ limit: async () => [], then: (res: (v: unknown) => void) => res([]) }) }) }),
       insert: () => ({
         values: (v: Record<string, unknown> | Record<string, unknown>[]) => {
           const p = {
@@ -66,7 +67,7 @@ vi.mock("@/lib/db", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importDateiHochladen, importLaufAnlegen, importZuordnungSpeichern } = await import("./import-actions");
+const { importDateiHochladen, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -215,5 +216,32 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     expect(geloescht).toEqual([`import/test/${LAUF}/roh.csv`]);
     // „Hof Mustermann" ist der Betrieb (Akteur) und darf stehen; die Person „Max Mustermann", E-Mails und die Spaltennamen nicht.
     expect(JSON.stringify([inserts, updates, protokolle])).not.toMatch(/Max Mustermann|Erika|example\.invalid|Ansprech|E-Mail/);
+  });
+});
+
+describe("importVorlageSpeichern (PR b)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const zuordnung = { spalten: { Betrieb: "akteur_name", "E-Mail": "person" }, werte: { materialart_code: { Gülle: "guelle_rind" } } };
+
+  it("Rot: Bearbeiter abgewiesen, nichts geschrieben", async () => {
+    rolle = "bearbeiter";
+    expect((await importVorlageSpeichern(LAUF, "Kammer", "", zuordnung)).fehler).toMatch(/recht/i);
+    expect(schreibversuche).toBe(0);
+  });
+
+  it("Personen-Ziel oder leerer Name: abgewiesen vor jeder Wirkung", async () => {
+    rolle = "admin";
+    expect((await importVorlageSpeichern(LAUF, "Kammer", "", { spalten: { Mail: "email" }, werte: {} })).fehler).toMatch(/Personen-Daten/);
+    expect((await importVorlageSpeichern(LAUF, "   ", "", zuordnung)).fehler).toMatch(/1 bis 120/);
+    expect(schreibversuche).toBe(0);
+    expect(protokolle).toHaveLength(0);
+  });
+
+  it("neue Vorlage: Insert mit Zuordnung, Ereignis angelegt an import_vorlage mit Lauf-ID", async () => {
+    rolle = "pruefer";
+    const erg = await importVorlageSpeichern(LAUF, " Kammer Jahresmeldung ", "LWK", zuordnung);
+    expect(erg.ok).toBe(true);
+    expect(inserts[0]).toMatchObject({ name: "Kammer Jahresmeldung", quelle: "LWK", spalten: zuordnung.spalten, werte: zuordnung.werte, erstellerId: "u1" });
+    expect(protokolle[0]).toMatchObject({ art: "angelegt", entitaet: "import_vorlage", importLaufId: LAUF, text: expect.stringMatching(/2 Spalten/) });
   });
 });

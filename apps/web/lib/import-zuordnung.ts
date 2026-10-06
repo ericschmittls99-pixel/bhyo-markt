@@ -1,4 +1,5 @@
 import { dezimalKanonisch, monatKanonisch } from "@/lib/eingabe-format";
+import { IGNORIEREN, PERSON } from "@/lib/import-konstanten";
 import { istPersonenSchluessel } from "@/lib/import-modell";
 import type { StromArt } from "@/lib/stroeme-modell";
 
@@ -25,8 +26,7 @@ export interface Zielfeld {
   synonyme: readonly string[];
 }
 
-export const PERSON = "person";
-export const IGNORIEREN = "ignorieren";
+export { IGNORIEREN, PERSON };
 
 const BEIDE: readonly StromArt[] = ["biomasse", "output"];
 
@@ -130,6 +130,67 @@ export function pruefeZuordnung(art: StromArt, spalten: readonly string[], z: Zu
     fehler.push(`Pflichtfelder ohne Spalte: ${fehlend.map((d) => d.label).join(", ")} — ohne sie würde jede Zeile scheitern.`);
   }
   return fehler;
+}
+
+/**
+ * Eine Vorlage traegt die Zuordnung ohne Datei und ohne Art: geprueft wird
+ * nur, dass jedes Ziel ein bekanntes Zielfeld, PERSON oder IGNORIEREN ist und
+ * kein Personen-Schluessel. Pflichtfelder prueft erst die Anwendung auf eine
+ * Datei (pruefeZuordnung).
+ */
+export function pruefeVorlage(z: Zuordnung): string[] {
+  const fehler: string[] = [];
+  for (const [sp, ziel] of Object.entries(z.spalten)) {
+    if (ziel === "" || ziel === PERSON || ziel === IGNORIEREN) continue;
+    if (istPersonenSchluessel(ziel)) fehler.push(`Spalte „${sp}": Personen-Daten werden nicht übernommen.`);
+    else if (!zielfeld(ziel)) fehler.push(`Spalte „${sp}": unbekanntes Zielfeld „${ziel}".`);
+  }
+  for (const key of Object.keys(z.werte)) {
+    if (zielfeld(key)?.typ !== "code") fehler.push(`Werte-Zuordnung für „${key}" — kein Code-Zielfeld.`);
+  }
+  return fehler;
+}
+
+/**
+ * Vorlage auf die Spalten einer Datei anwenden: gleiche Spaltennamen
+ * (Normalform) bekommen das Ziel der Vorlage, Personen-Spalten bleiben
+ * erkannt, alle anderen den Vorschlag. Werte der Vorlage ueberdecken den
+ * Werte-Vorschlag, wo der Spaltenwert vorkommt.
+ */
+export function vorlageAnwenden(
+  vorlage: Zuordnung,
+  spalten: readonly string[],
+  vorschlag: Record<string, string>,
+  werteVorschlagAlt: Record<string, Record<string, string>>,
+): Zuordnung {
+  const nachNorm = new Map(Object.entries(vorlage.spalten).map(([sp, ziel]) => [normName(sp), ziel]));
+  const neu: Record<string, string> = {};
+  const vergeben = new Set<string>();
+  for (const sp of spalten) {
+    if (vorschlag[sp] === PERSON) {
+      neu[sp] = PERSON;
+      continue;
+    }
+    const ziel = nachNorm.get(normName(sp));
+    if (ziel !== undefined && ziel !== "" && !(zielfeld(ziel) && vergeben.has(ziel))) {
+      neu[sp] = ziel;
+      if (zielfeld(ziel)) vergeben.add(ziel);
+    } else neu[sp] = "";
+  }
+  // Was die Vorlage nicht kennt, behaelt den Vorschlag — sofern das Ziel noch frei ist.
+  for (const sp of spalten) {
+    const v = vorschlag[sp] ?? "";
+    if (neu[sp] === "" && v !== "" && !vergeben.has(v)) {
+      neu[sp] = v;
+      if (zielfeld(v)) vergeben.add(v);
+    }
+  }
+  const werte: Record<string, Record<string, string>> = {};
+  for (const [key, map] of Object.entries(werteVorschlagAlt)) {
+    werte[key] = { ...map };
+    for (const [wert, code] of Object.entries(vorlage.werte[key] ?? {})) if (wert in werte[key]! && code) werte[key]![wert] = code;
+  }
+  return { spalten: neu, werte };
 }
 
 /** Vorschlag der Werte-Zuordnung: Spaltenwert → Code, wenn Label oder Code in Normalform gleich sind. */

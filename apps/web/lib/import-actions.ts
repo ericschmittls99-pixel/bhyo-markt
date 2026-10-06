@@ -1,13 +1,13 @@
 "use server";
 
-import { importLauf, importZeile } from "@bhyo/db/schema";
+import { importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { importRohKey, ladeImportLauf } from "@/lib/import-server";
-import { PERSON, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
+import { PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { StromArt } from "@/lib/stroeme-modell";
@@ -235,4 +235,55 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
   // Scheitert das Loeschen, raeumt der Job nach 24 h auf — der Lauf bleibt gueltig.
   await bucket.delete(key).catch((e) => console.error("Roh-Upload nicht gelöscht:", key, e));
   return { ok: true, zaehler };
+}
+
+/**
+ * Vorlage speichern (PR b): die Spalten- und Werte-Zuordnung unter einem
+ * Namen fuer alle mit Import-Recht; gleicher Name ersetzt die Vorlage. Das
+ * Ereignis haengt an der Vorlage und traegt die Lauf-ID, aus dem sie kommt.
+ */
+export interface VorlageErgebnis {
+  ok?: boolean;
+  id?: string;
+  fehler?: string;
+}
+
+export async function importVorlageSpeichern(laufId: string, name: string, quelle: string, zuordnung: Zuordnung): Promise<VorlageErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  const n = name.trim();
+  if (n.length === 0 || n.length > 120) return { fehler: "Name der Vorlage: 1 bis 120 Zeichen." };
+  const fehler = pruefeVorlage(zuordnung);
+  if (fehler.length > 0) return { fehler: fehler.join(" ") };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const [alt] = await tx.select({ id: importVorlage.id }).from(importVorlage).where(eq(importVorlage.name, n)).limit(1);
+        const werte = { quelle: quelle.trim() || null, spalten: zuordnung.spalten, werte: zuordnung.werte };
+        let id: string;
+        if (alt) {
+          await tx.update(importVorlage).set({ ...werte, updatedAt: new Date() }).where(eq(importVorlage.id, alt.id));
+          id = alt.id;
+        } else {
+          const [neu] = await tx.insert(importVorlage).values({ name: n, ...werte, erstellerId: wache.zugang.id }).returning({ id: importVorlage.id });
+          id = neu!.id;
+        }
+        await protokolliere(tx, {
+          art: alt ? "geaendert" : "angelegt",
+          entitaet: "import_vorlage",
+          id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Import-Vorlage ${alt ? "ersetzt" : "angelegt"} (${Object.keys(zuordnung.spalten).length} Spalten) aus Lauf ${laufId}`,
+          importLaufId: laufId,
+        });
+        return { ok: true, id };
+      }),
+    );
+  } catch (e) {
+    console.error("Import-Vorlage speichern fehlgeschlagen:", e);
+    return { fehler: "Die Vorlage konnte nicht gespeichert werden." };
+  }
 }

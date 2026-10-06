@@ -31,7 +31,9 @@ export type Entitaet =
   /** AP2.5 PR b (E57): Kontaktperson — Freitext ohne Namen, nur IDs und Feldnamen. */
   | "kontaktperson"
   /** AP2.7 PR a (E67): Import-Lauf (import_lauf.id) — Anlegen, Ausfuehren, Ruecknahme. */
-  | "import_lauf";
+  | "import_lauf"
+  /** AP2.7 PR b (E67): Import-Vorlage (import_vorlage.id) — Speichern aus der Zuordnung eines Laufs. */
+  | "import_vorlage";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;

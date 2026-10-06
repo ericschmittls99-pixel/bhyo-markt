@@ -3,8 +3,9 @@
 import { useRouter } from "next/navigation";
 import { useMemo, useState, useTransition } from "react";
 
-import { importZuordnungSpeichern } from "@/lib/import-actions";
-import { IGNORIEREN, PERSON, type Zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
+import { importVorlageSpeichern, importZuordnungSpeichern } from "@/lib/import-actions";
+import { IGNORIEREN, PERSON } from "@/lib/import-konstanten";
+import type { Zielfeld, Zuordnung } from "@/lib/import-zuordnung";
 
 export interface SpalteAnzeige {
   name: string;
@@ -41,6 +42,8 @@ export function ZuordnungTabelle({
   vorschlag,
   werteVorschlag,
   optionen,
+  vorlagen,
+  aktiveVorlage,
 }: {
   laufId: string;
   spalten: SpalteAnzeige[];
@@ -48,12 +51,32 @@ export function ZuordnungTabelle({
   vorschlag: Record<string, string>;
   werteVorschlag: Record<string, Record<string, string>>;
   optionen: CodeOptionen;
+  /** Gespeicherte Vorlagen; angewendet wird serverseitig ueber ?vorlage=<id> (vorlageAnwenden). */
+  vorlagen: { id: string; name: string; quelle: string | null }[];
+  aktiveVorlage: string | null;
 }) {
   const router = useRouter();
   const [ziel, setZiel] = useState<Record<string, string>>(vorschlag);
   const [werte, setWerte] = useState<Record<string, Record<string, string>>>(werteVorschlag);
   const [meldungen, setMeldungen] = useState<string[]>([]);
+  const [vorlageName, setVorlageName] = useState(aktiveVorlage ? (vorlagen.find((v) => v.id === aktiveVorlage)?.name ?? "") : "");
+  const [vorlageQuelle, setVorlageQuelle] = useState(aktiveVorlage ? (vorlagen.find((v) => v.id === aktiveVorlage)?.quelle ?? "") : "");
+  const [vorlageMeldung, setVorlageMeldung] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
+
+  function aktuelleZuordnung(): Zuordnung {
+    const zuordnung: Zuordnung = { spalten: ziel, werte: {} };
+    for (const { def } of codeZiele) zuordnung.werte[def.key] = werte[def.key] ?? {};
+    return zuordnung;
+  }
+
+  function vorlageSpeichern() {
+    starte(async () => {
+      const erg = await importVorlageSpeichern(laufId, vorlageName, vorlageQuelle, aktuelleZuordnung());
+      setVorlageMeldung(erg.ok ? `Vorlage „${vorlageName.trim()}“ gespeichert.` : (erg.fehler ?? "Speichern fehlgeschlagen."));
+      if (erg.ok) router.refresh();
+    });
+  }
   const zielNachKey = useMemo(() => new Map(zielfelder.map((z) => [z.key, z])), [zielfelder]);
 
   // Code-Zielfelder, die gerade einer Spalte zugeordnet sind → Werte-Tabellen darunter.
@@ -64,8 +87,7 @@ export function ZuordnungTabelle({
   const pflichtOffen = zielfelder.filter((z) => z.pflicht && !Object.values(ziel).includes(z.key));
 
   function speichern() {
-    const zuordnung: Zuordnung = { spalten: ziel, werte: {} };
-    for (const { def } of codeZiele) zuordnung.werte[def.key] = werte[def.key] ?? {};
+    const zuordnung = aktuelleZuordnung();
     starte(async () => {
       const erg = await importZuordnungSpeichern(laufId, zuordnung);
       if (erg.ok) {
@@ -84,6 +106,25 @@ export function ZuordnungTabelle({
           erkannt oder werden hier markiert — ihre Inhalte werden nie übernommen.
         </p>
       </header>
+      {vorlagen.length > 0 && (
+        <label className="pf imp-vorlage-wahl">
+          <span>Vorlage anwenden</span>
+          <span className="pf-feld">
+            <select
+              value={aktiveVorlage ?? ""}
+              onChange={(e) => router.push(e.target.value ? `/import/${laufId}?vorlage=${e.target.value}` : `/import/${laufId}`)}
+            >
+              <option value="">— Vorschlag aus der Kopfzeile —</option>
+              {vorlagen.map((v) => (
+                <option key={v.id} value={v.id}>
+                  {v.name}
+                  {v.quelle ? ` (${v.quelle})` : ""}
+                </option>
+              ))}
+            </select>
+          </span>
+        </label>
+      )}
       <table className="einst-tabelle imp-tabelle">
         <thead>
           <tr>
@@ -187,6 +228,25 @@ export function ZuordnungTabelle({
           ))}
         </ul>
       )}
+      <div className="imp-vorlage einst-anlegen">
+        <label className="pf">
+          <span>Als Vorlage speichern — Name</span>
+          <span className="pf-feld">
+            <input type="text" value={vorlageName} onChange={(e) => setVorlageName(e.target.value)} placeholder="z. B. Landwirtschaftskammer Jahresmeldung" maxLength={120} />
+          </span>
+        </label>
+        <label className="pf">
+          <span>Herkunft der Dateien (optional)</span>
+          <span className="pf-feld">
+            <input type="text" value={vorlageQuelle} onChange={(e) => setVorlageQuelle(e.target.value)} placeholder="wer liefert diese Dateien" />
+          </span>
+        </label>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={vorlageSpeichern} disabled={laeuft || vorlageName.trim() === ""}>
+          <i className="ph ph-bookmark-simple" aria-hidden />
+          Vorlage speichern
+        </button>
+        {vorlageMeldung && <p className="c einst-fehler">{vorlageMeldung}</p>}
+      </div>
       <div className="imp-aktionen">
         <button type="button" className="btn btn--primary btn--sm" onClick={speichern} disabled={laeuft}>
           <i className="ph ph-check" aria-hidden />

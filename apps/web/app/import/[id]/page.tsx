@@ -7,8 +7,8 @@ import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
 import { parseImportDatei, type ImportTabelle } from "@/lib/import-datei";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
-import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
-import { PERSON, spaltenWerte, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
+import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
+import { PERSON, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
 import { BELEG_LABEL, BELEG_TYPEN } from "@/lib/qualitaet";
 import { darf } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -25,8 +25,9 @@ const ZEILEN_ANZEIGE = 200;
  * Zuordnung der Spalten (Roh-Upload wird dafuer aus R2 gelesen, nie
  * gespeichert), danach die uebernommenen Zeilen mit Zustand.
  */
-export default async function ImportLaufPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function ImportLaufPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ vorlage?: string }> }) {
   const { id } = await params;
+  const { vorlage: vorlageParam } = await searchParams;
   const zugang = await aktuellerZugang();
   if (zugang.art !== "erlaubt" || !darf(zugang, "import.ausfuehren")) {
     return (
@@ -43,6 +44,8 @@ export default async function ImportLaufPage({ params }: { params: Promise<{ id:
   const statusLabel = (s: string) => IMPORT_LAUF_STATUS_LABEL[s as keyof typeof IMPORT_LAUF_STATUS_LABEL] ?? s;
 
   let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen } | null = null;
+  const vorlagen = lauf.status === "angelegt" ? await withDb((db) => ladeImportVorlagen(db)) : [];
+  const aktiveVorlage = vorlagen.find((v) => v.id === vorlageParam) ?? null;
   let rohFehlt = false;
   if (lauf.status === "angelegt") {
     const bucket = await getBelegeBucket();
@@ -50,7 +53,7 @@ export default async function ImportLaufPage({ params }: { params: Promise<{ id:
     if (!roh) rohFehlt = true;
     else {
       const tabelle: ImportTabelle = parseImportDatei(await new Response(roh.body).arrayBuffer(), lauf.dateiname);
-      const vorschlag = vorschlagZuordnung(art, tabelle.spalten);
+      const kopfVorschlag = vorschlagZuordnung(art, tabelle.spalten);
       const [materialarten, produkte, sektoren] = await Promise.all([listMaterialarten(), listOutputProdukte(), ladeSektoren()]);
       const optionen: CodeOptionen = {
         materialart: materialarten.map((m) => ({ code: m.code, label: m.label })),
@@ -61,16 +64,19 @@ export default async function ImportLaufPage({ params }: { params: Promise<{ id:
       };
       const spalten: SpalteAnzeige[] = tabelle.spalten.map((name, i) => {
         // Erkannte Personen-Spalten: keine Werte an den Browser — nicht einmal als Beispiel.
-        if (vorschlag[name] === PERSON) return { name, beispiele: [], werte: [] };
+        if (kopfVorschlag[name] === PERSON) return { name, beispiele: [], werte: [] };
         const werte = spaltenWerte(tabelle.zeilen, i);
         return { name, beispiele: werte.slice(0, 3).map((w) => w.wert), werte };
       });
-      const werte: Record<string, Record<string, string>> = {};
+      // Werte-Vorschlag fuer JEDE Spalte, die ein Code-Zielfeld bekommen koennte (Vorschlag oder Vorlage).
+      const kandidaten = aktiveVorlage ? vorlageAnwenden(aktiveVorlage, tabelle.spalten, kopfVorschlag, {}) : { spalten: kopfVorschlag, werte: {} };
+      const werteBasis: Record<string, Record<string, string>> = {};
       for (const sp of spalten) {
-        const def = zielfeld(vorschlag[sp.name] ?? "");
-        if (def?.typ === "code" && def.werte) werte[def.key] = werteVorschlag(sp.werte.map((w) => w.wert), optionen[def.werte]);
+        const def = zielfeld(kandidaten.spalten[sp.name] ?? "");
+        if (def?.typ === "code" && def.werte) werteBasis[def.key] = werteVorschlag(sp.werte.map((w) => w.wert), optionen[def.werte]);
       }
-      zuordnung = { spalten, vorschlag, werte, optionen };
+      const angewendet = aktiveVorlage ? vorlageAnwenden(aktiveVorlage, tabelle.spalten, kopfVorschlag, werteBasis) : { spalten: kopfVorschlag, werte: werteBasis };
+      zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen };
     }
   }
   const zeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id, ZEILEN_ANZEIGE));
@@ -116,6 +122,9 @@ export default async function ImportLaufPage({ params }: { params: Promise<{ id:
         )}
         {zuordnung && (
           <ZuordnungTabelle
+            key={aktiveVorlage?.id ?? "kopf"}
+            vorlagen={vorlagen.map((v) => ({ id: v.id, name: v.name, quelle: v.quelle }))}
+            aktiveVorlage={aktiveVorlage?.id ?? null}
             laufId={lauf.id}
             spalten={zuordnung.spalten}
             zielfelder={zielfelderFuer(art)}

@@ -1,4 +1,4 @@
-import { benutzer, importLauf, importZeile } from "@bhyo/db/schema";
+import { benutzer, importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
 import { and, asc, desc, eq, ne } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
@@ -106,4 +106,20 @@ export function ladeImportZeilen(db: Leser, laufId: string, limit = 5000): Promi
     .where(eq(importZeile.laufId, laufId))
     .orderBy(asc(importZeile.zeilennummer))
     .limit(limit) as Promise<ImportZeileZeile[]>;
+}
+
+export interface ImportVorlageZeile {
+  id: string;
+  name: string;
+  quelle: string | null;
+  spalten: Record<string, string>;
+  werte: Record<string, Record<string, string>>;
+}
+
+/** Vorlagen fuer alle mit Import-Recht, nach Name. */
+export function ladeImportVorlagen(db: Leser): Promise<ImportVorlageZeile[]> {
+  return db
+    .select({ id: importVorlage.id, name: importVorlage.name, quelle: importVorlage.quelle, spalten: importVorlage.spalten, werte: importVorlage.werte })
+    .from(importVorlage)
+    .orderBy(asc(importVorlage.name));
 }

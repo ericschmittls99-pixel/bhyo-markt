@@ -5622,3 +5622,11 @@ table.st-tabelle tbody tr:focus-visible {
   align-items: center;
   gap: 12px;
 }
+.imp-vorlage-wahl {
+  max-width: 420px;
+}
+.imp-vorlage {
+  padding: 12px 0 0;
+  border-top: 1px solid var(--border, rgba(31, 46, 56, 0.12));
+  background: none;
+}
