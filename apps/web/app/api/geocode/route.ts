@@ -1,5 +1,5 @@
 import { REVERSE_RADIUS_KM, waehleTrefferAusPin, type Adresse } from "@/lib/geocode";
-import { photonReverse, photonSuche } from "@/lib/photon-server";
+import { PhotonNichtErreichbar, photonMeldung, photonReverse, photonSuche } from "@/lib/photon-server";
 import { erstelleRateLimit } from "@/lib/rate-limit";
 import { zugangFuerRoute } from "@/lib/rechte/wache";
 
@@ -59,11 +59,16 @@ export async function GET(req: Request) {
         ? await photonSuche(q)
         : [waehleTrefferAusPin({ lng: lon, lat }, await photonReverse(lat, lon), REVERSE_RADIUS_KM)].filter((a): a is Adresse => a != null);
     return Response.json({ adressen });
-  } catch {
+  } catch (e) {
+    // Diagnose mit an die Oberflaeche: Ursache, Status und Dauer stehen auch im
+    // Log (GEOCODE_FEHLER) — hier, damit sich der Fehler im Browser belegen laesst.
+    const d = e instanceof PhotonNichtErreichbar ? e.diagnose : null;
     return Response.json(
       {
-        error:
-          "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.",
+        error: d ? photonMeldung(d) : "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.",
+        ursache: d?.ursache ?? "unbekannt",
+        status: d?.status ?? null,
+        dauerMs: d?.dauerMs ?? null,
       },
       { status: 502 },
     );
