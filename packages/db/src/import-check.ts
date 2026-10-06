@@ -22,7 +22,7 @@ const ROLLBACK = "IMPORTCHECK_ROLLBACK";
 async function main() {
   const ziel = new URL(url!);
   console.log(`IMPORTCHECK host=${ziel.hostname} db=${ziel.pathname.slice(1)}`);
-  const modus = await journalModus(sql, ziel.hostname);
+  const modus = await journalModus(sql, url!);
   console.log(`JOURNAL ${modusText(modus)}`);
   if (modus.modus === "rot") {
     console.error("::error::IMPORTCHECK: Journal und Datenbank passen nicht zusammen.");
