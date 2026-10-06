@@ -1,0 +1,26 @@
+# TEMPORAER (AP2.7 PR b): Messung des mengenbasierten Matchers gegen die
+# Preview-DB, nur lesend. Wird vor dem Merge entfernt (Regel: DB-Messungen
+# nur ueber CI, Secret bleibt in GitHub).
+name: tmp-matcher-messung
+on:
+  push:
+    branches: [ap27-b-import]
+    paths: [packages/db/src/akteur-matcher-messung.ts, .github/workflows/tmp-matcher-messung.yml]
+jobs:
+  messen:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Messung (200 Eingaben)
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+          STAPEL: "200"
+        run: pnpm --filter @bhyo/db akteur-matcher-messung
