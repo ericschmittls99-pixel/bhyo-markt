@@ -118,7 +118,6 @@ export function Probelauf({
         {fortschritt && <span className="c">{fortschritt}</span>}
         {probelaufFehler && <span className="pf-fehler">{probelaufFehler}</span>}
       </div>
-      {status === "probelauf" && <p className="c">Ausführen und Nacharbeit folgen in PR c.</p>}
     </section>
   );
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { Fragment, useState, useTransition } from "react";
 
 import { importZeileBearbeiten, importZeileUeberspringen } from "@/lib/import-actions";
 import type { Zielfeld } from "@/lib/import-zuordnung";
@@ -76,60 +76,68 @@ export function Nacharbeit({ laufId, zeilen, zielfelder, optionen }: { laufId: s
         </thead>
         <tbody>
           {zeilen.map((z) => (
-            <tr key={z.id} className={offen === z.id ? "imp-nacharbeit-offen" : undefined}>
-              <td className="kv--num">{z.zeilennummer}</td>
-              <td>
-                {z.felder.akteur_name ?? "—"}
-                {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span> : null}
-              </td>
-              <td className="c">{z.fehlergrund ?? "—"}</td>
-              <td>
-                {offen === z.id ? (
-                  <div className="imp-nacharbeit-form">
-                    {felder.map((f) => (
-                      <label key={f.key} className="pf">
-                        <span>
-                          {f.label}
-                          {f.pflicht ? " *" : ""}
-                        </span>
-                        <span className="pf-feld">
-                          {f.typ === "code" && f.werte ? (
-                            <select value={werte[f.key] ?? ""} onChange={(e) => setWerte((alt) => ({ ...alt, [f.key]: e.target.value }))}>
-                              <option value="">—</option>
-                              {optionen[f.werte].map((o) => (
-                                <option key={o.code} value={o.code}>
-                                  {o.label}
-                                </option>
-                              ))}
-                            </select>
-                          ) : (
-                            <input type="text" value={werte[f.key] ?? ""} onChange={(e) => setWerte((alt) => ({ ...alt, [f.key]: e.target.value }))} />
-                          )}
-                        </span>
-                      </label>
-                    ))}
-                    <div className="imp-aktionen">
-                      <button type="button" className="btn btn--primary btn--sm" onClick={() => speichern(z)} disabled={laeuft}>
-                        Speichern
+            <Fragment key={z.id}>
+              <tr className={offen === z.id ? "imp-nacharbeit-offen" : undefined}>
+                <td className="kv--num">{z.zeilennummer}</td>
+                <td>
+                  {z.felder.akteur_name ?? "—"}
+                  {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span> : null}
+                </td>
+                <td className="c">{z.fehlergrund ?? "—"}</td>
+                <td>
+                  {offen === z.id ? (
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOffen(null)} disabled={laeuft}>
+                      Abbrechen
+                    </button>
+                  ) : (
+                    <span className="imp-aktionen">
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => oeffnen(z)} disabled={laeuft}>
+                        Korrigieren
                       </button>
-                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOffen(null)} disabled={laeuft}>
-                        Abbrechen
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => ueberspringen(z)} disabled={laeuft}>
+                        Überspringen
                       </button>
-                      {meldung && <span className="pf-fehler">{meldung}</span>}
+                    </span>
+                  )}
+                </td>
+              </tr>
+              {offen === z.id && (
+                <tr className="imp-nacharbeit-offen">
+                  <td colSpan={4}>
+                    <div className="imp-nacharbeit-form">
+                      {felder.map((f) => (
+                        <label key={f.key} className="pf">
+                          <span>
+                            {f.label}
+                            {f.pflicht ? " *" : ""}
+                          </span>
+                          <span className="pf-feld">
+                            {f.typ === "code" && f.werte ? (
+                              <select value={werte[f.key] ?? ""} onChange={(e) => setWerte((alt) => ({ ...alt, [f.key]: e.target.value }))}>
+                                <option value="">—</option>
+                                {optionen[f.werte].map((o) => (
+                                  <option key={o.code} value={o.code}>
+                                    {o.label}
+                                  </option>
+                                ))}
+                              </select>
+                            ) : (
+                              <input type="text" value={werte[f.key] ?? ""} onChange={(e) => setWerte((alt) => ({ ...alt, [f.key]: e.target.value }))} />
+                            )}
+                          </span>
+                        </label>
+                      ))}
+                      <div className="imp-aktionen">
+                        <button type="button" className="btn btn--primary btn--sm" onClick={() => speichern(z)} disabled={laeuft}>
+                          Speichern
+                        </button>
+                        {meldung && <span className="pf-fehler">{meldung}</span>}
+                      </div>
                     </div>
-                  </div>
-                ) : (
-                  <span className="imp-aktionen">
-                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => oeffnen(z)} disabled={laeuft}>
-                      Korrigieren
-                    </button>
-                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => ueberspringen(z)} disabled={laeuft}>
-                      Überspringen
-                    </button>
-                  </span>
-                )}
-              </td>
-            </tr>
+                  </td>
+                </tr>
+              )}
+            </Fragment>
           ))}
         </tbody>
       </table>
