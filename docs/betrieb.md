@@ -166,7 +166,38 @@ wird einmal neu gestartet und abgewartet; b) Merge über `merge-sicher.sh`
 (MERGEABLE/CLEAN, grüne Checks, `--match-head-commit`); c) main steht auf dem
 Squash-Commit; d) nur bei neuer Migrationsdatei im PR: migrate-production
 starten, abwarten, Zählbeweis ausgeben; e) den Push-Deploy von main abwarten,
-Jobs, Leseweg und Links ausgeben. Jeder Fehlschlag bricht sofort ab.
+Jobs, Leseweg und Links ausgeben; bricht GitHub den Lauf ab (Job „cancelled",
+z. B. kein Runner zugeteilt wie am 05.10.2026), wird er einmal neu gestartet,
+wie in a); f) die in a) umgehängten gestapelten PRs angleichen: main (Squash)
+hineinmergen, Patch-ID des PR-Diffs vorher (gegen den Basis-Baum, der dem
+neuen main-Baum entsprechen muss) und nachher (`main...HEAD`) vergleichen;
+gleich → pushen und neuen Head ausgeben, sonst melden und nicht pushen.
+Jeder Fehlschlag bis einschließlich b) bricht sofort ab. Nach dem Merge
+(Punkt ohne Wiederkehr) bricht nichts mehr ab: `merge-sicher.sh` merged ohne
+`--delete-branch` und löscht Remote- und lokalen Branch anschließend nur
+noch als Aufräumen mit Hinweis (am 06.10.2026 scheiterte gh am lokalen
+Löschen eines in einem Worktree ausgecheckten Branches, und freigabe.sh
+brach vor Migration und Deploy ab).
+
+**Wächter-Tests** (`scripts/tests/freigabe-test.sh`, Schritt „freigabe-test"
+im Job typen-und-tests): `gh` wird durch `scripts/tests/fake-gh.sh` ersetzt,
+die den GitHub-Zustand aus Dateien beantwortet und den Squash-Merge echt in
+einem lokalen Bare-Repo ausführt; freigabe.sh läuft unverändert in einem Klon.
+Geprüft wird das Verhalten, nicht die Ausgabe allein: Neustarts werden in der
+Aufrufliste gezählt, der Kind-Branch im Bare-Repo gemessen. Fälle: e) grün →
+kein Neustart; von GitHub abgebrochen → genau ein Neustart (`rerun --failed`),
+nach erneutem Abbruch kein zweiter, Abbruch; roter Job → kein Neustart;
+roter Check am Head → kein Merge; Entwurf → Abbruch vor dem Umhängen (Befund
+aus dem Probelauf mit #184: GitHub merged keinen Entwurf, (a) hatte den
+Kind-PR schon umgehängt). f) gestapelter PR wird in a) umgehängt
+(API-Aufruf), danach ist der neue Head ein Merge mit genau zwei Eltern (alter
+Head, Squash) und Patch-ID vorher = nachher (unabhängig nachgerechnet);
+Konflikt mechanisch zur Branch-Seite aufgelöst und gemeldet; abweichende
+Patch-ID oder Squash-Baum ≠ Basis-Baum → kein Push, Head bleibt. Rot-Nachweis
+06.10.2026: gegen die Skripte von main vor diesem PR
+(`FREIGABE_SKRIPT_DIR=<alt>`) 17 von 47 Prüfungen rot, genau die neuen
+Verhalten; gegen die neuen Skripte 47 grün. Läuft mit bash 3.2 (macOS) und 5
+(CI), braucht `jq` und git ≥ 2.38 (`merge-tree --write-tree`).
 
 **Warteschlange:** `deploy.yml` bricht nur noch überholte PR-Läufe ab
 (`cancel-in-progress` nur bei `synchronize`); main-Deploys laufen nacheinander.

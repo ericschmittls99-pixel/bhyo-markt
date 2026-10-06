@@ -142,6 +142,13 @@ jobs:
       - name: enum-rename-check (IMMUTABLE-Enums)
         run: pnpm --filter @bhyo/db enum-rename-check
 
+      # Waechter fuer das Freigabe-Skript (Eric 06.10.2026: bash -n reicht
+      # fuer das wichtigste Sicherheitsnetz nicht): gh-Attrappe, echtes
+      # Bare-Repo, Faelle fuer (e) Neustart und (f) Angleichen, siehe
+      # docs/betrieb.md. Dauert ~1 min (das Skript wartet nach dem Neustart).
+      - name: freigabe-test (Waechter freigabe.sh)
+        run: scripts/tests/freigabe-test.sh
+
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'

@@ -64,5 +64,16 @@ if [[ -n "$rot" ]]; then
 fi
 
 echo "==> Merge (squash, --match-head-commit ${head:0:7})"
-gh pr merge "$PR" --squash --delete-branch --match-head-commit "$head" --subject "$BETREFF"
+# Ohne --delete-branch: Am 06.10.2026 (#181) scheiterte gh nach dem Merge am
+# lokalen Loeschen (Branch in einem Worktree ausgecheckt), lieferte Exit 1 und
+# freigabe.sh brach vor Migration und Deploy ab. Der Merge ist der Punkt ohne
+# Wiederkehr — danach darf nichts mehr abbrechen, das Loeschen ist Aufraeumen.
+branch=$(gh pr view "$PR" --json headRefName --jq .headRefName)
+gh pr merge "$PR" --squash --match-head-commit "$head" --subject "$BETREFF"
 echo "GEMERGT: PR #$PR bei ${head:0:7}"
+gh api -X DELETE "repos/$REPO/git/refs/heads/$branch" >/dev/null 2>&1 \
+  && echo "    Remote-Branch $branch geloescht" \
+  || echo "    Hinweis: Remote-Branch $branch nicht geloescht (schon weg oder von GitHub automatisch geloescht)"
+git branch -D "$branch" >/dev/null 2>&1 \
+  && echo "    lokaler Branch $branch geloescht" \
+  || echo "    Hinweis: lokaler Branch $branch nicht geloescht (nicht vorhanden oder in einem Worktree ausgecheckt)"
