@@ -16,6 +16,9 @@ const uploads: { key: string; bytes: number; contentType?: string }[] = [];
 const geloescht: string[] = [];
 /** Antworten auf db.select(...) in Aufrufreihenfolge; leer → der Benutzer (Zugangspruefung). */
 const dbSelects: unknown[][] = [];
+const txSelects: unknown[][] = [];
+const aehnlichAufrufe: { name: string; plz: string | null }[] = [];
+let aehnlichAntwort: (name: string) => { id: string; name: string; grad: string }[] = () => [];
 let r2Inhalt: ArrayBuffer | null = null;
 
 vi.mock("@/lib/db", () => ({
@@ -30,9 +33,16 @@ vi.mock("@/lib/db", () => ({
     list: async () => ({ objects: [], truncated: false }),
   }),
   withDb: async (fn: (db: unknown) => unknown) => {
+    // tx.select(...).from(...).where(...)[.orderBy()][.limit()] → naechste Antwort aus txSelects, sonst leer
+    // (kein gleicher Hash, keine Vorlage gleichen Namens).
+    const txKette = (): Record<string, unknown> => {
+      const p: Record<string, unknown> = {};
+      for (const m of ["from", "where", "orderBy", "limit"]) p[m] = () => txKette();
+      p.then = (res: (v: unknown) => void) => res(txSelects.shift() ?? []);
+      return p;
+    };
     const tx = {
-      // tx.select(...).from(...).where(...) [.limit(1)] → leer (kein gleicher Hash, keine Vorlage gleichen Namens)
-      select: () => ({ from: () => ({ where: () => ({ limit: async () => [], then: (res: (v: unknown) => void) => res([]) }) }) }),
+      select: () => txKette(),
       insert: () => ({
         values: (v: Record<string, unknown> | Record<string, unknown>[]) => {
           const p = {
@@ -65,9 +75,15 @@ vi.mock("@/lib/db", () => ({
     return fn({ select: () => kette(), transaction: async (f: (t: unknown) => unknown) => f(tx) });
   },
 }));
+vi.mock("@/lib/dubletten", () => ({
+  sucheAehnliche: async (_db: unknown, name: string, plz: string | null) => {
+    aehnlichAufrufe.push({ name, plz });
+    return aehnlichAntwort(name);
+  },
+}));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importDateiHochladen, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAkteurEntscheiden, importAkteureAufloesen, importDateiHochladen, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -82,7 +98,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; geloescht.length = 0; dbSelects.length = 0; r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; aehnlichAntwort = () => []; r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -243,5 +259,71 @@ describe("importVorlageSpeichern (PR b)", () => {
     expect(erg.ok).toBe(true);
     expect(inserts[0]).toMatchObject({ name: "Kammer Jahresmeldung", quelle: "LWK", spalten: zuordnung.spalten, werte: zuordnung.werte, erstellerId: "u1" });
     expect(protokolle[0]).toMatchObject({ art: "angelegt", entitaet: "import_vorlage", importLaufId: LAUF, text: expect.stringMatching(/2 Spalten/) });
+  });
+});
+
+describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const laufZeile = (status: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 4 }, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const zeilen = () => [
+    { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof Mustermann", akteur_sitz_plz: "67346" } },
+    { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { akteur_name: "Biogas Kraichgau GmbH", akteur_sitz_plz: "76646" } },
+    { id: "z3", zeilennummer: 4, status: "fehler", fehlergrund: "Materialart fehlt", felder: { akteur_name: "HOF Mustermann", akteur_sitz_plz: "67346" } },
+    { id: "z4", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { materialart_code: "x" } },
+  ];
+
+  it("Rot: Bearbeiter abgewiesen, Matcher nicht gefragt", async () => {
+    rolle = "bearbeiter";
+    expect((await importAkteureAufloesen(LAUF)).fehler).toMatch(/recht/i);
+    expect(aehnlichAufrufe).toHaveLength(0);
+  });
+
+  it("vor der Zuordnung gibt es nichts aufzuloesen", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("angelegt")]);
+    expect((await importAkteureAufloesen(LAUF)).fehler).toMatch(/nach der Zuordnung/);
+    expect(aehnlichAufrufe).toHaveLength(0);
+  });
+
+  it("fragt den Matcher je Gruppe (nicht je Zeile): identisch uebernommen, stark als Vorschlag, Zeile ohne Name wird Fehler", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push(zeilen());
+    aehnlichAntwort = (name) =>
+      name === "Hof Mustermann"
+        ? [{ id: "a1", name: "Hof Mustermann", grad: "identisch" }, { id: "a9", name: "Hof Musterfrau", grad: "stark" }]
+        : [{ id: "a2", name: "Biogas Kraichgau", grad: "stark" }];
+    const erg = await importAkteureAufloesen(LAUF);
+    expect(erg.ok).toBe(true);
+    // Zwei Gruppen → zwei Aufrufe, die dritte Zeile derselben Gruppe loest keinen weiteren aus; z4 hat keinen Namen.
+    expect(aehnlichAufrufe).toEqual([{ name: "Hof Mustermann", plz: "67346" }, { name: "Biogas Kraichgau GmbH", plz: "76646" }]);
+    expect(erg.zaehler).toMatchObject({ akteure_gruppen: 2, akteure_identisch: 1, akteure_vorschlag: 1, akteure_neu: 0, aehnlich: 1 });
+    // zwei Gruppen-Updates, ein Update fuer die Zeile ohne Name, ein Lauf-Update
+    expect(updates).toHaveLength(4);
+    expect(updates[2]).toMatchObject({ status: "fehler" });
+    expect(updates[3]).toMatchObject({ status: "aufgeloest" });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", importLaufId: LAUF, text: "Akteure aufgelöst: 2 Gruppen — 1 identisch, 1 Vorschlag, 0 neu; 1 Zeile(n) ohne Akteur-Name" });
+  });
+
+  it("Vorschlag uebernehmen: nur Zeilen mit Vorschlag der Gruppe, Zaehler wandern, Ereignis", async () => {
+    rolle = "admin";
+    dbSelects.push([{ ...laufZeile("aufgeloest"), zaehler: { akteure_vorschlag: 1, akteure_identisch: 1, aehnlich: 1 } }]);
+    txSelects.push([
+      { id: "z2", zeilennummer: 3, status: "aehnlich", fehlergrund: null, felder: { akteur_name: "Biogas Kraichgau GmbH", akteur_gruppe: "biogas kraichgau gmbh|76646", akteur_vorschlag_id: "a2", akteur_vorschlag_name: "Biogas Kraichgau" } },
+      { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof Mustermann", akteur_gruppe: "hof mustermann|67346", akteur_id: "a1" } },
+    ]);
+    const erg = await importAkteurEntscheiden(LAUF, "biogas kraichgau gmbh|76646", "vorhanden");
+    expect(erg.ok).toBe(true);
+    expect(erg.zaehler).toMatchObject({ akteure_vorschlag: 0, akteure_identisch: 2, aehnlich: 0 });
+    expect(updates).toHaveLength(2);
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", text: expect.stringMatching(/übernommen: Gruppe biogas kraichgau gmbh\|76646, 1 Zeile/) });
+  });
+
+  it("ohne offenen Vorschlag: Meldung, nichts geschrieben", async () => {
+    rolle = "admin";
+    dbSelects.push([laufZeile("aufgeloest")]);
+    txSelects.push([{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "A", akteur_id: "a1" } }]);
+    expect((await importAkteurEntscheiden(LAUF, null, "neu")).fehler).toMatch(/Kein offener Vorschlag/);
+    expect(updates).toHaveLength(0);
   });
 });

@@ -5630,3 +5630,12 @@ table.st-tabelle tbody tr:focus-visible {
   border-top: 1px solid var(--border, rgba(31, 46, 56, 0.12));
   background: none;
 }
+.imp-akteure {
+  display: grid;
+  gap: 12px;
+}
+.imp-akteure h3 {
+  margin: 0;
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+}

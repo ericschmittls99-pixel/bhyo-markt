@@ -1,12 +1,14 @@
 "use server";
 
 import { importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
+import { sucheAehnliche } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
-import { importRohKey, ladeImportLauf } from "@/lib/import-server";
+import { akteurGruppen, entscheidungAusTreffer } from "@/lib/import-akteure";
+import { importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
@@ -285,5 +287,133 @@ export async function importVorlageSpeichern(laufId: string, name: string, quell
   } catch (e) {
     console.error("Import-Vorlage speichern fehlgeschlagen:", e);
     return { fehler: "Die Vorlage konnte nicht gespeichert werden." };
+  }
+}
+
+/**
+ * Akteure aufloesen (PR b, E67): je Gruppe (Normname + PLZ) EIN Aufruf des
+ * Matchers — identisch uebernimmt, stark wartet auf Bestaetigung (Zeilen
+ * „aehnlich"), sonst neuer Akteur. Zeilen ohne Akteur-Namen werden Fehler.
+ * Lauf wird „aufgeloest", Zaehler und Ereignis mit Lauf-ID.
+ */
+export interface AufloesenErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  zaehler?: Record<string, number>;
+}
+
+function felderPatch(patch: Record<string, string>, entfernen: readonly string[] = []) {
+  let ausdruck = sql`${importZeile.felder} || ${JSON.stringify(patch)}::jsonb`;
+  for (const k of entfernen) ausdruck = sql`${ausdruck} - ${k}`;
+  return ausdruck;
+}
+
+export async function importAkteureAufloesen(laufId: string): Promise<AufloesenErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "zugeordnet" && lauf.status !== "aufgeloest") return { fehler: `Der Lauf ist „${lauf.status}" — Akteure werden nach der Zuordnung aufgelöst.` };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const zeilen = await ladeImportZeilen(tx, lauf.id);
+        const gruppen = akteurGruppen(zeilen);
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}), akteure_gruppen: gruppen.length, akteure_identisch: 0, akteure_vorschlag: 0, akteure_neu: 0 };
+        for (const g of gruppen) {
+          const treffer = await sucheAehnliche(tx as unknown as AppDb, g.name, g.plz || null, null);
+          const e = entscheidungAusTreffer(g.schluessel, treffer);
+          zaehler[`akteure_${e.ergebnis === "vorschlag" ? "vorschlag" : e.ergebnis}`] += 1;
+          await tx
+            .update(importZeile)
+            .set({
+              felder: felderPatch(e.patch, ["akteur_id", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_neu"].filter((k) => !(k in e.patch))),
+              status: sql`case when ${importZeile.status} in ('offen', 'aehnlich') then ${e.statusOffen} else ${importZeile.status} end`,
+            })
+            .where(inArray(importZeile.id, g.zeilenIds));
+        }
+        const ohneName = zeilen.filter((z) => !(z.felder.akteur_name ?? "").trim()).map((z) => z.id);
+        if (ohneName.length > 0) {
+          await tx
+            .update(importZeile)
+            .set({ status: "fehler", fehlergrund: sql`coalesce(${importZeile.fehlergrund}, 'Akteur-Name fehlt.')` })
+            .where(inArray(importZeile.id, ohneName));
+        }
+        zaehler.aehnlich = zaehler.akteure_vorschlag;
+        await tx.update(importLauf).set({ status: "aufgeloest", zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "status_gesetzt",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Akteure aufgelöst: ${gruppen.length} Gruppen — ${zaehler.akteure_identisch} identisch, ${zaehler.akteure_vorschlag} Vorschlag, ${zaehler.akteure_neu} neu; ${ohneName.length} Zeile(n) ohne Akteur-Name`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, zaehler };
+      }),
+    );
+  } catch (e) {
+    console.error("Akteure auflösen fehlgeschlagen:", e);
+    return { fehler: "Akteure konnten nicht aufgelöst werden." };
+  }
+}
+
+/**
+ * Vorschlag entscheiden (PR b): „vorhanden" uebernimmt den vorgeschlagenen
+ * Akteur, „neu" legt beim Ausfuehren neu an. gruppe = null entscheidet alle
+ * offenen Vorschlaege gesammelt (E67: „auch gesammelt").
+ */
+export async function importAkteurEntscheiden(laufId: string, gruppe: string | null, entscheidung: "vorhanden" | "neu"): Promise<AufloesenErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "aufgeloest") return { fehler: `Der Lauf ist „${lauf.status}" — Vorschläge gibt es nach dem Auflösen.` };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const zeilen = (await ladeImportZeilen(tx, lauf.id)).filter((z) => z.felder.akteur_vorschlag_id && (gruppe === null || z.felder.akteur_gruppe === gruppe));
+        if (zeilen.length === 0) return { fehler: "Kein offener Vorschlag für diese Auswahl." };
+        const nachVorschlag = new Map<string, string[]>();
+        for (const z of zeilen) {
+          const k = z.felder.akteur_vorschlag_id!;
+          nachVorschlag.set(k, [...(nachVorschlag.get(k) ?? []), z.id]);
+        }
+        for (const [vorschlagId, ids] of nachVorschlag) {
+          const patch: Record<string, string> = entscheidung === "vorhanden" ? { akteur_id: vorschlagId } : { akteur_neu: "1" };
+          await tx
+            .update(importZeile)
+            .set({
+              felder: felderPatch(patch, ["akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad"]),
+              status: sql`case when ${importZeile.status} = 'aehnlich' then 'offen' else ${importZeile.status} end`,
+            })
+            .where(inArray(importZeile.id, ids));
+        }
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        zaehler.akteure_vorschlag = Math.max(0, (zaehler.akteure_vorschlag ?? 0) - nachVorschlag.size);
+        zaehler.aehnlich = zaehler.akteure_vorschlag;
+        zaehler[entscheidung === "vorhanden" ? "akteure_identisch" : "akteure_neu"] = (zaehler[entscheidung === "vorhanden" ? "akteure_identisch" : "akteure_neu"] ?? 0) + nachVorschlag.size;
+        await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          // E57: Gruppen-Schluessel sind Betriebsnamen in Normalform, keine Personen.
+          text: `Akteur-Vorschlag ${entscheidung === "vorhanden" ? "übernommen" : "verworfen (neu anlegen)"}: ${gruppe === null ? "alle offenen Vorschläge" : `Gruppe ${gruppe}`}, ${zeilen.length} Zeile(n)`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, zaehler };
+      }),
+    );
+  } catch (e) {
+    console.error("Akteur-Vorschlag entscheiden fehlgeschlagen:", e);
+    return { fehler: "Die Entscheidung konnte nicht gespeichert werden." };
   }
 }

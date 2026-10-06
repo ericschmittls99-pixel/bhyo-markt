@@ -1,11 +1,13 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
 import { parseImportDatei, type ImportTabelle } from "@/lib/import-datei";
+import { akteurGruppenAnzeige } from "@/lib/import-akteure";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
 import { PERSON, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
@@ -79,7 +81,9 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
       zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen };
     }
   }
-  const zeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id, ZEILEN_ANZEIGE));
+  const alleZeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id));
+  const zeilen = alleZeilen.slice(0, ZEILEN_ANZEIGE);
+  const gruppen = akteurGruppenAnzeige(alleZeilen);
 
   return (
     <main className="einst imp">
@@ -133,13 +137,14 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             optionen={zuordnung.optionen}
           />
         )}
+        {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest") && <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
               <h3>zeilen.</h3>
               <p className="c">
-                {zeilen.length < (lauf.zaehler?.zeilen ?? 0) ? `Die ersten ${zeilen.length} von ${lauf.zaehler?.zeilen} Zeilen. ` : ""}
-                Akteure und Adressen auflösen sowie der Probelauf folgen in diesem PR.
+                {zeilen.length < alleZeilen.length ? `Die ersten ${zeilen.length} von ${alleZeilen.length} Zeilen. ` : ""}
+                Adressen auflösen und der Probelauf folgen in diesem PR.
               </p>
             </header>
             <table className="einst-tabelle imp-tabelle">
@@ -162,6 +167,8 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                       {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? (
                         <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span>
                       ) : null}
+                      {z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
+                      {z.felder.akteur_neu === "1" && <span className="pill pill--muted"> neu</span>}
                     </td>
                     <td>{art === "biomasse" ? z.felder.materialart_code || "—" : z.felder.produkt_code || "—"}</td>
                     <td className="kv--num">{art === "biomasse" ? z.felder.menge_roh_fm : `${z.felder.menge_wert ?? ""} ${z.felder.menge_einheit ?? ""}`}</td>
