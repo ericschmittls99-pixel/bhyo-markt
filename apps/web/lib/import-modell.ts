@@ -1,4 +1,4 @@
-import { IMPORT_PERSONEN_SCHLUESSEL } from "@bhyo/db/schema";
+import { IMPORT_PERSONEN_SCHLUESSEL, type ImportLaufStatus } from "@bhyo/db/schema";
 
 import { istBelegTyp } from "@/lib/qualitaet";
 import type { StromArt } from "@/lib/stroeme-modell";
@@ -42,3 +42,16 @@ export function istPersonenSchluessel(name: string): boolean {
   const n = name.trim().toLowerCase().replace(/[\s\-.]+/g, "_");
   return (IMPORT_PERSONEN_SCHLUESSEL as readonly string[]).some((p) => n === p || n.startsWith(`${p}_`) || n.endsWith(`_${p}`) || n.includes("ansprech"));
 }
+
+/** Anzeige-Labels der Lauf-Zustaende — nur im Frontend, die DB kennt die Codes. */
+export const IMPORT_LAUF_STATUS_LABEL: Record<ImportLaufStatus, string> = {
+  angelegt: "hochgeladen",
+  zugeordnet: "zugeordnet",
+  aufgeloest: "Akteure aufgelöst",
+  probelauf: "Probelauf",
+  ausgefuehrt: "ausgeführt",
+  zurueckgenommen: "zurückgenommen",
+  fehler: "Fehler",
+};
+
+export const IMPORT_ART_LABEL: Record<"biomasse" | "output", string> = { biomasse: "Feedstock", output: "Bedarf" };

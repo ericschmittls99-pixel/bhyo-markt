@@ -5576,3 +5576,14 @@ table.st-tabelle tbody tr:focus-visible {
 .kp td:nth-child(4) { white-space: nowrap; } /* Datum nie mitten in der Zahl trennen */
 .kp .param-aktionen .btn { white-space: nowrap; }
 .kp .param-aktionen { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+
+/* import. (AP2.7 PR b): Start-Formular und Lauf-Seite nutzen die einstellungen.-Huelle. */
+.imp .einst-inhalt {
+  max-width: 1080px;
+}
+.imp-start .imp-start-datei {
+  flex: 2 1 320px;
+}
+.imp-start input[type="file"] {
+  font: var(--type-body);
+}

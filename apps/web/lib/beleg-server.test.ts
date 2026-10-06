@@ -39,7 +39,6 @@ function fakeDb() {
 
 function eingabe(teil: Partial<BelegEingabe> & { typ: string }): BelegEingabe {
   return {
-    typ: teil.typ,
     quellenangabe: "Betriebsdaten 2025",
     erhebungsdatum: "2026-10-01",
     link: null,
