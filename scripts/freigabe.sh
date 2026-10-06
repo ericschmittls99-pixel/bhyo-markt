@@ -38,9 +38,15 @@ REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
 URL="https://github.com/$REPO"
 
 echo "==> (a) PR #$PR: Zustand und Head"
-read -r state head < <(gh pr view "$PR" --json state,headRefOid --jq '"\(.state) \(.headRefOid)"')
+read -r state entwurf head < <(gh pr view "$PR" --json state,isDraft,headRefOid --jq '"\(.state) \(.isDraft) \(.headRefOid)"')
 if [[ "$state" != "OPEN" ]]; then
   echo "ABBRUCH: PR #$PR ist $state, nicht OPEN. Nichts gemergt, nichts migriert." >&2; exit 1
+fi
+# GitHub merged keinen Entwurf. Das muss VOR dem Umhaengen der gestapelten PRs
+# feststehen — am 06.10.2026 (#184) hing (a) den Kind-PR schon um, bevor der
+# Merge an „still a draft" scheiterte.
+if [[ "$entwurf" == "true" ]]; then
+  echo "ABBRUCH: PR #$PR ist ein Entwurf — erst 'gh pr ready $PR', dann Checks abwarten. Nichts umgehaengt, nichts gemergt." >&2; exit 1
 fi
 if [[ "$head" != "$SHA"* ]]; then
   echo "ABBRUCH: Head ist ${head:0:7}, freigegeben wurde ${SHA:0:7}. Nichts gemergt, nichts migriert." >&2; exit 1

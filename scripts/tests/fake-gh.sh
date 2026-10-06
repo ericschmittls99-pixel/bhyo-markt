@@ -8,7 +8,7 @@
 # aus — so laufen (c) bis (f) gegen echte Git-Objekte, ohne Production.
 #
 #   $FAKE_GH_DIR/remote      Pfad des Bare-Repos (origin der Testklone)
-#   $FAKE_GH_DIR/prs.json    {"<nr>": {state, headRefOid, headRefName,
+#   $FAKE_GH_DIR/prs.json    {"<nr>": {state, isDraft, headRefOid, headRefName,
 #                             baseRefName, mergeable, mergeStateStatus,
 #                             mergeCommit, files}}
 #   $FAKE_GH_DIR/runs.json   [{databaseId, workflow, commit, event,

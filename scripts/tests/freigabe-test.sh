@@ -72,10 +72,10 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
   git clone -q "$REMOTE" "$KLON"
   git -C "$KLON" config user.email test@example.invalid; git -C "$KLON" config user.name Test
   jq -n --arg e "$ELTERN" --arg k "$KIND" '{
-    "10": {number: 10, state: "OPEN", headRefOid: $e, headRefName: "eltern", baseRefName: "main",
+    "10": {number: 10, state: "OPEN", isDraft: false, headRefOid: $e, headRefName: "eltern", baseRefName: "main",
            mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", mergeCommit: null,
            files: [{filename: "docs/eltern.md", status: "added"}]},
-    "11": {number: 11, state: "OPEN", headRefOid: $k, headRefName: "kind", baseRefName: "eltern",
+    "11": {number: 11, state: "OPEN", isDraft: false, headRefOid: $k, headRefName: "kind", baseRefName: "eltern",
            mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", mergeCommit: null,
            files: [{filename: "docs/kind.md", status: "added"}]}}' > "$D/prs.json"
   jq -n --arg e "$ELTERN" '[{databaseId: 100, workflow: "deploy.yml", commit: $e, event: "pull_request", conclusion: "success", jobs: []}]' > "$D/runs.json"
@@ -140,6 +140,18 @@ erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "main unveraendert" [ "$(remote_ref main)" = "$MAIN_VORHER" ]
 erwarte "rote Checks genannt" grep -q '^ABBRUCH: rote Checks am Head' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(a) PR ist Entwurf: Abbruch vor dem Umhaengen, nichts gemergt"
+echo "deploy_main=gruen" > "$D/szenario"
+jq '."10".isDraft = true' "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "Entwurf gemeldet" grep -q '^ABBRUCH: PR #10 ist ein Entwurf' <<<"$AUSGABE"
+erwarte "Kind NICHT umgehaengt (kein PATCH)" bash -c "! grep -q '^api -X PATCH ' '$D/calls.log'"
+erwarte "Kind-Base noch eltern" [ "$(jq -r '."11".baseRefName' "$D/prs.json")" = "eltern" ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "main unveraendert" [ "$(remote_ref main)" = "$MAIN_VORHER" ]
 aufraeumen
 
 # ---------------------------------------------------------------- (f)
