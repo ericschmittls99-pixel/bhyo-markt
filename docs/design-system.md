@@ -891,3 +891,32 @@ Tabelle, Erfolg als `ov-note`-Toast.
 `akteur-meinten` im Popover über „… neu anlegen" — Überschrift als
 `menu-leer`, je Treffer ein `menu-item` mit Name, PLZ Ort und der
 Grad-Pille; Klick wählt den Akteur. Anlegen bleibt darunter möglich.
+
+## import. — Lauf, Zuordnung, Akteure, Adressen, Probelauf (AP2.7 PR b, E67, 06.10.2026)
+
+**Hülle:** import. nutzt die einstellungen.-Hülle (`einst-inhalt`, bis 1080 px):
+Kopf mit Titel und Erklärsatz, darunter das Start-Formular (`einst-anlegen`:
+Datei, Art des Laufs, Belegtyp, Standard-Sektor) und die Tabelle der Läufe
+(`einst-tabelle`) mit Zustands-Pille `pill--status pill--muted`
+(„hochgeladen", „zugeordnet", „Akteure aufgelöst", „Probelauf" …). Keine
+Ampel. **Lauf-Seite:** Kopfzeile mit Pfad „import. · Lauf", Dateiname als
+Titel, Zustands-Pille und Zähltext (Zeilen, Spalten, offen/Fehler,
+Personen-Spalten nicht übernommen); Hinweis-Box (`hinweis-box`) bei
+gleichem Datei-Hash und wenn der Roh-Upload fehlt. **Zuordnung:** Tabelle
+Spalte · Beispielwerte · Zielfeld-Auswahl (Gruppen Akteur / Strom / Beleg,
+dazu „Ignorieren" und „Person – wird nicht übernommen"); erkannte
+Personen-Spalten zeigen statt Werten die Pille „Person – wird nicht
+übernommen" und sind gedämpft (`imp-person`). Pflichtfelder tragen „*",
+fehlende stehen als `pf-fehler` unter der Tabelle. Je Code-Zielfeld eine
+Werte-Tabelle (Wert · Zeilen · Code). Vorlage anwenden als Auswahl oben,
+„Als Vorlage speichern" mit Name und Herkunft unten (`imp-vorlage`).
+**Akteure auflösen:** Gruppen-Tabelle mit Ergebnis-Pille — „identisch" und
+„stark" als `pill--accent`, „neuer Akteur" / „offen" als `pill--muted`;
+Vorschläge mit „Übernehmen" und „Neu anlegen" (`btn--ghost`), gesammelt
+„Alle n Vorschläge übernehmen". **Adressen auflösen:** eine Schaltfläche
+mit Zähltext, Fortschritt als Caption während des Stapel-Laufs, Tabelle der
+Adressen ohne eindeutigen Treffer mit Befund. **Probelauf:** Belegdaten
+(Erhebungsdatum, Gültig-bis) als `einst-anlegen`-Zeile, Start-Schaltfläche
+`btn--primary`, Fortschritt als Caption; in der Zeilen-Tabelle Pillen
+„vorhanden" / „neu · Pin" / „neu · Sitz offen" und „Probelauf ok", der
+Fehlergrund als Caption neben der Zustands-Pille.

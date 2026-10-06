@@ -206,3 +206,15 @@ Hinweis und räumt den alten). Gezählt in `job_lauf.abgeraeumt` (Migration 0041
 Leseweg-Zeile JOB_LAUF `letzte_abgeraeumt`). Job-Probe Fall 7 (a–e).
 Messung vor der Regel (Preview, 05.10.2026): 30 offene Job-Hinweise, alle mit
 gültiger Bedingung — kein Nachholbedarf im Bestand.
+
+## Import-Roh-Uploads in R2 (AP2.7 PR b, 06.10.2026)
+
+Der Roh-Upload eines Import-Laufs liegt im BELEGE-Bucket unter
+`import/<env>/<lauf>/roh.<ext>` und kann Personen-Spalten enthalten (E67).
+Die Zuordnung löscht ihn sofort nach dem Übernehmen der Zeilen; was liegen
+bleibt (abgebrochener Lauf, Löschen gescheitert), räumt der Cron im
+05:00-Berlin-Lauf nach dem Verifikations-Job weg
+(`lib/jobs/import-aufraeumen.ts`, älter als 24 h, Log-Zeile
+`JOB import-aufraeumen <env> {"gesehen","geloescht","fehler"}`). Die
+bereinigte Kopie (ohne Personen-Spalten) liegt dauerhaft unter
+`belege/<env>/import/<lauf>/bereinigt.csv` als Datei des Lauf-Belegs.
