@@ -34,11 +34,40 @@ export function pflicht(formData: FormData, key: string, label: string): string 
   return v;
 }
 
-export function saisonAusFormData(formData: FormData): number[] {
-  return Array.from({ length: 12 }, (_, i) => {
-    const n = Number(formData.get(`saison_${i}`));
-    return Number.isFinite(n) && n > 0 ? n : 0;
-  });
+/**
+ * AP2.7 PR a0 (E67): Beleg-Eingabe als reines Objekt — das Formular fuellt sie
+ * aus FormData (belegEingabeAus), der Import spaeter aus seiner Zuordnung.
+ * `typ` null oder ungueltig heisst: kein Beleg.
+ */
+export interface BelegEingabe {
+  typ: string | null;
+  quellenangabe: string | null;
+  erhebungsdatum: string | null;
+  link: string | null;
+  gueltigBis: string | null;
+  kernnotiz: string | null;
+  externNachvollziehbar: boolean;
+  /** Hochzuladende Datei; null = keine neue Datei. */
+  datei: File | null;
+}
+
+export function belegEingabeAus(formData: FormData): BelegEingabe {
+  const datei = formData.get("beleg_datei");
+  return {
+    typ: text(formData, "beleg_typ"),
+    quellenangabe: text(formData, "beleg_quellenangabe"),
+    erhebungsdatum: text(formData, "beleg_erhebungsdatum"),
+    link: text(formData, "beleg_link"),
+    gueltigBis: text(formData, "beleg_gueltig_bis"),
+    kernnotiz: text(formData, "beleg_kernnotiz"),
+    externNachvollziehbar: formData.get("beleg_extern") === "on",
+    datei: datei instanceof File && datei.size > 0 ? datei : null,
+  };
+}
+
+function pflichtWert(v: string | null, label: string): string {
+  if (!v) throw new ValidierungsFehler(`${label} ist ein Pflichtfeld.`);
+  return v;
 }
 
 interface BelegDaten {
@@ -53,22 +82,20 @@ interface BelegDaten {
   gueltigBis: string | null;
 }
 
-function belegDatenAus(formData: FormData): BelegDaten | null {
-  const typ = text(formData, "beleg_typ");
+function belegDatenAus(e: BelegEingabe): BelegDaten | null {
+  const typ = e.typ;
   if (!istBelegTyp(typ)) return null;
 
   // Die Quellenangabe ist Pflicht fuer alle sieben Typen — hier als Bitte,
   // in der DB als Zusicherung (CHECK beleg_quellenangabe_check, 0021).
-  const quellenangabe = pflicht(formData, "beleg_quellenangabe", "Quellenangabe");
-  const erhebungsdatum = pflicht(formData, "beleg_erhebungsdatum", "Erhebungsdatum");
-  const linkUrl = normalisiereUrl(text(formData, "beleg_link"));
+  const quellenangabe = pflichtWert(e.quellenangabe, "Quellenangabe");
+  const erhebungsdatum = pflichtWert(e.erhebungsdatum, "Erhebungsdatum");
+  const linkUrl = normalisiereUrl(e.link);
 
   // E33: Faelligkeit der oberen vier Typen kommt aus dem Formular (Pflicht
   // in der Oberflaeche; validiereFormular meldet es als Feldfehler, hier die
   // zweite Wache fuer Aufrufer ohne Formularvalidierung). Untere drei: null.
-  const gueltigBis = brauchtGueltigBis(typ)
-    ? pflicht(formData, "beleg_gueltig_bis", "Gültig bis")
-    : null;
+  const gueltigBis = brauchtGueltigBis(typ) ? pflichtWert(e.gueltigBis, "Gültig bis") : null;
   // E34: Formularpflicht Link bei Webrecherche — keine Stufenbedingung.
   if (typ === "webrecherche" && !linkUrl)
     throw new ValidierungsFehler("Link ist bei Webrecherche ein Pflichtfeld.");
@@ -77,14 +104,14 @@ function belegDatenAus(formData: FormData): BelegDaten | null {
   // Quellenangabe und beim Gespraech die Kernnotiz; amtlich, Gespraechsdatum
   // und Gespraechspartner werden nicht mehr geschrieben oder gelesen.
   const metadata: Record<string, unknown> = { quellenangabe };
-  if (typ === "gespraech") metadata.kernnotiz = text(formData, "beleg_kernnotiz");
+  if (typ === "gespraech") metadata.kernnotiz = e.kernnotiz;
 
   return {
     typ,
     quellenangabe,
     erhebungsdatum,
     linkUrl,
-    externNachvollziehbar: formData.get("beleg_extern") === "on",
+    externNachvollziehbar: e.externNachvollziehbar,
     metadata,
     gueltigBis,
   };
@@ -94,9 +121,8 @@ function belegDatenAus(formData: FormData): BelegDaten | null {
  * Laedt eine optionale Beleg-Datei nach R2 hoch. Key mit Umgebungs-Praefix,
  * damit sich Preview-Test-Uploads nicht mit Production-Belegen vermischen.
  */
-async function ladeDateiHoch(formData: FormData): Promise<string | null> {
-  const datei = formData.get("beleg_datei");
-  if (!(datei instanceof File) || datei.size === 0) return null;
+async function ladeDateiHoch(datei: File | null): Promise<string | null> {
+  if (!datei || datei.size === 0) return null;
   const env = await getEnvironment();
   const safeName = datei.name.replace(/[^\w.\-]+/g, "_").slice(-80);
   const dateiKey = `belege/${env}/${crypto.randomUUID()}-${safeName}`;
@@ -115,12 +141,12 @@ export interface BelegErgebnis {
 
 /** Legt die Beleg-Zeile neu an (Anlegen bzw. Strom ohne bisherigen Beleg). */
 export async function erstelleBeleg(
-  db: AppDb,
-  formData: FormData,
+  db: Pick<AppDb, "insert">,
+  e: BelegEingabe,
 ): Promise<BelegErgebnis | null> {
-  const d = belegDatenAus(formData);
+  const d = belegDatenAus(e);
   if (!d) return null;
-  const dateiKey = await ladeDateiHoch(formData);
+  const dateiKey = await ladeDateiHoch(e.datei);
 
   const [row] = await db
     .insert(beleg)
@@ -148,11 +174,11 @@ export async function erstelleBeleg(
  * dateiKey erhalten.
  */
 export async function aktualisiereBeleg(
-  db: AppDb,
-  formData: FormData,
+  db: Pick<AppDb, "select" | "update">,
+  e: BelegEingabe,
   belegId: string,
 ): Promise<BelegErgebnis | null> {
-  const d = belegDatenAus(formData);
+  const d = belegDatenAus(e);
   if (!d) return null;
 
   const [alt] = await db
@@ -162,7 +188,7 @@ export async function aktualisiereBeleg(
     .limit(1);
   if (!alt) throw new ValidierungsFehler("Beleg nicht gefunden — bitte neu laden.");
 
-  const neuerKey = await ladeDateiHoch(formData);
+  const neuerKey = await ladeDateiHoch(e.datei);
   const dateiKey = neuerKey ?? alt.dateiKey;
 
   await db
