@@ -476,14 +476,24 @@ export interface AdressenErgebnis {
   ohneTreffer?: number;
 }
 
-export async function importAdressenAufloesen(laufId: string): Promise<AdressenErgebnis> {
+export async function importAdressenAufloesen(laufId: string, erneut = false): Promise<AdressenErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
   if ("fehler" in wache) return { fehler: wache.fehler };
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
   const lauf = await withDb((db) => ladeImportLauf(db, laufId));
   if (!lauf) return { fehler: "Lauf nicht gefunden." };
-  if (lauf.status !== "aufgeloest") return { fehler: `Der Lauf ist „${lauf.status}" — Adressen werden nach dem Auflösen der Akteure gesucht.` };
+  // PR c: auch nach Probelauf/Ausfuehren (Nacharbeit, Dienst war nicht erreichbar).
+  if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Adressen werden nach dem Auflösen der Akteure gesucht.` };
 
+  if (erneut) {
+    // Befunde ohne Treffer zuruecksetzen — die Adressen zaehlen wieder als offen und werden in diesem Aufruf gesucht.
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const mitBefund = (await ladeImportZeilen(tx, lauf.id)).filter((z) => z.felder.akteur_neu === "1" && z.felder.akteur_sitz_offen && !z.felder.akteur_sitz_lat).map((z) => z.id);
+        if (mitBefund.length > 0) await tx.update(importZeile).set({ felder: felderPatch({}, ["akteur_sitz_offen"]) }).where(inArray(importZeile.id, mitBefund));
+      }),
+    );
+  }
   const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
   const gruppen = adressGruppen(zeilen);
   const stapel = gruppen.slice(0, ADRESSEN_JE_STAPEL);

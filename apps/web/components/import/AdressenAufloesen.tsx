@@ -25,13 +25,13 @@ export function AdressenAufloesen({ laufId, stand }: { laufId: string; stand: Ad
   const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  async function starten() {
+  async function starten(erneut = false) {
     setLaeuft(true);
     setFehler(null);
     let erledigt = 0;
     try {
-      for (;;) {
-        const erg = await importAdressenAufloesen(laufId);
+      for (let erster = true; ; erster = false) {
+        const erg = await importAdressenAufloesen(laufId, erneut && erster);
         if (!erg.ok) {
           setFehler(erg.fehler ?? "Fehlgeschlagen.");
           break;
@@ -57,10 +57,16 @@ export function AdressenAufloesen({ laufId, stand }: { laufId: string; stand: Ad
         </p>
       </header>
       <div className="imp-aktionen">
-        <button type="button" className="btn btn--primary btn--sm" onClick={starten} disabled={laeuft || stand.offen === 0}>
+        <button type="button" className="btn btn--primary btn--sm" onClick={() => starten(false)} disabled={laeuft || stand.offen === 0}>
           <i className="ph ph-map-pin" aria-hidden />
           {laeuft ? "Sucht …" : stand.offen === 0 ? "Alle Adressen bearbeitet" : `${stand.offen} Adresse(n) suchen`}
         </button>
+        {stand.ohneTreffer.length > 0 && (
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => starten(true)} disabled={laeuft}>
+            <i className="ph ph-arrow-counter-clockwise" aria-hidden />
+            Erneut suchen ({stand.ohneTreffer.length} ohne Treffer)
+          </button>
+        )}
         <span className="c">
           {stand.gesamt} neue(r) Akteur(e) · {stand.gefunden} mit Pin · {stand.ohneTreffer.length} ohne eindeutigen Treffer
         </span>

@@ -157,7 +157,9 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
         {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest" || gruppen.some((g) => g.ergebnis === "offen")) && (
           <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />
         )}
-        {lauf.status === "aufgeloest" && gruppen.some((g) => g.ergebnis === "neu") && <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />}
+        {["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status) && gruppen.some((g) => g.ergebnis === "neu") && (lauf.status === "aufgeloest" || adressStand(alleZeilen).gesamt > adressStand(alleZeilen).gefunden) && (
+          <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />
+        )}
         {(lauf.status === "aufgeloest" || lauf.status === "probelauf") && (
           <Probelauf
             laufId={lauf.id}

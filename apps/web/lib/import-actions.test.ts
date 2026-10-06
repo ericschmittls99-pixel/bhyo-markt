@@ -469,6 +469,19 @@ describe("importAdressenAufloesen (PR b: Sitz neuer Akteure, stapelweise, fortse
     expect(protokolle).toHaveLength(0);
   });
 
+  it("erneut: Befunde ohne Treffer werden zurueckgesetzt und in demselben Aufruf gesucht; auch nach dem Probelauf erlaubt", async () => {
+    rolle = "pruefer";
+    const mitBefund = [{ id: "z1", zeilennummer: 2, status: "fehler", fehlergrund: "Sitz offen", felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_offen: "Kein Treffer der Adresssuche." } }];
+    // Das Zuruecksetzen liest die Zeilen in der Transaktion (txSelects), die Suche danach ueber db (dbSelects).
+    dbSelects.push([laufZeile("probelauf")], [{ ...mitBefund[0]!, felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } }]);
+    txSelects.push(mitBefund);
+    photonAntwort = () => [treffer("67346", 49.32)];
+    const erg = await importAdressenAufloesen(LAUF, true);
+    expect(erg).toEqual({ ok: true, bearbeitet: 1, offen: 0, ohneTreffer: 0 });
+    expect(updates).toHaveLength(3); // Befund entfernt, Adresse gesetzt, Lauf-Zaehler
+    expect(photonAufrufe).toEqual(["67346 Speyer"]);
+  });
+
   it("nichts mehr offen: ok ohne Netzaufruf", async () => {
     rolle = "pruefer";
     dbSelects.push([laufZeile("aufgeloest")], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_neu: "1", akteur_sitz_lat: "49", akteur_sitz_lng: "8" } }]);
