@@ -204,8 +204,10 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                       {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? (
                         <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span>
                       ) : null}
-                      {z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
-                      {z.felder.akteur_neu === "1" && <span className="pill pill--muted"> neu{z.felder.akteur_sitz_lat ? " · Pin" : z.felder.akteur_sitz_offen ? " · Sitz offen" : ""}</span>}
+                      {z.status !== "importiert" && z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
+                      {z.status !== "importiert" && z.felder.akteur_neu === "1" && (
+                        <span className="pill pill--muted"> neu{z.felder.akteur_sitz_lat ? " · Pin" : z.felder.akteur_sitz_offen ? " · Sitz offen" : ""}</span>
+                      )}
                     </td>
                     <td>{art === "biomasse" ? z.felder.materialart_code || "—" : z.felder.produkt_code || "—"}</td>
                     <td className="kv--num">{art === "biomasse" ? z.felder.menge_roh_fm : `${z.felder.menge_wert ?? ""} ${z.felder.menge_einheit ?? ""}`}</td>
