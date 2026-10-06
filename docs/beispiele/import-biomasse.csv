@@ -1,0 +1,4 @@
+Betrieb;Sektor;Straße;Hausnummer;PLZ;Ort;Ansprechpartner;E-Mail;Materialart;Menge;Einheit;TS-Anteil %;Zeitraum von;Zeitraum bis
+Hof Mustermann;Landwirtschaft;Dorfstraße;3;67346;Speyer;Max Mustermann;max@example.invalid;Rindergülle;1.234,5;t/a;8,5;01/2026;12/2026
+Biogas Kraichgau GmbH;;Industriestraße;12;76646;Bruchsal;Erika Beispiel;erika@example.invalid;Maissilage;500;t/a;33;01/2026;12/2026
+Hof Mustermann;Landwirtschaft;Dorfstraße;3;67346;Speyer;Max Mustermann;max@example.invalid;Festmist;80;t/a;25;03/2026;05/2026
