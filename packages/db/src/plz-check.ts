@@ -100,13 +100,14 @@ async function main() {
 
   // E68 PR 3: Messung des lokalen Import-Schritts — 5.000 (PLZ, Ort) in EINER
   // Abfrage (dieselbe Form wie pruefePlzOrtStapel in der App). Nur mit Bestand.
+  // postgres-js: jsonb nur ueber sql.json() binden (ein String wird sonst JSON-Skalar).
   if (n > 0 && !fixture) {
     const probe = (await sql`select plz, ort from plz_ort order by random() limit 5000`) as unknown as { plz: string; ort: string }[];
     const eintraege = probe.map((p, i) => ({ i, plz: p.plz, ort: i % 10 === 0 ? "Xyzzy" : p.ort }));
     const t0 = Date.now();
     const rows = await sql`
       with e as (select t.i, t.plz, nullif(t.ort, '') as ort
-                 from jsonb_to_recordset(${JSON.stringify(eintraege)}::jsonb) as t(i int, plz text, ort text))
+                 from jsonb_to_recordset(${sql.json(eintraege)}) as t(i int, plz text, ort text))
       select e.i, p.plz_bekannt, p.ort_passt, ST_X(q.pt) as lng
       from e cross join lateral plz_pruefung(e.plz, e.ort) p
       left join lateral (select ST_PointOnSurface(g.geom) as pt from plz_gebiet g where g.plz = e.plz) q on true
