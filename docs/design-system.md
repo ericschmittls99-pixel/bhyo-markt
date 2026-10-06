@@ -983,3 +983,12 @@ folgt dem Pin.") · „Adressdienst nicht erreichbar — ungefährer Standort �
 Karten-Caption nennt „manuell" für Klick/Ziehen. **Anzeige:** Pille hinter
 den Koordinaten im Strom-Detail und hinter dem Sitz in den
 Akteur-Stammdaten — abgestuft, keine Ampelfarben.
+
+## import. — Adressen zuordnen, genaue Pins (E68 PR 3, 07.10.2026)
+
+**Abschnitt „adressen zuordnen.":** `btn--primary btn--sm` „n Adresse(n)
+zuordnen" (ein Aufruf, lokal), `btn--ghost btn--sm` „Erneut prüfen (n mit
+Befund)", `btn--sm` „Genaue Pins ermitteln (n)" (Icon `ph-crosshair`, mit
+Fortschritt „x Adresse(n) gesucht, y genauer, z noch offen …"). Caption:
+„n neue(r) Akteur(e) · mit Pin · im PLZ-Gebiet · mit Befund". Befund-Tabelle
+wie bisher, Befunde als Sätze mit „meinten Sie …?".

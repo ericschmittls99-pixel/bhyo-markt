@@ -110,6 +110,23 @@ vi.mock("@/lib/photon-server", async (orig) => {
     },
   };
 });
+// E68 PR 3: lokale Zuordnung (Stapel) und genaue Pins (Dienst) als Attrappen.
+let plzAntwort: (plz: string, ort: string) => { plzBekannt: boolean; ortPasst: boolean; orte: string[]; pin: { lng: number; lat: number } | null } = () => ({ plzBekannt: true, ortPasst: true, orte: ["Speyer"], pin: { lng: 8.43, lat: 49.32 } });
+const plzStapel: number[] = [];
+vi.mock("@/lib/plz-server", () => ({
+  pruefePlzOrtStapel: async (_db: unknown, e: { plz: string; ort: string }[]) => {
+    plzStapel.push(e.length);
+    return e.map((x) => plzAntwort(x.plz, x.ort));
+  },
+}));
+let pruefAntwort: (plz: string) => unknown = () => ({ ergebnis: { status: "plz_gebiet" }, kreise: null, dauerMs: 1 });
+const pruefAufrufe: string[] = [];
+vi.mock("@/lib/adresse-pruefung-server", () => ({
+  pruefeAdresse: async (_db: unknown, e: { strasse: string; hausnummer: string; plz: string; ort: string }) => {
+    pruefAufrufe.push(`${e.strasse} ${e.hausnummer}, ${e.plz} ${e.ort}`.trim());
+    return pruefAntwort(e.plz);
+  },
+}));
 const bausteinAufrufe: string[] = [];
 const belegDaten: { typ: string; erhebungsdatum: string | null; gueltigBis: string | null }[] = [];
 let stromFehltAb: Set<string> = new Set();
@@ -165,7 +182,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importPinsErmitteln, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -180,7 +197,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; plzStapel.length = 0; pruefAufrufe.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -437,71 +454,80 @@ describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
   });
 });
 
-describe("importAdressenAufloesen (PR b: Sitz neuer Akteure, stapelweise, fortsetzbar)", () => {
+describe("importAdressenAufloesen (E68 PR 3: lokal, eine Abfrage, kein Netz)", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
-  const laufZeile = (status: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 3 }, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
-  const treffer = (plz: string, lat: number) => ({ art: "adresse", strasse: "Dorfstraße", hausnummer: "3", plz, ort: "Speyer", kreis: null, land: null, lng: 8.43, lat });
+  const laufZeile = (status: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 4 }, belegErhebungsdatum: null, belegGueltigBis: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
   const zeilen = () => [
     { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_strasse: "Dorfstraße", akteur_sitz_hausnummer: "3", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } },
     { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_strasse: "Dorfstraße", akteur_sitz_hausnummer: "3", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } },
-    { id: "z3", zeilennummer: 4, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof B", akteur_neu: "1", akteur_sitz_plz: "76646", akteur_sitz_ort: "Bruchsal" } },
+    { id: "z3", zeilennummer: 4, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof B", akteur_neu: "1", akteur_sitz_plz: "76646", akteur_sitz_ort: "Brusal" } },
     { id: "z4", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { akteur_name: "Vorhanden", akteur_id: "a1", akteur_sitz_plz: "11111", akteur_sitz_ort: "X" } },
+    { id: "z5", zeilennummer: 6, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof C", akteur_neu: "1", akteur_sitz_plz: "00000", akteur_sitz_ort: "Nirgends" } },
   ];
 
-  it("Rot: Bearbeiter abgewiesen, kein Netzaufruf", async () => {
+  it("Rot: Bearbeiter abgewiesen, keine Abfrage", async () => {
     rolle = "bearbeiter";
     expect((await importAdressenAufloesen(LAUF)).fehler).toMatch(/recht/i);
-    expect(photonAufrufe).toHaveLength(0);
+    expect(plzStapel).toHaveLength(0);
   });
 
   it("nur nach dem Aufloesen der Akteure", async () => {
     rolle = "pruefer";
     dbSelects.push([laufZeile("zugeordnet")]);
     expect((await importAdressenAufloesen(LAUF)).fehler).toMatch(/nach dem Auflösen/);
-    expect(photonAufrufe).toHaveLength(0);
+    expect(plzStapel).toHaveLength(0);
   });
 
-  it("sucht je eindeutiger Adresse einmal, nur fuer neue Akteure; PLZ-Abweichung bleibt offen mit Grund", async () => {
+  it("alle Adressen in EINER Abfrage; Rot: unbekannte PLZ und Ort passt nicht bleiben mit „Meinten Sie …?“ stehen", async () => {
     rolle = "pruefer";
     dbSelects.push([laufZeile("aufgeloest")], [...zeilen()]);
-    photonAntwort = (q) => (q.startsWith("Dorfstraße") ? [treffer("67346", 49.32)] : [{ ...treffer("76647", 49.1), art: "ort", strasse: null, hausnummer: null }]);
+    plzAntwort = (plz, ort) =>
+      plz === "00000"
+        ? { plzBekannt: false, ortPasst: false, orte: [], pin: null }
+        : plz === "76646"
+          ? { plzBekannt: true, ortPasst: ort === "Bruchsal", orte: ["Bruchsal", "Forst", "Karlsdorf-Neuthard"], pin: { lng: 8.59, lat: 49.12 } }
+          : { plzBekannt: true, ortPasst: true, orte: ["Speyer"], pin: { lng: 8.43, lat: 49.32 } };
     const erg = await importAdressenAufloesen(LAUF);
-    expect(erg).toEqual({ ok: true, bearbeitet: 2, offen: 0, ohneTreffer: 1 });
-    // z1 und z2 teilen die Adresse → ein Aufruf; z4 ist vorhanden → keiner.
-    expect(photonAufrufe).toEqual(["Dorfstraße 3, 67346 Speyer", "76646 Bruchsal"]);
-    expect(updates).toHaveLength(3); // zwei Adress-Gruppen, ein Lauf-Update
-    expect(updates[2]).toMatchObject({ zaehler: expect.objectContaining({ adressen_gefunden: 1, adressen_offen: 1 }) });
-    expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Adressen aufgelöst: 2 Adresse(n), 1 ohne eindeutigen Treffer, 0 noch offen" });
+    expect(erg).toEqual({ ok: true, bearbeitet: 3, offen: 0, ohneTreffer: 2 });
+    expect(plzStapel).toEqual([3]); // drei eindeutige Adressen neuer Akteure, z4 ist vorhanden
+    expect(updates).toHaveLength(4); // drei Gruppen, ein Lauf-Update
+    expect(updates[3]).toMatchObject({ zaehler: expect.objectContaining({ adressen_gefunden: 1, adressen_offen: 2 }) });
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: expect.stringMatching(/^Adressen lokal zugeordnet: 3 Adresse\(n\), 2 offen \(PLZ\/Ort\), \d+ ms$/) });
   });
 
-  it("Dienst nicht erreichbar: genannter Fehler, nichts geschrieben — der Stand bleibt", async () => {
-    rolle = "pruefer";
-    dbSelects.push([laufZeile("aufgeloest")], [...zeilen()]);
-    photonWeg = true;
-    const erg = await importAdressenAufloesen(LAUF);
-    expect(erg.fehler).toMatch(/nicht erreichbar/);
-    expect(updates).toHaveLength(0);
-    expect(protokolle).toHaveLength(0);
-  });
-
-  it("erneut: Befunde ohne Treffer werden zurueckgesetzt und in demselben Aufruf gesucht; auch nach dem Probelauf erlaubt", async () => {
-    rolle = "pruefer";
-    const mitBefund = [{ id: "z1", zeilennummer: 2, status: "fehler", fehlergrund: "Sitz offen", felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_offen: "Kein Treffer der Adresssuche." } }];
-    // Das Zuruecksetzen liest die Zeilen in der Transaktion (txSelects), die Suche danach ueber db (dbSelects).
-    dbSelects.push([laufZeile("probelauf")], [{ ...mitBefund[0]!, felder: { akteur_name: "Hof A", akteur_neu: "1", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } }]);
-    txSelects.push(mitBefund);
-    photonAntwort = () => [treffer("67346", 49.32)];
-    const erg = await importAdressenAufloesen(LAUF, true);
-    expect(erg).toEqual({ ok: true, bearbeitet: 1, offen: 0, ohneTreffer: 0 });
-    expect(updates).toHaveLength(3); // Befund entfernt, Adresse gesetzt, Lauf-Zaehler
-    expect(photonAufrufe).toEqual(["67346 Speyer"]);
-  });
-
-  it("nichts mehr offen: ok ohne Netzaufruf", async () => {
+  it("nichts mehr offen: ok ohne Abfrage", async () => {
     rolle = "pruefer";
     dbSelects.push([laufZeile("aufgeloest")], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_neu: "1", akteur_sitz_lat: "49", akteur_sitz_lng: "8" } }]);
     expect(await importAdressenAufloesen(LAUF)).toEqual({ ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 });
-    expect(photonAufrufe).toHaveLength(0);
+    expect(plzStapel).toHaveLength(0);
+  });
+});
+
+describe("importPinsErmitteln (E68 PR 3: optional, eine Anfrage je Sekunde, fortsetzbar)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const laufZeile = () => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: {}, belegErhebungsdatum: null, belegGueltigBis: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const ungefaehr = (id: string, plz: string, versucht = false) => ({ id, zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_neu: "1", akteur_sitz_strasse: "Dorfstraße", akteur_sitz_hausnummer: "3", akteur_sitz_plz: plz, akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.3", akteur_sitz_lng: "8.4", akteur_sitz_quelle: "plz_gebiet", akteur_sitz_genauigkeit: "plz_gebiet", ...(versucht ? { akteur_sitz_genau_versucht: "1" } : {}) } });
+
+  it("Treffer hebt die Genauigkeit, kein Treffer markiert nur „versucht“; schon versuchte Adressen werden nicht erneut gefragt", async () => {
+    vi.useFakeTimers({ shouldAdvanceTime: true });
+    rolle = "pruefer";
+    dbSelects.push([laufZeile()], [ungefaehr("z1", "67346"), ungefaehr("z2", "67347"), ungefaehr("z3", "67348", true)]);
+    pruefAntwort = (plz) =>
+      plz === "67346"
+        ? { ergebnis: { status: "treffer", genauigkeit: "hausnummer", adresse: { lng: 8.431, lat: 49.321 } }, kreise: null, dauerMs: 5 }
+        : { ergebnis: { status: "plz_gebiet" }, kreise: 1, dauerMs: 5 };
+    const erg = await importPinsErmitteln(LAUF);
+    vi.useRealTimers();
+    expect(erg).toEqual({ ok: true, bearbeitet: 2, verbessert: 1, offen: 0 });
+    expect(pruefAufrufe).toEqual(["Dorfstraße 3, 67346 Speyer", "Dorfstraße 3, 67347 Speyer"]);
+    expect(updates[0]).toMatchObject({});
+    expect(protokolle[0]).toMatchObject({ text: "Genaue Pins ermittelt: 2 Adresse(n), 1 verbessert, 0 noch offen" });
+  });
+
+  it("Rot: Bearbeiter abgewiesen", async () => {
+    rolle = "bearbeiter";
+    expect((await importPinsErmitteln(LAUF)).fehler).toMatch(/recht/i);
+    expect(pruefAufrufe).toHaveLength(0);
   });
 });
 

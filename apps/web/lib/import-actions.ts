@@ -7,12 +7,13 @@ import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
-import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
+import { adressGruppen, gruppenFuerGenauePins, sitzAusLokal, sitzPatch } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, offeneAkteurGruppen } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
-import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
+import { pruefeAdresse } from "@/lib/adresse-pruefung-server";
+import { pruefePlzOrtStapel } from "@/lib/plz-server";
 import { stelleImportAbschlussZu } from "@/lib/inbox/zustellung";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
@@ -494,39 +495,28 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
       }),
     );
   }
+  // E68 PR 3: lokal, ohne Netz, alle Adressen in EINER Abfrage (5.000 Zeilen in einem Aufruf).
   const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
   const gruppen = adressGruppen(zeilen);
-  const stapel = gruppen.slice(0, ADRESSEN_JE_STAPEL);
-  if (stapel.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
-
-  // Erst alle Netzaufrufe des Stapels, dann eine Transaktion — ein Netzfehler laesst die DB unberuehrt.
-  const ergebnisse: { gruppe: (typeof stapel)[number]; patch: Record<string, string>; offen: boolean }[] = [];
-  for (const g of stapel) {
-    const text = adressText(g);
-    let e: ReturnType<typeof waehleSitz>;
-    if (!text) e = waehleSitz(g, []);
-    else {
-      try {
-        e = waehleSitz(g, await photonSuche(text));
-      } catch (err) {
-        if (err instanceof PhotonNichtErreichbar) return { fehler: `${err.message} Später fortsetzen, der Stand bleibt erhalten.` };
-        throw err;
-      }
-    }
-    ergebnisse.push({ gruppe: g, patch: sitzPatch(e), offen: "offen" in e });
-  }
-
+  if (gruppen.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
+  const start = Date.now();
   try {
     return await withDb((db) =>
       db.transaction(async (tx) => {
+        const pruefungen = await pruefePlzOrtStapel(tx, gruppen.map((g) => ({ plz: g.plz, ort: g.ort })));
+        const ergebnisse = gruppen.map((g, i) => {
+          const e = sitzAusLokal(g, pruefungen[i]!);
+          return { gruppe: g, patch: sitzPatch(e), offen: "offen" in e };
+        });
         for (const r of ergebnisse) {
           await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
         }
         const ohneTreffer = ergebnisse.filter((r) => r.offen).length;
-        const offen = gruppen.length - stapel.length;
+        const dauerMs = Date.now() - start;
         const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
-        zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (stapel.length - ohneTreffer);
+        zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (gruppen.length - ohneTreffer);
         zaehler.adressen_offen = (zaehler.adressen_offen ?? 0) + ohneTreffer;
+        zaehler.adressen_lokal_ms = dauerMs;
         await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "geaendert",
@@ -534,10 +524,10 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Adressen aufgelöst: ${stapel.length} Adresse(n), ${ohneTreffer} ohne eindeutigen Treffer, ${offen} noch offen`,
+          text: `Adressen lokal zugeordnet: ${gruppen.length} Adresse(n), ${ohneTreffer} offen (PLZ/Ort), ${dauerMs} ms`,
           importLaufId: lauf.id,
         });
-        return { ok: true, bearbeitet: stapel.length, offen, ohneTreffer };
+        return { ok: true, bearbeitet: gruppen.length, offen: 0, ohneTreffer };
       }),
     );
   } catch (e) {
@@ -558,6 +548,84 @@ export interface BelegDatenErgebnis {
 }
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+
+/** E68 PR 3: Stapel der genauen Suche — eine Anfrage je Sekunde (Nutzungsregel), vier je Aufruf bleiben unter ~10 s. */
+const GENAUE_PINS_JE_STAPEL = 4;
+const GENAUE_PINS_ABSTAND_MS = 1000;
+
+export interface GenauePinsErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  bearbeitet?: number;
+  verbessert?: number;
+  offen?: number;
+}
+
+/**
+ * E68 PR 3, optional: „genaue Pins ermitteln" — fuer Adressen mit Pin im
+ * PLZ-Gebiet je eindeutiger Adresse eine Anfrage an den Adressdienst,
+ * gedrosselt (1/s), fortsetzbar (Stand in den Zeilen). Ein Treffer hebt die
+ * Genauigkeit auf hausnummer/strasse; sonst bleibt der ungefaehre Pin und
+ * die Adresse gilt als versucht. Dienstausfall: Fehler genannt, Stand bleibt.
+ */
+export async function importPinsErmitteln(laufId: string): Promise<GenauePinsErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — genaue Pins gibt es nach dem Auflösen.` };
+
+  const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
+  const gruppen = gruppenFuerGenauePins(zeilen);
+  const stapel = gruppen.slice(0, GENAUE_PINS_JE_STAPEL);
+  if (stapel.length === 0) return { ok: true, bearbeitet: 0, verbessert: 0, offen: 0 };
+
+  // Erst alle Anfragen des Stapels (gedrosselt), dann eine Transaktion.
+  const ergebnisse: { gruppe: (typeof stapel)[number]; patch: Record<string, string>; verbessert: boolean }[] = [];
+  for (const [i, g] of stapel.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, GENAUE_PINS_ABSTAND_MS));
+    const antwort = await withDb((db) => pruefeAdresse(db, { strasse: g.strasse, hausnummer: g.hausnummer, plz: g.plz, ort: g.ort }));
+    const e = antwort.ergebnis;
+    if (e.status === "treffer") {
+      ergebnisse.push({
+        gruppe: g,
+        patch: { akteur_sitz_lat: String(e.adresse.lat), akteur_sitz_lng: String(e.adresse.lng), akteur_sitz_quelle: "photon", akteur_sitz_genauigkeit: e.genauigkeit, akteur_sitz_genau_versucht: "1" },
+        verbessert: true,
+      });
+    } else {
+      ergebnisse.push({ gruppe: g, patch: { akteur_sitz_genau_versucht: "1" }, verbessert: false });
+    }
+  }
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        for (const r of ergebnisse) {
+          await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
+        }
+        const verbessert = ergebnisse.filter((r) => r.verbessert).length;
+        const offen = gruppen.length - stapel.length;
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        zaehler.pins_genau = (zaehler.pins_genau ?? 0) + verbessert;
+        await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Genaue Pins ermittelt: ${stapel.length} Adresse(n), ${verbessert} verbessert, ${offen} noch offen`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, bearbeitet: stapel.length, verbessert, offen };
+      }),
+    );
+  } catch (e) {
+    console.error("Genaue Pins fehlgeschlagen:", e);
+    return { fehler: "Die genauen Pins konnten nicht gespeichert werden." };
+  }
+}
 
 export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string): Promise<BelegDatenErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
@@ -717,6 +785,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
                   sitz_ort: f.akteur_sitz_ort,
                   lat: f.akteur_sitz_lat,
                   lng: f.akteur_sitz_lng,
+                  genauigkeit: f.akteur_sitz_genauigkeit,
                 },
                 aktiveCodes,
                 importLaufId: lauf.id,
@@ -933,6 +1002,7 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
                   sitz_ort: f.akteur_sitz_ort,
                   lat: f.akteur_sitz_lat,
                   lng: f.akteur_sitz_lng,
+                  genauigkeit: f.akteur_sitz_genauigkeit,
                 },
                 aktiveCodes,
                 importLaufId: lauf.id,
@@ -1022,7 +1092,7 @@ export interface ZeileErgebnisAction {
   fehler?: string;
 }
 
-const AKTEUR_AUFLOESUNG = ["akteur_id", "akteur_neu", "akteur_gruppe", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_sitz_lat", "akteur_sitz_lng", "akteur_sitz_quelle", "akteur_sitz_offen"] as const;
+const AKTEUR_AUFLOESUNG = ["akteur_id", "akteur_neu", "akteur_gruppe", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_sitz_lat", "akteur_sitz_lng", "akteur_sitz_quelle", "akteur_sitz_genauigkeit", "akteur_sitz_genau_versucht", "akteur_sitz_offen"] as const;
 const NACHARBEIT_ZUSTAENDE = ["zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt"];
 
 export async function importZeileBearbeiten(laufId: string, zeileId: string, eingabe: Record<string, string>): Promise<ZeileErgebnisAction> {

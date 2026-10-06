@@ -1,4 +1,6 @@
+import type { Genauigkeit } from "@/lib/adresse-pruefung";
 import type { Adresse } from "@/lib/geocode";
+import type { PlzStapelErgebnis } from "@/lib/plz-server";
 import { normName } from "@/lib/import-zuordnung";
 
 /**
@@ -9,7 +11,10 @@ import { normName } from "@/lib/import-zuordnung";
  * kein Akteur). Reine Regeln; Netz und DB in import-actions.ts.
  *
  * Felder je Zeile: akteur_sitz_lat / akteur_sitz_lng (Dezimalpunkt, Maschinenwerte),
- * akteur_sitz_quelle = "photon", akteur_sitz_offen = Grund (kein Treffer, PLZ weicht ab …).
+ * akteur_sitz_quelle = "plz_gebiet" (lokal, E68 PR 3) oder "photon" (genaue Pins),
+ * akteur_sitz_genauigkeit wie standort_genauigkeit, akteur_sitz_offen = Grund
+ * (PLZ unbekannt, Ort passt nicht …), akteur_sitz_genau_versucht = "1", wenn
+ * die genaue Suche ohne besseren Treffer blieb.
  */
 export interface ZeileFuerAdresse {
   id: string;
@@ -39,9 +44,13 @@ export function brauchtSitz(f: Record<string, string>): boolean {
 
 /** Offene Adressen je eindeutiger Adresse, Reihenfolge des ersten Auftretens. */
 export function adressGruppen(zeilen: readonly ZeileFuerAdresse[]): AdressGruppe[] {
+  return adressGruppenNach(zeilen, brauchtSitz);
+}
+
+function adressGruppenNach(zeilen: readonly ZeileFuerAdresse[], passt: (f: Record<string, string>) => boolean): AdressGruppe[] {
   const gruppen = new Map<string, AdressGruppe>();
   for (const z of zeilen) {
-    if (!brauchtSitz(z.felder)) continue;
+    if (!passt(z.felder)) continue;
     const schluessel = adressSchluessel(z.felder);
     const g = gruppen.get(schluessel);
     if (g) g.zeilenIds.push(z.id);
@@ -67,7 +76,36 @@ export function adressText(g: Pick<AdressGruppe, "strasse" | "hausnummer" | "plz
   return [strasse, ort].filter(Boolean).join(", ");
 }
 
-export type SitzErgebnis = { lat: number; lng: number; plz: string; ort: string } | { offen: string };
+export type SitzErgebnis = { lat: number; lng: number; plz: string; ort: string; genauigkeit?: Genauigkeit; quelle?: "plz_gebiet" | "photon" } | { offen: string };
+
+/**
+ * E68 PR 3: lokale Zuordnung ohne Netz — PLZ muss bekannt sein, der Ort muss
+ * zur PLZ passen (Kurzform erlaubt); fehlt der Ort, gilt der einzige Ort der
+ * PLZ, bei mehreren bleibt die Zeile offen mit der Liste. Der Pin ist ein
+ * Punkt im PLZ-Gebiet, Genauigkeit plz_gebiet. Jeder Befund ist ein Satz fuer
+ * die Nacharbeit („Meinten Sie …?").
+ */
+export function sitzAusLokal(g: Pick<AdressGruppe, "plz" | "ort">, e: PlzStapelErgebnis): SitzErgebnis {
+  if (!g.plz) return { offen: "Ohne PLZ keine Zuordnung — PLZ in der Zeile ergänzen." };
+  if (!e.plzBekannt || !e.pin) return { offen: `PLZ ${g.plz} ist unbekannt — bitte prüfen.` };
+  const liste = e.orte.slice(0, 3).join(", ") + (e.orte.length > 3 ? " …" : "");
+  if (g.ort) {
+    if (!e.ortPasst) return { offen: e.orte.length ? `Ort passt nicht zur PLZ ${g.plz} — meinten Sie ${liste}?` : `Zur PLZ ${g.plz} ist kein Ort hinterlegt.` };
+    return { lat: e.pin.lat, lng: e.pin.lng, plz: g.plz, ort: g.ort, genauigkeit: "plz_gebiet", quelle: "plz_gebiet" };
+  }
+  if (e.orte.length === 1) return { lat: e.pin.lat, lng: e.pin.lng, plz: g.plz, ort: e.orte[0]!, genauigkeit: "plz_gebiet", quelle: "plz_gebiet" };
+  if (e.orte.length === 0) return { offen: `Zur PLZ ${g.plz} ist kein Ort hinterlegt — Ort angeben.` };
+  return { offen: `PLZ ${g.plz} hat ${e.orte.length} Orte — Ort angeben: ${liste}` };
+}
+
+/** Adressen mit ungefaehrem Pin (plz_gebiet), fuer die noch keine genaue Suche lief. */
+export function brauchtGenauenPin(f: Record<string, string>): boolean {
+  return f.akteur_neu === "1" && f.akteur_sitz_quelle === "plz_gebiet" && !f.akteur_sitz_genau_versucht;
+}
+
+export function gruppenFuerGenauePins(zeilen: readonly ZeileFuerAdresse[]): AdressGruppe[] {
+  return adressGruppenNach(zeilen, brauchtGenauenPin);
+}
 
 /**
  * Auswahl des Treffers — ohne Raten: Mit Strasse muss der Treffer eine
@@ -93,24 +131,34 @@ export function waehleSitz(g: Pick<AdressGruppe, "strasse" | "hausnummer" | "plz
 /** Feld-Patch aus dem Ergebnis. Zahlen mit Dezimalpunkt — Maschinenwerte fuer pruefeAkteurEingabe (Number). */
 export function sitzPatch(e: SitzErgebnis): Record<string, string> {
   if ("offen" in e) return { akteur_sitz_offen: e.offen };
-  return { akteur_sitz_lat: String(e.lat), akteur_sitz_lng: String(e.lng), akteur_sitz_plz: e.plz, akteur_sitz_ort: e.ort, akteur_sitz_quelle: "photon" };
+  return {
+    akteur_sitz_lat: String(e.lat),
+    akteur_sitz_lng: String(e.lng),
+    akteur_sitz_plz: e.plz,
+    akteur_sitz_ort: e.ort,
+    akteur_sitz_quelle: e.quelle ?? "photon",
+    akteur_sitz_genauigkeit: e.genauigkeit ?? "unbekannt",
+  };
 }
 
 export interface AdressStandAnzeige {
   gesamt: number;
   gefunden: number;
   offen: number;
+  /** E68 PR 3: Pins im PLZ-Gebiet (ungefaehr), davon noch nicht genau gesucht. */
+  ungefaehr: number;
+  genauOffen: number;
   ohneTreffer: { text: string; grund: string; zeilen: number }[];
 }
 
 /** Stand fuer die Seite: neue Akteure je Adresse — mit Pin, offen (noch nicht gesucht), ohne Treffer (mit Grund). */
 export function adressStand(zeilen: readonly ZeileFuerAdresse[]): AdressStandAnzeige {
   const neue = zeilen.filter((z) => z.felder.akteur_neu === "1");
-  const adressen = new Map<string, { text: string; zeilen: number; lat: boolean; grund: string | null }>();
+  const adressen = new Map<string, { text: string; zeilen: number; lat: boolean; grund: string | null; ungefaehr: boolean; genauOffen: boolean }>();
   for (const z of neue) {
     const k = adressSchluessel(z.felder);
     const f = z.felder;
-    const a = adressen.get(k) ?? { text: adressText({ strasse: f.akteur_sitz_strasse ?? "", hausnummer: f.akteur_sitz_hausnummer ?? "", plz: f.akteur_sitz_plz ?? "", ort: f.akteur_sitz_ort ?? "" }), zeilen: 0, lat: !!f.akteur_sitz_lat, grund: f.akteur_sitz_offen ?? null };
+    const a = adressen.get(k) ?? { text: adressText({ strasse: f.akteur_sitz_strasse ?? "", hausnummer: f.akteur_sitz_hausnummer ?? "", plz: f.akteur_sitz_plz ?? "", ort: f.akteur_sitz_ort ?? "" }), zeilen: 0, lat: !!f.akteur_sitz_lat, grund: f.akteur_sitz_offen ?? null , ungefaehr: f.akteur_sitz_quelle === "plz_gebiet", genauOffen: brauchtGenauenPin(f) };
     a.zeilen += 1;
     adressen.set(k, a);
   }
@@ -119,6 +167,8 @@ export function adressStand(zeilen: readonly ZeileFuerAdresse[]): AdressStandAnz
     gesamt: alle.length,
     gefunden: alle.filter((a) => a.lat).length,
     offen: alle.filter((a) => !a.lat && !a.grund).length,
+    ungefaehr: alle.filter((a) => a.lat && a.ungefaehr).length,
+    genauOffen: alle.filter((a) => a.genauOffen).length,
     ohneTreffer: alle.filter((a) => a.grund).map((a) => ({ text: a.text, grund: a.grund!, zeilen: a.zeilen })),
   };
 }
