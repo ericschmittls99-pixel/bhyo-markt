@@ -30,7 +30,9 @@ async function main() {
   const sql = postgres(url!, { max: 1, fetch_types: false });
   const ziel = new URL(url!);
   console.log(`JOBWACHE host=${ziel.hostname} db=${ziel.pathname.slice(1)} jetzt=${jetzt.toISOString()} stichtag=${stichtag} (${stichtagArg ? "vorgegeben" : faellig.grund})`);
-  const laeufe = await sql`select job, stichtag::text as stichtag, ergebnis, anzahl, gestartet_am::text as gestartet_am, beendet_am::text as beendet_am, fehler
+  // Betrieb 06.10.2026: ausgeloest_am und schritte (ms je Schritt) zeigen, wo die Laufzeit bleibt.
+  const laeufe = await sql`select job, stichtag::text as stichtag, ergebnis, anzahl, abgeraeumt, ausgeloest_am::text as ausgeloest_am,
+                                  gestartet_am::text as gestartet_am, beendet_am::text as beendet_am, schritte, fehler
                              from job_lauf where job = 'verifikation' order by stichtag desc limit 5`;
   console.log("LETZTE_LAEUFE " + JSON.stringify(laeufe));
   const ok = laeufe.find((l) => l.stichtag === stichtag && l.ergebnis === "ok");
