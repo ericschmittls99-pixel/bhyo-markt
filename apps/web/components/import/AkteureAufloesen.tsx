@@ -15,14 +15,38 @@ import type { AkteurGruppeAnzeige } from "@/lib/import-akteure";
 export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; status: string; gruppen: AkteurGruppeAnzeige[] }) {
   const router = useRouter();
   const [meldung, setMeldung] = useState<string | null>(null);
+  const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
   const vorschlaege = gruppen.filter((g) => g.ergebnis === "vorschlag");
+  const offeneGruppen = gruppen.filter((g) => g.ergebnis === "offen").length;
 
   function lauf(fn: () => Promise<{ ok?: boolean; fehler?: string }>) {
     starte(async () => {
       const erg = await fn();
       setMeldung(erg.ok ? null : (erg.fehler ?? "Fehlgeschlagen."));
       if (erg.ok) router.refresh();
+    });
+  }
+
+  /** Stapelweise, bis nichts mehr offen ist — der Stand steht in den Zeilen, ein Abbruch kostet nichts. */
+  function aufloesen() {
+    starte(async () => {
+      let erledigt = 0;
+      for (;;) {
+        const erg = await importAkteureAufloesen(laufId);
+        if (!erg.ok) {
+          setMeldung(erg.fehler ?? "Fehlgeschlagen.");
+          break;
+        }
+        erledigt += erg.bearbeitet ?? 0;
+        setFortschritt(`${erledigt} Akteur(e) geprüft, ${erg.offen ?? 0} noch offen …`);
+        if (!erg.offen || !erg.bearbeitet) {
+          setMeldung(null);
+          break;
+        }
+      }
+      setFortschritt(null);
+      router.refresh();
     });
   }
 
@@ -36,10 +60,11 @@ export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; 
         </p>
       </header>
       <div className="imp-aktionen">
-        <button type="button" className="btn btn--primary btn--sm" onClick={() => lauf(() => importAkteureAufloesen(laufId))} disabled={laeuft}>
+        <button type="button" className="btn btn--primary btn--sm" onClick={aufloesen} disabled={laeuft || (status === "aufgeloest" && offeneGruppen === 0)}>
           <i className="ph ph-buildings" aria-hidden />
-          {status === "aufgeloest" ? "Erneut auflösen" : "Akteure auflösen"}
+          {laeuft ? "Löst auf …" : status === "aufgeloest" ? "Akteure aufgelöst" : offeneGruppen > 0 && offeneGruppen < gruppen.length ? `Fortsetzen (${offeneGruppen} offen)` : "Akteure auflösen"}
         </button>
+        {fortschritt && <span className="c">{fortschritt}</span>}
         {vorschlaege.length > 0 && (
           <button type="button" className="btn btn--ghost btn--sm" onClick={() => lauf(() => importAkteurEntscheiden(laufId, null, "vorhanden"))} disabled={laeuft}>
             <i className="ph ph-checks" aria-hidden />
@@ -48,7 +73,7 @@ export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; 
         )}
         {meldung && <span className="pf-fehler">{meldung}</span>}
       </div>
-      {status === "aufgeloest" && (
+      {(status === "aufgeloest" || gruppen.some((g) => g.ergebnis !== "offen")) && (
         <table className="einst-tabelle imp-tabelle">
           <thead>
             <tr>

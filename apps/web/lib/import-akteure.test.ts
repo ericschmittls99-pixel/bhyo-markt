@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { akteurGruppen, akteurGruppenAnzeige, entscheidungAusTreffer, gruppenSchluessel, type ZeileFuerAkteur } from "./import-akteure";
+import { akteurGruppen, akteurGruppenAnzeige, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, type ZeileFuerAkteur } from "./import-akteure";
 
 const zeilen: ZeileFuerAkteur[] = [
   { id: "z1", status: "offen", felder: { akteur_name: "Hof Mustermann", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } },
@@ -62,5 +62,15 @@ describe("akteurGruppenAnzeige", () => {
       ["C", "neu", null, null],
       ["D", "offen", null, null],
     ]);
+  });
+});
+
+describe("offeneAkteurGruppen (fortsetzbar)", () => {
+  it("laesst Gruppen aus, deren Zeilen schon eine akteur_gruppe tragen", () => {
+    const offen = offeneAkteurGruppen([
+      { id: "a", status: "offen", felder: { akteur_name: "A", akteur_sitz_plz: "1", akteur_gruppe: "a|1", akteur_neu: "1" } },
+      { id: "b", status: "offen", felder: { akteur_name: "B", akteur_sitz_plz: "2" } },
+    ]);
+    expect(offen.map((g) => g.name)).toEqual(["B"]);
   });
 });

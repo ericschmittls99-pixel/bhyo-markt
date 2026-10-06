@@ -45,6 +45,15 @@ export function akteurGruppen(zeilen: readonly ZeileFuerAkteur[]): AkteurGruppe[
   return [...gruppen.values()];
 }
 
+/** Stapelgroesse (Eric 06.10.2026): ≈200 eindeutige Akteure je Request, der Matcher laeuft je Stapel mengenbasiert. */
+export const AKTEURE_JE_STAPEL = 200;
+
+/** Noch nicht aufgeloeste Gruppen (die erste Zeile traegt noch keine akteur_gruppe) — fortsetzbar wie Adressen und Probelauf. */
+export function offeneAkteurGruppen(zeilen: readonly ZeileFuerAkteur[]): AkteurGruppe[] {
+  const nachId = new Map(zeilen.map((z) => [z.id, z]));
+  return akteurGruppen(zeilen).filter((g) => !nachId.get(g.zeilenIds[0]!)!.felder.akteur_gruppe);
+}
+
 export type GruppenErgebnis = "identisch" | "vorschlag" | "neu" | "offen";
 
 export interface AkteurGruppeAnzeige extends AkteurGruppe {

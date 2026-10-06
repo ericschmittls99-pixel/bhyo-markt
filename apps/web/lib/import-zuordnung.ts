@@ -11,7 +11,7 @@ import type { StromArt } from "@/lib/stroeme-modell";
  * werden erkannt oder markiert und nie in `felder` uebernommen.
  */
 
-export type ZielTyp = "text" | "zahl" | "monat" | "einheit" | "code";
+export type ZielTyp = "text" | "zahl" | "monat" | "datum" | "einheit" | "code";
 export type WerteListe = "materialart" | "produkt" | "sektor" | "beleg_typ" | "menge_einheit";
 
 export interface Zielfeld {
@@ -64,6 +64,9 @@ export const ZIELFELDER: readonly Zielfeld[] = [
   { key: "lng", label: "Standort · Länge", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "zahl", synonyme: ["lng", "lon", "longitude", "laenge", "laengengrad"] },
   // Beleg: der Typ je Lauf ist Pflicht; eine Spalte darf ihn je Zeile ueberschreiben.
   { key: "beleg_typ", label: "Belegtyp (überschreibt den des Laufs)", gruppe: "beleg", arten: BEIDE, pflicht: false, typ: "code", werte: "beleg_typ", synonyme: ["belegtyp", "beleg typ", "beleg", "quelle", "quellenart", "nachweis"] },
+  // Eric 06.10.2026: eine zugeordnete Spalte geht dem Lauf-Wert je Zeile vor.
+  { key: "beleg_erhebungsdatum", label: "Erhebungsdatum des Belegs (überschreibt den Lauf-Wert)", gruppe: "beleg", arten: BEIDE, pflicht: false, typ: "datum", synonyme: ["erhebungsdatum", "erhoben am", "stand", "datum", "erhebung"] },
+  { key: "beleg_gueltig_bis", label: "Beleg gültig bis (überschreibt den Lauf-Wert)", gruppe: "beleg", arten: BEIDE, pflicht: false, typ: "datum", synonyme: ["gueltig bis", "gültig bis", "beleg gueltig bis", "laufzeit bis", "gueltigkeit"] },
 ];
 
 const ZIEL_NACH_KEY = new Map(ZIELFELDER.map((z) => [z.key, z]));
@@ -247,6 +250,15 @@ export function monatAusText(text: string): string {
   return monatKanonisch(t) || t;
 }
 
+/** Datum aus Spaltentext: JJJJ-MM-TT (auch aus Datumszellen) oder TT.MM.JJJJ → JJJJ-MM-TT; sonst Rohtext (wird als Zeilenfehler genannt). */
+export function datumAusText(text: string): string {
+  const t = text.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;
+  const de = /^(\d{1,2})\.(\d{1,2})\.(\d{4})$/.exec(t);
+  if (de) return `${de[3]}-${de[2]!.padStart(2, "0")}-${de[1]!.padStart(2, "0")}`;
+  return t;
+}
+
 export interface ZeileErgebnis {
   /** Nur zugeordnete Zielfelder, nie Personen-Schluessel. */
   felder: Record<string, string>;
@@ -287,6 +299,9 @@ export function zeileZuFelder(spalten: readonly string[], zeile: readonly string
       }
       case "monat":
         felder[ziel] = monatAusText(wert);
+        break;
+      case "datum":
+        felder[ziel] = datumAusText(wert);
         break;
       default:
         felder[ziel] = wert;

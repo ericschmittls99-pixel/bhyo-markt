@@ -96,6 +96,7 @@ vi.mock("@/lib/photon-server", () => ({
   },
 }));
 const bausteinAufrufe: string[] = [];
+const belegDaten: { typ: string; erhebungsdatum: string | null; gueltigBis: string | null }[] = [];
 let stromFehltAb: Set<string> = new Set();
 vi.mock("@/lib/strom-schreibweg", async (orig) => {
   const echt = await orig<typeof import("./strom-schreibweg")>();
@@ -123,17 +124,21 @@ vi.mock("@/lib/beleg-server", async (orig) => {
   const echt = await orig<typeof import("./beleg-server")>();
   return {
     ...echt,
-    erstelleBeleg: async (_tx: unknown, e: { typ: string; dateiKey?: string | null; quellenangabe: string | null }) => {
+    erstelleBeleg: async (_tx: unknown, e: { typ: string; dateiKey?: string | null; quellenangabe: string | null; erhebungsdatum: string | null; gueltigBis: string | null }) => {
       bausteinAufrufe.push(`beleg:${e.typ}:${e.dateiKey}:${e.quellenangabe}`);
-      return { belegId: `beleg-${e.typ}` };
+      belegDaten.push({ typ: e.typ, erhebungsdatum: e.erhebungsdatum, gueltigBis: e.gueltigBis });
+      return { belegId: `beleg-${e.typ}-${e.erhebungsdatum}` };
     },
   };
 });
 vi.mock("@/lib/register", () => ({ ladeSektoren: async () => [{ code: "landwirtschaft", label: "Landwirtschaft", aktiv: true }, { code: "ohne_sektor", label: "ohne Sektor", aktiv: true }] }));
+const mengenAufrufe: { schluessel: string; name: string; plz: string | null }[][] = [];
 vi.mock("@/lib/dubletten", () => ({
-  sucheAehnliche: async (_db: unknown, name: string, plz: string | null) => {
-    aehnlichAufrufe.push({ name, plz });
-    return aehnlichAntwort(name);
+  // Mengenbasiert: EIN Aufruf je Stapel mit allen Eingaben; Antwort je Schluessel.
+  sucheAehnlicheMenge: async (_db: unknown, eingaben: { schluessel: string; name: string; plz: string | null }[]) => {
+    mengenAufrufe.push(eingaben);
+    for (const e of eingaben) aehnlichAufrufe.push({ name: e.name, plz: e.plz });
+    return new Map(eingaben.map((e) => [e.schluessel, aehnlichAntwort(e.name)]));
   },
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
@@ -153,7 +158,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -345,7 +350,7 @@ describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
     expect(aehnlichAufrufe).toHaveLength(0);
   });
 
-  it("fragt den Matcher je Gruppe (nicht je Zeile): identisch uebernommen, stark als Vorschlag, Zeile ohne Name wird Fehler", async () => {
+  it("ein Matcher-Aufruf fuer den ganzen Stapel (je Gruppe eine Eingabe, nicht je Zeile): identisch uebernommen, stark als Vorschlag, Zeile ohne Name wird Fehler", async () => {
     rolle = "pruefer";
     dbSelects.push([laufZeile("zugeordnet")]);
     txSelects.push(zeilen());
@@ -354,8 +359,9 @@ describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
         ? [{ id: "a1", name: "Hof Mustermann", grad: "identisch" }, { id: "a9", name: "Hof Musterfrau", grad: "stark" }]
         : [{ id: "a2", name: "Biogas Kraichgau", grad: "stark" }];
     const erg = await importAkteureAufloesen(LAUF);
-    expect(erg.ok).toBe(true);
-    // Zwei Gruppen → zwei Aufrufe, die dritte Zeile derselben Gruppe loest keinen weiteren aus; z4 hat keinen Namen.
+    expect(erg).toMatchObject({ ok: true, bearbeitet: 2, offen: 0 });
+    // EIN Aufruf mit zwei Eingaben; die dritte Zeile derselben Gruppe ist keine eigene Eingabe; z4 hat keinen Namen.
+    expect(mengenAufrufe).toHaveLength(1);
     expect(aehnlichAufrufe).toEqual([{ name: "Hof Mustermann", plz: "67346" }, { name: "Biogas Kraichgau GmbH", plz: "76646" }]);
     expect(erg.zaehler).toMatchObject({ akteure_gruppen: 2, akteure_identisch: 1, akteure_vorschlag: 1, akteure_neu: 0, aehnlich: 1 });
     // zwei Gruppen-Updates, ein Update fuer die Zeile ohne Name, ein Lauf-Update
@@ -363,6 +369,27 @@ describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
     expect(updates[2]).toMatchObject({ status: "fehler" });
     expect(updates[3]).toMatchObject({ status: "aufgeloest" });
     expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", importLaufId: LAUF, text: "Akteure aufgelöst: 2 Gruppen — 1 identisch, 1 Vorschlag, 0 neu; 1 Zeile(n) ohne Akteur-Name" });
+  });
+
+  it("Stapel: 250 Gruppen → erster Request 200 (Lauf bleibt zugeordnet), zweiter die restlichen 50 (Lauf aufgeloest)", async () => {
+    rolle = "pruefer";
+    const viele = Array.from({ length: 250 }, (_, i) => ({ id: `z${i}`, zeilennummer: i + 2, status: "offen", fehlergrund: null, felder: { akteur_name: `Betrieb ${i}`, akteur_sitz_plz: "10000" } }));
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push(viele);
+    const erg1 = await importAkteureAufloesen(LAUF);
+    expect(erg1).toMatchObject({ ok: true, bearbeitet: 200, offen: 50 });
+    expect(mengenAufrufe).toHaveLength(1);
+    expect(mengenAufrufe[0]).toHaveLength(200);
+    expect(updates[updates.length - 1]).not.toHaveProperty("status");
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", text: "Akteure auflösen: Stapel mit 200 Gruppen, 50 noch offen" });
+    // Zweiter Request: die ersten 200 tragen jetzt akteur_gruppe.
+    const rest = viele.map((z, i) => (i < 200 ? { ...z, felder: { ...z.felder, akteur_gruppe: `betrieb ${i}|10000`, akteur_neu: "1" } } : z));
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push(rest);
+    const erg2 = await importAkteureAufloesen(LAUF);
+    expect(erg2).toMatchObject({ ok: true, bearbeitet: 50, offen: 0 });
+    expect(mengenAufrufe[1]).toHaveLength(50);
+    expect(updates[updates.length - 1]).toMatchObject({ status: "aufgeloest" });
   });
 
   it("Vorschlag uebernehmen: nur Zeilen mit Vorschlag der Gruppe, Zaehler wandern, Ereignis", async () => {
@@ -500,10 +527,10 @@ describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () 
     expect(bausteinAufrufe).toEqual([
       `beleg:betriebsdaten:belege/test/import/${LAUF}/bereinigt.csv:import-biomasse.csv · Import-Lauf ${LAUF}`,
       "akteur:Hof A:ohne_sektor",
-      "strom:guelle_rind:akteur-Hof A:beleg-betriebsdaten",
+      "strom:guelle_rind:akteur-Hof A:beleg-betriebsdaten-2026-10-06",
       `beleg:gespraech:belege/test/import/${LAUF}/bereinigt.csv:import-biomasse.csv · Import-Lauf ${LAUF}`,
-      "strom:maissilage:akteur-Hof A:beleg-gespraech",
-      "strom:festmist:a1:beleg-betriebsdaten",
+      "strom:maissilage:akteur-Hof A:beleg-gespraech-2026-10-06",
+      "strom:festmist:a1:beleg-betriebsdaten-2026-10-06",
     ]);
     // Ergebnisse: z1, z2 ok; z3 Feldfehler; z4 Sitz offen (Akteur nie versucht). Danach Lauf-Update.
     expect(updates.slice(0, 4).map((u) => [u.status, u.fehlergrund])).toEqual([
@@ -514,6 +541,24 @@ describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () 
     ]);
     expect(updates[4]).toMatchObject({ status: "probelauf", zaehler: expect.objectContaining({ probelauf_ok: 2, probelauf_fehler: 2 }) });
     expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", importLaufId: LAUF, text: "Probelauf abgeschlossen: 4 Zeile(n), 2 ok, 2 mit Fehler — nichts angelegt" });
+  });
+
+  it("zugeordnete Datumsspalten gehen dem Lauf-Wert je Zeile vor: eigener geteilter Beleg je (Typ, Erhebungsdatum, Gueltig-bis)", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()], [
+      { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1" } },
+      { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_erhebungsdatum: "2026-03-15", beleg_gueltig_bis: "2027-03-15" } },
+      { id: "z3", zeilennummer: 4, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_erhebungsdatum: "2026-03-15", beleg_gueltig_bis: "2027-03-15" } },
+      { id: "z4", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_erhebungsdatum: "irgendwann" } },
+    ]);
+    const erg = await importProbelauf(LAUF, 2);
+    expect(erg).toMatchObject({ ok: true, okZeilen: 3, fehlerZeilen: 1 });
+    // Lauf-Werte fuer z1, Zeilenwerte fuer z2+z3 (ein Beleg fuer beide), z4 scheitert am Datum.
+    expect(belegDaten).toEqual([
+      { typ: "betriebsdaten", erhebungsdatum: "2026-10-06", gueltigBis: "2027-10-06" },
+      { typ: "betriebsdaten", erhebungsdatum: "2026-03-15", gueltigBis: "2027-03-15" },
+    ]);
+    expect(updates[3]).toMatchObject({ status: "fehler", fehlergrund: "Erhebungsdatum „irgendwann\" ist kein Datum (JJJJ-MM-TT)." });
   });
 
   it("Gueltig-bis fehlt fuer einen oberen Belegtyp je Zeile → Zeilenfehler, nicht Abbruch", async () => {

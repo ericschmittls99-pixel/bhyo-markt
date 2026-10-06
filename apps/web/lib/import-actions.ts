@@ -4,11 +4,11 @@ import { importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
 import { eq, inArray, sql } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
-import { sucheAehnliche } from "@/lib/dubletten";
+import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
-import { akteurGruppen, entscheidungAusTreffer } from "@/lib/import-akteure";
+import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, offeneAkteurGruppen } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
@@ -303,15 +303,21 @@ export async function importVorlageSpeichern(laufId: string, name: string, quell
 }
 
 /**
- * Akteure aufloesen (PR b, E67): je Gruppe (Normname + PLZ) EIN Aufruf des
- * Matchers — identisch uebernimmt, stark wartet auf Bestaetigung (Zeilen
- * „aehnlich"), sonst neuer Akteur. Zeilen ohne Akteur-Namen werden Fehler.
- * Lauf wird „aufgeloest", Zaehler und Ereignis mit Lauf-ID.
+ * Akteure aufloesen (PR b, E67; Eric 06.10.2026): browser-gesteuert in
+ * Stapeln von AKTEURE_JE_STAPEL eindeutigen Akteuren (Normname + PLZ), der
+ * Matcher laeuft je Stapel als EINE mengenbasierte Abfrage. Identisch
+ * uebernimmt, stark wartet auf Bestaetigung (Zeilen „aehnlich"), sonst
+ * neuer Akteur. Fortsetzbar: erledigte Gruppen tragen akteur_gruppe. Nach
+ * dem letzten Stapel wird der Lauf „aufgeloest"; Zeilen ohne Akteur-Namen
+ * werden Fehler.
  */
 export interface AufloesenErgebnis {
   ok?: boolean;
   fehler?: string;
   zaehler?: Record<string, number>;
+  /** Gruppen in diesem Stapel, danach noch offen. */
+  bearbeitet?: number;
+  offen?: number;
 }
 
 function felderPatch(patch: Record<string, string>, entfernen: readonly string[] = []) {
@@ -332,11 +338,20 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
     return await withDb((db) =>
       db.transaction(async (tx) => {
         const zeilen = await ladeImportZeilen(tx, lauf.id);
-        const gruppen = akteurGruppen(zeilen);
-        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}), akteure_gruppen: gruppen.length, akteure_identisch: 0, akteure_vorschlag: 0, akteure_neu: 0 };
-        for (const g of gruppen) {
-          const treffer = await sucheAehnliche(tx as unknown as AppDb, g.name, g.plz || null, null);
-          const e = entscheidungAusTreffer(g.schluessel, treffer);
+        const alleGruppen = akteurGruppen(zeilen);
+        const offene = offeneAkteurGruppen(zeilen);
+        const stapel = offene.slice(0, AKTEURE_JE_STAPEL);
+        const zaehler: Record<string, number> = { akteure_identisch: 0, akteure_vorschlag: 0, akteure_neu: 0, ...(lauf.zaehler ?? {}), akteure_gruppen: alleGruppen.length };
+        if (offene.length === alleGruppen.length) {
+          // Erster Stapel: Zaehler neu beginnen.
+          zaehler.akteure_identisch = 0;
+          zaehler.akteure_vorschlag = 0;
+          zaehler.akteure_neu = 0;
+        }
+        // EINE Abfrage fuer den ganzen Stapel.
+        const treffer = await sucheAehnlicheMenge(tx as unknown as AppDb, stapel.map((g) => ({ schluessel: g.schluessel, name: g.name, plz: g.plz || null })));
+        for (const g of stapel) {
+          const e = entscheidungAusTreffer(g.schluessel, treffer.get(g.schluessel) ?? []);
           zaehler[`akteure_${e.ergebnis === "vorschlag" ? "vorschlag" : e.ergebnis}`] += 1;
           await tx
             .update(importZeile)
@@ -346,25 +361,36 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
             })
             .where(inArray(importZeile.id, g.zeilenIds));
         }
-        const ohneName = zeilen.filter((z) => !(z.felder.akteur_name ?? "").trim()).map((z) => z.id);
-        if (ohneName.length > 0) {
-          await tx
-            .update(importZeile)
-            .set({ status: "fehler", fehlergrund: sql`coalesce(${importZeile.fehlergrund}, 'Akteur-Name fehlt.')` })
-            .where(inArray(importZeile.id, ohneName));
+        const offen = offene.length - stapel.length;
+        const fertig = offen === 0;
+        let ohneName = 0;
+        if (fertig) {
+          const ids = zeilen.filter((z) => !(z.felder.akteur_name ?? "").trim()).map((z) => z.id);
+          ohneName = ids.length;
+          if (ids.length > 0) {
+            await tx
+              .update(importZeile)
+              .set({ status: "fehler", fehlergrund: sql`coalesce(${importZeile.fehlergrund}, 'Akteur-Name fehlt.')` })
+              .where(inArray(importZeile.id, ids));
+          }
         }
         zaehler.aehnlich = zaehler.akteure_vorschlag;
-        await tx.update(importLauf).set({ status: "aufgeloest", zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await tx
+          .update(importLauf)
+          .set({ zaehler, ...(fertig ? { status: "aufgeloest" } : {}), updatedAt: new Date() })
+          .where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
-          art: "status_gesetzt",
+          art: fertig ? "status_gesetzt" : "geaendert",
           entitaet: "import_lauf",
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Akteure aufgelöst: ${gruppen.length} Gruppen — ${zaehler.akteure_identisch} identisch, ${zaehler.akteure_vorschlag} Vorschlag, ${zaehler.akteure_neu} neu; ${ohneName.length} Zeile(n) ohne Akteur-Name`,
+          text: fertig
+            ? `Akteure aufgelöst: ${alleGruppen.length} Gruppen — ${zaehler.akteure_identisch} identisch, ${zaehler.akteure_vorschlag} Vorschlag, ${zaehler.akteure_neu} neu; ${ohneName} Zeile(n) ohne Akteur-Name`
+            : `Akteure auflösen: Stapel mit ${stapel.length} Gruppen, ${offen} noch offen`,
           importLaufId: lauf.id,
         });
-        return { ok: true, zaehler };
+        return { ok: true, zaehler, bearbeitet: stapel.length, offen };
       }),
     );
   } catch (e) {
@@ -623,25 +649,34 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
       db.transaction(async (tx) => {
         const belege = new Map<string, string>();
         const akteure = new Map<string, { id: string } | { fehler: string }>();
-        const belegFuer = async (typ: string): Promise<string> => {
-          const vorhanden = belege.get(typ);
-          if (vorhanden) return vorhanden;
+        const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+        // Ein geteilter Beleg je (Lauf, Belegtyp, Erhebungsdatum, Gueltig-bis): eine
+        // zugeordnete Spalte geht dem Lauf-Wert je Zeile vor (Eric 06.10.2026).
+        const belegFuer = async (f: Record<string, string>): Promise<string> => {
+          const typ = f.beleg_typ || lauf.belegTyp;
           if (!istBelegTyp(typ)) throw new ValidierungsFehler(`Belegtyp „${typ}" ist unbekannt.`);
-          if (brauchtGueltigBis(typ) && !lauf.belegGueltigBis) throw new ValidierungsFehler(`Gültig bis fehlt für Belegtyp „${typ}" (E33).`);
+          const erhebungsdatum = f.beleg_erhebungsdatum || lauf.belegErhebungsdatum!;
+          if (!DATUM.test(erhebungsdatum)) throw new ValidierungsFehler(`Erhebungsdatum „${erhebungsdatum}" ist kein Datum (JJJJ-MM-TT).`);
+          const gueltigBis = brauchtGueltigBis(typ) ? f.beleg_gueltig_bis || lauf.belegGueltigBis || "" : "";
+          if (brauchtGueltigBis(typ) && !gueltigBis) throw new ValidierungsFehler(`Gültig bis fehlt für Belegtyp „${typ}" (E33).`);
+          if (gueltigBis && !DATUM.test(gueltigBis)) throw new ValidierungsFehler(`Gültig bis „${gueltigBis}" ist kein Datum (JJJJ-MM-TT).`);
+          const schluessel = `${typ}|${erhebungsdatum}|${gueltigBis}`;
+          const vorhanden = belege.get(schluessel);
+          if (vorhanden) return vorhanden;
           const eingabe: BelegEingabe = {
             typ,
             // E67: Quelle = Dateiname + Lauf-ID; extern_nachvollziehbar = nein.
             quellenangabe: `${lauf.dateiname} · Import-Lauf ${lauf.id}`,
-            erhebungsdatum: lauf.belegErhebungsdatum!,
+            erhebungsdatum,
             link: null,
-            gueltigBis: brauchtGueltigBis(typ) ? lauf.belegGueltigBis : null,
+            gueltigBis: gueltigBis || null,
             kernnotiz: null,
             externNachvollziehbar: false,
             datei: null,
             dateiKey: importBelegKey(env, lauf.id),
           };
           const id = await tx.transaction(async (sp) => (await erstelleBeleg(sp as unknown as Tx, eingabe))!.belegId);
-          belege.set(typ, id);
+          belege.set(schluessel, id);
           return id;
         };
         const akteurFuer = async (f: Record<string, string>): Promise<string> => {
@@ -683,7 +718,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
         };
         for (const z of stapel) {
           try {
-            const belegId = await belegFuer(z.felder.beleg_typ || lauf.belegTyp);
+            const belegId = await belegFuer(z.felder);
             const akteurId = await akteurFuer(z.felder);
             await tx.transaction(async (sp) => {
               const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId));

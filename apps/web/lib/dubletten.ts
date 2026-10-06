@@ -161,6 +161,53 @@ export async function sucheAehnliche(db: AppDb, name: string, plz: string | null
   return treffer.sort((x, y) => (x.grad === y.grad ? y.aehnlichkeit - x.aehnlichkeit : GRAD_RANG[x.grad] - GRAD_RANG[y.grad]));
 }
 
+/**
+ * AP2.7 PR b (E67, Eric 06.10.2026): der Matcher fuer einen ganzen Stapel —
+ * EINE Abfrage fuer alle Kandidaten (VALUES-Liste der Eingaben, Join gegen
+ * akteur), nicht eine Schleife mit einer Abfrage je Akteur. Gleiche Regeln
+ * wie sucheAehnliche (identisch, stark, schwach), Ergebnis je Schluessel
+ * sortiert wie dort, hoechstens 8 Treffer je Eingabe.
+ */
+export interface MengenEingabe {
+  schluessel: string;
+  name: string;
+  plz: string | null;
+}
+
+export async function sucheAehnlicheMenge(db: AppDb, eingaben: readonly MengenEingabe[]): Promise<Map<string, Treffer[]>> {
+  const ergebnis = new Map<string, Treffer[]>();
+  const gueltig = eingaben.filter((e) => e.name.trim());
+  for (const e of eingaben) ergebnis.set(e.schluessel, []);
+  if (gueltig.length === 0) return ergebnis;
+  const werte = sql.join(
+    gueltig.map((e) => sql`(${e.schluessel}, ${e.name}, ${e.plz || null}::text)`),
+    sql`, `,
+  );
+  const rows = (await db.execute(sql`
+      with eingabe(schluessel, name, plz) as (values ${werte}),
+      e as (select schluessel, akteur_name_norm(name) as norm, plz from eingabe),
+      k as (
+        select e.schluessel, a.id, a.name, coalesce(a.sektor, 'ohne_sektor') as sektor, a.sitz_plz, a.sitz_ort,
+               v.kreis_name, v.kreis_bez, v.land_name,
+               similarity(akteur_name_norm(a.name), e.norm)::float8 as sim,
+               akteur_name_wortteilmenge(akteur_name_norm(a.name), e.norm) as teilmenge,
+               (akteur_name_norm(a.name) = e.norm and e.plz is not null and a.sitz_plz = e.plz) as identisch,
+               (e.plz is not null and a.sitz_plz = e.plz) as gleicher_ort,
+               row_number() over (partition by e.schluessel order by (akteur_name_norm(a.name) = e.norm and e.plz is not null and a.sitz_plz = e.plz) desc, similarity(akteur_name_norm(a.name), e.norm) desc, a.name) as rang
+          from e join akteur a on similarity(akteur_name_norm(a.name), e.norm) >= ${DUBLETTE_STARK}
+                               or (e.plz is not null and a.sitz_plz = e.plz and (akteur_name_wortteilmenge(akteur_name_norm(a.name), e.norm) or akteur_name_norm(a.name) = e.norm))
+          left join akteur_verwaltung v on v.akteur_id = a.id
+      )
+      select * from k where rang <= 8 order by schluessel, rang`)) as unknown as { schluessel: string; id: string; name: string; sektor: string; sitz_plz: string | null; sitz_ort: string | null; kreis_name: string | null; kreis_bez: string | null; land_name: string | null; sim: number | string; teilmenge: boolean | null; gleicher_ort: boolean | null; identisch: boolean | null }[];
+  for (const r of rows) {
+    const grad = dublettenGrad(Number(r.sim), !!r.gleicher_ort, !!r.teilmenge, !!r.identisch);
+    if (!grad) continue;
+    ergebnis.get(r.schluessel)?.push({ id: r.id, name: r.name, sektor: r.sektor, sitzPlz: r.sitz_plz, sitzOrt: r.sitz_ort, kreisName: r.kreis_name, kreisBez: r.kreis_bez, landName: r.land_name, aehnlichkeit: Number(r.sim), grad });
+  }
+  for (const liste of ergebnis.values()) liste.sort((x, y) => (x.grad === y.grad ? y.aehnlichkeit - x.aehnlichkeit : GRAD_RANG[x.grad] - GRAD_RANG[y.grad]));
+  return ergebnis;
+}
+
 export interface KeineDublette {
   id: string;
   a: DublettenAkteur;

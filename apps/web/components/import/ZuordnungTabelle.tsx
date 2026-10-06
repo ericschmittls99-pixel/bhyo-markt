@@ -248,7 +248,8 @@ export function ZuordnungTabelle({
         {vorlageMeldung && <p className="c einst-fehler">{vorlageMeldung}</p>}
       </div>
       <div className="imp-aktionen">
-        <button type="button" className="btn btn--primary btn--sm" onClick={speichern} disabled={laeuft}>
+        {/* Eric 06.10.2026: Pflichtfeld ohne Spalte (und ohne Lauf-Standard) sperrt „Weiter" — die Action prueft es noch einmal. */}
+        <button type="button" className="btn btn--primary btn--sm" onClick={speichern} disabled={laeuft || pflichtOffen.length > 0}>
           <i className="ph ph-check" aria-hidden />
           {laeuft ? "Wird gespeichert …" : "Zuordnung speichern und Zeilen übernehmen"}
         </button>

@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseImportDatei } from "./import-datei";
-import { IGNORIEREN, PERSON, bereinigteCsv, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
+import { IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
 
 const fixture = (() => {
   const b = readFileSync(join(__dirname, "..", "..", "..", "docs", "beispiele", "import-biomasse.csv"));
@@ -214,5 +214,19 @@ describe("bereinigteCsv (E67, DSGVO)", () => {
     expect(zeilen[1]).toBe("Hof Mustermann;Landwirtschaft;Dorfstraße;67346;Rindergülle;1.234,5;t/a;8,5;01/2026;12/2026");
     expect(csv).not.toMatch(/Max Mustermann|example\.invalid|Ansprech|E-Mail|Speyer/);
     expect(bereinigteCsv(["A"], [['Wert; mit "Quote"']], { spalten: { A: "bezeichnung" }, werte: {} })).toContain('"Wert; mit ""Quote"""');
+  });
+});
+
+describe("Belegdaten je Zeile (Eric 06.10.2026)", () => {
+  it("datumAusText: JJJJ-MM-TT bleibt, TT.MM.JJJJ wird kanonisch, Rohtext bleibt zur Meldung", () => {
+    expect(datumAusText("2026-03-15")).toBe("2026-03-15");
+    expect(datumAusText("5.3.2026")).toBe("2026-03-05");
+    expect(datumAusText("Frühjahr")).toBe("Frühjahr");
+  });
+  it("Spalten Erhebungsdatum und gültig bis werden den Beleg-Zielfeldern zugeordnet und je Zeile uebernommen", () => {
+    const spalten = ["Betrieb", "Erhebungsdatum", "Gültig bis"];
+    const z: Zuordnung = { spalten: vorschlagZuordnung("biomasse", spalten), werte: {} };
+    expect(z.spalten).toEqual({ Betrieb: "akteur_name", Erhebungsdatum: "beleg_erhebungsdatum", "Gültig bis": "beleg_gueltig_bis" });
+    expect(zeileZuFelder(spalten, ["Hof", "15.03.2026", "2027-03-15"], z).felder).toEqual({ akteur_name: "Hof", beleg_erhebungsdatum: "2026-03-15", beleg_gueltig_bis: "2027-03-15" });
   });
 });
