@@ -1,5 +1,5 @@
-import { benutzer, importLauf } from "@bhyo/db/schema";
-import { and, desc, eq, ne } from "drizzle-orm";
+import { benutzer, importLauf, importZeile } from "@bhyo/db/schema";
+import { and, asc, desc, eq, ne } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
 import { dateiEndung } from "@/lib/import-datei";
@@ -83,4 +83,27 @@ export function ladeGleicheDatei(db: Leser, dateiHash: string, ausserId: string)
  */
 export function importRohKey(env: string, laufId: string, dateiname: string): string {
   return `import/${env}/${laufId}/roh${dateiEndung(dateiname) || ".bin"}`;
+}
+
+export interface ImportZeileZeile {
+  id: string;
+  zeilennummer: number;
+  felder: Record<string, string>;
+  status: string;
+  fehlergrund: string | null;
+}
+
+export function ladeImportZeilen(db: Leser, laufId: string, limit = 5000): Promise<ImportZeileZeile[]> {
+  return db
+    .select({
+      id: importZeile.id,
+      zeilennummer: importZeile.zeilennummer,
+      felder: importZeile.felder,
+      status: importZeile.status,
+      fehlergrund: importZeile.fehlergrund,
+    })
+    .from(importZeile)
+    .where(eq(importZeile.laufId, laufId))
+    .orderBy(asc(importZeile.zeilennummer))
+    .limit(limit) as Promise<ImportZeileZeile[]>;
 }

@@ -1,14 +1,16 @@
 "use server";
 
-import { importLauf } from "@bhyo/db/schema";
+import { importLauf, importZeile } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
-import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex } from "@/lib/import-datei";
+import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
-import { importRohKey } from "@/lib/import-server";
+import { importRohKey, ladeImportLauf } from "@/lib/import-server";
+import { PERSON, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import type { StromArt } from "@/lib/stroeme-modell";
 
 /**
  * AP2.7 PR a/b (E67): die Schreibpfade des Imports bis zum Lauf. Nur Pruefer
@@ -144,4 +146,93 @@ export async function importDateiHochladen(_prev: ImportLaufErgebnis, formData: 
     console.error("Import-Upload fehlgeschlagen:", e);
     return { fehler: "Die Datei konnte nicht übernommen werden." };
   }
+}
+
+/**
+ * Zuordnung speichern (PR b): Roh-Upload aus R2 lesen, mit der Zuordnung
+ * jede Zeile in Zielfelder uebersetzen (Personen-Spalten nie), Zeilen als
+ * import_zeile speichern (offen | fehler), Lauf auf „zugeordnet", Ereignis
+ * mit Zaehlern — und den Roh-Upload loeschen (E67: nach der Zuordnung).
+ * Nur im Zustand „angelegt": Die Zuordnung ist ein Schritt, kein Editor.
+ */
+export interface ZuordnungErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  /** Meldungen von pruefeZuordnung — nichts gespeichert. */
+  fehlerListe?: string[];
+  zaehler?: Record<string, number>;
+}
+
+export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordnung): Promise<ZuordnungErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "angelegt") return { fehler: `Der Lauf ist schon „${lauf.status}" — die Zuordnung ist abgeschlossen.` };
+  const art = lauf.art as StromArt;
+
+  const env = await getEnvironment();
+  const bucket = await getBelegeBucket();
+  const key = importRohKey(env, lauf.id, lauf.dateiname);
+  const roh = await bucket.get(key);
+  if (!roh) return { fehler: "Der Roh-Upload liegt nicht mehr vor (gelöscht nach 24 h) — bitte die Datei neu hochladen." };
+  let tabelle: ImportTabelle;
+  try {
+    tabelle = parseImportDatei(await new Response(roh.body).arrayBuffer(), lauf.dateiname);
+  } catch (e) {
+    if (e instanceof ImportDateiFehler) return { fehler: e.message };
+    throw e;
+  }
+
+  const fehlerListe = pruefeZuordnung(art, tabelle.spalten, zuordnung);
+  if (fehlerListe.length > 0) return { fehlerListe };
+
+  const zeilen = tabelle.zeilen.map((z, i) => {
+    const r = zeileZuFelder(tabelle.spalten, z, zuordnung);
+    return {
+      laufId: lauf.id,
+      // Zeilennummer wie in der Datei (Kopfzeile ist 1), damit Nacharbeit und Datei zusammenpassen.
+      zeilennummer: i + 2,
+      felder: r.felder,
+      status: r.fehlergrund ? "fehler" : "offen",
+      fehlergrund: r.fehlergrund,
+    };
+  });
+  const personenSpalten = tabelle.spalten.filter((sp) => zuordnung.spalten[sp] === PERSON).length;
+  const zaehler: Record<string, number> = {
+    ...(lauf.zaehler ?? {}),
+    zeilen: zeilen.length,
+    offen: zeilen.filter((z) => z.status === "offen").length,
+    fehler: zeilen.filter((z) => z.status === "fehler").length,
+    personen_spalten: personenSpalten,
+  };
+
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        for (let i = 0; i < zeilen.length; i += 500) {
+          await tx.insert(importZeile).values(zeilen.slice(i, i + 500));
+        }
+        await tx.update(importLauf).set({ status: "zugeordnet", zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "status_gesetzt",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Zuordnung gespeichert: ${zaehler.zeilen} Zeilen (${zaehler.offen} offen, ${zaehler.fehler} mit Fehler), ${personenSpalten} Personen-Spalte(n) nicht übernommen`,
+          importLaufId: lauf.id,
+        });
+      }),
+    );
+  } catch (e) {
+    console.error("Zuordnung speichern fehlgeschlagen:", e);
+    return { fehler: "Die Zuordnung konnte nicht gespeichert werden." };
+  }
+  // E67: Der Roh-Upload (mit Personen-Spalten) geht nach der Zuordnung weg.
+  // Scheitert das Loeschen, raeumt der Job nach 24 h auf — der Lauf bleibt gueltig.
+  await bucket.delete(key).catch((e) => console.error("Roh-Upload nicht gelöscht:", key, e));
+  return { ok: true, zaehler };
 }

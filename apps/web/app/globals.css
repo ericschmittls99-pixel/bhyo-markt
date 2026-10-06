@@ -5587,3 +5587,38 @@ table.st-tabelle tbody tr:focus-visible {
 .imp-start input[type="file"] {
   font: var(--type-body);
 }
+.imp-zuordnung,
+.imp-werte {
+  display: grid;
+  gap: 12px;
+}
+.imp-zuordnung h3,
+.imp-werte h4 {
+  margin: 0;
+  font: var(--type-title-sm);
+  letter-spacing: var(--tracking-tight);
+}
+.imp-werte h4 .c {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.imp-tabelle select {
+  max-width: 100%;
+}
+.imp-beispiele {
+  color: var(--text-secondary);
+  overflow-wrap: anywhere;
+}
+.imp-person td {
+  color: var(--text-tertiary);
+}
+.imp-meldungen {
+  margin: 0;
+  padding-left: 18px;
+}
+.imp-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
