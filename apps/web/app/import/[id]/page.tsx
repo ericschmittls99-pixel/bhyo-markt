@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
+import { Ausfuehren } from "@/components/import/Ausfuehren";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
@@ -153,13 +154,16 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
+        {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
+          <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
+        )}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
               <h3>zeilen.</h3>
               <p className="c">
                 {zeilen.length < alleZeilen.length ? `Die ersten ${zeilen.length} von ${alleZeilen.length} Zeilen. ` : ""}
-                Ausführen und Nacharbeit folgen in PR c.
+                Importierte Zeilen verweisen auf ihren Strom; Zeilen mit Fehler lassen sich in der Nacharbeit korrigieren oder überspringen.
               </p>
             </header>
             <table className="einst-tabelle imp-tabelle">
@@ -192,7 +196,13 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                     </td>
                     <td>
                       <span className="pill pill--status pill--muted">{z.status}</span>
-                      {z.felder.probelauf === "ok" && <span className="pill pill--muted"> Probelauf ok</span>}
+                      {z.felder.probelauf === "ok" && z.status !== "importiert" && <span className="pill pill--muted"> Probelauf ok</span>}
+                      {z.status === "importiert" && (z.biomassestromId || z.outputBedarfId) && (
+                        <>
+                          {" "}
+                          <Link href={`/karte?detail=${z.biomassestromId ?? z.outputBedarfId}&art=${art}`}>zum Strom</Link>
+                        </>
+                      )}
                       {z.fehlergrund && <span className="c"> {z.fehlergrund}</span>}
                     </td>
                   </tr>
