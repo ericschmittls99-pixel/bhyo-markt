@@ -1,7 +1,7 @@
 "use server";
 
-import { importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
-import { eq, inArray, sql } from "drizzle-orm";
+import { beleg, importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
@@ -13,6 +13,7 @@ import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
+import { stelleImportAbschlussZu } from "@/lib/inbox/zustellung";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import { ladeSektoren } from "@/lib/register";
@@ -779,4 +780,216 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
     return { fehler: "Das Ergebnis des Probelaufs konnte nicht gespeichert werden." };
   }
   return { ok: true, bearbeitet: stapel.length, okZeilen, fehlerZeilen, naechste };
+}
+
+/**
+ * Ausfuehren (PR c, E67): wie der Probelauf, nur mit COMMIT — hoechstens
+ * PROBELAUF_JE_STAPEL offene Zeilen je Request, Savepoint je Zeile, jede
+ * Zeile durch dieselben Bausteine wie das Formular. Akteure entstehen je
+ * Gruppe einmal (akteur_id wird in alle Zeilen der Gruppe zurueckgeschrieben,
+ * damit Folge-Stapel ihn kennen), Belege je (Typ, Erhebungsdatum, Gueltig-bis)
+ * einmal je Lauf (Wiederverwendung ueber die Quellenangabe). Fehlerhafte
+ * Zeilen bleiben mit Grund stehen (Nacharbeit), importierte tragen die
+ * Strom-ID. Nach dem letzten Stapel: Lauf „ausgefuehrt", abgeschlossen_am,
+ * Ereignis kontaktdaten_uebersprungen je Akteur (einmal je Lauf, wenn die
+ * Datei Personen-Spalten hatte), Inbox import_abgeschlossen gebuendelt an
+ * alle aktiven Pruefer und Admins. Vorbedingung: ein Probelauf ist durch.
+ */
+export interface AusfuehrenErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  bearbeitet?: number;
+  importiert?: number;
+  fehlerZeilen?: number;
+  naechste?: number | null;
+}
+
+export async function importAusfuehren(laufId: string, abZeilennummer: number): Promise<AusfuehrenErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "probelauf") return { fehler: `Der Lauf ist „${lauf.status}" — ausgeführt wird nach einem durchgelaufenen Probelauf.` };
+  if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen." };
+
+  const alle = await withDb((db) => ladeImportZeilen(db, lauf.id));
+  if (alle.some((z) => z.status === "aehnlich")) return { fehler: "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen." };
+  const offen = alle.filter((z) => z.status === "offen");
+  const stapel = offen.filter((z) => z.zeilennummer >= abZeilennummer).slice(0, PROBELAUF_JE_STAPEL);
+  const naechste = stapel.length === PROBELAUF_JE_STAPEL ? (offen.find((z) => z.zeilennummer > stapel[stapel.length - 1]!.zeilennummer)?.zeilennummer ?? null) : null;
+  const handelnder: Handelnder = { id: wache.zugang.id, email: wache.email, rolle: wache.zugang.rolle };
+  const aktiveCodes = (await ladeSektoren()).filter((s) => s.aktiv).map((s) => s.code);
+  const env = await getEnvironment();
+  const heute = heuteBerlin();
+  const art = lauf.art as StromArt;
+  const quellenangabe = `${lauf.dateiname} · Import-Lauf ${lauf.id}`;
+  const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+  const personenSpalten = (lauf.zaehler?.personen_spalten ?? 0) > 0;
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const belege = new Map<string, string>();
+        const akteure = new Map<string, { id: string } | { fehler: string }>();
+        const akteureMitEreignis = new Set<string>();
+        let importiert = 0;
+        let fehlerZeilen = 0;
+
+        const belegFuer = async (f: Record<string, string>): Promise<string> => {
+          const typ = f.beleg_typ || lauf.belegTyp;
+          if (!istBelegTyp(typ)) throw new ValidierungsFehler(`Belegtyp „${typ}" ist unbekannt.`);
+          const erhebungsdatum = f.beleg_erhebungsdatum || lauf.belegErhebungsdatum!;
+          if (!DATUM.test(erhebungsdatum)) throw new ValidierungsFehler(`Erhebungsdatum „${erhebungsdatum}" ist kein Datum (JJJJ-MM-TT).`);
+          const gueltigBis = brauchtGueltigBis(typ) ? f.beleg_gueltig_bis || lauf.belegGueltigBis || "" : "";
+          if (brauchtGueltigBis(typ) && !gueltigBis) throw new ValidierungsFehler(`Gültig bis fehlt für Belegtyp „${typ}" (E33).`);
+          if (gueltigBis && !DATUM.test(gueltigBis)) throw new ValidierungsFehler(`Gültig bis „${gueltigBis}" ist kein Datum (JJJJ-MM-TT).`);
+          const schluessel = `${typ}|${erhebungsdatum}|${gueltigBis}`;
+          const bekannt = belege.get(schluessel);
+          if (bekannt) return bekannt;
+          // Ein frueherer Stapel desselben Laufs hat den Beleg schon angelegt: wiederverwenden (E48, ein Beleg je Lauf und Typ).
+          const [vorhanden] = await tx
+            .select({ id: beleg.id })
+            .from(beleg)
+            .where(
+              and(
+                eq(beleg.typ, typ),
+                sql`${beleg.metadata} ->> 'quellenangabe' = ${quellenangabe}`,
+                sql`${beleg.erstelltAm} = ${new Date(erhebungsdatum)}`,
+                gueltigBis ? eq(beleg.gueltigBis, gueltigBis) : sql`${beleg.gueltigBis} is null`,
+              ),
+            )
+            .limit(1);
+          if (vorhanden) {
+            belege.set(schluessel, vorhanden.id);
+            return vorhanden.id;
+          }
+          const eingabe: BelegEingabe = {
+            typ,
+            quellenangabe,
+            erhebungsdatum,
+            link: null,
+            gueltigBis: gueltigBis || null,
+            kernnotiz: null,
+            externNachvollziehbar: false,
+            datei: null,
+            dateiKey: importBelegKey(env, lauf.id),
+          };
+          const id = await tx.transaction(async (sp) => (await erstelleBeleg(sp as unknown as Tx, eingabe))!.belegId);
+          belege.set(schluessel, id);
+          return id;
+        };
+
+        const kontaktdatenEreignis = async (akteurId: string) => {
+          // E67 (DSGVO): je Akteur einmal je Lauf — die Datei hatte Personen-Spalten, deren Inhalte nie uebernommen wurden.
+          if (!personenSpalten || akteureMitEreignis.has(akteurId)) return;
+          akteureMitEreignis.add(akteurId);
+          await protokolliere(tx, {
+            art: "kontaktdaten_uebersprungen",
+            entitaet: "akteur",
+            id: akteurId,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: wache.email,
+            text: `Kontaktdaten aus der Importdatei nicht übernommen (${lauf.zaehler?.personen_spalten} Personen-Spalte(n)), Lauf ${lauf.id}`,
+            importLaufId: lauf.id,
+          });
+        };
+
+        const akteurFuer = async (f: Record<string, string>): Promise<string> => {
+          if (f.akteur_id) return f.akteur_id;
+          if (f.akteur_neu !== "1") throw new ValidierungsFehler("Akteur ist nicht aufgelöst — erst „Akteure auflösen“.");
+          const gruppe = f.akteur_gruppe ?? `${f.akteur_name}|${f.akteur_sitz_plz ?? ""}`;
+          const bekannt = akteure.get(gruppe);
+          if (bekannt) {
+            if ("fehler" in bekannt) throw new AkteurFehlerAusnahme(bekannt.fehler);
+            return bekannt.id;
+          }
+          if (f.akteur_sitz_offen) {
+            akteure.set(gruppe, { fehler: `Sitz offen: ${f.akteur_sitz_offen}` });
+            throw new AkteurFehlerAusnahme(`Sitz offen: ${f.akteur_sitz_offen}`);
+          }
+          try {
+            const neu = await tx.transaction((sp) =>
+              akteurAnlegenInTx(sp as unknown as Tx, handelnder, {
+                eingabe: {
+                  name: f.akteur_name,
+                  sektor: f.akteur_sektor || lauf.standardSektor,
+                  sitz_strasse: f.akteur_sitz_strasse,
+                  sitz_hausnummer: f.akteur_sitz_hausnummer,
+                  sitz_plz: f.akteur_sitz_plz,
+                  sitz_ort: f.akteur_sitz_ort,
+                  lat: f.akteur_sitz_lat,
+                  lng: f.akteur_sitz_lng,
+                },
+                aktiveCodes,
+                importLaufId: lauf.id,
+              }),
+            );
+            akteure.set(gruppe, { id: neu.id });
+            // Folge-Stapel kennen den Akteur ueber die Zeilenfelder, nicht ueber den Speicher dieses Requests.
+            const ids = alle.filter((z) => z.felder.akteur_gruppe === gruppe && !z.felder.akteur_id).map((z) => z.id);
+            if (ids.length > 0) await tx.update(importZeile).set({ felder: felderPatch({ akteur_id: neu.id }, ["akteur_neu"]) }).where(inArray(importZeile.id, ids));
+            return neu.id;
+          } catch (e) {
+            if (e instanceof AkteurFehlerAusnahme) akteure.set(gruppe, { fehler: e.message });
+            throw e;
+          }
+        };
+
+        for (const z of stapel) {
+          try {
+            const belegId = await belegFuer(z.felder);
+            const akteurId = await akteurFuer(z.felder);
+            const stromId = await tx.transaction(async (sp) => {
+              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId));
+              return (await stromAnlegenInTx(sp as unknown as Tx, handelnder, { ...e, beleg: null, belegId, importLaufId: lauf.id }, heute)).id;
+            });
+            await kontaktdatenEreignis(akteurId);
+            await tx
+              .update(importZeile)
+              .set({
+                status: "importiert",
+                fehlergrund: null,
+                ...(art === "biomasse" ? { biomassestromId: stromId } : { outputBedarfId: stromId }),
+                felder: felderPatch({ akteur_id: akteurId }, ["akteur_neu", "probelauf"]),
+              })
+              .where(eq(importZeile.id, z.id));
+            importiert += 1;
+          } catch (e) {
+            fehlerZeilen += 1;
+            await tx.update(importZeile).set({ status: "fehler", fehlergrund: zeilenGrund(e) }).where(eq(importZeile.id, z.id));
+          }
+        }
+
+        const fertig = naechste === null;
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        const erster = stapel[0] && offen[0]?.zeilennummer === stapel[0].zeilennummer;
+        zaehler.importiert = (erster ? 0 : (zaehler.importiert ?? 0)) + importiert;
+        zaehler.fehler = alle.filter((z) => z.status === "fehler").length + fehlerZeilen;
+        zaehler.offen = Math.max(0, offen.length - stapel.length);
+        zaehler.uebersprungen = alle.filter((z) => z.status === "uebersprungen").length;
+        zaehler.akteure_angelegt = (erster ? 0 : (zaehler.akteure_angelegt ?? 0)) + [...akteure.values()].filter((a) => "id" in a).length;
+        await tx
+          .update(importLauf)
+          .set({ zaehler, ...(fertig ? { status: "ausgefuehrt", abgeschlossenAm: new Date() } : {}), updatedAt: new Date() })
+          .where(eq(importLauf.id, lauf.id));
+        const ereignis = await protokolliere(tx, {
+          art: fertig ? "status_gesetzt" : "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: fertig
+            ? `Import ausgeführt: ${zaehler.importiert} Ströme angelegt, ${zaehler.akteure_angelegt} neue Akteure, ${zaehler.fehler} Zeile(n) in der Nacharbeit, ${zaehler.uebersprungen} übersprungen`
+            : `Import läuft: Stapel mit ${stapel.length} Zeile(n), ${importiert} angelegt, ${fehlerZeilen} Fehler, ${zaehler.offen} offen`,
+          importLaufId: lauf.id,
+        });
+        if (fertig) await stelleImportAbschlussZu(tx, { importLaufId: lauf.id, ausloeserId: wache.zugang.id, ereignisId: ereignis.id, importiert: zaehler.importiert });
+        return { ok: true, bearbeitet: stapel.length, importiert, fehlerZeilen, naechste };
+      }),
+    );
+  } catch (e) {
+    console.error("Import ausführen fehlgeschlagen:", e);
+    return { fehler: "Das Ausführen ist technisch abgebrochen — der aktuelle Stapel wurde zurückgerollt, frühere Stapel bleiben." };
+  }
 }

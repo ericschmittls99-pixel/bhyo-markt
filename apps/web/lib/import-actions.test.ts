@@ -133,6 +133,13 @@ vi.mock("@/lib/beleg-server", async (orig) => {
 });
 vi.mock("@/lib/register", () => ({ ladeSektoren: async () => [{ code: "landwirtschaft", label: "Landwirtschaft", aktiv: true }, { code: "ohne_sektor", label: "ohne Sektor", aktiv: true }] }));
 const mengenAufrufe: { schluessel: string; name: string; plz: string | null }[][] = [];
+const inboxZustellungen: Record<string, unknown>[] = [];
+vi.mock("@/lib/inbox/zustellung", () => ({
+  stelleImportAbschlussZu: async (_tx: unknown, e: Record<string, unknown>) => {
+    inboxZustellungen.push(e);
+    return 2;
+  },
+}));
 vi.mock("@/lib/dubletten", () => ({
   // Mengenbasiert: EIN Aufruf je Stapel mit allen Eingaben; Antwort je Schluessel.
   sucheAehnlicheMenge: async (_db: unknown, eingaben: { schluessel: string; name: string; plz: string | null }[]) => {
@@ -143,7 +150,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -158,7 +165,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -567,5 +574,62 @@ describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () 
     const erg = await importProbelauf(LAUF, 2);
     expect(erg).toMatchObject({ ok: true, okZeilen: 0, fehlerZeilen: 1 });
     expect(updates[0]).toMatchObject({ status: "fehler", fehlergrund: "Gültig bis fehlt für Belegtyp „vertrag\" (E33)." });
+  });
+});
+
+describe("importAusfuehren (PR c: COMMIT, Savepoint je Zeile, Akteur je Gruppe, Abschluss)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "probelauf", zaehler: { zeilen: 4, personen_spalten: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
+  const strom = (code: string) => ({ materialart_code: code, menge_roh_fm: "100", ts_anteil_pct: "8", aschegehalt_pct: "1", zeitraum_von: "2026-01", zeitraum_bis: "2026-12" });
+  const zeilen = () => [
+    { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43", probelauf: "ok" } },
+    { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { ...strom("maissilage"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43" } },
+    { id: "z3", zeilennummer: 4, status: "fehler", fehlergrund: "Materialart fehlt", felder: { akteur_name: "Hof B", akteur_neu: "1" } },
+    { id: "z4", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { ...strom("festmist"), akteur_name: "Vorhanden", akteur_id: "a1" } },
+  ];
+
+  it("Rot: Bearbeiter abgewiesen; ohne durchgelaufenen Probelauf startet nichts", async () => {
+    rolle = "bearbeiter";
+    expect((await importAusfuehren(LAUF, 2)).fehler).toMatch(/recht/i);
+    rolle = "admin";
+    dbSelects.push([lauf({ status: "aufgeloest" })]);
+    expect((await importAusfuehren(LAUF, 2)).fehler).toMatch(/nach einem durchgelaufenen Probelauf/);
+    expect(bausteinAufrufe).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("legt nur offene Zeilen an: Beleg einmal, Akteur einmal je Gruppe (zurueckgeschrieben), Zeile importiert mit Strom-ID, Fehlerzeile bleibt, Abschluss mit Ereignissen und Inbox", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()], zeilen());
+    stromFehltAb = new Set(["festmist"]);
+    const erg = await importAusfuehren(LAUF, 2);
+    expect(erg).toEqual({ ok: true, bearbeitet: 3, importiert: 2, fehlerZeilen: 1, naechste: null });
+    expect(bausteinAufrufe).toEqual([
+      `beleg:betriebsdaten:belege/test/import/${LAUF}/bereinigt.csv:import-biomasse.csv · Import-Lauf ${LAUF}`,
+      "akteur:Hof A:ohne_sektor",
+      "strom:guelle_rind:akteur-Hof A:beleg-betriebsdaten-2026-10-06",
+      "strom:maissilage:akteur-Hof A:beleg-betriebsdaten-2026-10-06",
+      "strom:festmist:a1:beleg-betriebsdaten-2026-10-06",
+    ]);
+    // Updates: Rueckschreiben akteur_id fuer die Gruppe (z1, z2), z1 importiert, z2 importiert, z4 fehler, Lauf.
+    expect(updates.map((u) => u.status ?? "(felder)")).toEqual(["(felder)", "importiert", "importiert", "fehler", "ausgefuehrt"]);
+    expect(updates[1]).toMatchObject({ status: "importiert", fehlergrund: null, biomassestromId: "strom-neu" });
+    expect(updates[3]).toMatchObject({ status: "fehler", fehlergrund: "menge_roh_fm: Pflichtfeld" });
+    expect(updates[4]).toMatchObject({ status: "ausgefuehrt", abgeschlossenAm: expect.any(Date), zaehler: expect.objectContaining({ importiert: 2, fehler: 2, offen: 0, akteure_angelegt: 1 }) });
+    // Ereignisse: kontaktdaten_uebersprungen je Akteur einmal (Hof A, dann a1), Abschluss am Lauf.
+    expect(protokolle.filter((p) => (p as { art: string }).art === "kontaktdaten_uebersprungen").map((p) => (p as { id: string }).id)).toEqual(["akteur-Hof A"]);
+    expect(protokolle[protokolle.length - 1]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", importLaufId: LAUF, text: "Import ausgeführt: 2 Ströme angelegt, 1 neue Akteure, 2 Zeile(n) in der Nacharbeit, 0 übersprungen" });
+    expect(inboxZustellungen).toEqual([{ importLaufId: LAUF, ausloeserId: "u1", ereignisId: "e1", importiert: 2 }]);
+  });
+
+  it("ohne Personen-Spalten kein kontaktdaten_uebersprungen; Stapelgrenze liefert naechste Zeile und laesst den Lauf im Probelauf-Zustand", async () => {
+    rolle = "pruefer";
+    const viele = Array.from({ length: 101 }, (_, i) => ({ id: `z${i}`, zeilennummer: i + 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1" } }));
+    dbSelects.push([lauf({ zaehler: { zeilen: 101 } })], viele);
+    const erg = await importAusfuehren(LAUF, 2);
+    expect(erg).toMatchObject({ ok: true, bearbeitet: 100, importiert: 100, naechste: 102 });
+    expect(protokolle.some((p) => (p as { art: string }).art === "kontaktdaten_uebersprungen")).toBe(false);
+    expect(updates[updates.length - 1]).not.toHaveProperty("status");
+    expect(inboxZustellungen).toHaveLength(0);
   });
 });

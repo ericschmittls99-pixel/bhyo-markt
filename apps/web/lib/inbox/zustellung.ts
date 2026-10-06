@@ -272,3 +272,44 @@ function buendelung(typ: InboxTyp, zielSpalte: typeof inboxEintrag.biomassestrom
       return null;
   }
 }
+
+/**
+ * AP2.7 PR c (E67): EIN Eintrag je Lauf an alle aktiven Pruefer und Admins,
+ * gebuendelt ueber den partiellen Unique-Index inbox_eintrag_import_uidx
+ * (Empfaenger, Typ, Lauf) — ein zweiter Abschluss desselben Laufs (Nacharbeit,
+ * weiterer Stapel) erhoeht anzahl und setzt den Eintrag wieder ungelesen.
+ * Einzige Schreibstelle fuer diesen Typ (inbox-check).
+ */
+export async function stelleImportAbschlussZu(
+  tx: Schreiber,
+  e: { importLaufId: string; ausloeserId: string; ereignisId: string; importiert: number },
+): Promise<number> {
+  const empfaenger = await tx
+    .select({ id: benutzer.id })
+    .from(benutzer)
+    .where(and(inArray(benutzer.rolle, ["pruefer", "admin"]), eq(benutzer.aktiv, true)));
+  const jetzt = new Date();
+  for (const { id: empfaengerId } of empfaenger) {
+    await tx
+      .insert(inboxEintrag)
+      .values({
+        empfaengerId,
+        ausloeserId: e.ausloeserId,
+        typ: "import_abgeschlossen",
+        importLaufId: e.importLaufId,
+        ereignisId: e.ereignisId,
+        anzahl: Math.max(1, e.importiert),
+        erstelltAm: jetzt,
+        aktualisiertAm: jetzt,
+        zustand: "offen",
+        zustandSeit: jetzt,
+      })
+      .onConflictDoUpdate({
+        target: [inboxEintrag.empfaengerId, inboxEintrag.typ, inboxEintrag.importLaufId],
+        // Muss dem Index-Praedikat entsprechen (inbox_typ_text, Migration 0043).
+        targetWhere: sql`inbox_typ_text(${inboxEintrag.typ}) = 'import_abgeschlossen' and ${inboxEintrag.importLaufId} is not null`,
+        set: { anzahl: sql`${inboxEintrag.anzahl} + ${Math.max(1, e.importiert)}`, ausloeserId: e.ausloeserId, ereignisId: e.ereignisId, aktualisiertAm: jetzt, gelesenAm: null, zustand: "offen", zustandSeit: jetzt },
+      });
+  }
+  return empfaenger.length;
+}
