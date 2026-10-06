@@ -857,7 +857,8 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
               and(
                 eq(beleg.typ, typ),
                 sql`${beleg.metadata} ->> 'quellenangabe' = ${quellenangabe}`,
-                sql`${beleg.erstelltAm} = ${new Date(erhebungsdatum)}`,
+                // Worker-Treiber: kein Date-Parameter in rohem SQL — erstelleBeleg schreibt 00:00Z des Erhebungsdatums.
+                sql`${beleg.erstelltAm} = ${`${erhebungsdatum}T00:00:00Z`}::timestamptz`,
                 gueltigBis ? eq(beleg.gueltigBis, gueltigBis) : sql`${beleg.gueltigBis} is null`,
               ),
             )
