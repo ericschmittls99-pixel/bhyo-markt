@@ -1542,3 +1542,86 @@ Ableitung, kein gespeicherter Wert). `feldeinstufung` führt die Spalte
 nicht mehr (der Feld-Wächter vergleicht gegen das Schema). Die
 Leseweg-Messung AKTEUR zählt statt der alten Felder die Kontaktpersonen und
 die Systemzeile `ohne_sektor`.
+
+## 38. AP2.7 Excel-Import: Datenmodell und Schreibweg (E67), 06.10.2026
+
+**E67 (Eric, Auftrag 05./06.10.2026, Nachtbericht abgenommen 06.10.2026).**
+Importiert werden Ströme (Feedstock oder Bedarf, die Art wird je Lauf
+gewählt) samt Akteur — keine Akteure allein, keine Kontaktpersonen.
+Importierte Ströme sind `entwurf`, Verifikationszustand „ungeprüft"; kein
+neuer Status-Enum-Wert, kein Prüfauftrag je Zeile. Ein gebündelter
+Inbox-Eintrag je Lauf (`import_abgeschlossen`, mit Zählern) an alle aktiven
+Prüfer und Admins. Import nur Prüfer und Admin (`import.ausfuehren`),
+Zurücknehmen nur Admin (`import.zuruecknehmen`, kommt mit seinem
+Schreibpfad in PR d).
+
+**Personen-Spalten (DSGVO):** Spalten wie Ansprechpartner, Kontakt, E-Mail,
+Telefon, Mobil, Personenname werden erkannt oder in der Zuordnung als
+„Person – wird nicht übernommen" markiert; ihre Inhalte werden nie
+gespeichert, auch nicht in Zwischenständen oder Logs. Der Akteur bekommt ein
+Ereignis `kontaktdaten_uebersprungen` ohne Namen, mit Lauf-ID; sichtbar im
+neuen Abschnitt „Verlauf" der Akteur-Seite (PR c). Die Originaldatei kann
+Personen-Spalten enthalten: am Beleg hängt eine serverseitig bereinigte
+Kopie ohne Personen- und ignorierte Spalten; der Roh-Upload in R2 wird nach
+der Zuordnung gelöscht, spätestens nach 24 h durch den täglichen Job (PR b).
+Zusicherung der Datenbank: `import_zeile.felder` trägt nur zugeordnete
+Zielfelder, der CHECK `import_zeile_felder_check` weist Personen-Schlüssel
+ab (Liste `IMPORT_PERSONEN_SCHLUESSEL` im Schema, dieselbe im Mapper).
+
+**Beleg, Quelle, Hash:** Belegtyp je Lauf Pflicht, eine Spalte überschreibt
+ihn je Zeile. Ein geteilter Beleg je (Lauf, Belegtyp) (E48). Quelle =
+Dateiname + Lauf-ID (Quellen-CHECK E34). `extern_nachvollziehbar = nein`.
+Gleicher Datei-Hash (SHA-256) wie ein früherer Lauf: Warnung vor dem Start.
+
+**Akteure:** Auflösung je eindeutigem Akteur (Normname + PLZ), nicht je
+Zeile, auch innerhalb des Laufs. Neue Klasse „identisch" (Normname + PLZ
+gleich) im Matcher-Modul aus AP2.5c, eine Funktion für Import (automatisch)
+und Formular (oberster Vorschlag); stark → Vorschlag, den der Nutzer
+bestätigt (auch gesammelt); schwach oder kein Treffer → neuer Akteur.
+Sektor neuer Akteure aus einer Spalte (Werte-Zuordnung), sonst Standard je
+Lauf (Pflichtauswahl, `ohne_sektor` erlaubt). Sitz per Adresssuche; ohne
+Treffer Nacharbeit. Strom-Standort nur aus Spalten, kein Erben vom Sitz
+(F0a/E66).
+
+**Mengen und Spannen:** nur t FM/a; eine Einheitenspalte darf t oder kg und
+pro Jahr oder pro Monat enthalten (ohne Annahme umrechenbar); alles andere,
+insbesondere TM/atro, ist ein Zeilenfehler. Spannen nur zeitraum_von/bis.
+v1 legt nur neu an; „möglicherweise vorhanden" (gleicher Akteur + Materialart
++ Art) je Zeile entscheiden, Vorgabe „überspringen". Teilimport: fehlerfreie
+Zeilen werden importiert, der Rest landet in der Nacharbeit.
+
+**Ablauf (nach Nachtbericht):** Upload und Parsen → Spalten- und
+Werte-Zuordnung → Zeilen speichern (nur zugeordnete Felder) → Akteure
+auflösen (je Akteur) → Adressen auflösen (je Adresse, Photon gedrosselt,
+Zwischenspeicher, fortsetzbar) → Probelauf → Ausführen → Nacharbeit.
+Probelauf und Ausführen browser-gesteuert in Stapeln von ~100 Zeilen je
+Request, fortsetzbar über `import_zeile.status`; Probelauf mit Rollback je
+Stapel, Ausführen mit Savepoint je Zeile. Grenze 5.000 Zeilen / 5 MB
+(Konstante mit Begründung). Keine Queue, kein Workflow in v1. Messung
+06.10.2026: SheetJS in workerd 5.000 Zeilen ≈ 0,7 s; Insert + Protokoll +
+Savepoint 33 ms je Zeile; Photon 0,5 bis 1,3 s je Anfrage.
+
+**Rücknahme:** ganzer Lauf durch einen Admin, solange kein Strom des Laufs
+danach geändert, geprüft oder weitergegeben wurde; entfernt Ströme,
+Lauf-Belege und die vom Lauf neu angelegten, dadurch verwaisten Akteure,
+alles protokolliert (PR d).
+
+**Migration 0042 (PR a, additiv mit Verbraucher, E21):** `import_vorlage`,
+`import_lauf`, `import_zeile`; `aenderung.import_lauf_id` und
+`inbox_eintrag.import_lauf_id` (FK); partieller Unique-Index
+`inbox_eintrag_import_uidx` (Empfänger, Typ, Lauf, Prädikat über
+`inbox_typ_text`); Enum-Werte `kontaktdaten_uebersprungen` (ereignis_art)
+und `import_abgeschlossen` (inbox_typ) unter Rename-Verbot (E53).
+Schreibweg: PR a0 hat „Strom anlegen" zu einem Baustein mit reinen
+Eingabe-Objekten gemacht (`lib/strom-schreibweg.ts`), den Formular und
+Import teilen. Erster Import-Schreibpfad: `importLaufAnlegen`
+(`lib/import-actions.ts`, Aktion `import.ausfuehren`, Ereignis `angelegt` an
+`import_lauf` mit Lauf-ID). Aufbewahrung: `import_zeile` wird 30 Tage nach
+Abschluss des Laufs gelöscht (Parameter per Migration mit Verbraucher, PR c).
+
+**Rot gezeigt (PR a):** Bearbeiter startet einen Import → abgewiesen, kein
+Schreibversuch (`lib/import-actions.test.ts`); Schema-Probe: keine Spalte mit
+Personen-Bezug in den Import-Tabellen (`packages/db/src/import-schema.test.ts`);
+`import-check` gegen die Preview: CHECK weist `felder` mit Schlüssel `email`
+ab.
+

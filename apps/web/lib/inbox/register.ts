@@ -38,6 +38,9 @@ export interface ZeilenDaten {
   akteurName?: string | null;
   /** AP2.5 PR b: Name der Kontaktperson (erst bei der Anzeige aus der Tabelle aufgeloest, E57). */
   kontaktpersonName?: string | null;
+  /** AP2.7 (E67): Dateiname und Zaehler des Import-Laufs beim Typ import_abgeschlossen. */
+  importDateiname?: string | null;
+  importZaehler?: Record<string, number> | null;
 }
 
 export interface TypDefinition {
@@ -169,6 +172,18 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
     text: (z) => `${z.ausloeserName} hat deine Zugriffsanfrage zu ${objektText(z)} abgelehnt`,
+  },
+  // AP2.7 PR a (E67): ein gebuendelter Eintrag je Lauf — Empfaenger und Zustellung im Import (PR c).
+  import_abgeschlossen: {
+    arten: [],
+    empfaengerregel: "alle aktiven Pruefer und Admins (der Import stellt selbst zu, einmal je Lauf)",
+    buendelung: "je Lauf und Empfaenger genau ein Eintrag (inbox_eintrag_import_uidx)",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => {
+      const n = z.importZaehler ?? {};
+      return `Import ${z.importDateiname ?? "–"} abgeschlossen: ${n.importiert ?? 0} neu, ${n.uebersprungen ?? 0} übersprungen, ${n.fehler ?? 0} in der Nacharbeit`;
+    },
   },
 };
 

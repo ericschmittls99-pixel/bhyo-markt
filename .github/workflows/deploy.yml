@@ -395,6 +395,15 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db kontaktperson-check
 
+      # AP2.7 PR a (E67): Import-Datenmodell — Struktur (Migration 0042), keine
+      # Personen-Spalte in den Import-Tabellen, CHECK gegen Personen-Schluessel
+      # in import_zeile.felder (Rot-Nachweis im Check selbst, zurueckgerollt).
+      - name: import-check (Import-Datenmodell, E67)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db import-check
+
       # AP2.5 PR c (E66): Dubletten — Struktur (pg_trgm, akteur_name_norm,
       # akteur_keine_dublette), Paritaet SQL ↔ TypeScript ueber die geteilten
       # Fixtures, Trigger-Ausnahme nur mit Zusammenfuehrungs-Ereignis, Loeschen

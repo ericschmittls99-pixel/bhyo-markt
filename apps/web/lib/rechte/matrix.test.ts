@@ -67,6 +67,8 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "akteur.keine_dublette": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "akteur.keine_dublette_aufheben": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "akteur.zusammenfuehren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  // AP2.7 PR a (E67): Import nur Pruefer und Admin — ein Bearbeiter wird abgewiesen.
+  "import.ausfuehren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";

@@ -787,6 +787,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "akteur_zusammengefuehrt",
   "keine_dublette_markiert",
   "keine_dublette_aufgehoben",
+  /** AP2.7 PR a (E67): Import — Quelle enthielt Ansprechpartner, nicht uebernommen (ohne Namen, mit Lauf-ID). */
+  "kontaktdaten_uebersprungen",
 ]);
 
 export const aenderung = pgTable(
@@ -815,9 +817,12 @@ export const aenderung = pgTable(
      */
     art: ereignisArt("art").notNull(),
     benutzerId: uuid("benutzer_id").references(() => benutzer.id),
+    /** AP2.7 PR a (E67): Lauf-ID an jedem Ereignis des Imports (Migration 0042); sonst NULL. */
+    importLaufId: uuid("import_lauf_id").references(() => importLauf.id),
   },
   (t) => [
     index("aenderung_entitaet_idx").on(t.entitaetTyp, t.entitaetId),
+    index("aenderung_import_lauf_idx").on(t.importLaufId),
     check(
       "aenderung_urheber_check",
       sql`${t.art} = 'altbestand' or ${t.benutzerId} is not null`,
@@ -848,6 +853,8 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "akteur_verwaist",
   // AP2.5 PR b (E57): Loeschpruefung — Kontaktperson ohne Aktivitaet seit M Monaten, Hinweis an die Admins.
   "kontaktperson_loeschpruefung",
+  /** AP2.7 PR a (E67): ein gebuendelter Eintrag je Import-Lauf an alle aktiven Pruefer und Admins (Zaehler im Text). */
+  "import_abgeschlossen",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -938,6 +945,8 @@ export const inboxEintrag = pgTable(
     akteurId: uuid("akteur_id").references(() => akteur.id, { onDelete: "cascade" }),
     /** AP2.5 PR b (E57): Objektbezug Kontaktperson fuer die Loeschpruefung; echtes Loeschen nimmt die Hinweise mit (CASCADE). */
     kontaktpersonId: uuid("kontaktperson_id").references(() => kontaktperson.id, { onDelete: "cascade" }),
+    /** AP2.7 PR a (E67): Lauf-Bezug des Typs import_abgeschlossen (Migration 0042). */
+    importLaufId: uuid("import_lauf_id").references(() => importLauf.id),
     /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
     ereignisId: uuid("ereignis_id").references(() => aenderung.id),
     /**
@@ -1027,6 +1036,10 @@ export const inboxEintrag = pgTable(
     uniqueIndex("inbox_eintrag_kontaktperson_hinweis_uidx")
       .on(t.empfaengerId, t.typ, t.kontaktpersonId, t.bezugsdatum)
       .where(sql`inbox_typ_text(${t.typ}) = 'kontaktperson_loeschpruefung' and ${t.kontaktpersonId} is not null`),
+    // AP2.7 PR a (E67): genau ein Eintrag je Lauf und Empfaenger (Praedikat ueber inbox_typ_text, neuer Enum-Wert).
+    uniqueIndex("inbox_eintrag_import_uidx")
+      .on(t.empfaengerId, t.typ, t.importLaufId)
+      .where(sql`inbox_typ_text(${t.typ}) = 'import_abgeschlossen' and ${t.importLaufId} is not null`),
     // Zaehler der Navigation: ungelesene offene Eintraege je Empfaenger.
     index("inbox_eintrag_zaehler_idx")
       .on(t.empfaengerId)
@@ -1150,5 +1163,118 @@ export const jobLauf = pgTable(
   (t) => [
     unique("job_lauf_job_stichtag_unique").on(t.job, t.stichtag),
     check("job_lauf_ergebnis_check", sql`${t.ergebnis} in ('laeuft', 'ok', 'fehler')`),
+  ],
+);
+
+// --- AP2.7 Excel-Import (E67, Migration 0042) -------------------------------
+// Entscheidung E67 (docs/ap0-schema-entscheidungen.md): Ein Lauf importiert
+// Stroeme einer Art samt Akteur. Zeilen tragen NUR zugeordnete Zielfelder als
+// jsonb — nie Personen-Spalten (CHECK import_zeile_felder_check); deren
+// Inhalte werden nirgends gespeichert, auch nicht in Zwischenstaenden. Der
+// taegliche Job loescht import_zeile 30 Tage nach Abschluss (PR c), die
+// Zaehler bleiben am Lauf.
+
+/** Vorlage: Spalten- und Werte-Zuordnung, fuer alle mit Import-Recht. */
+export const importVorlage = pgTable(
+  "import_vorlage",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    name: text("name").notNull(),
+    /** Herkunft der Dateien in Worten (z. B. „Landwirtschaftskammer, Jahresmeldung"). */
+    quelle: text("quelle"),
+    /** Spalten-Zuordnung: Quellspalte → Zielfeld | "person" | "ignorieren". */
+    spalten: jsonb("spalten").$type<Record<string, string>>().notNull(),
+    /** Werte-Zuordnung je Zielfeld: Quellwert → Code (z. B. „Gülle" → materialart). */
+    werte: jsonb("werte").$type<Record<string, Record<string, string>>>().notNull(),
+    erstellerId: uuid("ersteller_id")
+      .notNull()
+      .references(() => benutzer.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("import_vorlage_name_unique").on(t.name),
+    check("import_vorlage_name_check", sql`length(btrim(${t.name})) between 1 and 120`),
+  ],
+);
+
+export const IMPORT_LAUF_STATUS = ["angelegt", "zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt", "zurueckgenommen", "fehler"] as const;
+export type ImportLaufStatus = (typeof IMPORT_LAUF_STATUS)[number];
+
+/** Ein Import-Lauf: eine Datei, eine Art, ein Belegtyp, ein Standard-Sektor. */
+export const importLauf = pgTable(
+  "import_lauf",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    /** biomasse | output — die Art wird je Lauf gewaehlt (E67). */
+    art: text("art").notNull(),
+    dateiname: text("dateiname").notNull(),
+    /** SHA-256 der Originaldatei (hex); gleicher Hash wie ein frueherer Lauf → Warnung vor dem Start. */
+    dateiHash: text("datei_hash").notNull(),
+    belegTyp: belegTyp("beleg_typ").notNull(),
+    /** Sektor neuer Akteure ohne Spaltenwert (Pflichtauswahl, ohne_sektor erlaubt). */
+    standardSektor: text("standard_sektor")
+      .notNull()
+      .references(() => sektor.code),
+    vorlageId: uuid("vorlage_id").references(() => importVorlage.id),
+    erstellerId: uuid("ersteller_id")
+      .notNull()
+      .references(() => benutzer.id),
+    status: text("status").notNull().default("angelegt"),
+    /** Zaehler je Lauf ({ zeilen, importiert, uebersprungen, fehler, aehnlich, akteure_neu, … }) — bleiben nach dem Aufraeumen der Zeilen. */
+    zaehler: jsonb("zaehler").$type<Record<string, number>>(),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+    abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),
+    zurueckgenommenAm: timestamp("zurueckgenommen_am", { withTimezone: true }),
+  },
+  (t) => [
+    index("import_lauf_datei_hash_idx").on(t.dateiHash),
+    check("import_lauf_art_check", sql`${t.art} in ('biomasse', 'output')`),
+    check("import_lauf_status_check", sql`${t.status} in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'fehler')`),
+    check("import_lauf_datei_hash_check", sql`${t.dateiHash} ~ '^[0-9a-f]{64}$'`),
+    check("import_lauf_dateiname_check", sql`length(btrim(${t.dateiname})) between 1 and 255`),
+  ],
+);
+
+export const IMPORT_ZEILE_STATUS = ["offen", "fehler", "aehnlich", "importiert", "uebersprungen"] as const;
+export type ImportZeileStatus = (typeof IMPORT_ZEILE_STATUS)[number];
+
+/**
+ * Schluessel, die in import_zeile.felder nie vorkommen duerfen (E67, DSGVO):
+ * Personen-Spalten werden erkannt oder als „Person – wird nicht uebernommen"
+ * markiert und ihre Inhalte nie gespeichert. Der CHECK ist die Zusicherung
+ * der Datenbank, der Mapper (PR b) die der Anwendung.
+ */
+export const IMPORT_PERSONEN_SCHLUESSEL = ["ansprechpartner", "ansprechperson", "kontakt", "kontaktperson", "person", "email", "e_mail", "mail", "telefon", "mobil", "handy", "fax"] as const;
+
+/** Eine Zeile der Quelldatei: nur zugeordnete Zielfelder, Status, Ergebnis. */
+export const importZeile = pgTable(
+  "import_zeile",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    laufId: uuid("lauf_id")
+      .notNull()
+      .references(() => importLauf.id, { onDelete: "cascade" }),
+    zeilennummer: integer("zeilennummer").notNull(),
+    /** Nur zugeordnete Zielfelder (Schluessel = Zielfeld), nie Personen-Spalten. */
+    felder: jsonb("felder").$type<Record<string, unknown>>().notNull(),
+    status: text("status").notNull().default("offen"),
+    fehlergrund: text("fehlergrund"),
+    /** Angelegter Strom (je nach Art des Laufs genau eine der beiden Spalten). */
+    biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
+    outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [
+    unique("import_zeile_lauf_zeile_unique").on(t.laufId, t.zeilennummer),
+    index("import_zeile_status_idx").on(t.laufId, t.status),
+    check("import_zeile_status_check", sql`${t.status} in ('offen', 'fehler', 'aehnlich', 'importiert', 'uebersprungen')`),
+    check("import_zeile_strom_check", sql`not (${t.biomassestromId} is not null and ${t.outputBedarfId} is not null)`),
+    check(
+      "import_zeile_felder_check",
+      sql`jsonb_typeof(${t.felder}) = 'object' and not (${t.felder} ?| array['ansprechpartner', 'ansprechperson', 'kontakt', 'kontaktperson', 'person', 'email', 'e_mail', 'mail', 'telefon', 'mobil', 'handy', 'fax'])`,
+    ),
   ],
 );

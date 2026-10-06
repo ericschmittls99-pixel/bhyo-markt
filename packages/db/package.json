@@ -43,6 +43,7 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "kontaktperson-check": "tsx src/kontaktperson-check.ts",
+    "import-check": "tsx src/import-check.ts",
     "dubletten-check": "tsx src/dubletten-check.ts"
   },
   "dependencies": {
