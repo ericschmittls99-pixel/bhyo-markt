@@ -306,3 +306,24 @@ export function zeileZuFelder(spalten: readonly string[], zeile: readonly string
   }
   return { felder, fehlergrund: fehler[0] ?? null };
 }
+
+/** CSV-Zelle: Semikolon, Anfuehrungszeichen und Zeilenumbrueche werden gequotet. */
+function csvZelle(t: string): string {
+  return /[;"\r\n]/.test(t) ? `"${t.replace(/"/g, '""')}"` : t;
+}
+
+/**
+ * Bereinigte Kopie der Importdatei (E67, DSGVO): nur Spalten mit Zielfeld —
+ * keine Personen-Spalten, keine ignorierten, keine nicht zugeordneten.
+ * Spaltennamen wie in der Datei, Werte als Text, UTF-8 mit BOM und
+ * Semikolon (oeffnet Excel direkt). Haengt als Datei am Lauf-Beleg.
+ */
+export function bereinigteCsv(spalten: readonly string[], zeilen: readonly string[][], z: Zuordnung): string {
+  const indizes = spalten
+    .map((sp, i) => ({ sp, i, ziel: z.spalten[sp] ?? "" }))
+    .filter(({ ziel }) => ziel !== "" && ziel !== PERSON && ziel !== IGNORIEREN && !istPersonenSchluessel(ziel) && !!zielfeld(ziel))
+    .map(({ i }) => i);
+  const kopf = indizes.map((i) => csvZelle(spalten[i]!)).join(";");
+  const rumpf = zeilen.map((zeile) => indizes.map((i) => csvZelle(zeile[i] ?? "")).join(";"));
+  return `\ufeff${[kopf, ...rumpf].join("\r\n")}\r\n`;
+}

@@ -18,6 +18,9 @@ export interface ImportLaufZeile {
   standardSektor: string;
   status: string;
   zaehler: Record<string, number> | null;
+  /** AP2.7 PR b: Belegdaten des Lauf-Belegs (Migration 0044), null bis gesetzt. */
+  belegErhebungsdatum: string | null;
+  belegGueltigBis: string | null;
   erstellerEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -36,6 +39,8 @@ export function ladeImportLaeufe(db: Leser): Promise<ImportLaufZeile[]> {
       standardSektor: importLauf.standardSektor,
       status: importLauf.status,
       zaehler: importLauf.zaehler,
+      belegErhebungsdatum: importLauf.belegErhebungsdatum,
+      belegGueltigBis: importLauf.belegGueltigBis,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,
@@ -56,6 +61,8 @@ export async function ladeImportLauf(db: Leser, id: string): Promise<ImportLaufZ
       standardSektor: importLauf.standardSektor,
       status: importLauf.status,
       zaehler: importLauf.zaehler,
+      belegErhebungsdatum: importLauf.belegErhebungsdatum,
+      belegGueltigBis: importLauf.belegGueltigBis,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,
@@ -81,6 +88,11 @@ export function ladeGleicheDatei(db: Leser, dateiHash: string, ausserId: string)
  * `belege/` — die Datei kann Personen-Spalten enthalten und wird nach der
  * Zuordnung geloescht, spaetestens nach 24 h durch den Job (E67).
  */
+/** R2-Schluessel der bereinigten Kopie — unter belege/, sie ist die Datei des Lauf-Belegs und bleibt. */
+export function importBelegKey(env: string, laufId: string): string {
+  return `belege/${env}/import/${laufId}/bereinigt.csv`;
+}
+
 export function importRohKey(env: string, laufId: string, dateiname: string): string {
   return `import/${env}/${laufId}/roh${dateiEndung(dateiname) || ".bin"}`;
 }

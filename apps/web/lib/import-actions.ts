@@ -9,12 +9,18 @@ import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sh
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { akteurGruppen, entscheidungAusTreffer } from "@/lib/import-akteure";
-import { importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
-import { PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
+import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
+import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
+import { ladeSektoren } from "@/lib/register";
 import type { StromArt } from "@/lib/stroeme-modell";
+import { akteurAnlegenInTx, AkteurFehlerAusnahme } from "@/lib/akteur-schreibweg";
+import { erstelleBeleg, ValidierungsFehler, type BelegEingabe } from "@/lib/beleg-server";
+import { heuteBerlin } from "@/lib/datum";
+import { brauchtGueltigBis, istBelegTyp } from "@/lib/qualitaet";
+import { FeldFehlerAusnahme, stromAnlegenInTx, stromEingabeAusFormData, type Handelnder, type Tx } from "@/lib/strom-schreibweg";
 
 /**
  * AP2.7 PR a/b (E67): die Schreibpfade des Imports bis zum Lauf. Nur Pruefer
@@ -30,8 +36,6 @@ export interface ImportLaufErgebnis {
   /** Gleicher Datei-Hash wie ein frueherer Lauf (E67: Warnung vor dem Start). */
   gleicheDatei?: { laufId: string; dateiname: string; createdAt: string }[];
 }
-
-type Tx = Parameters<Parameters<AppDb["transaction"]>[0]>[0];
 
 /** Lauf-Zeile plus Ereignis — eine Stelle fuer beide Actions. */
 async function laufAnlegenInTx(
@@ -214,6 +218,11 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
   };
 
   try {
+    // E67: Am Lauf-Beleg haengt die serverseitig bereinigte Kopie (ohne Personen-
+    // und ignorierte Spalten) — sie entsteht hier, solange der Roh-Upload da ist.
+    await bucket.put(importBelegKey(env, lauf.id), new TextEncoder().encode(bereinigteCsv(tabelle.spalten, tabelle.zeilen, zuordnung)).buffer as ArrayBuffer, {
+      httpMetadata: { contentType: "text/csv; charset=utf-8" },
+    });
     await withDb((db) =>
       db.transaction(async (tx) => {
         for (let i = 0; i < zeilen.length; i += 500) {
@@ -495,4 +504,246 @@ export async function importAdressenAufloesen(laufId: string): Promise<AdressenE
     console.error("Adressen auflösen fehlgeschlagen:", e);
     return { fehler: "Die Adressen konnten nicht gespeichert werden." };
   }
+}
+
+/**
+ * Belegdaten des Laufs (PR b): Erhebungsdatum und — bei den oberen vier
+ * Typen (E33) — Gueltig-bis fuer den Lauf-Beleg. E67 legt beides nicht
+ * fest; abgefragt statt geraten. Pflicht vor dem Probelauf.
+ */
+export interface BelegDatenErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  feldFehler?: { erhebungsdatum?: string; gueltigBis?: string };
+}
+
+const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+
+export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string): Promise<BelegDatenErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!["zugeordnet", "aufgeloest", "probelauf"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Belegdaten gelten für den Probelauf.` };
+  const feldFehler: BelegDatenErgebnis["feldFehler"] = {};
+  const e = erhebungsdatum.trim();
+  const g = gueltigBis.trim();
+  if (!DATUM.test(e)) feldFehler.erhebungsdatum = "Erhebungsdatum (JJJJ-MM-TT) ist Pflicht.";
+  if (g && !DATUM.test(g)) feldFehler.gueltigBis = "Gültig bis als JJJJ-MM-TT.";
+  if (!g && istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)) feldFehler.gueltigBis = "Gültig bis ist bei diesem Belegtyp Pflicht (E33).";
+  if (Object.keys(feldFehler).length > 0) return { feldFehler };
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        await tx.update(importLauf).set({ belegErhebungsdatum: e, belegGueltigBis: g || null, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Belegdaten des Laufs gesetzt: Erhebungsdatum ${e}${g ? `, gültig bis ${g}` : ""}`,
+          importLaufId: lauf.id,
+        });
+      }),
+    );
+    return { ok: true };
+  } catch (err) {
+    console.error("Belegdaten setzen fehlgeschlagen:", err);
+    return { fehler: "Die Belegdaten konnten nicht gespeichert werden." };
+  }
+}
+
+/** Stapelgroesse Probelauf/Ausfuehren (E67: ≈100 Zeilen je Request, 33 ms je Zeile gemessen). */
+export const PROBELAUF_JE_STAPEL = 100;
+
+/** Beendet die Probelauf-Transaktion absichtlich — alles rollt zurueck, nichts wird angelegt. */
+class ProbelaufEnde extends Error {}
+
+export interface ProbelaufErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  bearbeitet?: number;
+  okZeilen?: number;
+  fehlerZeilen?: number;
+  /** Naechste Zeilennummer oder null, wenn der Lauf durch ist. */
+  naechste?: number | null;
+}
+
+/** Fachlicher Grund einer gescheiterten Zeile — technische Fehler werden geloggt und genannt. */
+function zeilenGrund(e: unknown): string {
+  if (e instanceof FeldFehlerAusnahme) return Object.entries(e.feldFehler).map(([k, v]) => `${k}: ${v}`).join(" · ");
+  if (e instanceof ValidierungsFehler || e instanceof AkteurFehlerAusnahme) return e.message;
+  console.error("Probelauf: technischer Fehler in einer Zeile:", e);
+  return `Technischer Fehler: ${e instanceof Error ? e.message : String(e)}`;
+}
+
+/** FormData fuer den Formular-Baustein aus den Strom-Feldern der Zeile (akteur_* bleiben draussen, akteur_id kommt aufgeloest). */
+function formDataAusZeile(felder: Record<string, string>, akteurId: string): FormData {
+  const fd = new FormData();
+  for (const [k, v] of Object.entries(felder)) {
+    const def = zielfeld(k);
+    if (def && def.gruppe === "strom") fd.set(k, v);
+  }
+  fd.set("akteur_id", akteurId);
+  return fd;
+}
+
+/**
+ * Probelauf (PR b, E67): hoechstens 100 Zeilen je Request, in EINER
+ * Transaktion mit Savepoint je Beleg, Akteur und Zeile — am Ende wird die
+ * Transaktion absichtlich zurueckgerollt, nichts bleibt. Jede Zeile geht
+ * durch dieselben Bausteine wie das Formular (akteurAnlegenInTx,
+ * erstelleBeleg, stromAnlegenInTx). Ergebnisse (ok | fehler mit Grund)
+ * schreibt eine zweite Transaktion in die Zeilen; der Browser ruft mit der
+ * naechsten Zeilennummer weiter, bis null zurueckkommt.
+ */
+export async function importProbelauf(laufId: string, abZeilennummer: number): Promise<ProbelaufErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "aufgeloest" && lauf.status !== "probelauf") return { fehler: `Der Lauf ist „${lauf.status}" — der Probelauf kommt nach dem Auflösen der Akteure.` };
+  if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen: bitte Erhebungsdatum (und bei den oberen vier Belegtypen Gültig bis) setzen." };
+  if (istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp) && !lauf.belegGueltigBis) return { fehler: "Gültig bis fehlt für den Belegtyp des Laufs (E33)." };
+
+  const alle = await withDb((db) => ladeImportZeilen(db, lauf.id));
+  if (alle.some((z) => z.status === "aehnlich")) return { fehler: "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen." };
+  const stapel = alle.filter((z) => z.zeilennummer >= abZeilennummer && z.status !== "uebersprungen").slice(0, PROBELAUF_JE_STAPEL);
+  const naechste = stapel.length === PROBELAUF_JE_STAPEL ? (alle.find((z) => z.zeilennummer > stapel[stapel.length - 1]!.zeilennummer && z.status !== "uebersprungen")?.zeilennummer ?? null) : null;
+  const handelnder: Handelnder = { id: wache.zugang.id, email: wache.email, rolle: wache.zugang.rolle };
+  const aktiveCodes = (await ladeSektoren()).filter((s) => s.aktiv).map((s) => s.code);
+  const env = await getEnvironment();
+  const heute = heuteBerlin();
+  const art = lauf.art as StromArt;
+  const ergebnisse = new Map<string, string | null>();
+
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const belege = new Map<string, string>();
+        const akteure = new Map<string, { id: string } | { fehler: string }>();
+        const belegFuer = async (typ: string): Promise<string> => {
+          const vorhanden = belege.get(typ);
+          if (vorhanden) return vorhanden;
+          if (!istBelegTyp(typ)) throw new ValidierungsFehler(`Belegtyp „${typ}" ist unbekannt.`);
+          if (brauchtGueltigBis(typ) && !lauf.belegGueltigBis) throw new ValidierungsFehler(`Gültig bis fehlt für Belegtyp „${typ}" (E33).`);
+          const eingabe: BelegEingabe = {
+            typ,
+            // E67: Quelle = Dateiname + Lauf-ID; extern_nachvollziehbar = nein.
+            quellenangabe: `${lauf.dateiname} · Import-Lauf ${lauf.id}`,
+            erhebungsdatum: lauf.belegErhebungsdatum!,
+            link: null,
+            gueltigBis: brauchtGueltigBis(typ) ? lauf.belegGueltigBis : null,
+            kernnotiz: null,
+            externNachvollziehbar: false,
+            datei: null,
+            dateiKey: importBelegKey(env, lauf.id),
+          };
+          const id = await tx.transaction(async (sp) => (await erstelleBeleg(sp as unknown as Tx, eingabe))!.belegId);
+          belege.set(typ, id);
+          return id;
+        };
+        const akteurFuer = async (f: Record<string, string>): Promise<string> => {
+          if (f.akteur_id) return f.akteur_id;
+          if (f.akteur_neu !== "1") throw new ValidierungsFehler("Akteur ist nicht aufgelöst — erst „Akteure auflösen“.");
+          const gruppe = f.akteur_gruppe ?? `${f.akteur_name}|${f.akteur_sitz_plz ?? ""}`;
+          const bekannt = akteure.get(gruppe);
+          if (bekannt) {
+            if ("fehler" in bekannt) throw new AkteurFehlerAusnahme(bekannt.fehler);
+            return bekannt.id;
+          }
+          if (f.akteur_sitz_offen) {
+            akteure.set(gruppe, { fehler: `Sitz offen: ${f.akteur_sitz_offen}` });
+            throw new AkteurFehlerAusnahme(`Sitz offen: ${f.akteur_sitz_offen}`);
+          }
+          try {
+            const neu = await tx.transaction((sp) =>
+              akteurAnlegenInTx(sp as unknown as Tx, handelnder, {
+                eingabe: {
+                  name: f.akteur_name,
+                  sektor: f.akteur_sektor || lauf.standardSektor,
+                  sitz_strasse: f.akteur_sitz_strasse,
+                  sitz_hausnummer: f.akteur_sitz_hausnummer,
+                  sitz_plz: f.akteur_sitz_plz,
+                  sitz_ort: f.akteur_sitz_ort,
+                  lat: f.akteur_sitz_lat,
+                  lng: f.akteur_sitz_lng,
+                },
+                aktiveCodes,
+                importLaufId: lauf.id,
+              }),
+            );
+            akteure.set(gruppe, { id: neu.id });
+            return neu.id;
+          } catch (e) {
+            if (e instanceof AkteurFehlerAusnahme) akteure.set(gruppe, { fehler: e.message });
+            throw e;
+          }
+        };
+        for (const z of stapel) {
+          try {
+            const belegId = await belegFuer(z.felder.beleg_typ || lauf.belegTyp);
+            const akteurId = await akteurFuer(z.felder);
+            await tx.transaction(async (sp) => {
+              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId));
+              await stromAnlegenInTx(sp as unknown as Tx, handelnder, { ...e, beleg: null, belegId }, heute);
+            });
+            ergebnisse.set(z.id, null);
+          } catch (e) {
+            ergebnisse.set(z.id, zeilenGrund(e));
+          }
+        }
+        throw new ProbelaufEnde();
+      }),
+    );
+  } catch (e) {
+    if (!(e instanceof ProbelaufEnde)) {
+      console.error("Probelauf abgebrochen:", e);
+      return { fehler: "Der Probelauf ist technisch abgebrochen — nichts wurde angelegt." };
+    }
+  }
+
+  const okZeilen = [...ergebnisse.values()].filter((g) => g === null).length;
+  const fehlerZeilen = ergebnisse.size - okZeilen;
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        for (const [id, grund] of ergebnisse) {
+          await tx
+            .update(importZeile)
+            .set({
+              status: grund ? "fehler" : "offen",
+              fehlergrund: grund,
+              felder: felderPatch({ probelauf: grund ? "fehler" : "ok" }),
+            })
+            .where(eq(importZeile.id, id));
+        }
+        const erster = stapel[0] && alle.find((z) => z.status !== "uebersprungen")?.zeilennummer === stapel[0].zeilennummer;
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        zaehler.probelauf_ok = (erster ? 0 : (zaehler.probelauf_ok ?? 0)) + okZeilen;
+        zaehler.probelauf_fehler = (erster ? 0 : (zaehler.probelauf_fehler ?? 0)) + fehlerZeilen;
+        const fertig = naechste === null;
+        await tx
+          .update(importLauf)
+          .set({ zaehler, ...(fertig ? { status: "probelauf" } : {}), updatedAt: new Date() })
+          .where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: fertig ? "status_gesetzt" : "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Probelauf${fertig ? " abgeschlossen" : ""}: ${stapel.length} Zeile(n), ${okZeilen} ok, ${fehlerZeilen} mit Fehler — nichts angelegt`,
+          importLaufId: lauf.id,
+        });
+      }),
+    );
+  } catch (e) {
+    console.error("Probelauf-Ergebnis speichern fehlgeschlagen:", e);
+    return { fehler: "Das Ergebnis des Probelaufs konnte nicht gespeichert werden." };
+  }
+  return { ok: true, bearbeitet: stapel.length, okZeilen, fehlerZeilen, naechste };
 }

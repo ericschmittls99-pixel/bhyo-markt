@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 
 import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
+import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
@@ -13,7 +14,7 @@ import { akteurGruppenAnzeige } from "@/lib/import-akteure";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
 import { PERSON, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
-import { BELEG_LABEL, BELEG_TYPEN } from "@/lib/qualitaet";
+import { BELEG_LABEL, BELEG_TYPEN, brauchtGueltigBis, istBelegTyp } from "@/lib/qualitaet";
 import { darf } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 import { ladeSektoren, listMaterialarten, listOutputProdukte } from "@/lib/register";
@@ -141,13 +142,24 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
         )}
         {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest") && <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />}
         {lauf.status === "aufgeloest" && gruppen.some((g) => g.ergebnis === "neu") && <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />}
+        {(lauf.status === "aufgeloest" || lauf.status === "probelauf") && (
+          <Probelauf
+            laufId={lauf.id}
+            status={lauf.status}
+            erhebungsdatum={lauf.belegErhebungsdatum}
+            gueltigBis={lauf.belegGueltigBis}
+            gueltigBisPflicht={istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)}
+            ersteZeile={alleZeilen.find((z) => z.status !== "uebersprungen")?.zeilennummer ?? null}
+            zaehler={lauf.zaehler}
+          />
+        )}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
               <h3>zeilen.</h3>
               <p className="c">
                 {zeilen.length < alleZeilen.length ? `Die ersten ${zeilen.length} von ${alleZeilen.length} Zeilen. ` : ""}
-                Der Probelauf folgt in diesem PR.
+                Ausführen und Nacharbeit folgen in PR c.
               </p>
             </header>
             <table className="einst-tabelle imp-tabelle">
@@ -180,6 +192,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                     </td>
                     <td>
                       <span className="pill pill--status pill--muted">{z.status}</span>
+                      {z.felder.probelauf === "ok" && <span className="pill pill--muted"> Probelauf ok</span>}
                       {z.fehlergrund && <span className="c"> {z.fehlergrund}</span>}
                     </td>
                   </tr>

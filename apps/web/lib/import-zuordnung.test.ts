@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseImportDatei } from "./import-datei";
-import { IGNORIEREN, PERSON, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
+import { IGNORIEREN, PERSON, bereinigteCsv, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
 
 const fixture = (() => {
   const b = readFileSync(join(__dirname, "..", "..", "..", "docs", "beispiele", "import-biomasse.csv"));
@@ -200,5 +200,19 @@ describe("Vorlagen", () => {
     // Menge aus dem Vorschlag (Vorlage kennt sie nicht), Bemerkung ignoriert (Vorlage).
     expect(erg.spalten).toEqual({ Betrieb: "bezeichnung", Material: "materialart_code", "E-Mail": PERSON, Menge: "menge_roh_fm", Bemerkung: IGNORIEREN });
     expect(erg.werte).toEqual({ materialart_code: { Gülle: "guelle_rind", Mais: "maissilage" } });
+  });
+});
+
+describe("bereinigteCsv (E67, DSGVO)", () => {
+  it("enthaelt nur Spalten mit Zielfeld — keine Personen-, ignorierten oder nicht zugeordneten Spalten; BOM, Semikolon, Quoting", () => {
+    const z: Zuordnung = { spalten: { ...vorschlagZuordnung("biomasse", fixture.spalten), Hausnummer: IGNORIEREN, Ort: "" }, werte: {} };
+    const csv = bereinigteCsv(fixture.spalten, fixture.zeilen, z);
+    expect(csv.startsWith("\ufeff")).toBe(true);
+    const zeilen = csv.slice(1).trimEnd().split("\r\n");
+    expect(zeilen[0]).toBe("Betrieb;Sektor;Straße;PLZ;Materialart;Menge;Einheit;TS-Anteil %;Zeitraum von;Zeitraum bis");
+    expect(zeilen).toHaveLength(4);
+    expect(zeilen[1]).toBe("Hof Mustermann;Landwirtschaft;Dorfstraße;67346;Rindergülle;1.234,5;t/a;8,5;01/2026;12/2026");
+    expect(csv).not.toMatch(/Max Mustermann|example\.invalid|Ansprech|E-Mail|Speyer/);
+    expect(bereinigteCsv(["A"], [['Wert; mit "Quote"']], { spalten: { A: "bezeichnung" }, werte: {} })).toContain('"Wert; mit ""Quote"""');
   });
 });

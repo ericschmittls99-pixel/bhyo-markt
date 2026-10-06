@@ -13,6 +13,7 @@ const protokolle: unknown[] = [];
 const inserts: Record<string, unknown>[] = [];
 const updates: Record<string, unknown>[] = [];
 const uploads: { key: string; bytes: number; contentType?: string }[] = [];
+const uploadInhalte: string[] = [];
 const geloescht: string[] = [];
 /** Antworten auf db.select(...) in Aufrufreihenfolge; leer → der Benutzer (Zugangspruefung). */
 const dbSelects: unknown[][] = [];
@@ -27,6 +28,7 @@ vi.mock("@/lib/db", () => ({
   getBelegeBucket: async () => ({
     put: async (key: string, daten: ArrayBuffer, o?: { httpMetadata?: { contentType?: string } }) => {
       uploads.push({ key, bytes: daten.byteLength, contentType: o?.httpMetadata?.contentType });
+      uploadInhalte.push(new TextDecoder().decode(daten));
     },
     get: async () => (r2Inhalt ? { body: new Blob([r2Inhalt]).stream(), size: r2Inhalt.byteLength } : null),
     delete: async (key: string) => void geloescht.push(key),
@@ -61,6 +63,8 @@ vi.mock("@/lib/db", () => ({
         },
       }),
       update: () => ({ set: (v: Record<string, unknown>) => ({ where: async () => void updates.push(v) }) }),
+      // Savepoint: dieselbe Attrappe, kein echtes Rollback — geprueft wird der Ablauf, nicht die DB.
+      transaction: async (f: (t: unknown) => unknown) => f(tx),
     };
     // Die Zugangspruefung liest benutzer ohne Join; die Lauf-Lader joinen
     // benutzer an import_lauf (leftJoin) — daran erkennt die Attrappe, welche
@@ -91,6 +95,41 @@ vi.mock("@/lib/photon-server", () => ({
     return photonAntwort(q);
   },
 }));
+const bausteinAufrufe: string[] = [];
+let stromFehltAb: Set<string> = new Set();
+vi.mock("@/lib/strom-schreibweg", async (orig) => {
+  const echt = await orig<typeof import("./strom-schreibweg")>();
+  return {
+    ...echt,
+    stromAnlegenInTx: async (_tx: unknown, _h: unknown, e: { eingaben: { akteurId: string; materialartCode: string }; belegId?: string | null }) => {
+      bausteinAufrufe.push(`strom:${e.eingaben.materialartCode}:${e.eingaben.akteurId}:${e.belegId ?? "-"}`);
+      if (stromFehltAb.has(e.eingaben.materialartCode)) throw new echt.FeldFehlerAusnahme({ menge_roh_fm: "Pflichtfeld" });
+      return { id: "strom-neu" };
+    },
+  };
+});
+vi.mock("@/lib/akteur-schreibweg", async (orig) => {
+  const echt = await orig<typeof import("./akteur-schreibweg")>();
+  return {
+    ...echt,
+    akteurAnlegenInTx: async (_tx: unknown, _h: unknown, a: { eingabe: Record<string, string> }) => {
+      bausteinAufrufe.push(`akteur:${a.eingabe.name}:${a.eingabe.sektor}`);
+      if (!a.eingabe.lat) throw new echt.AkteurFehlerAusnahme("Der Ort ist nicht bestimmbar (Test).");
+      return { id: `akteur-${a.eingabe.name}`, name: a.eingabe.name, sektor: a.eingabe.sektor };
+    },
+  };
+});
+vi.mock("@/lib/beleg-server", async (orig) => {
+  const echt = await orig<typeof import("./beleg-server")>();
+  return {
+    ...echt,
+    erstelleBeleg: async (_tx: unknown, e: { typ: string; dateiKey?: string | null; quellenangabe: string | null }) => {
+      bausteinAufrufe.push(`beleg:${e.typ}:${e.dateiKey}:${e.quellenangabe}`);
+      return { belegId: `beleg-${e.typ}` };
+    },
+  };
+});
+vi.mock("@/lib/register", () => ({ ladeSektoren: async () => [{ code: "landwirtschaft", label: "Landwirtschaft", aktiv: true }, { code: "ohne_sektor", label: "ohne Sektor", aktiv: true }] }));
 vi.mock("@/lib/dubletten", () => ({
   sucheAehnliche: async (_db: unknown, name: string, plz: string | null) => {
     aehnlichAufrufe.push({ name, plz });
@@ -99,7 +138,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importDateiHochladen, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -114,7 +153,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -248,6 +287,11 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     expect(geloescht).toEqual([`import/test/${LAUF}/roh.csv`]);
     // „Hof Mustermann" ist der Betrieb (Akteur) und darf stehen; die Person „Max Mustermann", E-Mails und die Spaltennamen nicht.
     expect(JSON.stringify([inserts, updates, protokolle])).not.toMatch(/Max Mustermann|Erika|example\.invalid|Ansprech|E-Mail/);
+    // Bereinigte Kopie als Datei des Lauf-Belegs: unter belege/, ohne Personen-Spalten.
+    expect(uploads).toEqual([{ key: `belege/test/import/${LAUF}/bereinigt.csv`, bytes: expect.any(Number), contentType: "text/csv; charset=utf-8" }]);
+    // TextDecoder der Attrappe entfernt das BOM; das BOM selbst prueft import-zuordnung.test.ts.
+    expect(uploadInhalte[0]).toMatch(/^Betrieb;Sektor;/);
+    expect(uploadInhalte[0]).not.toMatch(/Max Mustermann|example\.invalid|Ansprech|E-Mail/);
   });
 });
 
@@ -396,5 +440,87 @@ describe("importAdressenAufloesen (PR b: Sitz neuer Akteure, stapelweise, fortse
     dbSelects.push([laufZeile("aufgeloest")], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_neu: "1", akteur_sitz_lat: "49", akteur_sitz_lng: "8" } }]);
     expect(await importAdressenAufloesen(LAUF)).toEqual({ ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 });
     expect(photonAufrufe).toHaveLength(0);
+  });
+});
+
+describe("importBelegDatenSetzen (PR b, Migration 0044)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const laufZeile = (belegTyp: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp, standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: {}, belegErhebungsdatum: null, belegGueltigBis: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+
+  it("Gueltig-bis ist bei den oberen vier Typen Pflicht (E33), Erhebungsdatum immer; falsches Format wird genannt", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("betriebsdaten")]);
+    expect((await importBelegDatenSetzen(LAUF, "2026-10-06", "")).feldFehler).toEqual({ gueltigBis: "Gültig bis ist bei diesem Belegtyp Pflicht (E33)." });
+    dbSelects.push([laufZeile("gespraech")]);
+    expect((await importBelegDatenSetzen(LAUF, "6.10.2026", "")).feldFehler).toEqual({ erhebungsdatum: "Erhebungsdatum (JJJJ-MM-TT) ist Pflicht." });
+    expect(updates).toHaveLength(0);
+  });
+
+  it("speichert Erhebungsdatum und Gueltig-bis mit Ereignis", async () => {
+    rolle = "admin";
+    dbSelects.push([laufZeile("betriebsdaten")]);
+    expect(await importBelegDatenSetzen(LAUF, "2026-10-06", "2027-10-06")).toEqual({ ok: true });
+    expect(updates[0]).toMatchObject({ belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06" });
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Belegdaten des Laufs gesetzt: Erhebungsdatum 2026-10-06, gültig bis 2027-10-06" });
+  });
+});
+
+describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 4 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
+  const strom = (code: string) => ({ materialart_code: code, menge_roh_fm: "100", ts_anteil_pct: "8", aschegehalt_pct: "1", zeitraum_von: "2026-01", zeitraum_bis: "2026-12" });
+  const zeilen = () => [
+    { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43" } },
+    { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { ...strom("maissilage"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43", beleg_typ: "gespraech" } },
+    { id: "z3", zeilennummer: 4, status: "fehler", fehlergrund: "alt", felder: { ...strom("festmist"), akteur_name: "Vorhanden", akteur_id: "a1" } },
+    { id: "z4", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "Hof B", akteur_neu: "1", akteur_gruppe: "hof b|76646", akteur_sitz_plz: "76646", akteur_sitz_offen: "Kein Treffer der Adresssuche." } },
+  ];
+
+  it("Rot: Bearbeiter abgewiesen, kein Baustein gerufen", async () => {
+    rolle = "bearbeiter";
+    expect((await importProbelauf(LAUF, 2)).fehler).toMatch(/recht/i);
+    expect(bausteinAufrufe).toHaveLength(0);
+  });
+
+  it("ohne Belegdaten oder mit offenen Vorschlaegen startet nichts", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf({ belegErhebungsdatum: null })]);
+    expect((await importProbelauf(LAUF, 2)).fehler).toMatch(/Belegdaten fehlen/);
+    dbSelects.push([lauf()], [{ id: "z9", zeilennummer: 2, status: "aehnlich", fehlergrund: null, felder: {} }]);
+    expect((await importProbelauf(LAUF, 2)).fehler).toMatch(/offene Akteur-Vorschläge/);
+    expect(bausteinAufrufe).toHaveLength(0);
+  });
+
+  it("prueft jede Zeile durch die Bausteine: ein Beleg je Typ, ein neuer Akteur je Gruppe, Zeilenfehler mit Grund, Lauf wird „probelauf“", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()], zeilen());
+    stromFehltAb = new Set(["festmist"]);
+    const erg = await importProbelauf(LAUF, 2);
+    expect(erg).toEqual({ ok: true, bearbeitet: 4, okZeilen: 2, fehlerZeilen: 2, naechste: null });
+    expect(bausteinAufrufe).toEqual([
+      `beleg:betriebsdaten:belege/test/import/${LAUF}/bereinigt.csv:import-biomasse.csv · Import-Lauf ${LAUF}`,
+      "akteur:Hof A:ohne_sektor",
+      "strom:guelle_rind:akteur-Hof A:beleg-betriebsdaten",
+      `beleg:gespraech:belege/test/import/${LAUF}/bereinigt.csv:import-biomasse.csv · Import-Lauf ${LAUF}`,
+      "strom:maissilage:akteur-Hof A:beleg-gespraech",
+      "strom:festmist:a1:beleg-betriebsdaten",
+    ]);
+    // Ergebnisse: z1, z2 ok; z3 Feldfehler; z4 Sitz offen (Akteur nie versucht). Danach Lauf-Update.
+    expect(updates.slice(0, 4).map((u) => [u.status, u.fehlergrund])).toEqual([
+      ["offen", null],
+      ["offen", null],
+      ["fehler", "menge_roh_fm: Pflichtfeld"],
+      ["fehler", "Sitz offen: Kein Treffer der Adresssuche."],
+    ]);
+    expect(updates[4]).toMatchObject({ status: "probelauf", zaehler: expect.objectContaining({ probelauf_ok: 2, probelauf_fehler: 2 }) });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", importLaufId: LAUF, text: "Probelauf abgeschlossen: 4 Zeile(n), 2 ok, 2 mit Fehler — nichts angelegt" });
+  });
+
+  it("Gueltig-bis fehlt fuer einen oberen Belegtyp je Zeile → Zeilenfehler, nicht Abbruch", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf({ belegTyp: "gespraech", belegGueltigBis: null })], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_typ: "vertrag" } }]);
+    const erg = await importProbelauf(LAUF, 2);
+    expect(erg).toMatchObject({ ok: true, okZeilen: 0, fehlerZeilen: 1 });
+    expect(updates[0]).toMatchObject({ status: "fehler", fehlergrund: "Gültig bis fehlt für Belegtyp „vertrag\" (E33)." });
   });
 });
