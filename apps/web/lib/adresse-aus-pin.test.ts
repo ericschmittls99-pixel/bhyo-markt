@@ -4,7 +4,7 @@ import { uebernimmAusPin, type AdresseWerte } from "./adresse-aus-pin";
 import type { Adresse } from "./geocode";
 
 const leer: AdresseWerte = { strasse: "", hausnummer: "", plz: "", ort: "", lat: "49.32", lng: "8.43" };
-const treffer: Adresse = { strasse: "Iggelheimer Straße", hausnummer: null, plz: "67346", ort: "Speyer", lng: 8.4, lat: 49.33 };
+const treffer: Adresse = { art: "adresse", strasse: "Iggelheimer Straße", hausnummer: null, plz: "67346", ort: "Speyer", lng: 8.4, lat: 49.33 };
 
 describe("uebernimmAusPin (Sitz-Erfassung a)", () => {
   it("Karten-Klick: PLZ und Ort aus dem Pin, Pin bleibt, wo gesetzt", () => {

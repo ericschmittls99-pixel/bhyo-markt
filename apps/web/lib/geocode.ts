@@ -14,7 +14,17 @@
 //   "© OpenStreetMap-Mitwirkende", Open Source und damit selbst hostbar,
 //   falls die oeffentliche Instanz je nicht mehr reicht.
 
+/**
+ * Sitz-Erfassung b (05.10.2026): Art des Treffers, gemessen an Photon-Antworten.
+ * adresse = hat eine Strasse · ort = place (Stadt, Gemeinde, Ortsteil …) ·
+ * plz = place/postcode (Photon traegt die PLZ dort NUR im Namen, postcode ist
+ * leer) · objekt = alles andere ohne Strasse (Bach, Fluss, Flur) — fuer die
+ * Rueckwaertssuche noch brauchbar (city), in der Suche nicht als Ort anzubieten.
+ */
+export type TrefferArt = "adresse" | "ort" | "plz" | "objekt";
+
 export interface Adresse {
+  art: TrefferArt;
   strasse: string | null;
   hausnummer: string | null;
   plz: string | null;
@@ -39,21 +49,68 @@ export function photonZuAdresse(feature: unknown): Adresse | null {
 
   const s = (v: unknown): string | null =>
     typeof v === "string" && v.trim() !== "" ? v : null;
-  // Bei Orts-Treffern (type city/town/village/…) ist der Ortsname `name`,
-  // bei Adress-Treffern steht der Ort in `city`.
-  const ort = s(p.city) ?? (s(p.street) == null ? s(p.name) : null);
+  // Strassen-Treffer (layer street, Rueckwaertssuche): der Name IST die Strasse.
+  const strasse = s(p.street) ?? (p.type === "street" ? s(p.name) : null);
+  const istPlace = p.osm_key === "place";
+  const art: TrefferArt =
+    strasse != null ? "adresse" : istPlace ? (p.osm_value === "postcode" ? "plz" : "ort") : "objekt";
+  // Bei Orts-Treffern (place) ist der Ortsname `name`, sonst steht der Ort in
+  // `city`; ein Objekt (Bach, Flur) gibt seinen Namen nie als Ort aus.
+  const ort = s(p.city) ?? (art === "ort" ? s(p.name) : null);
   return {
-    strasse: s(p.street),
+    art,
+    strasse,
     hausnummer: s(p.housenumber),
-    plz: s(p.postcode),
+    plz: art === "plz" ? s(p.name) : s(p.postcode),
     ort,
     lng,
     lat,
   };
 }
 
+/** Suche: nur Adressen, Orte und PLZ anbieten — Objekte ohne Strasse (Fluss, Flur) nicht. */
+export function nurAdressenUndOrte(adressen: Adresse[]): Adresse[] {
+  return adressen.filter((a) => a.art !== "objekt");
+}
+
+/**
+ * Rueckwaertssuche auf freiem Feld (Eric 05.10.2026): Hoefe und Anlagen liegen
+ * oft dort, wo der naechste Photon-Treffer ein Bach oder eine Flur ohne PLZ
+ * ist. Darum mehrere Treffer, Objekte ignorieren (derselbe Filter wie die
+ * Suche) und den naechstgelegenen Treffer MIT PLZ innerhalb des Radius nehmen.
+ * Die Entfernung rechnen wir selbst — Photon liefert `distance` nicht.
+ */
+export const REVERSE_RADIUS_KM = 3;
+// Begruendung 3 km: In Deutschland liegt die naechste Strasse oder das naechste
+// Gebaeude mit PLZ fast immer naeher als 3 km (Hof, Anlage, Feldweg); ein
+// groesserer Radius wuerde eher die Nachbargemeinde mit anderer PLZ treffen.
+
+export function entfernungKm(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number {
+  const r = 6371;
+  const toRad = (g: number) => (g * Math.PI) / 180;
+  const dLat = toRad(b.lat - a.lat);
+  const dLng = toRad(b.lng - a.lng);
+  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
+  return 2 * r * Math.asin(Math.sqrt(h));
+}
+
+export function waehleTrefferAusPin(pin: { lng: number; lat: number }, treffer: Adresse[], radiusKm: number): Adresse | null {
+  let bester: Adresse | null = null;
+  let besteKm = Infinity;
+  for (const t of nurAdressenUndOrte(treffer)) {
+    if (!t.plz) continue;
+    const km = entfernungKm(pin, t);
+    if (km <= radiusKm && km < besteKm) {
+      bester = t;
+      besteKm = km;
+    }
+  }
+  return bester;
+}
+
 /** Kompaktes Anzeige-Label ("Hauptstraße 12, 67346 Speyer"). */
-export function adresseLabel(a: Adresse): string {
+/** Nimmt jedes Objekt mit den vier Adressfeldern (Adresse, Standort, Fixture). */
+export function adresseLabel<T extends Pick<Adresse, "strasse" | "hausnummer" | "plz" | "ort">>(a: T): string {
   const strasse = [a.strasse, a.hausnummer].filter(Boolean).join(" ");
   const ort = [a.plz, a.ort].filter(Boolean).join(" ");
   return [strasse, ort].filter(Boolean).join(", ");
