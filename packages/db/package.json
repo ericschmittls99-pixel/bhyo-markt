@@ -45,7 +45,10 @@
     "kontaktperson-check": "tsx src/kontaktperson-check.ts",
     "import-check": "tsx src/import-check.ts",
     "probelauf-rollback-check": "tsx src/probelauf-rollback-check.ts",
-    "dubletten-check": "tsx src/dubletten-check.ts"
+    "dubletten-check": "tsx src/dubletten-check.ts",
+    "plz-import": "tsx src/plz-import.ts",
+    "plz-check": "tsx src/plz-check.ts",
+    "sql-datei": "tsx src/sql-datei.ts"
   },
   "dependencies": {
     "drizzle-orm": "^0.45.2",

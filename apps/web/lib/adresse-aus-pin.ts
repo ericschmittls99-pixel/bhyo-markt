@@ -16,8 +16,11 @@ export interface AdresseWerte {
 }
 
 /**
- * "pin": Klick oder Ziehen — die Koordinate ist fuehrend, alle Adressfelder
- *        kommen aus dem Treffer (fehlt etwas, bleibt das Feld leer).
+ * "pin": Klick oder Ziehen — die Koordinate ist fuehrend, PLZ und Ort kommen
+ *        aus dem Treffer (fehlt etwas, bleibt das Feld leer). Strasse und
+ *        Hausnummer bleiben stehen: seit E68 PR 1 kommt der Treffer lokal aus
+ *        den PLZ-Gebieten und kennt keine Strasse — was der Mensch getippt
+ *        hat, prueft PR 2 („Adresse pruefen"), der Pin loescht es nicht.
  * "ergaenzen": Standort uebernommen — Strasse und Hausnummer des Standorts
  *        bleiben, nur eine fehlende PLZ oder ein fehlender Ort kommt aus dem Pin.
  * Der Pin selbst (lat/lng) wird nie veraendert: er bleibt, wo er gesetzt wurde.
@@ -33,8 +36,6 @@ export function uebernimmAusPin(
     modus === "pin"
       ? {
           ...alt,
-          strasse: treffer?.strasse ?? "",
-          hausnummer: treffer?.hausnummer ?? "",
           plz: treffer?.plz ?? "",
           ort: treffer?.ort ?? "",
         }
@@ -52,7 +53,7 @@ export function uebernimmAusPin(
     const f = fehlt[0]!;
     return { werte, hinweis: `Am Pin wurde kein${f === "PLZ" ? "e" : ""} ${f} gefunden — ${f} bitte von Hand eintragen.` };
   }
-  if (modus === "pin") return { werte, hinweis: "Adresse aus Pin übernommen." };
+  if (modus === "pin") return { werte, hinweis: "PLZ und Ort aus Pin übernommen." };
 
   const ergaenzt = [werte.plz !== alt.plz && "PLZ", werte.ort !== alt.ort && "Ort"].filter((x): x is string => Boolean(x));
   if (ergaenzt.length === 0) return { werte, hinweis: null };

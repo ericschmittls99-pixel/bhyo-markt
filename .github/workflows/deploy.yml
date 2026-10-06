@@ -149,6 +149,50 @@ jobs:
       - name: freigabe-test (Waechter freigabe.sh)
         run: scripts/tests/freigabe-test.sh
 
+  # E68 PR 1 (Eric 06.10.2026): DB-Tests der Entwuerfe gegen eine Wegwerf-
+  # Postgres im Runner statt gegen die geteilte Preview. Alle Migrationen auf
+  # eine leere PostGIS, dann die Staging-Fixture der PLZ-Kette, der echte
+  # Import-Schritt (ohne Sollwerte) und der Funktions-Check (Paritaet SQL/TS,
+  # Rot-Faelle). Braucht keine Secrets; nichts bleibt liegen.
+  wegwerf-db:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    services:
+      postgis:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_PASSWORD: wegwerf
+          POSTGRES_DB: bhyo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bhyo"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    env:
+      DATABASE_URL: postgres://postgres:wegwerf@localhost:5432/bhyo
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+      - name: Alle Migrationen auf leere PostGIS
+        working-directory: packages/db
+        run: pnpm run migrate
+      - name: PLZ-Staging-Fixture laden
+        run: pnpm --filter @bhyo/db sql-datei fixtures/plz-wegwerf-staging.sql
+      - name: PLZ-Import (Fixture, ohne Sollwerte)
+        env:
+          PLZ_SOLL_PRUEFEN: nein
+        run: pnpm --filter @bhyo/db plz-import
+      - name: PLZ-Check (Paritaet SQL/TS, Rot-Faelle, Fixture)
+        env:
+          PLZ_FIXTURE: ja
+        run: pnpm --filter @bhyo/db plz-check
+
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'
@@ -200,7 +244,7 @@ jobs:
           echo "=============================================================="
 
   deploy:
-    needs: [typen-und-tests, ziel-wache, schema-gate]
+    needs: [typen-und-tests, ziel-wache, schema-gate, wegwerf-db]
     # Typen/Tests sind IMMER Vorbedingung (auch bei PRs — sonst deployt ein
     # roter Stand auf die Preview). Zusaetzlich bei main-Pushes: nur wenn das
     # schema-gate gruen ist.

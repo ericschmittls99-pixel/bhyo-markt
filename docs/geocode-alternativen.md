@@ -93,3 +93,7 @@ ausdrücklich nicht gedacht.
 OpenCage fällt für Autocomplete weg, Mapbox wegen Speicherverbot und
 US-Verarbeitung, LocationIQ wegen Processor ohne EU-Zusage, die öffentliche
 Photon-Instanz, weil die Maintainer genau diesen Fall ausschließen.
+
+**Nachtrag E68 PR 1 (07.10.2026):** „PLZ aus Pin" läuft lokal über die
+PLZ-Gebiete (Migration 0047), die Photon-Rückwärtssuche ist entfernt. Die
+Vorwärtssuche (Autocomplete, Import) nutzt Photon bis PR 2 unverändert.

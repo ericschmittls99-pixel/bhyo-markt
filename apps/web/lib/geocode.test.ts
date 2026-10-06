@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { adresseLabel, dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, waehleTrefferAusPin, type Adresse } from "./geocode";
+import { adresseLabel, dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } from "./geocode";
 
 const feature = (props: Record<string, unknown>, coords: [number, number] = [8.43, 49.32]) => ({
   type: "Feature",
@@ -150,29 +150,3 @@ describe("photonZuAdresse: Kreis und Land (Sitz-Erfassung c)", () => {
 
 // Sitz-Erfassung a, Nachtrag (Eric 05.10.2026): Rueckwaertssuche auf freiem
 // Feld — mehrere Treffer, Objekte ignorieren, naechster Treffer mit PLZ im Radius.
-describe("waehleTrefferAusPin (Rueckwaertssuche mit mehreren Treffern)", () => {
-  const pin = { lng: 8.3, lat: 49.45 };
-  const mk = (props: Record<string, unknown>, coords: [number, number]) => photonZuAdresse(feature(props, coords))!;
-  // Gemessen 05.10.2026 an lat=49.45 lon=8.30: Bach zuerst, dann Strasse mit PLZ.
-  const bach = mk({ osm_key: "waterway", osm_value: "stream", type: "other", name: "Albertgraben", city: "Dannstadt-Schauernheim" }, [8.301, 49.451]);
-  const strasse = mk({ osm_key: "highway", osm_value: "secondary", type: "street", name: "Speyerer Straße", postcode: "67125", city: "Dannstadt-Schauernheim" }, [8.31, 49.455]);
-  const hausWeit = mk({ osm_key: "building", osm_value: "yes", type: "house", street: "Riedgewanne", housenumber: "2", postcode: "67136", city: "Fußgönheim" }, [8.36, 49.47]);
-
-  it("Strassen-Treffer (type street): Name ist die Strasse, Art adresse", () => {
-    expect(strasse).toMatchObject({ art: "adresse", strasse: "Speyerer Straße", plz: "67125", ort: "Dannstadt-Schauernheim" });
-  });
-
-  it("freies Feld: Bach als erster Treffer wird ignoriert, PLZ kommt vom naechsten Treffer mit PLZ", () => {
-    expect(waehleTrefferAusPin(pin, [bach, strasse, hausWeit], 3)).toBe(strasse);
-  });
-
-  it("naechster Treffer zaehlt nach Entfernung, nicht nach Reihenfolge", () => {
-    expect(waehleTrefferAusPin(pin, [hausWeit, strasse], 3)).toBe(strasse);
-  });
-
-  it("kein Treffer mit PLZ im Radius: null (Feld bleibt leer, Meldung)", () => {
-    expect(waehleTrefferAusPin(pin, [bach], 3)).toBeNull();
-    expect(waehleTrefferAusPin(pin, [hausWeit], 3)).toBeNull(); // ~4,9 km entfernt
-    expect(waehleTrefferAusPin(pin, [], 3)).toBeNull();
-  });
-});

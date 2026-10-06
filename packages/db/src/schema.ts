@@ -11,6 +11,7 @@ import {
   pgEnum,
   index,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -271,6 +272,43 @@ export const verwaltungsgebiet = pgTable("verwaltungsgebiet", {
   // Gebietsstand der VG250-Lieferung.
   stichtag: date("stichtag").notNull(),
 });
+
+/**
+ * E68 PR 1: PLZ-Gebiete Deutschlands aus OpenStreetMap (yetzt/postleitzahlen,
+ * ODbL), befuellt vom Workflow import-plz.yml. Grundlage fuer die lokale
+ * Adresspruefung: PLZ existiert? Pin im PLZ-Gebiet? PLZ aus Pin? Kein
+ * externer Dienst mehr fuer „PLZ aus Pin". Zugriff nur per raw SQL (ST_*).
+ */
+export const plzGebiet = pgTable("plz_gebiet", {
+  plz: text("plz").primaryKey(),
+  // Volle Aufloesung (auf 1e-6 Grad gerundet, ~10 cm) fuer ST_Covers, EPSG:4326.
+  geom: geometryMultiPolygon("geom").notNull(),
+  // Release-Stand der Quelle (Tag des GitHub-Releases).
+  stichtag: date("stichtag").notNull(),
+});
+
+/**
+ * E68 PR 1: Orte je PLZ — abgeleitet aus dem Flaechenschnitt PLZ-Gebiet x
+ * VG250-Gemeinde (BKG, GF=4): eine Gemeinde gehoert zur PLZ, wenn der Schnitt
+ * mindestens 10 % der Gemeinde- oder der PLZ-Flaeche ausmacht (Splitter aus
+ * Grenzabweichungen OSM/BKG fallen heraus). `ort_norm` ist die normalisierte
+ * Form (Funktion plz_ort_norm, Spiegel in src/plz.ts) fuer den Vergleich
+ * mit der Nutzereingabe; `ort` der amtliche Gemeindename fuer die Anzeige.
+ */
+export const plzOrt = pgTable(
+  "plz_ort",
+  {
+    plz: text("plz").notNull().references(() => plzGebiet.plz, { onDelete: "cascade" }),
+    ort: text("ort").notNull(),
+    ortNorm: text("ort_norm").notNull(),
+    // Amtlicher Gemeindeschluessel (ARS, 12-stellig) — fuer spaetere Kreis-Hinweise.
+    ars: text("ars").notNull(),
+    // Schnittflaeche PLZ-Gebiet x Gemeinde: liefert zu einem Pin PLZ UND Ort
+    // in einem ST_Covers (eine PLZ mit mehreren Orten braucht sonst Raten).
+    geom: geometryMultiPolygon("geom").notNull(),
+  },
+  (t) => [primaryKey({ columns: [t.plz, t.ars] })],
+);
 
 /** Region ("Fokusregion") mit Flaechen-Geometrie und Bereitschaftsstufe. */
 export const region = pgTable("region", {

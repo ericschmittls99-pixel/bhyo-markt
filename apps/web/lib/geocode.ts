@@ -78,40 +78,6 @@ export function nurAdressenUndOrte(adressen: Adresse[]): Adresse[] {
   return adressen.filter((a) => a.art !== "objekt");
 }
 
-/**
- * Rueckwaertssuche auf freiem Feld (Eric 05.10.2026): Hoefe und Anlagen liegen
- * oft dort, wo der naechste Photon-Treffer ein Bach oder eine Flur ohne PLZ
- * ist. Darum mehrere Treffer, Objekte ignorieren (derselbe Filter wie die
- * Suche) und den naechstgelegenen Treffer MIT PLZ innerhalb des Radius nehmen.
- * Die Entfernung rechnen wir selbst — Photon liefert `distance` nicht.
- */
-export const REVERSE_RADIUS_KM = 3;
-// Begruendung 3 km: In Deutschland liegt die naechste Strasse oder das naechste
-// Gebaeude mit PLZ fast immer naeher als 3 km (Hof, Anlage, Feldweg); ein
-// groesserer Radius wuerde eher die Nachbargemeinde mit anderer PLZ treffen.
-
-export function entfernungKm(a: { lng: number; lat: number }, b: { lng: number; lat: number }): number {
-  const r = 6371;
-  const toRad = (g: number) => (g * Math.PI) / 180;
-  const dLat = toRad(b.lat - a.lat);
-  const dLng = toRad(b.lng - a.lng);
-  const h = Math.sin(dLat / 2) ** 2 + Math.cos(toRad(a.lat)) * Math.cos(toRad(b.lat)) * Math.sin(dLng / 2) ** 2;
-  return 2 * r * Math.asin(Math.sqrt(h));
-}
-
-export function waehleTrefferAusPin(pin: { lng: number; lat: number }, treffer: Adresse[], radiusKm: number): Adresse | null {
-  let bester: Adresse | null = null;
-  let besteKm = Infinity;
-  for (const t of nurAdressenUndOrte(treffer)) {
-    if (!t.plz) continue;
-    const km = entfernungKm(pin, t);
-    if (km <= radiusKm && km < besteKm) {
-      bester = t;
-      besteKm = km;
-    }
-  }
-  return bester;
-}
 
 /** Kompaktes Anzeige-Label ("Hauptstraße 12, 67346 Speyer"). */
 /** Nimmt jedes Objekt mit den vier Adressfeldern (Adresse, Standort, Fixture). */

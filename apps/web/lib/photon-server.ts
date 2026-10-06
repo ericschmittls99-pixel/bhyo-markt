@@ -1,4 +1,4 @@
-import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, REVERSE_RADIUS_KM, type Adresse } from "@/lib/geocode";
+import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } from "@/lib/geocode";
 
 /**
  * Der eine Netz-Austritt zur Adresssuche (F0a, Photon — Begruendung in
@@ -105,9 +105,3 @@ export async function photonSuche(q: string): Promise<Adresse[]> {
   return dedupeAdressen(nurAdressenUndOrte(await hole(url, `suche laenge=${text.length}`)));
 }
 
-/** Rueckwaertssuche fuer den Pin: alle Treffer im Radius (Auswahl macht der Aufrufer). */
-export async function photonReverse(lat: number, lon: number): Promise<Adresse[]> {
-  const url = `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=de&limit=5&radius=${REVERSE_RADIUS_KM}&layer=house&layer=street`;
-  // Kennung auf ein 0,1°-Raster gerundet (≈ 10 km), kein genauer Standort im Log.
-  return hole(url, `reverse raster=${lat.toFixed(1)},${lon.toFixed(1)}`);
-}

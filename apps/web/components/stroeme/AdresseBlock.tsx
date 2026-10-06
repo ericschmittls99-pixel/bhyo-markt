@@ -114,6 +114,11 @@ export function AdresseBlock({
       if ((e as Error).name === "AbortError") return;
       // Die Ursache kommt vom Proxy (Zeitlimit, Status, Netz); der Pin bleibt, PLZ und Ort gehen von Hand.
       const grund = (e as Error).message;
+      // E68 PR 1: fehlt der PLZ-Bestand, sagt der Server das im Klartext — unveraendert anzeigen.
+      if (/PLZ-Gebiete/.test(grund)) {
+        setHinweis(grund);
+        return;
+      }
       setHinweis(`${/Adresssuche/.test(grund) ? grund.replace(/ — Adresse und Pin.*$/, "") : "Rückwärtssuche nicht erreichbar"} — PLZ und Ort bitte von Hand eintragen.`);
     }
   }

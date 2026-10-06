@@ -7,10 +7,10 @@ const leer: AdresseWerte = { strasse: "", hausnummer: "", plz: "", ort: "", lat:
 const treffer: Adresse = { art: "adresse", kreis: null, land: "Rheinland-Pfalz", strasse: "Iggelheimer Straße", hausnummer: null, plz: "67346", ort: "Speyer", lng: 8.4, lat: 49.33 };
 
 describe("uebernimmAusPin (Sitz-Erfassung a)", () => {
-  it("Karten-Klick: PLZ und Ort aus dem Pin, Pin bleibt, wo gesetzt", () => {
-    const r = uebernimmAusPin({ ...leer, strasse: "Alt", plz: "11111", ort: "Altort" }, treffer, "pin");
-    expect(r.werte).toEqual({ strasse: "Iggelheimer Straße", hausnummer: "", plz: "67346", ort: "Speyer", lat: "49.32", lng: "8.43" });
-    expect(r.hinweis).toBe("Adresse aus Pin übernommen.");
+  it("Karten-Klick: PLZ und Ort aus dem Pin, Straße bleibt (E68 PR 1), Pin bleibt, wo gesetzt", () => {
+    const r = uebernimmAusPin({ ...leer, strasse: "Alt", hausnummer: "7", plz: "11111", ort: "Altort" }, treffer, "pin");
+    expect(r.werte).toEqual({ strasse: "Alt", hausnummer: "7", plz: "67346", ort: "Speyer", lat: "49.32", lng: "8.43" });
+    expect(r.hinweis).toBe("PLZ und Ort aus Pin übernommen.");
   });
 
   it("Karten-Klick ohne PLZ am Treffer: Feld bleibt leer, klare Meldung", () => {

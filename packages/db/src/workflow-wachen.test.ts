@@ -35,7 +35,8 @@ describe("deploy.yml: Production nur von main", () => {
 
   it("macht die Wache zur Vorbedingung von schema-gate und deploy", () => {
     expect(workflow).toContain("needs: [typen-und-tests, ziel-wache]");
-    expect(workflow).toContain("needs: [typen-und-tests, ziel-wache, schema-gate]");
+    // E68 PR 1: deploy wartet zusaetzlich auf die Wegwerf-DB (Migrationen auf leer + PLZ-Kette).
+    expect(workflow).toContain("needs: [typen-und-tests, ziel-wache, schema-gate, wegwerf-db]");
   });
 
   it("fragt das Ergebnis der Wache trotz always() ausdruecklich ab", () => {
