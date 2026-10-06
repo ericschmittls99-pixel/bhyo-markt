@@ -166,9 +166,12 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
   (startet einen abgebrochenen Lauf einmal neu), merged über
   `scripts/merge-sicher.sh` (MERGEABLE/CLEAN, Head-SHA, grüne Läufe,
   `--match-head-commit`), prüft main gegen den Squash-Commit, startet
-  migrate-production nur bei neuer Migration und wartet Deploy und Leseweg
-  ab. Jeder Fehlschlag bricht sofort ab, keine Folgeschritte. Kein Ergebnis
-  ist kein Ergebnis.
+  migrate-production nur bei neuer Migration, wartet Deploy und Leseweg ab
+  (einen von GitHub abgebrochenen main-Lauf startet es einmal neu) und
+  gleicht danach die gestapelten PRs an (Merge von main, Patch-ID vorher =
+  nachher, sonst nur Meldung). Bis zum Merge bricht jeder Fehlschlag sofort
+  ab, keine Folgeschritte; nach dem Merge bricht nichts mehr ab. Kein
+  Ergebnis ist kein Ergebnis.
 - Jeder PR deployt automatisch eine Preview; `/api/health` muss dort grün sein
 - Additive Migrationen kommen mit ihrem ersten Verbraucher in denselben PR
   (E21: das schema-gate sorgt dafür, dass die Migration vor dem Deploy läuft).

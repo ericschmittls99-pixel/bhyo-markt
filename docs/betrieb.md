@@ -166,7 +166,18 @@ wird einmal neu gestartet und abgewartet; b) Merge über `merge-sicher.sh`
 (MERGEABLE/CLEAN, grüne Checks, `--match-head-commit`); c) main steht auf dem
 Squash-Commit; d) nur bei neuer Migrationsdatei im PR: migrate-production
 starten, abwarten, Zählbeweis ausgeben; e) den Push-Deploy von main abwarten,
-Jobs, Leseweg und Links ausgeben. Jeder Fehlschlag bricht sofort ab.
+Jobs, Leseweg und Links ausgeben; bricht GitHub den Lauf ab (Job „cancelled",
+z. B. kein Runner zugeteilt wie am 05.10.2026), wird er einmal neu gestartet,
+wie in a); f) die in a) umgehängten gestapelten PRs angleichen: main (Squash)
+hineinmergen, Patch-ID des PR-Diffs vorher (gegen den Basis-Baum, der dem
+neuen main-Baum entsprechen muss) und nachher (`main...HEAD`) vergleichen;
+gleich → pushen und neuen Head ausgeben, sonst melden und nicht pushen.
+Jeder Fehlschlag bis einschließlich b) bricht sofort ab. Nach dem Merge
+(Punkt ohne Wiederkehr) bricht nichts mehr ab: `merge-sicher.sh` merged ohne
+`--delete-branch` und löscht Remote- und lokalen Branch anschließend nur
+noch als Aufräumen mit Hinweis (am 06.10.2026 scheiterte gh am lokalen
+Löschen eines in einem Worktree ausgecheckten Branches, und freigabe.sh
+brach vor Migration und Deploy ab).
 
 **Warteschlange:** `deploy.yml` bricht nur noch überholte PR-Läufe ab
 (`cancel-in-progress` nur bei `synchronize`); main-Deploys laufen nacheinander.
