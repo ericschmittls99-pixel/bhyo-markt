@@ -938,3 +938,16 @@ Fehler) mit „Korrigieren" (öffnet die Zielfelder der Art als Inline-Formular
 „Überspringen" (`btn--ghost`). **Akteur-Detail:** neuer Abschnitt „verlauf."
 unter „belege und ströme." im Stil der Änderungshistorie (`historie2`);
 Einträge aus einem Import verlinken den Lauf.
+
+## import. — Zurücknehmen (AP2.7 PR d, E67, 07.10.2026)
+
+**Zurücknehmen:** eigener Abschnitt „zurücknehmen." nur für Admins und nur
+bei Status „ausgeführt", unter „ausführen." und über „zeilen.". Schaltfläche
+`btn--ghost btn--sm` „Import zurücknehmen …" (Icon
+`ph-arrow-counter-clockwise`), Inline-Bestätigung `ak-confirm` wie beim
+Zusammenführen („Endgültig zurücknehmen? Kein Rückgängig, Backups halten die
+Daten noch 30 Tage." · `btn--primary` „Ja, Import zurücknehmen" ·
+`btn--ghost` „Abbrechen"), kein Browser-Dialog. Abweisung des Servers
+(bearbeitete Ströme mit Zeilennummern) als `pf-fehler` neben der
+Schaltfläche; die Bestätigung klappt dabei zu. Nach Erfolg zeigt die Seite
+die Pille „zurückgenommen", die Zeilen ohne Strom-Link, keine Nacharbeit.

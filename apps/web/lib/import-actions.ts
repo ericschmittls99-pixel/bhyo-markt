@@ -1,6 +1,6 @@
 "use server";
 
-import { beleg, importLauf, importVorlage, importZeile } from "@bhyo/db/schema";
+import { aenderung, akteur, akteurInteresse, beleg, biomassestrom, importLauf, importVorlage, importZeile, inboxEintrag, kontaktperson, outputBedarf, stromZuweisung, vergabeZeitraum } from "@bhyo/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
@@ -1112,5 +1112,164 @@ export async function importZeileUeberspringen(laufId: string, zeileId: string):
   } catch (e) {
     console.error("Überspringen fehlgeschlagen:", e);
     return { fehler: "Die Zeile konnte nicht übersprungen werden." };
+  }
+}
+
+/**
+ * Ruecknahme eines ganzen Laufs (PR d, E67): nur Admin, nur solange kein
+ * Strom des Laufs danach geaendert, geprueft oder weitergegeben wurde —
+ * jedes Ereignis an einem dieser Stroeme ohne die Lauf-ID ist eine
+ * Bearbeitung und weist die Ruecknahme ab (rot gezeigt). Entfernt werden
+ * die im Lauf angelegten Stroeme (mit Vergaben, Zuweisungen, Inbox-
+ * Eintraegen dazu), die Lauf-Belege und die vom Lauf neu angelegten, dadurch
+ * verwaisten Akteure (mit Interessen und Kontaktpersonen). Alles in EINER
+ * Transaktion, alles protokolliert (verworfen je Strom, akteur_geloescht je
+ * Akteur, status_gesetzt am Lauf) — das Protokoll ueberdauert die Objekte.
+ * Die Zeilen des Laufs behalten ihre Daten, verlieren den Strom-Bezug und
+ * werden „offen"; der Lauf wird „zurueckgenommen" und ist damit beendet.
+ */
+export interface RuecknahmeErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  /** Zeilennummern der Stroeme, die nach dem Import bearbeitet wurden. */
+  bearbeitet?: number[];
+  stroeme?: number;
+  belege?: number;
+  akteure?: number;
+}
+
+export async function importZuruecknehmen(laufId: string): Promise<RuecknahmeErgebnis> {
+  const wache = await rechtFuerAction("import.zuruecknehmen");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "ausgefuehrt") return { fehler: `Der Lauf ist „${lauf.status}" — zurückgenommen wird nur ein ausgeführter Lauf.` };
+  const art = lauf.art as StromArt;
+  const stromTabelle = art === "biomasse" ? biomassestrom : outputBedarf;
+  const entitaetTyp = art === "biomasse" ? "biomassestrom" : "output_bedarf";
+  const quellenangabe = `${lauf.dateiname} · Import-Lauf ${lauf.id}`;
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        // Die Stroeme des Laufs: ueber die Zeilen (Strom-ID) — und ueber das Protokoll, falls die Zeilen schon aufgeraeumt sind.
+        const zeilen = await ladeImportZeilen(tx, lauf.id);
+        const ausZeilen = zeilen.map((z) => (art === "biomasse" ? z.biomassestromId : z.outputBedarfId)).filter((id): id is string => !!id);
+        const ausProtokoll = (
+          await tx
+            .select({ id: aenderung.entitaetId })
+            .from(aenderung)
+            .where(and(eq(aenderung.importLaufId, lauf.id), eq(aenderung.art, "angelegt"), eq(aenderung.entitaetTyp, entitaetTyp)))
+        ).map((r) => r.id);
+        const stromIds = [...new Set([...ausZeilen, ...ausProtokoll])];
+        if (stromIds.length === 0) return { fehler: "Zu diesem Lauf gibt es keine angelegten Ströme mehr." };
+
+        // Vorbedingung: kein Ereignis an diesen Stroemen ausserhalb des Laufs (Bearbeitung, Pruefung, Weitergabe …).
+        const fremd = await tx
+          .select({ id: aenderung.entitaetId, art: aenderung.art })
+          .from(aenderung)
+          .where(and(eq(aenderung.entitaetTyp, entitaetTyp), inArray(aenderung.entitaetId, stromIds), sql`${aenderung.importLaufId} is distinct from ${lauf.id}`));
+        if (fremd.length > 0) {
+          const betroffen = new Set(fremd.map((f) => f.id));
+          const nummern = zeilen.filter((z) => betroffen.has((art === "biomasse" ? z.biomassestromId : z.outputBedarfId) ?? "")).map((z) => z.zeilennummer);
+          return {
+            fehler: `Rücknahme abgewiesen: ${betroffen.size} Strom/Ströme wurden nach dem Import bearbeitet (${[...new Set(fremd.map((f) => f.art))].join(", ")}). Zeilen: ${nummern.join(", ") || "siehe Protokoll"}.`,
+            bearbeitet: nummern,
+          };
+        }
+
+        // Belege und Akteure der Stroeme merken, bevor die Stroeme fallen.
+        const stroeme = await tx
+          .select({ id: stromTabelle.id, belegId: stromTabelle.belegId, akteurId: stromTabelle.akteurId })
+          .from(stromTabelle)
+          .where(inArray(stromTabelle.id, stromIds));
+        const belegIds = [...new Set(stroeme.map((s) => s.belegId).filter((b): b is string => !!b))];
+
+        // Abhaengige Zeilen der Stroeme: Zuweisungen, Vergaben, Inbox-Eintraege; die Import-Zeilen verlieren nur den Bezug.
+        await tx.delete(stromZuweisung).where(inArray(art === "biomasse" ? stromZuweisung.biomassestromId : stromZuweisung.outputBedarfId, stromIds));
+        await tx.delete(vergabeZeitraum).where(inArray(art === "biomasse" ? vergabeZeitraum.biomassestromId : vergabeZeitraum.outputBedarfId, stromIds));
+        await tx.delete(inboxEintrag).where(inArray(art === "biomasse" ? inboxEintrag.biomassestromId : inboxEintrag.outputBedarfId, stromIds));
+        await tx
+          .update(importZeile)
+          .set({ ...(art === "biomasse" ? { biomassestromId: null } : { outputBedarfId: null }), status: "offen", felder: felderPatch({}, ["probelauf"]) })
+          .where(and(eq(importZeile.laufId, lauf.id), inArray(art === "biomasse" ? importZeile.biomassestromId : importZeile.outputBedarfId, stromIds)));
+        for (const s of stroeme) {
+          await protokolliere(tx, {
+            art: "verworfen",
+            entitaet: entitaetTyp,
+            id: s.id,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: wache.email,
+            text: `Import zurückgenommen — Strom gelöscht (Lauf ${lauf.id})`,
+            importLaufId: lauf.id,
+          });
+        }
+        await tx.delete(stromTabelle).where(inArray(stromTabelle.id, stromIds));
+
+        // Lauf-Belege: nur die des Laufs (Quellenangabe), und nur wenn kein anderer Strom sie noch nutzt.
+        let belege = 0;
+        for (const belegId of belegIds) {
+          const [b] = await tx
+            .select({ id: beleg.id, nutzer: sql<number>`(select count(*)::int from biomassestrom where beleg_id = ${belegId}) + (select count(*)::int from output_bedarf where beleg_id = ${belegId})` })
+            .from(beleg)
+            .where(and(eq(beleg.id, belegId), sql`${beleg.metadata} ->> 'quellenangabe' = ${quellenangabe}`))
+            .limit(1);
+          if (!b || Number(b.nutzer) > 0) continue;
+          await tx.delete(beleg).where(eq(beleg.id, belegId));
+          belege += 1;
+        }
+
+        // Vom Lauf neu angelegte Akteure, jetzt verwaist: Interessen und Kontaktpersonen gehen mit (wie akteurLoeschen).
+        const neueAkteure = (
+          await tx
+            .select({ id: aenderung.entitaetId })
+            .from(aenderung)
+            .where(and(eq(aenderung.importLaufId, lauf.id), eq(aenderung.art, "akteur_angelegt"), eq(aenderung.entitaetTyp, "akteur")))
+        ).map((r) => r.id);
+        let akteure = 0;
+        for (const akteurId of neueAkteure) {
+          const [a] = await tx
+            .select({ id: akteur.id, stroeme: sql<number>`(select count(*)::int from biomassestrom where akteur_id = ${akteurId}) + (select count(*)::int from output_bedarf where akteur_id = ${akteurId})` })
+            .from(akteur)
+            .where(eq(akteur.id, akteurId))
+            .limit(1);
+          if (!a || Number(a.stroeme) > 0) continue;
+          const interessen = await tx.delete(akteurInteresse).where(eq(akteurInteresse.akteurId, akteurId)).returning({ id: akteurInteresse.id });
+          const personen = await tx.delete(kontaktperson).where(eq(kontaktperson.akteurId, akteurId)).returning({ id: kontaktperson.id });
+          for (const p of personen) {
+            await protokolliere(tx, { art: "kontaktperson_geloescht", entitaet: "kontaktperson", id: p.id, benutzerId: wache.zugang.id, benutzerEmail: wache.email, text: `Akteur ${akteurId} gelöscht (Import zurückgenommen)`, importLaufId: lauf.id });
+          }
+          await protokolliere(tx, {
+            art: "akteur_geloescht",
+            entitaet: "akteur",
+            id: akteurId,
+            benutzerId: wache.zugang.id,
+            benutzerEmail: wache.email,
+            text: `Import zurückgenommen — im Lauf angelegt, jetzt verwaist; ${interessen.length} Interesse(n), ${personen.length} Kontaktperson(en) mitgelöscht (Lauf ${lauf.id})`,
+            importLaufId: lauf.id,
+          });
+          await tx.delete(akteur).where(eq(akteur.id, akteurId));
+          akteure += 1;
+        }
+
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}), zurueckgenommen_stroeme: stroeme.length, zurueckgenommen_belege: belege, zurueckgenommen_akteure: akteure };
+        await tx.update(importLauf).set({ status: "zurueckgenommen", zurueckgenommenAm: new Date(), zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "status_gesetzt",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Import zurückgenommen: ${stroeme.length} Ströme, ${belege} Beleg(e), ${akteure} Akteur(e) gelöscht`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, stroeme: stroeme.length, belege, akteure };
+      }),
+    );
+  } catch (e) {
+    console.error("Import zurücknehmen fehlgeschlagen:", e);
+    const grund = e instanceof Error ? e.message : String(e);
+    return { fehler: `Die Rücknahme ist technisch abgebrochen — nichts wurde gelöscht. Grund: ${grund.slice(0, 300)}` };
   }
 }

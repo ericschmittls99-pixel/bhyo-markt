@@ -7,6 +7,7 @@ import { Ausfuehren } from "@/components/import/Ausfuehren";
 import { Nacharbeit } from "@/components/import/Nacharbeit";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
+import { Zuruecknehmen } from "@/components/import/Zuruecknehmen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
@@ -171,10 +172,11 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
-        {nacharbeitOptionen && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
+        {nacharbeitOptionen && lauf.status !== "zurueckgenommen" && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
         {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
           <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
         )}
+        {lauf.status === "ausgefuehrt" && darf(zugang, "import.zuruecknehmen") && <Zuruecknehmen laufId={lauf.id} zaehler={lauf.zaehler} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
