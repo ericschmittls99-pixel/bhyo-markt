@@ -67,8 +67,10 @@ vi.mock("@/lib/db", () => ({
     // Antwort faellig ist.
     const kette = (join = false): unknown => {
       const p: Record<string, unknown> = {};
-      for (const m of ["from", "where", "limit", "orderBy"]) p[m] = () => kette(join);
+      for (const m of ["from", "where", "limit"]) p[m] = () => kette(join);
+      // leftJoin (Lauf-Lader) und orderBy (Zeilen-Lader) markieren fachliche Abfragen.
       p.leftJoin = () => kette(true);
+      p.orderBy = () => kette(true);
       (p as { then: unknown }).then = (res: (v: unknown) => void) => res(join ? (dbSelects.shift() ?? []) : [{ id: "u1", rolle, aktiv: true, name: "Petra" }]);
       return p;
     };
