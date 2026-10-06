@@ -4,7 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { AkteurSpalten } from "@/components/akteure/AkteurSpalten";
 import { Kontaktpersonen } from "@/components/akteure/Kontaktpersonen";
 import { EmptyState } from "@/components/shell/EmptyState";
-import { ladeAkteur, ladeAkteurStroeme } from "@/lib/akteure";
+import { ladeAkteur, ladeAkteurStroeme, ladeAkteurVerlauf } from "@/lib/akteure";
 import { AKTEUR_ZUSTAND_LABEL, zustaendeAus } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
 import { zielNachZusammenfuehrung } from "@/lib/dubletten";
@@ -35,11 +35,12 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
       </main>
     );
   }
-  const [a, stroeme, sektoren, personen] = await Promise.all([
+  const [a, stroeme, sektoren, personen, verlauf] = await Promise.all([
     withDb((db) => ladeAkteur(db, id)),
     withDb((db) => ladeAkteurStroeme(db, id)),
     ladeSektoren(),
     withDb((db) => ladeKontaktpersonen(db, id)),
+    withDb((db) => ladeAkteurVerlauf(db, id)),
   ]);
   if (!a) {
     // AP2.5 PR c: alte Links zur Quelle einer Zusammenfuehrung leiten ueber das Protokoll aufs Ziel.
@@ -130,6 +131,27 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
                 ))}
               </tbody>
             </table>
+          )}
+          <h3>verlauf.</h3>
+          {verlauf.length === 0 ? (
+            <p className="ov-note">Noch keine Einträge.</p>
+          ) : (
+            <div className="historie2">
+              {verlauf.map((h, i) => (
+                <div key={i} className="historie2-row">
+                  <span className="z">{h.zeitpunkt}</span>
+                  <span>
+                    {h.text}
+                    {h.importLaufId && (
+                      <>
+                        {" "}
+                        <Link href={`/import/${h.importLaufId}`}>Import-Lauf</Link>
+                      </>
+                    )}
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
       </AkteurSpalten>
       )}

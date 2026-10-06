@@ -49,6 +49,7 @@ export default async function ImportPage() {
                 <th>Art</th>
                 <th>Belegtyp</th>
                 <th>Zeilen</th>
+                <th>importiert · Fehler · übersprungen</th>
                 <th>Zustand</th>
                 <th>Angelegt</th>
               </tr>
@@ -62,6 +63,9 @@ export default async function ImportPage() {
                   <td>{IMPORT_ART_LABEL[l.art as keyof typeof IMPORT_ART_LABEL] ?? l.art}</td>
                   <td>{BELEG_LABEL[l.belegTyp as keyof typeof BELEG_LABEL] ?? l.belegTyp}</td>
                   <td className="kv--num">{l.zaehler?.zeilen ?? "—"}</td>
+                  <td className="kv--num">
+                    {l.zaehler?.importiert ?? 0} · {l.zaehler?.fehler ?? 0} · {l.zaehler?.uebersprungen ?? 0}
+                  </td>
                   <td>
                     <span className="pill pill--status pill--muted">
                       {IMPORT_LAUF_STATUS_LABEL[l.status as keyof typeof IMPORT_LAUF_STATUS_LABEL] ?? l.status}
