@@ -907,10 +907,14 @@ Spalte · Beispielwerte · Zielfeld-Auswahl (Gruppen Akteur / Strom / Beleg,
 dazu „Ignorieren" und „Person – wird nicht übernommen"); erkannte
 Personen-Spalten zeigen statt Werten die Pille „Person – wird nicht
 übernommen" und sind gedämpft (`imp-person`). Pflichtfelder tragen „*",
-fehlende stehen als `pf-fehler` unter der Tabelle. Je Code-Zielfeld eine
+fehlende stehen als `pf-fehler` unter der Tabelle und sperren die
+Schaltfläche „Zuordnung speichern" (Eric 06.10.2026: blockieren, nicht
+warnen). Je Code-Zielfeld eine
 Werte-Tabelle (Wert · Zeilen · Code). Vorlage anwenden als Auswahl oben,
 „Als Vorlage speichern" mit Name und Herkunft unten (`imp-vorlage`).
-**Akteure auflösen:** Gruppen-Tabelle mit Ergebnis-Pille — „identisch" und
+**Akteure auflösen:** eine Schaltfläche, die stapelweise (200 Akteure je
+Request) bis zum Ende läuft, Fortschritt als Caption, „Fortsetzen (n offen)"
+nach Abbruch; Gruppen-Tabelle mit Ergebnis-Pille — „identisch" und
 „stark" als `pill--accent`, „neuer Akteur" / „offen" als `pill--muted`;
 Vorschläge mit „Übernehmen" und „Neu anlegen" (`btn--ghost`), gesammelt
 „Alle n Vorschläge übernehmen". **Adressen auflösen:** eine Schaltfläche

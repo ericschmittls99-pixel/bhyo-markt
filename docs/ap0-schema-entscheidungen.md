@@ -1664,6 +1664,21 @@ Ergebnisse je Zeile (ok | fehler mit Grund) in einer zweiten Transaktion.
 `StromEingabe.belegId` (geteilter Beleg) und `BelegEingabe.dateiKey`
 (vorhandene Datei) sind die beiden Erweiterungen der Bausteine.
 
+**Entscheidungen Eric (06.10.2026, PR b):** (1) Ein Pflichtfeld, das weder
+einer Spalte zugeordnet noch per Lauf-Standard belegt ist, blockiert die
+Zuordnung — „Weiter" ist gesperrt, die fehlenden Felder werden genannt, kein
+bloßes Warnen. (2) Erhebungsdatum und Gültig-bis des Lauf-Belegs sind
+ausdrücklich einzugeben, kein Standardwert (kein „heute"); Gültig-bis nur
+Pflicht für die Belegtypen nach E33; eine zugeordnete Spalte
+(`beleg_erhebungsdatum`, `beleg_gueltig_bis`, auch `beleg_typ`) geht dem
+Lauf-Wert je Zeile vor — der geteilte Beleg gilt damit je (Lauf, Belegtyp,
+Erhebungsdatum, Gültig-bis). (3) Akteure auflösen läuft browser-gesteuert in
+Stapeln von 200 eindeutigen Akteuren je Request, fortsetzbar wie Adressen und
+Probelauf; der Matcher läuft je Stapel mengenbasiert
+(`sucheAehnlicheMenge`: eine Abfrage für alle Kandidaten des Stapels), nicht
+als Schleife mit einer Abfrage je Akteur. Messung je Stapel mit dem
+Preview-Seed im PR.
+
 **Rot gezeigt (PR b):** Akteur-Baustein fehlte (Modul); Quellenangabe-Pflicht
 entfernt → 7 von 43 Beleg-Tests rot; CSV ohne Dekodierung → „Straße" als
 Fremdzeichen; Personen-Ziel vor „unbekannt"; Bearbeiter an jeder
