@@ -2114,6 +2114,10 @@ button.leg-toggle.aus {
   max-height: min(60vh, 440px);
   overflow-y: auto;
   display: grid;
+  /* Sitz-Erfassung c: Mit Kreis und Land wurde die Spalte breiter als der Dialog
+     (Preview-Befund 05.10.2026, „Meinten Sie"); minmax(0, 1fr) laesst die Eintraege
+     nicht ueber den Rahmen wachsen, der Meta-Text bricht rechtsbuendig um. */
+  grid-template-columns: minmax(0, 1fr);
 }
 .scb-menu .akteur-neu {
   position: sticky;
@@ -2133,7 +2137,10 @@ button.leg-toggle.aus {
 .scb-meta {
   font: var(--type-caption);
   color: var(--text-tertiary);
-  white-space: nowrap;
+  flex: 0 1 auto;
+  min-width: 0;
+  text-align: right;
+  white-space: normal;
 }
 .akteur-gewaehlt {
   display: flex;

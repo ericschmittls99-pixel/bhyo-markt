@@ -29,6 +29,9 @@ export interface Adresse {
   hausnummer: string | null;
   plz: string | null;
   ort: string | null;
+  /** Sitz-Erfassung c: Photon county/state, nur zur Anzeige hinter dem Treffer. */
+  kreis: string | null;
+  land: string | null;
   lng: number;
   lat: number;
 }
@@ -63,6 +66,8 @@ export function photonZuAdresse(feature: unknown): Adresse | null {
     hausnummer: s(p.housenumber),
     plz: art === "plz" ? s(p.name) : s(p.postcode),
     ort,
+    kreis: s(p.county),
+    land: s(p.state),
     lng,
     lat,
   };

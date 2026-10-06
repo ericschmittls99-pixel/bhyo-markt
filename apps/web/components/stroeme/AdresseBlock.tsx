@@ -7,13 +7,14 @@ import type { Map as MlMap, Marker as MlMarker } from "maplibre-gl";
 import { OSM_STYLE } from "@/components/karte/KarteMap";
 import { uebernimmAusPin, type AdresseWerte, type PinModus } from "@/lib/adresse-aus-pin";
 import { adresseLabel, type Adresse } from "@/lib/geocode";
+import { adresseLabelMitRegion } from "@/lib/region-label";
 
 import "maplibre-gl/dist/maplibre-gl.css";
 
 /** Startausschnitt ohne Pin: Rhein-Neckar/Vorderpfalz (Kernregion). */
 const START: [number, number] = [8.55, 49.38];
 
-interface Standort extends Omit<Adresse, "lng" | "lat" | "art"> {
+interface Standort extends Omit<Adresse, "lng" | "lat" | "art" | "kreis" | "land"> {
   lng: number | null;
   lat: number | null;
 }
@@ -252,7 +253,7 @@ export function AdresseBlock({
                   setSuchQ("");
                 }}
               >
-                {adresseLabel(a)}
+                {adresseLabelMitRegion(a)}
               </button>
             ))}
           </span>
