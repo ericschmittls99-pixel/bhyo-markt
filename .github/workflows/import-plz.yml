@@ -121,7 +121,7 @@ jobs:
           unzip -q vg250.zip -d vg250
           find vg250 -name "*.gpkg"
 
-      - name: Staging laden (ogr2ogr: PLZ WGS84, Gemeinden 25832 -> 4326, nur GF=4)
+      - name: "Staging laden (ogr2ogr: PLZ WGS84, Gemeinden 25832 -> 4326, nur GF=4)"
         run: |
           pg=$(node -e '
             const u = new URL(process.env.DATABASE_URL);
