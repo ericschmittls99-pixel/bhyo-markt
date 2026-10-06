@@ -7,9 +7,11 @@ import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnliche } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
+import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { akteurGruppen, entscheidungAusTreffer } from "@/lib/import-akteure";
 import { importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, type Zuordnung } from "@/lib/import-zuordnung";
+import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import type { StromArt } from "@/lib/stroeme-modell";
@@ -415,5 +417,82 @@ export async function importAkteurEntscheiden(laufId: string, gruppe: string | n
   } catch (e) {
     console.error("Akteur-Vorschlag entscheiden fehlgeschlagen:", e);
     return { fehler: "Die Entscheidung konnte nicht gespeichert werden." };
+  }
+}
+
+/**
+ * Adressen aufloesen (PR b, E67): Sitz neuer Akteure per Adresssuche, je
+ * eindeutiger Adresse ein Aufruf, hoechstens ADRESSEN_JE_STAPEL je Request
+ * (Photon 0,5–1,3 s je Anfrage) — der Browser ruft so lange, bis nichts mehr
+ * offen ist. Zwischenspeicher sind die Zeilenfelder, dadurch fortsetzbar.
+ * Ist der Dienst nicht erreichbar, bleibt alles wie es war und der Fehler
+ * wird genannt.
+ */
+export interface AdressenErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  /** In diesem Stapel bearbeitet, danach noch offen, davon in diesem Stapel ohne Treffer. */
+  bearbeitet?: number;
+  offen?: number;
+  ohneTreffer?: number;
+}
+
+export async function importAdressenAufloesen(laufId: string): Promise<AdressenErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (lauf.status !== "aufgeloest") return { fehler: `Der Lauf ist „${lauf.status}" — Adressen werden nach dem Auflösen der Akteure gesucht.` };
+
+  const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
+  const gruppen = adressGruppen(zeilen);
+  const stapel = gruppen.slice(0, ADRESSEN_JE_STAPEL);
+  if (stapel.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
+
+  // Erst alle Netzaufrufe des Stapels, dann eine Transaktion — ein Netzfehler laesst die DB unberuehrt.
+  const ergebnisse: { gruppe: (typeof stapel)[number]; patch: Record<string, string>; offen: boolean }[] = [];
+  for (const g of stapel) {
+    const text = adressText(g);
+    let e: ReturnType<typeof waehleSitz>;
+    if (!text) e = waehleSitz(g, []);
+    else {
+      try {
+        e = waehleSitz(g, await photonSuche(text));
+      } catch (err) {
+        if (err instanceof PhotonNichtErreichbar) return { fehler: "Adresssuche nicht erreichbar — später fortsetzen, der Stand bleibt erhalten." };
+        throw err;
+      }
+    }
+    ergebnisse.push({ gruppe: g, patch: sitzPatch(e), offen: "offen" in e });
+  }
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        for (const r of ergebnisse) {
+          await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
+        }
+        const ohneTreffer = ergebnisse.filter((r) => r.offen).length;
+        const offen = gruppen.length - stapel.length;
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (stapel.length - ohneTreffer);
+        zaehler.adressen_offen = (zaehler.adressen_offen ?? 0) + ohneTreffer;
+        await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Adressen aufgelöst: ${stapel.length} Adresse(n), ${ohneTreffer} ohne eindeutigen Treffer, ${offen} noch offen`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, bearbeitet: stapel.length, offen, ohneTreffer };
+      }),
+    );
+  } catch (e) {
+    console.error("Adressen auflösen fehlgeschlagen:", e);
+    return { fehler: "Die Adressen konnten nicht gespeichert werden." };
   }
 }

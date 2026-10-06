@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
+import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
 import { parseImportDatei, type ImportTabelle } from "@/lib/import-datei";
+import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
@@ -138,13 +140,14 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
           />
         )}
         {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest") && <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />}
+        {lauf.status === "aufgeloest" && gruppen.some((g) => g.ergebnis === "neu") && <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
               <h3>zeilen.</h3>
               <p className="c">
                 {zeilen.length < alleZeilen.length ? `Die ersten ${zeilen.length} von ${alleZeilen.length} Zeilen. ` : ""}
-                Adressen auflösen und der Probelauf folgen in diesem PR.
+                Der Probelauf folgt in diesem PR.
               </p>
             </header>
             <table className="einst-tabelle imp-tabelle">
@@ -168,7 +171,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                         <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span>
                       ) : null}
                       {z.felder.akteur_id && <span className="pill pill--muted"> vorhanden</span>}
-                      {z.felder.akteur_neu === "1" && <span className="pill pill--muted"> neu</span>}
+                      {z.felder.akteur_neu === "1" && <span className="pill pill--muted"> neu{z.felder.akteur_sitz_lat ? " · Pin" : z.felder.akteur_sitz_offen ? " · Sitz offen" : ""}</span>}
                     </td>
                     <td>{art === "biomasse" ? z.felder.materialart_code || "—" : z.felder.produkt_code || "—"}</td>
                     <td className="kv--num">{art === "biomasse" ? z.felder.menge_roh_fm : `${z.felder.menge_wert ?? ""} ${z.felder.menge_einheit ?? ""}`}</td>

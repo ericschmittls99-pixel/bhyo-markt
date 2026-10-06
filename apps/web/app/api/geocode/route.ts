@@ -1,4 +1,5 @@
-import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, REVERSE_RADIUS_KM, waehleTrefferAusPin, type Adresse } from "@/lib/geocode";
+import { REVERSE_RADIUS_KM, waehleTrefferAusPin, type Adresse } from "@/lib/geocode";
+import { photonReverse, photonSuche } from "@/lib/photon-server";
 import { erstelleRateLimit } from "@/lib/rate-limit";
 import { zugangFuerRoute } from "@/lib/rechte/wache";
 
@@ -22,11 +23,9 @@ import { zugangFuerRoute } from "@/lib/rechte/wache";
  * antwortet die Route mit 502 und einem Klartext, der auf die vollstaendige
  * manuelle Eingabe (inklusive Pin) hinweist.
  */
-const PHOTON = "https://photon.komoot.io";
-// Grober Deutschland-Rahmen; zusaetzlich filtert der Mapper auf countrycode DE.
-const BBOX_DE = "5.5,47.1,15.6,55.1";
 // 10 Aufrufe je 10 s je Nutzer: Tippen mit 350-ms-Debounce bleibt weit
-// darunter; ein Script laeuft in die Wand.
+// darunter; ein Script laeuft in die Wand. Der Netz-Austritt selbst sitzt
+// in lib/photon-server.ts (seit AP2.7 PR b auch vom Import genutzt).
 const erlaubt = erstelleRateLimit(10, 10_000);
 
 export async function GET(req: Request) {
@@ -49,32 +48,16 @@ export async function GET(req: Request) {
   const latLonOk =
     Number.isFinite(lat) && Number.isFinite(lon) && Math.abs(lat) <= 90 && Math.abs(lon) <= 180;
 
-  let url: string;
-  if (q.length >= 3) {
-    url = `${PHOTON}/api?q=${encodeURIComponent(q)}&limit=5&lang=de&bbox=${BBOX_DE}`;
-  } else if (latLonOk) {
-    url = `${PHOTON}/reverse?lat=${lat}&lon=${lon}&lang=de&limit=5&radius=${REVERSE_RADIUS_KM}&layer=house&layer=street`;
-  } else {
-    return Response.json({ adressen: [] });
-  }
+  if (q.length < 3 && !latLonOk) return Response.json({ adressen: [] });
 
   try {
-    const res = await fetch(url, {
-      headers: { "User-Agent": "bhyo-markttool (intern)" },
-      signal: AbortSignal.timeout(5000),
-    });
-    if (!res.ok) throw new Error(`Photon ${res.status}`);
-    const data = (await res.json()) as { features?: unknown[] };
-    const alle = (data.features ?? [])
-      .map(photonZuAdresse)
-      .filter((a): a is Adresse => a != null);
     // Sitz-Erfassung b: Die Suche bietet Adressen, Orte und PLZ an. Die
     // Rueckwaertssuche liefert genau den naechsten Treffer mit PLZ im Radius —
     // oder nichts, dann bleibt das Feld leer und der Hinweis sagt es.
     const adressen =
       q.length >= 3
-        ? dedupeAdressen(nurAdressenUndOrte(alle))
-        : [waehleTrefferAusPin({ lng: lon, lat }, alle, REVERSE_RADIUS_KM)].filter((a): a is Adresse => a != null);
+        ? await photonSuche(q)
+        : [waehleTrefferAusPin({ lng: lon, lat }, await photonReverse(lat, lon), REVERSE_RADIUS_KM)].filter((a): a is Adresse => a != null);
     return Response.json({ adressen });
   } catch {
     return Response.json(
