@@ -5,3 +5,6 @@
  */
 export const PERSON = "person";
 export const IGNORIEREN = "ignorieren";
+
+/** Stapelgroesse Probelauf/Ausfuehren (E67: ≈100 Zeilen je Request, 33 ms je Zeile gemessen). */
+export const PROBELAUF_JE_STAPEL = 100;

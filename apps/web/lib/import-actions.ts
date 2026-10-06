@@ -9,6 +9,7 @@ import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sh
 import { pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { akteurGruppen, entscheidungAusTreffer } from "@/lib/import-akteure";
+import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
@@ -554,9 +555,6 @@ export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: str
     return { fehler: "Die Belegdaten konnten nicht gespeichert werden." };
   }
 }
-
-/** Stapelgroesse Probelauf/Ausfuehren (E67: ≈100 Zeilen je Request, 33 ms je Zeile gemessen). */
-export const PROBELAUF_JE_STAPEL = 100;
 
 /** Beendet die Probelauf-Transaktion absichtlich — alles rollt zurueck, nichts wird angelegt. */
 class ProbelaufEnde extends Error {}
