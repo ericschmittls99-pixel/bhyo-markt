@@ -15,7 +15,7 @@ import type { Map as MlMap } from "maplibre-gl";
  */
 const OSM_STYLE = {
   version: 8 as const,
-  sources: { osm: { type: "raster" as const, tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMap-Mitwirkende · PLZ-Gebiete ODbL · © GeoBasis-DE / BKG (2026)" } },
+  sources: { osm: { type: "raster" as const, tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"], tileSize: 256, attribution: "© OpenStreetMap-Mitwirkende · PLZ-Gebiete ODbL · Orte je PLZ © GeoBasis-DE / BKG (2026), dl-de/by-2-0" } },
   layers: [{ id: "osm", type: "raster" as const, source: "osm" }],
 };
 const START: [number, number] = [8.7, 49.3];

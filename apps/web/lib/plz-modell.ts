@@ -12,8 +12,8 @@ export interface PlzPruefung {
 
 export interface PlzTreffer {
   plz: string;
-  ort: string;
-  ars: string;
+  /** Orte der PLZ (amtliche Gemeindenamen); genau einer = eindeutig, sonst entscheidet der Mensch. */
+  orte: string[];
 }
 
 /** Was das Pruefergebnis dem Menschen sagt — eine Formulierung fuer Formular und Import. */
@@ -27,8 +27,9 @@ export function plzPruefungText(e: PlzPruefung, plz: string): string | null {
 
 /**
  * Lokaler Treffer aus dem Pin als Adresse im bekannten Format (Art „plz":
- * kein Strassenanteil, nur PLZ und Ort; Kreis/Land liefert die Karte selbst).
+ * kein Strassenanteil; der Ort nur, wenn die PLZ genau einen hat — plz_ort
+ * traegt keine Geometrie, bei mehreren Orten waehlt der Mensch).
  */
-export function plzTrefferZuAdresse(t: PlzTreffer, pin: { lng: number; lat: number }): Adresse {
-  return { art: "plz", strasse: null, hausnummer: null, plz: t.plz, ort: t.ort, kreis: null, land: null, lng: pin.lng, lat: pin.lat };
+export function plzTrefferZuAdresse(t: PlzTreffer, pin: { lng: number; lat: number }): Adresse & { orte: string[] } {
+  return { art: "plz", strasse: null, hausnummer: null, plz: t.plz, ort: t.orte.length === 1 ? t.orte[0]! : null, kreis: null, land: null, lng: pin.lng, lat: pin.lat, orte: t.orte };
 }

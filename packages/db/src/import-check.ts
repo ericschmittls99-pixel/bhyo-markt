@@ -22,6 +22,10 @@ const ROLLBACK = "IMPORTCHECK_ROLLBACK";
 async function main() {
   const ziel = new URL(url!);
   console.log(`IMPORTCHECK host=${ziel.hostname} db=${ziel.pathname.slice(1)}`);
+  // E68 (Eric 07.10.2026): Speicher im Blick behalten — Groesse der DB und der groessten Tabellen, rein lesend.
+  const [groesse] = await sql`select pg_size_pretty(pg_database_size(current_database())) as db`;
+  const tabellen = await sql`select relname as t, pg_size_pretty(pg_total_relation_size(c.oid)) as g from pg_class c join pg_namespace n on n.oid = c.relnamespace where n.nspname = 'public' and c.relkind = 'r' order by pg_total_relation_size(c.oid) desc limit 5`;
+  console.log(`GROESSE db=${groesse!.db} | ` + tabellen.map((t) => `${t.t}=${t.g}`).join(" "));
   const modus = await journalModus(sql, url!);
   console.log(`JOURNAL ${modusText(modus)}`);
   if (modus.modus === "rot") {

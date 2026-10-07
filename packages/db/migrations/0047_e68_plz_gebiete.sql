@@ -9,7 +9,6 @@ CREATE TABLE "plz_ort" (
 	"ort" text NOT NULL,
 	"ort_norm" text NOT NULL,
 	"ars" text NOT NULL,
-	"geom" geometry(MultiPolygon,4326) NOT NULL,
 	CONSTRAINT "plz_ort_plz_ars_pk" PRIMARY KEY("plz","ars")
 );
 --> statement-breakpoint
@@ -19,7 +18,6 @@ ALTER TABLE "plz_ort" ADD CONSTRAINT "plz_ort_plz_plz_gebiet_plz_fk" FOREIGN KEY
 -- packages/db/src/plz.ts; plz-check.ts prueft beide gegeneinander.
 ALTER TABLE "plz_gebiet" ADD CONSTRAINT "plz_gebiet_plz_check" CHECK ("plz" ~ '^[0-9]{5}$');--> statement-breakpoint
 CREATE INDEX "plz_gebiet_geom_gist" ON "plz_gebiet" USING GIST ("geom");--> statement-breakpoint
-CREATE INDEX "plz_ort_geom_gist" ON "plz_ort" USING GIST ("geom");--> statement-breakpoint
 CREATE INDEX "plz_ort_norm_idx" ON "plz_ort" ("ort_norm");--> statement-breakpoint
 -- Uebliche Normalisierung eines Ortsnamens fuer den Vergleich: Kleinbuchstaben,
 -- Umlaute und ß ausgeschrieben, alles ausser Buchstaben/Ziffern wird EIN
@@ -50,14 +48,18 @@ LANGUAGE sql STABLE AS $$
          coalesce(array_agg(o.ort ORDER BY o.ort) FILTER (WHERE o.ort IS NOT NULL), '{}')
   FROM plz_ort o WHERE o.plz = p_plz
 $$;--> statement-breakpoint
--- PLZ und Ort zu einem Punkt (ST_Covers auf den Schnittflaechen: ein Punkt
--- auf einer Grenze trifft beide Seiten, deshalb die kleinere Flaeche zuerst).
+-- PLZ zu einem Punkt (ST_Covers auf plz_gebiet; ein Punkt genau auf einer
+-- Grenze trifft beide Seiten, deshalb die kleinere Flaeche zuerst) samt den
+-- Orten der PLZ. Welcher Ort genau, weiss die Tabelle ohne Geometrie nicht:
+-- bei genau einem Ort ist er eindeutig, sonst entscheidet der Mensch.
 CREATE FUNCTION plz_fuer_punkt(p geometry)
-RETURNS TABLE (plz text, ort text, ars text)
+RETURNS TABLE (plz text, orte text[])
 LANGUAGE sql STABLE AS $$
-  SELECT o.plz, o.ort, o.ars FROM plz_ort o
-  WHERE ST_Covers(o.geom, p)
-  ORDER BY ST_Area(o.geom) ASC, o.plz, o.ars
+  SELECT g.plz,
+         coalesce((SELECT array_agg(o.ort ORDER BY o.ort) FROM plz_ort o WHERE o.plz = g.plz), '{}')
+  FROM plz_gebiet g
+  WHERE ST_Covers(g.geom, p)
+  ORDER BY ST_Area(g.geom) ASC, g.plz
 $$;--> statement-breakpoint
 -- Liegt der Punkt im Gebiet der PLZ? NULL, wenn die PLZ unbekannt ist
 -- (der Aufrufer unterscheidet „ausserhalb" von „keine Flaeche vorhanden").
