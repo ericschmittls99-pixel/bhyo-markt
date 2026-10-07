@@ -23,14 +23,39 @@ export const IMPORT_MAX_ZEILEN = 5000;
 /** Zulaessige Endungen — alles, was SheetJS sicher als Tabelle liest. */
 export const IMPORT_ENDUNGEN = [".xlsx", ".xlsm", ".xls", ".csv"] as const;
 
+export interface BlattInfo {
+  name: string;
+  /** Nicht-leere Zeilen im Blatt. */
+  zeilen: number;
+  /** Kopfzeile automatisch erkannt und mindestens eine Datenzeile darunter. */
+  tabelle: boolean;
+  /** Erkannte Kopfzeile (1-basiert), null ohne erkennbare Tabelle. */
+  kopfzeile: number | null;
+}
+
+export interface ParseOptionen {
+  /** Blattname; fehlt er, das erste Blatt mit erkennbarer Tabelle, sonst das erste Blatt. */
+  blatt?: string;
+  /** Kopfzeile 1-basiert (wie in Excel); fehlt sie, wird sie erkannt. */
+  kopfzeile?: number;
+}
+
 export interface ImportTabelle {
   /** Kopfzeile, getrimmt; doppelte Namen werden nummeriert („PLZ", „PLZ (2)"). */
   spalten: string[];
   /** Datenzeilen als Text je Spalte, leere Zeilen entfernt; Laenge = spalten.length. */
   zeilen: string[][];
+  /** Excel-Zeilennummer je Datenzeile (1-basiert) — Nacharbeit und Datei passen zusammen. */
+  zeilennummern: number[];
+  blatt: string;
+  kopfzeile: number;
+  blaetter: BlattInfo[];
+  /** Uebersprungene Zeilen: ueber der Kopfzeile, leer, Summenzeile, Fusszeile (PR e). */
+  uebersprungen: { oben: number; leer: number; summe: number; fuss: number };
+  /** Rohe Vorschau ab der Kopfzeile (bis zu 4 Zeilen) fuer die Kopfzeilen-Wahl. */
+  vorschau: string[][];
 }
 
-/** Fachlicher Fehler an der Datei — wird dem Nutzer genannt, kein Lauf entsteht. */
 export class ImportDateiFehler extends Error {}
 
 export function dateiEndung(name: string): string {
@@ -88,40 +113,127 @@ export function spaltenNamen(kopf: unknown[]): string[] {
   });
 }
 
+type Zeile = unknown[];
+
+function nichtLeer(z: Zeile): number {
+  return z.filter((c) => zellText(c) !== "").length;
+}
+
+function istText(c: unknown): boolean {
+  return typeof c === "string" && c.trim() !== "" && !/^[-+]?\d+([.,]\d+)?$/.test(c.trim());
+}
+
 /**
- * Liest das erste Blatt. Ohne Kopfzeile oder ohne Datenzeile: Fehler. Mehr
- * als IMPORT_MAX_ZEILEN: Fehler — bewusst vor jedem Speichern, damit kein
- * halber Lauf entsteht.
+ * Kopfzeile erkennen (PR e, Eric 07.10.2026): die erste Zeile mit mindestens
+ * zwei nicht-leeren Zellen, davon ueberwiegend Text, auf die innerhalb der
+ * naechsten drei Zeilen ein Datenblock folgt (eine Zeile mit mindestens zwei
+ * Zellen). Titelzeilen mit einer Zelle fallen so heraus. Null, wenn nichts passt.
  */
-export function parseImportDatei(daten: ArrayBuffer, dateiname: string): ImportTabelle {
+export function erkenneKopfzeile(zeilen: readonly Zeile[]): number | null {
+  let kandidat: number | null = null;
+  for (let i = 0; i < zeilen.length; i++) {
+    const z = zeilen[i]!;
+    const n = nichtLeer(z);
+    if (n < 2) continue;
+    const text = z.filter(istText).length;
+    if (text / n < 0.6) continue;
+    const folgt = zeilen.slice(i + 1, i + 4).some((f) => nichtLeer(f) >= 2);
+    if (folgt) return i + 1;
+    // Kopfzeile ohne Datenblock: bleibt Kandidat, damit die Meldung „keine Datenzeile" statt „keine Kopfzeile" lautet.
+    kandidat ??= i + 1;
+  }
+  return kandidat;
+}
+
+function leseBuch(daten: ArrayBuffer, dateiname: string): XLSX.WorkBook {
   if (!dateiErlaubt(dateiname)) {
     throw new ImportDateiFehler(`Dateityp nicht unterstützt: erlaubt sind ${IMPORT_ENDUNGEN.join(", ")}.`);
   }
   if (daten.byteLength > IMPORT_MAX_BYTES) {
     throw new ImportDateiFehler(`Datei ist größer als ${IMPORT_MAX_BYTES / 1024 / 1024} MB.`);
   }
-  let buch: XLSX.WorkBook;
   try {
-    buch =
-      dateiEndung(dateiname) === ".csv"
-        ? XLSX.read(csvText(daten), { type: "string", cellDates: true, raw: true, dense: true })
-        : XLSX.read(new Uint8Array(daten), { type: "array", cellDates: true, raw: true, dense: true });
+    return dateiEndung(dateiname) === ".csv"
+      ? XLSX.read(csvText(daten), { type: "string", cellDates: true, raw: true, dense: true })
+      : XLSX.read(new Uint8Array(daten), { type: "array", cellDates: true, raw: true, dense: true });
   } catch {
     throw new ImportDateiFehler("Datei konnte nicht gelesen werden — ist es eine CSV- oder Excel-Datei?");
   }
-  const blattName = buch.SheetNames[0];
-  const blatt = blattName ? buch.Sheets[blattName] : undefined;
-  if (!blatt) throw new ImportDateiFehler("Die Datei enthält kein Tabellenblatt.");
-  const roh = XLSX.utils.sheet_to_json<unknown[]>(blatt, { header: 1, raw: true, defval: null, blankrows: false });
-  const [kopf, ...rest] = roh;
-  if (!kopf || kopf.every((z) => zellText(z) === "")) throw new ImportDateiFehler("Die erste Zeile muss die Spaltennamen enthalten.");
+}
+
+/** Rohzeilen eines Blatts mit Leerzeilen (Index = Excel-Zeile − 1) und die Zeilen mit Formeln. */
+function rohZeilen(blatt: XLSX.WorkSheet): { zeilen: Zeile[]; formelZeilen: Set<number> } {
+  const zeilen = XLSX.utils.sheet_to_json<Zeile>(blatt, { header: 1, raw: true, defval: null, blankrows: true });
+  const formelZeilen = new Set<number>();
+  const dense = (blatt as unknown as { "!data"?: ({ f?: string } | undefined)[][] })["!data"];
+  if (dense) dense.forEach((r, i) => r?.some((c) => c?.f) && formelZeilen.add(i + 1));
+  return { zeilen, formelZeilen };
+}
+
+/** Uebersicht aller Blaetter: Zeilen, erkannte Kopfzeile, Tabelle ja/nein. */
+export function blaetterUebersicht(daten: ArrayBuffer, dateiname: string): BlattInfo[] {
+  const buch = leseBuch(daten, dateiname);
+  return buch.SheetNames.map((name) => {
+    const { zeilen } = rohZeilen(buch.Sheets[name]!);
+    const kopf = erkenneKopfzeile(zeilen);
+    const daten = kopf ? zeilen.slice(kopf).filter((z) => nichtLeer(z) >= 2).length : 0;
+    return { name, zeilen: zeilen.filter((z) => nichtLeer(z) > 0).length, tabelle: kopf != null && daten > 0, kopfzeile: kopf };
+  });
+}
+
+/** Summenzeile: Formel in der Zeile oder erste Textzelle „Summe"/„Gesamt"/„Total". */
+function istSummenzeile(z: Zeile, excelZeile: number, formelZeilen: Set<number>): boolean {
+  if (formelZeilen.has(excelZeile)) return true;
+  const erster = z.map(zellText).find((t) => t !== "");
+  return erster != null && /^(summe|gesamt|total)\b/i.test(erster);
+}
+
+/**
+ * Liest ein Blatt (PR e: waehlbar, Kopfzeile erkannt oder vorgegeben).
+ * Zeilen ueber der Kopfzeile werden ignoriert; darunter werden Leerzeilen,
+ * eine Summenzeile (Formel oder „Summe"/„Gesamt") und Fusszeilen (hoechstens
+ * eine Zelle bei mindestens drei Spalten) uebersprungen und gezaehlt. Mehr
+ * als IMPORT_MAX_ZEILEN: Fehler — bewusst vor jedem Speichern.
+ */
+export function parseImportDatei(daten: ArrayBuffer, dateiname: string, opt: ParseOptionen = {}): ImportTabelle {
+  const buch = leseBuch(daten, dateiname);
+  const blaetter = blaetterUebersicht(daten, dateiname);
+  if (blaetter.length === 0) throw new ImportDateiFehler("Die Datei enthält kein Tabellenblatt.");
+  const blattName = opt.blatt ?? (blaetter.find((b) => b.tabelle) ?? blaetter[0]!).name;
+  const blattInfo = blaetter.find((b) => b.name === blattName);
+  const blatt = buch.Sheets[blattName];
+  if (!blatt || !blattInfo) throw new ImportDateiFehler(`Blatt „${blattName}" gibt es in der Datei nicht.`);
+  const { zeilen: roh, formelZeilen } = rohZeilen(blatt);
+  const kopfzeile = opt.kopfzeile ?? blattInfo.kopfzeile;
+  if (kopfzeile == null) throw new ImportDateiFehler(`Im Blatt „${blattName}" ist keine Kopfzeile erkennbar — Kopfzeile von Hand wählen.`);
+  const kopf = roh[kopfzeile - 1];
+  if (!kopf || kopf.every((z) => zellText(z) === "")) throw new ImportDateiFehler(`Zeile ${kopfzeile} ist leer — sie kann keine Kopfzeile sein.`);
   const spalten = spaltenNamen(kopf);
-  const zeilen = rest
-    .map((z) => spalten.map((_, i) => zellText(z[i])))
-    .filter((z) => z.some((t) => t !== ""));
+  const uebersprungen = { oben: kopfzeile - 1, leer: 0, summe: 0, fuss: 0 };
+  const zeilen: string[][] = [];
+  const zeilennummern: number[] = [];
+  for (let i = kopfzeile; i < roh.length; i++) {
+    const z = roh[i]!;
+    const n = nichtLeer(z);
+    if (n === 0) {
+      uebersprungen.leer += 1;
+      continue;
+    }
+    if (istSummenzeile(z, i + 1, formelZeilen)) {
+      uebersprungen.summe += 1;
+      continue;
+    }
+    if (n <= 1 && spalten.length >= 3) {
+      uebersprungen.fuss += 1;
+      continue;
+    }
+    zeilen.push(spalten.map((_, c) => zellText(z[c])));
+    zeilennummern.push(i + 1);
+  }
   if (zeilen.length === 0) throw new ImportDateiFehler("Die Datei enthält keine Datenzeile unter der Kopfzeile.");
   if (zeilen.length > IMPORT_MAX_ZEILEN) {
     throw new ImportDateiFehler(`Die Datei hat ${zeilen.length} Zeilen; erlaubt sind höchstens ${IMPORT_MAX_ZEILEN} je Lauf.`);
   }
-  return { spalten, zeilen };
+  const vorschau = roh.slice(kopfzeile - 1, kopfzeile + 3).map((z) => (z ?? []).map(zellText));
+  return { spalten, zeilen, zeilennummern, blatt: blattName, kopfzeile, blaetter, uebersprungen, vorschau };
 }

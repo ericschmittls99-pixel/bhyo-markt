@@ -951,3 +951,21 @@ Daten noch 30 Tage." · `btn--primary` „Ja, Import zurücknehmen" ·
 (bearbeitete Ströme mit Zeilennummern) als `pf-fehler` neben der
 Schaltfläche; die Bestätigung klappt dabei zu. Nach Erfolg zeigt die Seite
 die Pille „zurückgenommen", die Zeilen ohne Strom-Link, keine Nacharbeit.
+
+## import. — Blatt und Kopfzeile, unbekannte Werte (AP2.7 PR e, 07.10.2026)
+
+**Abschnitt „blatt und kopfzeile."** vor „spalten zuordnen.": Auswahl
+„Tabellenblatt" (Name · n Zeile(n) · „keine Tabelle erkannt"), Zahlenfeld
+„Kopfzeile ist Zeile" (Enter oder Verlassen des Felds lädt neu), Vorschau als
+`imp-vorschau` (Zeilennummer, bis acht Spalten, „… n weitere"), erste Zeile
+als Kopf hervorgehoben, Caption „Übersprungen: n über der Kopfzeile · n leer ·
+n Summe · n Fußzeile(n)". Ein Parse-Fehler (Blatt ohne Tabelle) steht als
+`pf-fehler` unter der Wahl, die Zuordnung erscheint erst nach gültiger Wahl.
+**Zuordnung:** Hinweis-Caption „Ohne Spalte für TS-Anteil oder Aschegehalt
+bleiben die Werte „unbekannt" … Ohne Spalte oder Wert für den Zeitraum gilt
+der Zeitraum des Laufs". **Belegdaten:** zusätzlich „Zeitraum von/bis
+(MM/JJJJ, Pflicht)", nur sichtbar, wenn Zeilen ohne eigenen Zeitraum da sind,
+mit Caption „n Zeile(n) ohne eigenen Zeitraum …". **Formular Strom:** Labels
+„TS-Anteil (leer = unbekannt)", „Aschegehalt (leer = unbekannt)", kein
+Pflicht-Stern. **Detail/Register:** Wert „unbekannt", Quelle „nicht erfasst —
+kein „geprüft" möglich".

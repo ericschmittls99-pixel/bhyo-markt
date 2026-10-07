@@ -21,6 +21,10 @@ export interface ImportLaufZeile {
   /** AP2.7 PR b: Belegdaten des Lauf-Belegs (Migration 0044), null bis gesetzt. */
   belegErhebungsdatum: string | null;
   belegGueltigBis: string | null;
+  blatt: string | null;
+  kopfzeile: number | null;
+  zeitraumVon: string | null;
+  zeitraumBis: string | null;
   erstellerEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -41,6 +45,10 @@ export function ladeImportLaeufe(db: Leser): Promise<ImportLaufZeile[]> {
       zaehler: importLauf.zaehler,
       belegErhebungsdatum: importLauf.belegErhebungsdatum,
       belegGueltigBis: importLauf.belegGueltigBis,
+      blatt: importLauf.blatt,
+      kopfzeile: importLauf.kopfzeile,
+      zeitraumVon: importLauf.zeitraumVon,
+      zeitraumBis: importLauf.zeitraumBis,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,
@@ -63,6 +71,10 @@ export async function ladeImportLauf(db: Leser, id: string): Promise<ImportLaufZ
       zaehler: importLauf.zaehler,
       belegErhebungsdatum: importLauf.belegErhebungsdatum,
       belegGueltigBis: importLauf.belegGueltigBis,
+      blatt: importLauf.blatt,
+      kopfzeile: importLauf.kopfzeile,
+      zeitraumVon: importLauf.zeitraumVon,
+      zeitraumBis: importLauf.zeitraumBis,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,

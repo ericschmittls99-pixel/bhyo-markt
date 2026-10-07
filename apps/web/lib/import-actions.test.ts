@@ -292,8 +292,10 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     r2Inhalt = csvBytes();
     const z = vollstaendig();
     z.spalten.Hausnummer = "akteur_sitz_hausnummer";
+    // PR e: Aschegehalt ist keine Pflicht mehr (unbekannt erlaubt) — die Materialart bleibt es.
+    for (const k of Object.keys(z.spalten)) if (z.spalten[k] === "materialart_code") z.spalten[k] = "ignorieren";
     const erg = await importZuordnungSpeichern(LAUF, z);
-    expect(erg.fehlerListe).toEqual([expect.stringMatching(/Aschegehalt %/)]);
+    expect(erg.fehlerListe).toEqual([expect.stringMatching(/Pflichtfelder ohne Spalte: Materialart/)]);
     expect(schreibversuche).toBe(0);
     expect(updates).toHaveLength(0);
     expect(geloescht).toHaveLength(0);
@@ -310,7 +312,7 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     expect(inserts[0]).toMatchObject({ laufId: LAUF, zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof Mustermann", materialart_code: "guelle_rind", menge_roh_fm: "1.234,5", zeitraum_von: "2026-01" } });
     expect(inserts[2]).toMatchObject({ zeilennummer: 4, status: "fehler", fehlergrund: expect.stringMatching(/Festmist/) });
     expect(updates[0]).toMatchObject({ status: "zugeordnet", zaehler: expect.objectContaining({ offen: 2 }) });
-    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/3 Zeilen \(2 offen, 1 mit Fehler\), 2 Personen-Spalte/) });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/Kopfzeile 1, 3 Zeilen \(2 offen, 1 mit Fehler\), übersprungen 0 über der Kopfzeile \/ 0 leer \/ 0 Summe \/ 0 Fußzeile\(n\), 2 Personen-Spalte/) });
     expect(geloescht).toEqual([`import/test/${LAUF}/roh.csv`]);
     // „Hof Mustermann" ist der Betrieb (Akteur) und darf stehen; die Person „Max Mustermann", E-Mails und die Spaltennamen nicht.
     expect(JSON.stringify([inserts, updates, protokolle])).not.toMatch(/Max Mustermann|Erika|example\.invalid|Ansprech|E-Mail/);
@@ -507,7 +509,7 @@ describe("importAdressenAufloesen (PR b: Sitz neuer Akteure, stapelweise, fortse
 
 describe("importBelegDatenSetzen (PR b, Migration 0044)", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
-  const laufZeile = (belegTyp: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp, standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: {}, belegErhebungsdatum: null, belegGueltigBis: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const laufZeile = (belegTyp: string) => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp, standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: {}, belegErhebungsdatum: null, belegGueltigBis: null, zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
 
   it("Gueltig-bis ist bei den oberen vier Typen Pflicht (E33), Erhebungsdatum immer; falsches Format wird genannt", async () => {
     rolle = "pruefer";
@@ -522,14 +524,38 @@ describe("importBelegDatenSetzen (PR b, Migration 0044)", () => {
     rolle = "admin";
     dbSelects.push([laufZeile("betriebsdaten")]);
     expect(await importBelegDatenSetzen(LAUF, "2026-10-06", "2027-10-06")).toEqual({ ok: true });
-    expect(updates[0]).toMatchObject({ belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06" });
+    expect(updates[0]).toMatchObject({ belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: null, zeitraumBis: null });
     expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Belegdaten des Laufs gesetzt: Erhebungsdatum 2026-10-06, gültig bis 2027-10-06" });
+  });
+});
+
+describe("importBelegDatenSetzen — Zeitraum des Laufs (PR e)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = () => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "gespraech", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: {}, belegErhebungsdatum: null, belegGueltigBis: null, zeitraumVon: null, zeitraumBis: null, blatt: null, kopfzeile: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const ohneZeitraum = [{ id: "z1", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { akteur_name: "A", materialart_code: "x" } }];
+
+  it("Rot: Zeilen ohne eigenen Zeitraum, kein Lauf-Zeitraum → Feldfehler, nichts gespeichert", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf()], ohneZeitraum);
+    const erg = await importBelegDatenSetzen(LAUF, "2026-10-06", "");
+    expect(erg.feldFehler).toMatchObject({ zeitraumVon: expect.stringMatching(/Pflicht: 1 Zeile/), zeitraumBis: expect.stringMatching(/kein „unbefristet/) });
+    expect(updates).toHaveLength(0);
+  });
+
+  it("MM/JJJJ wird als Datum gespeichert, bis vor von ist ein Fehler", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf()], ohneZeitraum);
+    expect((await importBelegDatenSetzen(LAUF, "2026-10-06", "", "12/2026", "01/2026")).feldFehler).toMatchObject({ zeitraumBis: expect.stringMatching(/vor Zeitraum von/) });
+    dbSelects.push([lauf()], ohneZeitraum);
+    expect(await importBelegDatenSetzen(LAUF, "2026-10-06", "", "01/2026", "12/2026")).toEqual({ ok: true });
+    expect(updates[0]).toMatchObject({ zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31" });
+    expect(protokolle[0]).toMatchObject({ text: expect.stringMatching(/Zeitraum 01\/2026–12\/2026/) });
   });
 });
 
 describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
-  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 4 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
+  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 4 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
   const strom = (code: string) => ({ materialart_code: code, menge_roh_fm: "100", ts_anteil_pct: "8", aschegehalt_pct: "1", zeitraum_von: "2026-01", zeitraum_bis: "2026-12" });
   const zeilen = () => [
     { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43" } },
@@ -598,7 +624,7 @@ describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () 
 
   it("Gueltig-bis fehlt fuer einen oberen Belegtyp je Zeile → Zeilenfehler, nicht Abbruch", async () => {
     rolle = "pruefer";
-    dbSelects.push([lauf({ belegTyp: "gespraech", belegGueltigBis: null })], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_typ: "vertrag" } }]);
+    dbSelects.push([lauf({ belegTyp: "gespraech", belegGueltigBis: null, zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31" })], [{ id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1", beleg_typ: "vertrag" } }]);
     const erg = await importProbelauf(LAUF, 2);
     expect(erg).toMatchObject({ ok: true, okZeilen: 0, fehlerZeilen: 1 });
     expect(updates[0]).toMatchObject({ status: "fehler", fehlergrund: "Gültig bis fehlt für Belegtyp „vertrag\" (E33)." });
@@ -607,7 +633,7 @@ describe("importProbelauf (PR b: Stapel, Savepoints, Rollback, Ergebnisse)", () 
 
 describe("importAusfuehren (PR c: COMMIT, Savepoint je Zeile, Akteur je Gruppe, Abschluss)", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
-  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "probelauf", zaehler: { zeilen: 4, personen_spalten: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
+  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "probelauf", zaehler: { zeilen: 4, personen_spalten: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
   const strom = (code: string) => ({ materialart_code: code, menge_roh_fm: "100", ts_anteil_pct: "8", aschegehalt_pct: "1", zeitraum_von: "2026-01", zeitraum_bis: "2026-12" });
   const zeilen = () => [
     { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "Hof A", akteur_neu: "1", akteur_gruppe: "hof a|67346", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer", akteur_sitz_lat: "49.32", akteur_sitz_lng: "8.43", probelauf: "ok" } },
@@ -665,7 +691,7 @@ describe("importAusfuehren (PR c: COMMIT, Savepoint je Zeile, Akteur je Gruppe, 
 describe("Nacharbeit (PR c): importZeileBearbeiten / importZeileUeberspringen", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
   const ZEILE = "22222222-2222-4222-8222-222222222222";
-  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: {}, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: {}, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
   const zeile = (teil: Record<string, unknown> = {}) => ({ id: ZEILE, zeilennummer: 7, status: "fehler", felder: { akteur_name: "Hof A", akteur_sitz_plz: "67346", akteur_id: "a1", akteur_gruppe: "hof a|67346", materialart_code: "", menge_roh_fm: "100" }, ...teil });
 
   it("Rot: Bearbeiter abgewiesen; Personen-Schluessel und fremde Felder vor jeder Wirkung abgewiesen", async () => {
@@ -721,7 +747,7 @@ describe("Nacharbeit (PR c): importZeileBearbeiten / importZeileUeberspringen", 
 
 describe("importZuruecknehmen (PR d: nur Admin, nur unbearbeitet, alles protokolliert)", () => {
   const LAUF = "11111111-1111-4111-8111-111111111111";
-  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { importiert: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { importiert: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
   const zeilen = () => [
     { id: "z1", zeilennummer: 2, status: "importiert", fehlergrund: null, biomassestromId: "s1", outputBedarfId: null, felder: { akteur_id: "a-neu" } },
     { id: "z2", zeilennummer: 3, status: "importiert", fehlergrund: null, biomassestromId: "s2", outputBedarfId: null, felder: { akteur_id: "a1" } },

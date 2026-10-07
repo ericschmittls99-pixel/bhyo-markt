@@ -14,8 +14,8 @@ const STROM = "00000000-0000-4000-8000-00000000c001";
 
 /** Zeilen, die jede Abfrage der Attrappe liefert — breit genug für alle Pfade. */
 const ZEILEN = [
-  { ...ERIC, code: "landwirtschaft", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
-  { ...BERND, code: "kommune", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
+  { ...ERIC, code: "landwirtschaft", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, tsAnteilPct: "30", aschegehaltPct: "5", letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
+  { ...BERND, code: "kommune", aktiv: true, status: "entwurf", belegId: null, reserviertSeit: null, tsAnteilPct: "30", aschegehaltPct: "5", letzte_nummer: 0, akteurId: NEU, kreis_ars: "08221" },
 ];
 /** AP2.5 (E66): vollstaendige Akteur-Eingabe — Name, Sektor, Sitz (PLZ, Ort), Pin. */
 const AKTEUR_EINGABE = { name: "Hof Müller", sektor: "landwirtschaft", sitz_plz: "74889", sitz_ort: "Sinsheim", sitz_strasse: "Hauptstraße", sitz_hausnummer: "1", lat: "49.25", lng: "8.88" };

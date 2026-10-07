@@ -330,6 +330,13 @@
       "when": 1791319491477,
       "tag": "0046_ap27_inbox_import_bezug",
       "breakpoints": true
+    },
+    {
+      "idx": 47,
+      "version": "7",
+      "when": 1791360768195,
+      "tag": "0047_ap27_e_import_blatt",
+      "breakpoints": true
     }
   ]
 }

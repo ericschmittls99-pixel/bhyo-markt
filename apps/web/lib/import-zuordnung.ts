@@ -38,12 +38,14 @@ export const ZIELFELDER: readonly Zielfeld[] = [
   { key: "akteur_sitz_hausnummer", label: "Akteur · Sitz Hausnummer", gruppe: "akteur", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["hausnummer", "hausnr", "nr", "sitz hausnummer"] },
   { key: "akteur_sitz_plz", label: "Akteur · Sitz PLZ", gruppe: "akteur", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["plz", "postleitzahl", "sitz plz"] },
   { key: "akteur_sitz_ort", label: "Akteur · Sitz Ort", gruppe: "akteur", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["ort", "stadt", "gemeinde", "sitz ort"] },
-  // Strom — Feedstock
+  // Strom — Feedstock. PR e (Eric 07.10.2026): TS-Anteil und Aschegehalt sind keine
+  // Pflicht mehr — ohne Spalte oder Wert bleiben sie „unbekannt" (Strom unvollstaendig,
+  // nie „geprueft"); Zeitraum von/bis ohne Spalte oder Wert kommt vom Lauf.
   { key: "materialart_code", label: "Materialart", gruppe: "strom", arten: ["biomasse"], pflicht: true, typ: "code", werte: "materialart", synonyme: ["materialart", "material", "stoff", "substrat", "biomasse", "einsatzstoff", "reststoff"] },
   { key: "menge_roh_fm", label: "Menge (t FM/a)", gruppe: "strom", arten: ["biomasse"], pflicht: true, typ: "zahl", synonyme: ["menge", "menge fm", "rohmenge", "jahresmenge", "tonnen", "menge t a", "menge t fm a"] },
   { key: "menge_einheit_fm", label: "Einheit der Menge (t/kg je Jahr/Monat)", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "einheit", synonyme: ["einheit", "mengeneinheit"] },
-  { key: "ts_anteil_pct", label: "TS-Anteil %", gruppe: "strom", arten: ["biomasse"], pflicht: true, typ: "zahl", synonyme: ["ts", "ts anteil", "ts anteil %", "ts %", "trockensubstanz", "trockensubstanz %", "tm %", "ts gehalt"] },
-  { key: "aschegehalt_pct", label: "Aschegehalt %", gruppe: "strom", arten: ["biomasse"], pflicht: true, typ: "zahl", synonyme: ["asche", "aschegehalt", "aschegehalt %", "asche %"] },
+  { key: "ts_anteil_pct", label: "TS-Anteil %", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["ts", "ts anteil", "ts anteil %", "ts %", "trockensubstanz", "trockensubstanz %", "tm %", "ts gehalt"] },
+  { key: "aschegehalt_pct", label: "Aschegehalt %", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["asche", "aschegehalt", "aschegehalt %", "asche %"] },
   { key: "preis_min", label: "Preis min €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis min", "preis von", "min preis"] },
   { key: "preis_mittel", label: "Preis mittel €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis", "preis mittel", "mittelpreis", "preis t"] },
   { key: "preis_max", label: "Preis max €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis max", "preis bis", "max preis"] },
@@ -53,8 +55,8 @@ export const ZIELFELDER: readonly Zielfeld[] = [
   { key: "menge_einheit", label: "Einheit der Menge (t/a, MWh/a, Nm³/a)", gruppe: "strom", arten: ["output"], pflicht: true, typ: "code", werte: "menge_einheit", synonyme: ["einheit", "mengeneinheit"] },
   { key: "preis", label: "Preis", gruppe: "strom", arten: ["output"], pflicht: false, typ: "zahl", synonyme: ["preis"] },
   // Strom — beide
-  { key: "zeitraum_von", label: "Zeitraum von (MM/JJJJ)", gruppe: "strom", arten: BEIDE, pflicht: true, typ: "monat", synonyme: ["zeitraum von", "von", "ab", "beginn", "start", "verfuegbar ab", "von monat"] },
-  { key: "zeitraum_bis", label: "Zeitraum bis (MM/JJJJ)", gruppe: "strom", arten: BEIDE, pflicht: true, typ: "monat", synonyme: ["zeitraum bis", "bis", "ende", "verfuegbar bis", "bis monat"] },
+  { key: "zeitraum_von", label: "Zeitraum von (MM/JJJJ)", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "monat", synonyme: ["zeitraum von", "von", "ab", "beginn", "start", "verfuegbar ab", "von monat"] },
+  { key: "zeitraum_bis", label: "Zeitraum bis (MM/JJJJ)", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "monat", synonyme: ["zeitraum bis", "bis", "ende", "verfuegbar bis", "bis monat"] },
   { key: "bezeichnung", label: "Bezeichnung", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["bezeichnung", "beschreibung", "titel", "bemerkung"] },
   { key: "strasse", label: "Standort · Straße", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["standort strasse", "standort str"] },
   { key: "hausnummer", label: "Standort · Hausnummer", gruppe: "strom", arten: BEIDE, pflicht: false, typ: "text", synonyme: ["standort hausnummer", "standort nr"] },
