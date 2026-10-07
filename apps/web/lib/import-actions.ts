@@ -1,5 +1,7 @@
 "use server";
 
+import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
+import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
 import { aenderung, akteur, akteurInteresse, beleg, biomassestrom, importLauf, importVorlage, importZeile, inboxEintrag, kontaktperson, outputBedarf, stromZuweisung, vergabeZeitraum } from "@bhyo/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
@@ -173,7 +175,13 @@ export interface ZuordnungErgebnis {
   zaehler?: Record<string, number>;
 }
 
-export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordnung): Promise<ZuordnungErgebnis> {
+/** Blatt und Kopfzeile der Zuordnung (PR e); fehlt die Wahl, erkennt der Parser beides. */
+export interface BlattWahl {
+  blatt?: string;
+  kopfzeile?: number;
+}
+
+export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordnung, wahl: BlattWahl = {}): Promise<ZuordnungErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
   if ("fehler" in wache) return { fehler: wache.fehler };
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
@@ -190,7 +198,10 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
   if (!roh) return { fehler: "Der Roh-Upload liegt nicht mehr vor (gelöscht nach 24 h) — bitte die Datei neu hochladen." };
   let tabelle: ImportTabelle;
   try {
-    tabelle = parseImportDatei(await new Response(roh.body).arrayBuffer(), lauf.dateiname);
+    tabelle = parseImportDatei(await new Response(roh.body).arrayBuffer(), lauf.dateiname, {
+      blatt: wahl.blatt || undefined,
+      kopfzeile: wahl.kopfzeile && Number.isInteger(wahl.kopfzeile) && wahl.kopfzeile > 0 ? wahl.kopfzeile : undefined,
+    });
   } catch (e) {
     if (e instanceof ImportDateiFehler) return { fehler: e.message };
     throw e;
@@ -203,8 +214,8 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
     const r = zeileZuFelder(tabelle.spalten, z, zuordnung);
     return {
       laufId: lauf.id,
-      // Zeilennummer wie in der Datei (Kopfzeile ist 1), damit Nacharbeit und Datei zusammenpassen.
-      zeilennummer: i + 2,
+      // Zeilennummer wie in der Datei (PR e: echte Excel-Zeile, Kopfzeile kann Zeile n sein).
+      zeilennummer: tabelle.zeilennummern[i]!,
       felder: r.felder,
       status: r.fehlergrund ? "fehler" : "offen",
       fehlergrund: r.fehlergrund,
@@ -217,7 +228,12 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
     offen: zeilen.filter((z) => z.status === "offen").length,
     fehler: zeilen.filter((z) => z.status === "fehler").length,
     personen_spalten: personenSpalten,
+    uebersprungen_oben: tabelle.uebersprungen.oben,
+    uebersprungen_leer: tabelle.uebersprungen.leer,
+    uebersprungen_summe: tabelle.uebersprungen.summe,
+    uebersprungen_fuss: tabelle.uebersprungen.fuss,
   };
+
 
   try {
     // E67: Am Lauf-Beleg haengt die serverseitig bereinigte Kopie (ohne Personen-
@@ -230,14 +246,14 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
         for (let i = 0; i < zeilen.length; i += 500) {
           await tx.insert(importZeile).values(zeilen.slice(i, i + 500));
         }
-        await tx.update(importLauf).set({ status: "zugeordnet", zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await tx.update(importLauf).set({ status: "zugeordnet", blatt: tabelle.blatt, kopfzeile: tabelle.kopfzeile, zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "status_gesetzt",
           entitaet: "import_lauf",
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Zuordnung gespeichert: ${zaehler.zeilen} Zeilen (${zaehler.offen} offen, ${zaehler.fehler} mit Fehler), ${personenSpalten} Personen-Spalte(n) nicht übernommen`,
+          text: `Zuordnung gespeichert: Blatt „${tabelle.blatt}", Kopfzeile ${tabelle.kopfzeile}, ${zaehler.zeilen} Zeilen (${zaehler.offen} offen, ${zaehler.fehler} mit Fehler), übersprungen ${tabelle.uebersprungen.oben} über der Kopfzeile / ${tabelle.uebersprungen.leer} leer / ${tabelle.uebersprungen.summe} Summe / ${tabelle.uebersprungen.fuss} Fußzeile(n), ${personenSpalten} Personen-Spalte(n) nicht übernommen`,
           importLaufId: lauf.id,
         });
       }),
@@ -557,12 +573,15 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
 export interface BelegDatenErgebnis {
   ok?: boolean;
   fehler?: string;
-  feldFehler?: { erhebungsdatum?: string; gueltigBis?: string };
+  feldFehler?: { erhebungsdatum?: string; gueltigBis?: string; zeitraumVon?: string; zeitraumBis?: string };
 }
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
 
-export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string): Promise<BelegDatenErgebnis> {
+const MONAT = /^(0[1-9]|1[0-2])\/\d{4}$/;
+/** „MM/JJJJ" -> „JJJJ-MM" (Form von monatZuVon/monatZuBis). */
+const monatZuIso = (m: string) => `${m.slice(3)}-${m.slice(0, 2)}`;
+export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string, zeitraumVon = "", zeitraumBis = ""): Promise<BelegDatenErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
   if ("fehler" in wache) return { fehler: wache.fehler };
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
@@ -574,19 +593,31 @@ export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: str
   const g = gueltigBis.trim();
   if (!DATUM.test(e)) feldFehler.erhebungsdatum = "Erhebungsdatum (JJJJ-MM-TT) ist Pflicht.";
   if (g && !DATUM.test(g)) feldFehler.gueltigBis = "Gültig bis als JJJJ-MM-TT.";
+  // PR e: Zeitraum des Laufs — Pflicht, sobald eine Zeile keinen eigenen traegt; keine Vorbelegung (Eric 07.10.2026).
+  const zv = zeitraumVon.trim();
+  const zb = zeitraumBis.trim();
+  const ohne = zeilenOhneZeitraum(await withDb((db) => ladeImportZeilen(db, lauf.id)));
+  if (zv && !MONAT.test(zv)) feldFehler.zeitraumVon = "Zeitraum von als MM/JJJJ.";
+  if (zb && !MONAT.test(zb)) feldFehler.zeitraumBis = "Zeitraum bis als MM/JJJJ.";
+  if (ohne > 0 && !zv) feldFehler.zeitraumVon = `Zeitraum von ist Pflicht: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum.`;
+  if (ohne > 0 && !zb) feldFehler.zeitraumBis = `Zeitraum bis ist Pflicht: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum (das Modell kennt kein „unbefristet").`;
+  if (zv && zb && MONAT.test(zv) && MONAT.test(zb) && monatZuIso(zb) < monatZuIso(zv)) feldFehler.zeitraumBis = "Zeitraum bis liegt vor Zeitraum von.";
   if (!g && istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)) feldFehler.gueltigBis = "Gültig bis ist bei diesem Belegtyp Pflicht (E33).";
   if (Object.keys(feldFehler).length > 0) return { feldFehler };
   try {
     await withDb((db) =>
       db.transaction(async (tx) => {
-        await tx.update(importLauf).set({ belegErhebungsdatum: e, belegGueltigBis: g || null, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await tx
+          .update(importLauf)
+          .set({ belegErhebungsdatum: e, belegGueltigBis: g || null, zeitraumVon: zv ? monatZuVon(monatZuIso(zv)) : null, zeitraumBis: zb ? monatZuBis(monatZuIso(zb)) : null, updatedAt: new Date() })
+          .where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "geaendert",
           entitaet: "import_lauf",
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Belegdaten des Laufs gesetzt: Erhebungsdatum ${e}${g ? `, gültig bis ${g}` : ""}`,
+          text: `Belegdaten des Laufs gesetzt: Erhebungsdatum ${e}${g ? `, gültig bis ${g}` : ""}${zv ? `, Zeitraum ${zv}–${zb}` : ""}`,
           importLaufId: lauf.id,
         });
       }),
@@ -620,12 +651,15 @@ function zeilenGrund(e: unknown): string {
 }
 
 /** FormData fuer den Formular-Baustein aus den Strom-Feldern der Zeile (akteur_* bleiben draussen, akteur_id kommt aufgeloest). */
-function formDataAusZeile(felder: Record<string, string>, akteurId: string): FormData {
+function formDataAusZeile(felder: Record<string, string>, akteurId: string, lauf?: { zeitraumVon: string | null; zeitraumBis: string | null }): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(felder)) {
     const def = zielfeld(k);
     if (def && def.gruppe === "strom") fd.set(k, v);
   }
+  // PR e: ohne eigenen Zeitraum gilt der des Laufs (Pflicht am Lauf, geprueft in importBelegDatenSetzen).
+  if (!felder.zeitraum_von && lauf?.zeitraumVon) fd.set("zeitraum_von", monatAusDatum(lauf.zeitraumVon));
+  if (!felder.zeitraum_bis && lauf?.zeitraumBis) fd.set("zeitraum_bis", monatAusDatum(lauf.zeitraumBis));
   fd.set("akteur_id", akteurId);
   return fd;
 }
@@ -648,6 +682,10 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
   if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — der Probelauf kommt nach dem Auflösen der Akteure.` };
   if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen: bitte Erhebungsdatum (und bei den oberen vier Belegtypen Gültig bis) setzen." };
   if (istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp) && !lauf.belegGueltigBis) return { fehler: "Gültig bis fehlt für den Belegtyp des Laufs (E33)." };
+  if (!lauf.zeitraumVon || !lauf.zeitraumBis) {
+    const ohne = zeilenOhneZeitraum(await withDb((db) => ladeImportZeilen(db, lauf.id)));
+    if (ohne > 0) return { fehler: `Zeitraum des Laufs fehlt: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum — bitte bei den Belegdaten setzen.` };
+  }
 
   const alle = await withDb((db) => ladeImportZeilen(db, lauf.id));
   if (alle.some((z) => z.status === "aehnlich")) return { fehler: "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen." };
@@ -737,7 +775,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
             const belegId = await belegFuer(z.felder);
             const akteurId = await akteurFuer(z.felder);
             await tx.transaction(async (sp) => {
-              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId));
+              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId, lauf));
               await stromAnlegenInTx(sp as unknown as Tx, handelnder, { ...e, beleg: null, belegId }, heute);
             });
             ergebnisse.set(z.id, null);
@@ -957,7 +995,7 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
             const belegId = await belegFuer(z.felder);
             const akteurId = await akteurFuer(z.felder);
             const stromId = await tx.transaction(async (sp) => {
-              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId));
+              const e = stromEingabeAusFormData(art, formDataAusZeile(z.felder, akteurId, lauf));
               return (await stromAnlegenInTx(sp as unknown as Tx, handelnder, { ...e, beleg: null, belegId, importLaufId: lauf.id }, heute)).id;
             });
             await kontaktdatenEreignis(akteurId);

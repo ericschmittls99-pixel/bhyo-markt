@@ -5,7 +5,7 @@ import type { PlzPruefung, PlzTreffer } from "./plz-modell";
 
 /**
  * E68 PR 1: Lesewege der lokalen Adresspruefung — duenne Huellen um die
- * SQL-Funktionen aus Migration 0047 (plz_pruefung, plz_fuer_punkt,
+ * SQL-Funktionen aus Migration 0048 (plz_pruefung, plz_fuer_punkt,
  * punkt_in_plz). Die Regel lebt in SQL, der Spiegel in @bhyo/db/plz;
  * hier wird nichts nachgerechnet. Arrays kommen aus dem Worker-Treiber als
  * Text an, deshalb array_to_json(...)::text und JSON.parse.

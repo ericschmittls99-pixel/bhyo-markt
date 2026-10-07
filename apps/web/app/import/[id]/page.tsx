@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
+import { BlattKopfWahl } from "@/components/import/BlattKopfWahl";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
 import { Ausfuehren } from "@/components/import/Ausfuehren";
 import { Nacharbeit } from "@/components/import/Nacharbeit";
@@ -11,7 +12,8 @@ import { Zuruecknehmen } from "@/components/import/Zuruecknehmen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
-import { parseImportDatei, type ImportTabelle } from "@/lib/import-datei";
+import { blaetterUebersicht, ImportDateiFehler, parseImportDatei, type BlattInfo, type ImportTabelle } from "@/lib/import-datei";
+import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
 import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
@@ -33,9 +35,10 @@ const ZEILEN_ANZEIGE = 200;
  * Zuordnung der Spalten (Roh-Upload wird dafuer aus R2 gelesen, nie
  * gespeichert), danach die uebernommenen Zeilen mit Zustand.
  */
-export default async function ImportLaufPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ vorlage?: string }> }) {
+export default async function ImportLaufPage({ params, searchParams }: { params: Promise<{ id: string }>; searchParams: Promise<{ vorlage?: string; blatt?: string; kopf?: string }> }) {
   const { id } = await params;
-  const { vorlage: vorlageParam } = await searchParams;
+  const { vorlage: vorlageParam, blatt: blattParam, kopf: kopfParam } = await searchParams;
+  const kopfWahl = kopfParam && /^\d+$/.test(kopfParam) ? Number(kopfParam) : undefined;
   const zugang = await aktuellerZugang();
   if (zugang.art !== "erlaubt" || !darf(zugang, "import.ausfuehren")) {
     return (
@@ -51,6 +54,8 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
   const datum = new Intl.DateTimeFormat("de-DE", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/Berlin" });
   const statusLabel = (s: string) => IMPORT_LAUF_STATUS_LABEL[s as keyof typeof IMPORT_LAUF_STATUS_LABEL] ?? s;
 
+  let blattWahl: { blaetter: BlattInfo[]; blatt: string; kopfzeile: number; vorschau: string[][]; uebersprungen: ImportTabelle["uebersprungen"] } | null = null;
+  let parseFehler: string | null = null;
   let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen } | null = null;
   const vorlagen = lauf.status === "angelegt" ? await withDb((db) => ladeImportVorlagen(db)) : [];
   const aktiveVorlage = vorlagen.find((v) => v.id === vorlageParam) ?? null;
@@ -60,7 +65,19 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
     const roh = await bucket.get(importRohKey(await getEnvironment(), lauf.id, lauf.dateiname));
     if (!roh) rohFehlt = true;
     else {
-      const tabelle: ImportTabelle = parseImportDatei(await new Response(roh.body).arrayBuffer(), lauf.dateiname);
+      const daten = await new Response(roh.body).arrayBuffer();
+      let tabelle: ImportTabelle | null = null;
+      try {
+        tabelle = parseImportDatei(daten, lauf.dateiname, { blatt: blattParam || undefined, kopfzeile: kopfWahl });
+      } catch (e) {
+        // PR e: Blatt ohne Tabelle oder falsche Kopfzeile — Wahl bleibt moeglich, Zuordnung wartet.
+        if (!(e instanceof ImportDateiFehler)) throw e;
+        parseFehler = e.message;
+        const blaetter = blaetterUebersicht(daten, lauf.dateiname);
+        blattWahl = { blaetter, blatt: blattParam || blaetter[0]?.name || "", kopfzeile: kopfWahl ?? 1, vorschau: [], uebersprungen: { oben: 0, leer: 0, summe: 0, fuss: 0 } };
+      }
+      if (tabelle) {
+      blattWahl = { blaetter: tabelle.blaetter, blatt: tabelle.blatt, kopfzeile: tabelle.kopfzeile, vorschau: tabelle.vorschau, uebersprungen: tabelle.uebersprungen };
       const kopfVorschlag = vorschlagZuordnung(art, tabelle.spalten);
       const [materialarten, produkte, sektoren] = await Promise.all([listMaterialarten(), listOutputProdukte(), ladeSektoren()]);
       const optionen: CodeOptionen = {
@@ -85,6 +102,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
       }
       const angewendet = aktiveVorlage ? vorlageAnwenden(aktiveVorlage, tabelle.spalten, kopfVorschlag, werteBasis) : { spalten: kopfVorschlag, werte: werteBasis };
       zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen };
+      }
     }
   }
   const alleZeilen = lauf.status === "angelegt" ? [] : await withDb((db) => ladeImportZeilen(db, lauf.id));
@@ -142,9 +160,15 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             <div>Der Roh-Upload liegt nicht mehr vor (nach 24 h gelöscht). Bitte die Datei neu hochladen.</div>
           </div>
         )}
+        {blattWahl && lauf.status === "angelegt" && (
+          <BlattKopfWahl laufId={lauf.id} blaetter={blattWahl.blaetter} blatt={blattWahl.blatt} kopfzeile={blattWahl.kopfzeile} vorschau={blattWahl.vorschau} uebersprungen={blattWahl.uebersprungen} vorlage={vorlageParam ?? null} />
+
+        )}
+        {parseFehler && <p className="pf-fehler">{parseFehler}</p>}
         {zuordnung && (
           <ZuordnungTabelle
-            key={aktiveVorlage?.id ?? "kopf"}
+            key={`${aktiveVorlage?.id ?? "kopf"}-${blattWahl?.blatt ?? ""}-${blattWahl?.kopfzeile ?? ""}`}
+            wahl={{ blatt: blattWahl?.blatt, kopfzeile: blattWahl?.kopfzeile }}
             vorlagen={vorlagen.map((v) => ({ id: v.id, name: v.name, quelle: v.quelle }))}
             aktiveVorlage={aktiveVorlage?.id ?? null}
             laufId={lauf.id}
@@ -167,6 +191,9 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             status={lauf.status}
             erhebungsdatum={lauf.belegErhebungsdatum}
             gueltigBis={lauf.belegGueltigBis}
+            zeitraumVon={lauf.zeitraumVon ? monatAusDatum(lauf.zeitraumVon) : null}
+            zeitraumBis={lauf.zeitraumBis ? monatAusDatum(lauf.zeitraumBis) : null}
+            zeilenOhneZeitraum={zeilenOhneZeitraum(alleZeilen)}
             gueltigBisPflicht={istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)}
             ersteZeile={alleZeilen.find((z) => z.status !== "uebersprungen")?.zeilennummer ?? null}
             zaehler={lauf.zaehler}

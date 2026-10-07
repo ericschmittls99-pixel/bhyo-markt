@@ -3,7 +3,7 @@
  * CI (nach Migration und Fixture-Import) oder gegen eine echte Datenbank mit
  * Bestand. Zwei Teile:
  *
- *  A) Paritaet SQL <-> TS: plz_ort_norm / plz_ort_passt (Migration 0047)
+ *  A) Paritaet SQL <-> TS: plz_ort_norm / plz_ort_passt (Migration 0048)
  *     muessen auf den gemeinsamen Faellen aus src/plz.ts dasselbe liefern wie
  *     normalisiereOrt / ortPasst. Eine Regel, zwei Laufzeiten.
  *  B) Funktionen am Bestand (nur, wenn plz_gebiet gefuellt ist; mit
