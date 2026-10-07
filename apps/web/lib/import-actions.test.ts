@@ -5,6 +5,7 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import { getTableName } from "drizzle-orm";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 let rolle = "bearbeiter";
@@ -12,6 +13,7 @@ let schreibversuche = 0;
 const protokolle: unknown[] = [];
 const inserts: Record<string, unknown>[] = [];
 const updates: Record<string, unknown>[] = [];
+const deletes: string[] = [];
 const uploads: { key: string; bytes: number; contentType?: string }[] = [];
 const uploadInhalte: string[] = [];
 const geloescht: string[] = [];
@@ -63,6 +65,19 @@ vi.mock("@/lib/db", () => ({
         },
       }),
       update: () => ({ set: (v: Record<string, unknown>) => ({ where: async () => void updates.push(v) }) }),
+      // PR d: Loeschungen je Tabelle protokollieren; .returning() liefert leer (keine Interessen/Kontaktpersonen in der Attrappe).
+      delete: (t: unknown) => ({
+        where: () => ({
+          returning: async () => {
+            deletes.push(getTableName(t as never));
+            return [];
+          },
+          then: (res: (v: unknown) => void) => {
+            deletes.push(getTableName(t as never));
+            res(undefined);
+          },
+        }),
+      }),
       // Savepoint: dieselbe Attrappe, kein echtes Rollback — geprueft wird der Ablauf, nicht die DB.
       transaction: async (f: (t: unknown) => unknown) => f(tx),
     };
@@ -150,7 +165,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -165,7 +180,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -701,5 +716,65 @@ describe("Nacharbeit (PR c): importZeileBearbeiten / importZeileUeberspringen", 
     expect(await importZeileUeberspringen(LAUF, ZEILE)).toEqual({ ok: true });
     expect(updates[updates.length - 1]).toEqual({ status: "uebersprungen" });
     expect(protokolle[protokolle.length - 1]).toMatchObject({ text: "Nacharbeit Zeile 7: übersprungen" });
+  });
+});
+
+describe("importZuruecknehmen (PR d: nur Admin, nur unbearbeitet, alles protokolliert)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (status = "ausgefuehrt") => ({ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { importiert: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const zeilen = () => [
+    { id: "z1", zeilennummer: 2, status: "importiert", fehlergrund: null, biomassestromId: "s1", outputBedarfId: null, felder: { akteur_id: "a-neu" } },
+    { id: "z2", zeilennummer: 3, status: "importiert", fehlergrund: null, biomassestromId: "s2", outputBedarfId: null, felder: { akteur_id: "a1" } },
+    { id: "z3", zeilennummer: 4, status: "fehler", fehlergrund: "x", biomassestromId: null, outputBedarfId: null, felder: {} },
+  ];
+
+  it("Rot: Pruefer und Bearbeiter werden abgewiesen (nur Admin), nichts geloescht", async () => {
+    for (const r of ["pruefer", "bearbeiter"]) {
+      rolle = r;
+      expect((await importZuruecknehmen(LAUF)).fehler).toMatch(/Admins vorbehalten|recht/i);
+    }
+    expect(deletes).toHaveLength(0);
+  });
+
+  it("nur ein ausgefuehrter Lauf laesst sich zuruecknehmen", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf("probelauf")]);
+    expect((await importZuruecknehmen(LAUF)).fehler).toMatch(/nur ein ausgeführter Lauf/);
+    expect(deletes).toHaveLength(0);
+  });
+
+  it("Rot: ein Strom des Laufs wurde danach bearbeitet → abgewiesen mit Zeilennummer, nichts geloescht, kein Ereignis", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf()]);
+    // tx-Abfragen in Reihenfolge: Zeilen, Stroeme aus dem Protokoll, fremde Ereignisse.
+    txSelects.push(zeilen(), [{ id: "s1" }, { id: "s2" }], [{ id: "s2", art: "geprueft" }]);
+    const erg = await importZuruecknehmen(LAUF);
+    expect(erg.fehler).toMatch(/Rücknahme abgewiesen: 1 Strom\/Ströme wurden nach dem Import bearbeitet \(geprueft\)\. Zeilen: 3\./);
+    expect(erg.bearbeitet).toEqual([3]);
+    expect(deletes).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+    expect(protokolle).toHaveLength(0);
+  });
+
+  it("nimmt den Lauf zurueck: Abhaengiges, Stroeme, Lauf-Beleg, neuer verwaister Akteur — in dieser Reihenfolge, alles protokolliert", async () => {
+    rolle = "admin";
+    dbSelects.push([lauf()]);
+    txSelects.push(
+      zeilen(),
+      [{ id: "s1" }, { id: "s2" }],
+      [], // keine fremden Ereignisse
+      [{ id: "s1", belegId: "b1", akteurId: "a-neu" }, { id: "s2", belegId: "b1", akteurId: "a1" }],
+      [{ id: "b1", nutzer: 0 }], // Lauf-Beleg, nach dem Loeschen der Stroeme ungenutzt
+      [{ id: "a-neu" }], // im Lauf angelegte Akteure
+      [{ id: "a-neu", stroeme: 0 }], // jetzt verwaist
+    );
+    const erg = await importZuruecknehmen(LAUF);
+    expect(erg).toEqual({ ok: true, stroeme: 2, belege: 1, akteure: 1 });
+    expect(deletes).toEqual(["strom_zuweisung", "vergabe_zeitraum", "inbox_eintrag", "biomassestrom", "beleg", "akteur_interesse", "kontaktperson", "akteur"]);
+    expect(updates[0]).toMatchObject({ biomassestromId: null, status: "offen" });
+    expect(updates[updates.length - 1]).toMatchObject({ status: "zurueckgenommen", zurueckgenommenAm: expect.any(Date), zaehler: expect.objectContaining({ importiert: 0, offen: 2, zurueckgenommen_stroeme: 2, zurueckgenommen_belege: 1, zurueckgenommen_akteure: 1 }) });
+    expect(protokolle.map((p) => `${(p as { art: string }).art}:${(p as { entitaet: string }).entitaet}`)).toEqual(["verworfen:biomassestrom", "verworfen:biomassestrom", "akteur_geloescht:akteur", "status_gesetzt:import_lauf"]);
+    expect(protokolle.every((p) => (p as { importLaufId?: string }).importLaufId === LAUF)).toBe(true);
+    expect(protokolle[3]).toMatchObject({ text: "Import zurückgenommen: 2 Ströme, 1 Beleg(e), 1 Akteur(e) gelöscht" });
   });
 });

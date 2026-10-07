@@ -1703,6 +1703,32 @@ Zeilen abgeschlossener Läufe (`ausgefuehrt`/`zurueckgenommen`) ab
 `abgeschlossen_am` + Frist, Zähler und Protokoll bleiben am Lauf. Rücknahme
 folgt in PR d.
 
+**PR d (07.10.2026): Rücknahme.** Aktion `import.zuruecknehmen` (nur
+`admin`, Matrix und Matrix-Test), Server-Action `importZuruecknehmen(laufId)`
+in einer Transaktion: nur aus `ausgefuehrt`; Ströme des Laufs = Zeilen mit
+Strom-Bezug ∪ Protokoll „angelegt" mit `import_lauf_id`; **Vorbedingung**
+kein Ereignis an diesen Strömen mit anderer oder ohne Lauf-ID (bearbeitet,
+geprüft, gesperrt, zugewiesen, kommentiert …) — sonst Abweisung mit Art und
+Zeilennummern, nichts geschrieben. Reihenfolge: Zuweisungen, Vergabezeiträume
+und Inbox-Einträge der Ströme → Zeilen verlieren den Strom-Bezug und werden
+„offen" (Probelauf-Felder entfernt, Fehlerzeilen bleiben Fehler) → je Strom
+Protokoll `verworfen` mit Lauf-ID → Ströme gelöscht → Lauf-Belege
+(Quellenangabe des Laufs) nur, wenn kein anderer Strom sie nutzt → vom Lauf
+angelegte Akteure (Protokoll `akteur_angelegt` mit Lauf-ID) nur, wenn jetzt
+verwaist, samt Interessen und Kontaktpersonen, Protokoll `akteur_geloescht`
+→ Lauf `zurueckgenommen`, `zurueckgenommen_am`, Zähler
+`zurueckgenommen_stroeme/_belege/_akteure`, Protokoll `status_gesetzt`. Die
+Rücknahme ist die einzige echte Löschung im Import; sie gilt, weil der Lauf
+Entwürfe erzeugt, die noch niemand angefasst hat — die Protokolleinträge
+überdauern die Objekte. Nach der Rücknahme gibt es keine Nacharbeit mehr
+(Server weist ab, Oberfläche blendet aus).
+
+**Rot gezeigt (PR d):** Prüfer und Bearbeiter abgewiesen ohne Schreibversuch;
+Lauf im Probelauf nicht rücknehmbar; **Strom nach dem Import geprüft →
+„Rücknahme abgewiesen … Zeilen: 3", keine Löschung, kein Update, kein
+Ereignis**; Erfolgsfall löscht in der genannten Reihenfolge und schreibt
+vier Protokolleinträge mit Lauf-ID.
+
 **Rot gezeigt (PR b):** Akteur-Baustein fehlte (Modul); Quellenangabe-Pflicht
 entfernt → 7 von 43 Beleg-Tests rot; CSV ohne Dekodierung → „Straße" als
 Fremdzeichen; Personen-Ziel vor „unbekannt"; Bearbeiter an jeder

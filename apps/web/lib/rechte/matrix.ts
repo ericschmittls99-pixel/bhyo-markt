@@ -79,8 +79,9 @@ export const AKTIONEN = [
   "akteur.keine_dublette",
   "akteur.keine_dublette_aufheben",
   "akteur.zusammenfuehren",
-  // AP2.7 PR a (E67): Import nur Pruefer und Admin; Zuruecknehmen (nur Admin) kommt mit seinem Schreibpfad in PR d.
+  // AP2.7 PR a (E67): Import nur Pruefer und Admin; Zuruecknehmen (PR d) nur Admin.
   "import.ausfuehren",
+  "import.zuruecknehmen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -134,6 +135,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "akteur.keine_dublette_aufheben": SPERREN,
   "akteur.zusammenfuehren": SPERREN,
   "import.ausfuehren": SPERREN,
+  "import.zuruecknehmen": VERWALTEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
