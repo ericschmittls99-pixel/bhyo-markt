@@ -143,7 +143,7 @@ export async function stromVerwerfen(
 /** Meldung der Beleg-Pflicht (PR b, Entscheidung Eric 01.10.2026) — Pruefen und erneut Verifizieren. */
 const OHNE_BELEG = "Ohne Beleg kann nicht geprüft werden.";
 /** PR e (Eric 07.10.2026): ohne TS-Anteil und Aschegehalt kein „geprueft" — dieselbe Regel als DB-CHECK (Migration 0047). */
-export const UNVOLLSTAENDIG = "TS-Anteil und Aschegehalt fehlen — erst ergänzen, dann prüfen.";
+const UNVOLLSTAENDIG = "TS-Anteil und Aschegehalt fehlen — erst ergänzen, dann prüfen.";
 
 /**
  * AP2.4 PR a (E62, D4): „geprueft" setzen — nur pruefer/admin, aus entwurf

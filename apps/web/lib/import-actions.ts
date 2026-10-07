@@ -1,6 +1,7 @@
-import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
 "use server";
 
+import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
+import { monatZuBis, monatZuVon } from "@/lib/formular-modell";
 import { aenderung, akteur, akteurInteresse, beleg, biomassestrom, importLauf, importVorlage, importZeile, inboxEintrag, kontaktperson, outputBedarf, stromZuweisung, vergabeZeitraum } from "@bhyo/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 
@@ -580,16 +581,6 @@ const DATUM = /^\d{4}-\d{2}-\d{2}$/;
 const MONAT = /^(0[1-9]|1[0-2])\/\d{4}$/;
 /** „MM/JJJJ" -> „JJJJ-MM" (Form von monatZuVon/monatZuBis). */
 const monatZuIso = (m: string) => `${m.slice(3)}-${m.slice(0, 2)}`;
-/** „JJJJ-MM-TT" (Lauf-Datum) -> „MM/JJJJ" (Formulartext der Zeile). */
-export function monatAusDatum(d: string): string {
-  return `${d.slice(5, 7)}/${d.slice(0, 4)}`;
-}
-
-/** Zeilen, die vom Lauf-Zeitraum abhaengen: offen oder fehlerhaft, ohne eigenes Zeitraum-von oder -bis. */
-export function zeilenOhneZeitraum(zeilen: readonly { status: string; felder: Record<string, string> }[]): number {
-  return zeilen.filter((z) => z.status !== "uebersprungen" && (!z.felder.zeitraum_von || !z.felder.zeitraum_bis)).length;
-}
-
 export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string, zeitraumVon = "", zeitraumBis = ""): Promise<BelegDatenErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
   if ("fehler" in wache) return { fehler: wache.fehler };

@@ -13,7 +13,7 @@ import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { MENGE_EINHEITEN } from "@/lib/formular-modell";
 import { blaetterUebersicht, ImportDateiFehler, parseImportDatei, type BlattInfo, type ImportTabelle } from "@/lib/import-datei";
-import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-actions";
+import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
 import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
 import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
