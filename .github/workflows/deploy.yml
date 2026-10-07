@@ -202,6 +202,13 @@ jobs:
           PLZ_FIXTURE: ja
         run: pnpm --filter @bhyo/db plz-check
 
+      # AP2.8 (E70): Wird-frei-Schritt des Jobs gegen die Wegwerf-DB — eigene
+      # Probedaten in einer zurueckgerollten Transaktion, dieselben Faelle wie
+      # lib/wird-frei.test.ts (Stufenwechsel, Einstieg, Ausfall, Erledigt,
+      # Anschlussvergabe, NULL, an_bhyo, frei_ab aendert sich, Idempotenz).
+      - name: Wird-frei-Probe (Job-SQL, Rot-Faelle)
+        run: pnpm --filter web exec tsx scripts/wird-frei-probe.ts
+
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
     if: github.event_name != 'pull_request'

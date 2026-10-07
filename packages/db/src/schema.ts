@@ -922,6 +922,8 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "kontaktperson_loeschpruefung",
   /** AP2.7 PR a (E67): ein gebuendelter Eintrag je Import-Lauf an alle aktiven Pruefer und Admins (Zaehler im Text). */
   "import_abgeschlossen",
+  /** AP2.8 (E70): Angebot wird frei — Hinweis des taeglichen Jobs je Stufe (180/60/30/0 Tage), Schluessel (Strom, frei_ab, Stufe). */
+  "biomasse_wird_frei",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -1029,6 +1031,8 @@ export const inboxEintrag = pgTable(
     gelesenAm: timestamp("gelesen_am", { withTimezone: true }),
     zustand: inboxZustand("zustand").notNull().default("offen"),
     zustandSeit: timestamp("zustand_seit", { withTimezone: true }).notNull().defaultNow(),
+    /** AP2.8 (E70): Stufe des Wird-frei-Hinweises in Tagen (180, 60, 30, 0) — nur bei biomasse_wird_frei (CHECK). */
+    stufe: integer("stufe"),
     /** PR c: Notiz der Zugriffsanfrage (max. 500 Zeichen, geprueft im Code). */
     notiz: text("notiz"),
     /**
@@ -1056,7 +1060,7 @@ export const inboxEintrag = pgTable(
     // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
     check(
       "inbox_eintrag_urheber_check",
-      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist', 'kontaktperson_loeschpruefung') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
+      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist', 'kontaktperson_loeschpruefung', 'biomasse_wird_frei') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
     ),
     uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
       .on(t.empfaengerId, t.biomassestromId)
@@ -1088,6 +1092,13 @@ export const inboxEintrag = pgTable(
     // taeglichen Laufs). In der Migration mit NULLS NOT DISTINCT, damit das
     // leere Bezugsdatum (Pruefdatum unbekannt) nur einmal zustellt — das kann
     // der Schema-Builder nicht ausdruecken; die SQL-Datei ist massgeblich.
+    // AP2.8 (E70): Stufe nur beim Wird-frei-Hinweis, dort Pflicht.
+    check("inbox_eintrag_stufe_check", sql`(inbox_typ_text(${t.typ}) = 'biomasse_wird_frei') = (${t.stufe} is not null)`),
+    // AP2.8 (E70): je Empfaenger, Strom, frei_ab (Bezugsdatum) und Stufe genau EIN Eintrag — ueber alle
+    // Zustaende, damit ein erledigter Eintrag fuer denselben Schluessel nie neu entsteht (Regel 6).
+    uniqueIndex("inbox_eintrag_wird_frei_uidx")
+      .on(t.empfaengerId, t.biomassestromId, t.bezugsdatum, t.stufe)
+      .where(sql`inbox_typ_text(${t.typ}) = 'biomasse_wird_frei'`),
     uniqueIndex("inbox_eintrag_biomasse_hinweis_uidx")
       .on(t.empfaengerId, t.typ, t.biomassestromId, t.bezugsdatum)
       .where(sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen') and ${t.biomassestromId} is not null`),

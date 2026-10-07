@@ -2,6 +2,7 @@
 // oder Netzwerkzugriff, damit Client-Komponenten Typen, Labels und die
 // Filter-/Sortierlogik importieren koennen. Die Loader liegen in lib/stroeme.ts.
 
+import { WIRD_FREI, WIRD_FREI_LABEL, type WirdFreiStand } from "./wird-frei";
 import type { Genauigkeit } from "@/lib/adresse-pruefung";
 import {
   RESERVIERUNG_VERALTET,
@@ -167,6 +168,8 @@ export interface Strom {
   verfuegbarkeit?: VerfuegbarkeitsErgebnis;
   /** F5 PR B: Vergabezeilen fuer den Filter "Vergeben ab / bis". */
   vergaben?: VergabeDaten[];
+  /** AP2.8 (E70): frei_ab aus der Vergabekette (nur Angebote), aus denselben Vergaben abgeleitet; null ohne Kettenende. */
+  wirdFrei?: WirdFreiStand | null;
   /** AP2.4 (E62): Verifikationszustand aus strom_verifikation() — der Loader setzt ihn immer. */
   verifikation?: VerifikationsErgebnis;
   /** E44: Sperre am Strom (null = frei) und Zugewiesene — aus dem Loader. */
@@ -335,7 +338,14 @@ function facettenWert(s: Strom, key: keyof StroemeFilter): string[] {
       return [s.status];
     case "verfuegbarkeit":
       // E64: der Nebentag „Reservierung veraltet" ist als eigener Wert filterbar.
-      return s.verfuegbarkeit ? [s.verfuegbarkeit.status, ...(s.verfuegbarkeit.reservierungVeraltet ? [RESERVIERUNG_VERALTET] : [])] : [];
+      // E70: „wird frei" als weiterer Nebenwert, sobald die Pille gilt (<= 180 Tage vor frei_ab oder frei).
+      return s.verfuegbarkeit
+        ? [
+            s.verfuegbarkeit.status,
+            ...(s.verfuegbarkeit.reservierungVeraltet ? [RESERVIERUNG_VERALTET] : []),
+            ...(s.art === "biomasse" && s.wirdFrei?.stufe != null ? [WIRD_FREI] : []),
+          ]
+        : [];
     case "verifikation":
       // Nicht angereichert = nicht filterbar (kein stummes Raten); angereichert
       // hat JEDER Strom einen benannten Zustand (E62).
@@ -828,7 +838,9 @@ export function facettenOptionen(
     )
       .map((w): { wert: string; label: string } => ({ wert: w, label: verfuegbarkeitLabel(art, w) }))
       // E64: Nebentag als siebte Option — waehlbar, auch wenn er gerade nicht vorkommt.
-      .concat([{ wert: RESERVIERUNG_VERALTET, label: RESERVIERUNG_VERALTET_LABEL }]),
+      .concat([{ wert: RESERVIERUNG_VERALTET, label: RESERVIERUNG_VERALTET_LABEL }])
+      // E70: „Wird frei" (nur Angebote) als achte Option.
+      .concat(art === "biomasse" ? [{ wert: WIRD_FREI, label: WIRD_FREI_LABEL }] : []),
     belegtyp: fest(BELEG_LABEL),
     // E62: feste Liste der benannten Zustaende — abgeleitet und waehlbar, auch
     // wenn einer gerade nicht vorkommt (laeuft_bald_ab kommt mit PR b dazu).

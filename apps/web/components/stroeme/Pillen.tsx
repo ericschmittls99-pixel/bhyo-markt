@@ -1,4 +1,5 @@
 import { STATUS_PILL } from "@/lib/status";
+import { wirdFreiPill, type WirdFreiStand } from "@/lib/wird-frei";
 import type { StromArt } from "@/lib/stroeme-modell";
 import {
   RESERVIERUNG_VERALTET_PILL,
@@ -36,6 +37,17 @@ export function ReserviertStempel() {
     >
       <img src="/logo/bhyo-mark-navy.svg" alt="" aria-hidden className="logo-light" />
       <img src="/logo/bhyo-mark-white.svg" alt="" aria-hidden className="logo-dark" />
+    </span>
+  );
+}
+
+/** AP2.8 (E70): „frei ab TT.MM.JJJJ" ab 180 Tagen vor dem Kettenende, „frei seit TT.MM.JJJJ" ab frei_ab — nur Angebote. */
+export function WirdFreiPill({ wirdFrei }: { wirdFrei: WirdFreiStand | null | undefined }) {
+  const p = wirdFreiPill(wirdFrei);
+  if (!p) return null;
+  return (
+    <span className={`spill spill--${p.tone}`} title={p.stufe === 0 ? "Vergabe beendet, keine Anschlussvergabe" : "Vergabekette endet, keine Anschlussvergabe eingetragen"}>
+      {p.text}
     </span>
   );
 }

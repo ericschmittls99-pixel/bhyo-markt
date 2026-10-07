@@ -258,6 +258,12 @@ Startwert 30, einstellungen. → Parameter) ab `abgeschlossen_am`; nur Läufe
 `ausgefuehrt` oder `zurueckgenommen`. Zähler und Protokoll bleiben am Lauf.
 Log-Zeile `JOB import-zeilen <env> {"laeufe","zeilen"}` nach dem
 Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
+- **Wird frei (AP2.8, E70, 07.10.2026):** derselbe tägliche Job stellt je
+  Angebot mit endender Vergabekette einen Hinweis je Stufe (Parameter
+  `hinweis.wird_frei_stufe_1…4` = 180/60/30/0 Tage) an den letzten Prüfer
+  (sonst alle Prüfer/Admins) zu und räumt Vorstufen bzw. überholte frei_ab-
+  Werte ab (Schritte `wird_frei`, `wird_frei_abraeumen` in `job_lauf.schritte`,
+  Zähler `wirdFrei`/`wirdFreiAbgeraeumt`). Probe im CI: `scripts/wird-frei-probe.ts`.
 - **Liegengebliebene Läufe (AP2.7 PR g, 07.10.2026):** nie ausgeführte Läufe
   (angelegt … probelauf, fehler) ohne Aktivität seit
   `import.lauf_inaktiv_tage` Tagen (Startwert 30, Migration 0049) verwirft

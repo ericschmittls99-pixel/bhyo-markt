@@ -70,7 +70,7 @@ async function main() {
   const heute = await sql`select schluessel, parameter_wert(schluessel, current_date) as heute from parameter_definition order by schluessel`;
   console.log("STARTWERTE " + JSON.stringify(start.map((z) => `${z.schluessel}=${z.wert}`)));
   console.log("HEUTE " + JSON.stringify(heute.map((z) => `${z.schluessel}=${z.heute}`)));
-  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage", "akteur.verwaist_hinweis_monate", "kontaktperson.loeschpruefung_monate", "import.zeilen_aufbewahrung_tage", "import.lauf_inaktiv_tage"];
+  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage", "akteur.verwaist_hinweis_monate", "kontaktperson.loeschpruefung_monate", "import.zeilen_aufbewahrung_tage", "import.lauf_inaktiv_tage", "hinweis.wird_frei_stufe_1", "hinweis.wird_frei_stufe_2", "hinweis.wird_frei_stufe_3", "hinweis.wird_frei_stufe_4"];
   const fehlendeStart = ERWARTET.filter((k) => !start.some((z) => z.schluessel === k));
   // Journal-Vergleich (Eric 01.10.2026): Startwerte exakt bei gleichem Journal, mindestens wenn die DB voraus ist.
   const journal = await journalModus(sql, url!);
@@ -92,6 +92,11 @@ async function main() {
   // AP2.7 PR c (E67): Import-Zeilen 30 Tage nach Abschluss des Laufs.
   const aufbewahrung = heute.find((z) => z.schluessel === "import.zeilen_aufbewahrung_tage");
   if (!aufbewahrung || Number(aufbewahrung.heute) !== 30) fehler.push(`import.zeilen_aufbewahrung_tage heute ${aufbewahrung?.heute} statt 30 (Startwert E67)`);
+  // AP2.8 (Migration 0051): Staffel der Wird-frei-Hinweise, Startwerte 180/60/30/0.
+  for (const [k, soll] of [["hinweis.wird_frei_stufe_1", 180], ["hinweis.wird_frei_stufe_2", 60], ["hinweis.wird_frei_stufe_3", 30], ["hinweis.wird_frei_stufe_4", 0]] as const) {
+    const z = heute.find((x) => x.schluessel === k);
+    if (!z || Number(z.heute) !== soll) fehler.push(`${k} heute ${z?.heute} statt ${soll} (Startwert E70)`);
+  }
   // AP2.7 PR g (Migration 0049): Frist fuer liegengebliebene Laeufe, Startwert 30 Tage.
   const inaktiv = heute.find((z) => z.schluessel === "import.lauf_inaktiv_tage");
   if (!inaktiv || Number(inaktiv.heute) !== 30) fehler.push(`import.lauf_inaktiv_tage heute ${inaktiv?.heute} statt 30 (Startwert PR g)`);

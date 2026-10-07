@@ -1062,3 +1062,16 @@ Befund)", `btn--sm` „Genaue Pins ermitteln (n)" (Icon `ph-crosshair`, mit
 Fortschritt „x Adresse(n) gesucht, y genauer, z noch offen …"). Caption:
 „n neue(r) Akteur(e) · mit Pin · im PLZ-Gebiet · mit Befund". Befund-Tabelle
 wie bisher, Befunde als Sätze mit „meinten Sie …?".
+
+## Wird frei (AP2.8, E70, 07.10.2026)
+
+**Pille** `spill` neben der Verfügbarkeits-Pille in Grid, Tabelle und
+Strom-Detail, nur Angebote: „frei ab TT.MM.JJJJ." (`spill--quiet`, ab 180
+Tagen vor dem Kettenende) und „frei seit TT.MM.JJJJ." (`spill--active`, ab
+frei_ab); Datum ist der erste freie Tag (Folgetag des Vergabeendes). Tooltip
+nennt den Grund. **Filter:** achter Wert „Wird frei" in der Facette
+Verfügbarkeit (nur Feedstock). **Inbox:** reiner Hinweis `biomasse_wird_frei`
+mit den Aktionen gelesen/erledigen/verwerfen/alle erledigen; Text je Stufe
+(„B-… wird frei ab …", „Unsere Vergabe von B-… endet am …", „B-… ist frei
+seit …"). Keine Karte.
+
