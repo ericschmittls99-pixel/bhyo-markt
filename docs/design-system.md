@@ -970,6 +970,34 @@ mit Caption „n Zeile(n) ohne eigenen Zeitraum …". **Formular Strom:** Labels
 Pflicht-Stern. **Detail/Register:** Wert „unbekannt", Quelle „nicht erfasst —
 kein „geprüft" möglich".
 
+## import. — Korrekturen aus dem Testlauf (AP2.7 PR f, 07.10.2026)
+
+**Zeilen mit Zuordnungsfehler (B3):** ein Fehler an einem Feld (Einheit,
+Zahl, Datum, nicht zugeordneter Wert, Kontaktdaten) hält die Zeile im
+Zustand „fehler", Probelauf und Ausführen setzen nie „ok". In der Nacharbeit
+stehen alle Fehler der Zeile als Zeilen in der Spalte „Fehler", im
+Inline-Formular zusätzlich am betroffenen Feld hinter dem Label als
+`pf-fehler` („· Einheit „m³/a" ist nicht umrechenbar …"). **Hinweise an der
+Zeile** (Rundung E20, Umrechnung der Einheit, Monat als Datum, bewusst
+importierte Doppelzeile): Caption `c imp-hinweis` mit `ph-info` neben der
+Zustands-Pille in „zeilen." und in der Nacharbeit — keine Ampel, kein
+Pflicht-Stern. **Kontaktdaten (B5):** der Wert erscheint nirgends; die
+Zeile trägt „Bezeichnung: enthält Kontaktdaten, bitte entfernen".
+**Sektor-Konflikt (Weggabelung 6):** in „akteure auflösen." trägt die
+Gruppe die Pille `pill--accent` „Sektor-Konflikt" mit den Werten der Datei
+als Caption; in der Aktionsspalte eine Auswahl „Sektor wählen …" (nur die
+Werte der Datei) und „Übernehmen" (`btn--ghost btn--sm`); über der Tabelle
+die Caption „n Akteur(e) mit Sektor-Konflikt — … sonst startet der Probelauf
+nicht". **Doppelzeilen (Weggabelung 7):** eigener Abschnitt „doppelzeilen."
+zwischen „akteure auflösen." und „adressen auflösen." (nur, solange
+unentschiedene da sind): Schaltfläche `btn--primary btn--sm` „Alle n
+Doppelzeile(n) überspringen" (Voreinstellung, Icon `ph-skip-forward`),
+Tabelle Zeile · Akteur · Inhalt · Gleich wie · je Zeile „Überspringen" und
+„Trotzdem importieren" (`btn--ghost btn--sm`); in „zeilen." die Caption
+„Doppelzeile von Zeile n". **Zuordnung:** die Einheit bei Bedarfen bekommt
+keine Werte-Tabelle mehr (gelesen und umgerechnet); „Nr" am Zeilenanfang
+steht auf „Ignorieren".
+
 ## Adresse — PLZ aus Pin lokal, Quellenhinweis (E68 PR 1, 07.10.2026)
 
 **Pin:** Kartenklick, Ziehen und „vom Standort übernehmen" setzen nur noch

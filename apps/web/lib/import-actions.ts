@@ -10,10 +10,10 @@ import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
-import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, offeneAkteurGruppen } from "@/lib/import-akteure";
+import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
-import { bereinigteCsv, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung } from "@/lib/import-zuordnung";
+import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, zuordnungsFehler, type Zuordnung } from "@/lib/import-zuordnung";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
 import { stelleImportAbschlussZu } from "@/lib/inbox/zustellung";
 import { protokolliere } from "@/lib/protokoll";
@@ -221,12 +221,18 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
       fehlergrund: r.fehlergrund,
     };
   });
+  // PR f (Weggabelung 7): exakte Doppelzeilen derselben Datei werden „aehnlich" — Voreinstellung ueberspringen, Entscheidung je Zeile oder gesammelt.
+  for (const [i, von] of findeDoppelzeilen(zeilen)) {
+    zeilen[i]!.status = "aehnlich";
+    zeilen[i]!.felder[DOPPEL_VON] = String(von);
+  }
   const personenSpalten = tabelle.spalten.filter((sp) => zuordnung.spalten[sp] === PERSON).length;
   const zaehler: Record<string, number> = {
     ...(lauf.zaehler ?? {}),
     zeilen: zeilen.length,
     offen: zeilen.filter((z) => z.status === "offen").length,
     fehler: zeilen.filter((z) => z.status === "fehler").length,
+    doppelzeilen: zeilen.filter((z) => z.status === "aehnlich").length,
     personen_spalten: personenSpalten,
     uebersprungen_oben: tabelle.uebersprungen.oben,
     uebersprungen_leer: tabelle.uebersprungen.leer,
@@ -253,7 +259,7 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Zuordnung gespeichert: Blatt „${tabelle.blatt}", Kopfzeile ${tabelle.kopfzeile}, ${zaehler.zeilen} Zeilen (${zaehler.offen} offen, ${zaehler.fehler} mit Fehler), übersprungen ${tabelle.uebersprungen.oben} über der Kopfzeile / ${tabelle.uebersprungen.leer} leer / ${tabelle.uebersprungen.summe} Summe / ${tabelle.uebersprungen.fuss} Fußzeile(n), ${personenSpalten} Personen-Spalte(n) nicht übernommen`,
+          text: `Zuordnung gespeichert: Blatt „${tabelle.blatt}", Kopfzeile ${tabelle.kopfzeile}, ${zaehler.zeilen} Zeilen (${zaehler.offen} offen, ${zaehler.fehler} mit Fehler, ${zaehler.doppelzeilen} Doppelzeile(n)), übersprungen ${tabelle.uebersprungen.oben} über der Kopfzeile / ${tabelle.uebersprungen.leer} leer / ${tabelle.uebersprungen.summe} Summe / ${tabelle.uebersprungen.fuss} Fußzeile(n), ${personenSpalten} Personen-Spalte(n) nicht übernommen`,
           importLaufId: lauf.id,
         });
       }),
@@ -377,7 +383,8 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
             .update(importZeile)
             .set({
               felder: felderPatch(e.patch, ["akteur_id", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_neu"].filter((k) => !(k in e.patch))),
-              status: sql`case when ${importZeile.status} in ('offen', 'aehnlich') then ${e.statusOffen} else ${importZeile.status} end`,
+              // PR f: eine Doppelzeile (doppel_von) bleibt „aehnlich", bis sie entschieden ist.
+              status: sql`case when ${importZeile.status} in ('offen', 'aehnlich') and not (${importZeile.felder} ? ${DOPPEL_VON}) then ${e.statusOffen} else ${importZeile.status} end`,
             })
             .where(inArray(importZeile.id, g.zeilenIds));
         }
@@ -450,7 +457,7 @@ export async function importAkteurEntscheiden(laufId: string, gruppe: string | n
             .update(importZeile)
             .set({
               felder: felderPatch(patch, ["akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad"]),
-              status: sql`case when ${importZeile.status} = 'aehnlich' then 'offen' else ${importZeile.status} end`,
+              status: sql`case when ${importZeile.status} = 'aehnlich' and not (${importZeile.felder} ? ${DOPPEL_VON}) then 'offen' else ${importZeile.status} end`,
             })
             .where(inArray(importZeile.id, ids));
         }
@@ -474,6 +481,119 @@ export async function importAkteurEntscheiden(laufId: string, gruppe: string | n
     );
   } catch (e) {
     console.error("Akteur-Vorschlag entscheiden fehlgeschlagen:", e);
+    return { fehler: "Die Entscheidung konnte nicht gespeichert werden." };
+  }
+}
+
+/**
+ * Sektor-Konflikt entscheiden (PR f, Weggabelung 6, Eric 07.10.2026): tragen
+ * die Zeilen eines Akteurs verschiedene Sektoren, gibt es keine stille
+ * Uebernahme des ersten Werts — eine Pflichtentscheidung je Akteur, hier.
+ * Der gewaehlte Sektor geht in alle Zeilen der Gruppe; ein Sektor-
+ * Zuordnungsfehler (B3) an diesen Zeilen ist damit erledigt.
+ */
+export interface SektorErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  zeilen?: number;
+}
+
+/** Zeile nach einer Feld-Korrektur: Fehler-Schluessel entscheiden den Zustand (B3). */
+function zustandNachKorrektur(felder: Record<string, string>, status: string): { status: string; fehlergrund: string | null } {
+  if (status !== "fehler" && status !== "offen") return { status, fehlergrund: null };
+  const grund = zuordnungsFehler(felder);
+  return grund ? { status: "fehler", fehlergrund: grund } : { status: "offen", fehlergrund: null };
+}
+
+export async function importAkteurSektorWaehlen(laufId: string, gruppe: string, sektor: string): Promise<SektorErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Sektoren werden nach der Zuordnung entschieden.` };
+  const code = sektor.trim();
+  if (!(await ladeSektoren()).some((s) => s.aktiv && s.code === code)) return { fehler: `„${code}" ist kein aktiver Sektor.` };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const zeilen = (await ladeImportZeilen(tx, lauf.id)).filter((z) => gruppenSchluessel(z.felder.akteur_name ?? "", z.felder.akteur_sitz_plz ?? "") === gruppe);
+        if (zeilen.length === 0) return { fehler: "Kein Akteur mit diesem Schlüssel im Lauf." };
+        for (const z of zeilen) {
+          const felder: Record<string, string> = { ...z.felder, akteur_sektor: code };
+          delete felder[`${FEHLER_PREFIX}akteur_sektor`];
+          const zustand = zustandNachKorrektur(felder, z.status);
+          await tx
+            .update(importZeile)
+            .set({ felder: felderPatch({ akteur_sektor: code }, [`${FEHLER_PREFIX}akteur_sektor`]), ...(zustand.status !== z.status || zustand.fehlergrund !== z.fehlergrund ? zustand : {}) })
+            .where(eq(importZeile.id, z.id));
+        }
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          // E57: der Gruppen-Schluessel ist ein Betriebsname in Normalform, keine Person.
+          text: `Sektor-Konflikt entschieden: Gruppe ${gruppe} → ${code}, ${zeilen.length} Zeile(n)`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, zeilen: zeilen.length };
+      }),
+    );
+  } catch (e) {
+    console.error("Sektor waehlen fehlgeschlagen:", e);
+    return { fehler: "Der Sektor konnte nicht gespeichert werden." };
+  }
+}
+
+/**
+ * Doppelzeile entscheiden (PR f, Weggabelung 7): eine exakte Doppelzeile
+ * derselben Datei steht „aehnlich" mit doppel_von. Ueberspringen (die
+ * Voreinstellung) setzt „uebersprungen" mit Grund; importieren macht sie
+ * offen (oder Fehler, wenn sie Zuordnungsfehler traegt) und vermerkt die
+ * Entscheidung als Hinweis. zeileId = null entscheidet alle offenen Doppelzeilen.
+ */
+export async function importDoppelzeileEntscheiden(laufId: string, zeileId: string | null, entscheidung: "ueberspringen" | "importieren"): Promise<SektorErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Doppelzeilen werden nach der Zuordnung entschieden.` };
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        const zeilen = (await ladeImportZeilen(tx, lauf.id)).filter((z) => z.status === "aehnlich" && z.felder[DOPPEL_VON] && (zeileId === null || z.id === zeileId));
+        if (zeilen.length === 0) return { fehler: "Keine offene Doppelzeile für diese Auswahl." };
+        for (const z of zeilen) {
+          const von = z.felder[DOPPEL_VON]!;
+          if (entscheidung === "ueberspringen") {
+            await tx.update(importZeile).set({ status: "uebersprungen", fehlergrund: `Doppelzeile von Zeile ${von} — übersprungen.` }).where(eq(importZeile.id, z.id));
+          } else {
+            const hinweis = `Doppelzeile von Zeile ${von}, bewusst importiert.`;
+            await tx
+              .update(importZeile)
+              .set({ ...zustandNachKorrektur(z.felder, "offen"), felder: felderPatch({ [`${HINWEIS_PREFIX}doppelzeile`]: hinweis }, [DOPPEL_VON]) })
+              .where(eq(importZeile.id, z.id));
+          }
+        }
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Doppelzeile(n) ${entscheidung === "ueberspringen" ? "übersprungen" : "bewusst importiert"}: ${zeileId === null ? "alle offenen" : `Zeile ${zeilen[0]!.zeilennummer}`}, ${zeilen.length} Zeile(n)`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, zeilen: zeilen.length };
+      }),
+    );
+  } catch (e) {
+    console.error("Doppelzeile entscheiden fehlgeschlagen:", e);
     return { fehler: "Die Entscheidung konnte nicht gespeichert werden." };
   }
 }
@@ -632,6 +752,16 @@ export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: str
 /** Beendet die Probelauf-Transaktion absichtlich — alles rollt zurueck, nichts wird angelegt. */
 class ProbelaufEnde extends Error {}
 
+/** Offene Entscheidungen, die Probelauf und Ausfuehren sperren: Akteur-Vorschlaege, Doppelzeilen (PR f), Sektor-Konflikte (PR f). */
+function offeneEntscheidungen(alle: readonly { id: string; status: string; felder: Record<string, string> }[]): string | null {
+  const doppel = alle.filter((z) => z.status === "aehnlich" && z.felder[DOPPEL_VON]).length;
+  if (doppel > 0) return `${doppel} Doppelzeile(n) warten auf eine Entscheidung — überspringen (Voreinstellung) oder bewusst importieren.`;
+  if (alle.some((z) => z.status === "aehnlich")) return "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen.";
+  const konflikte = sektorKonflikte(alle).length;
+  if (konflikte > 0) return `Sektor-Konflikt bei ${konflikte} Akteur(en) — erst in „Akteure auflösen" je Akteur entscheiden.`;
+  return null;
+}
+
 export interface ProbelaufErgebnis {
   ok?: boolean;
   fehler?: string;
@@ -688,7 +818,8 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
   }
 
   const alle = await withDb((db) => ladeImportZeilen(db, lauf.id));
-  if (alle.some((z) => z.status === "aehnlich")) return { fehler: "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen." };
+  const sperre = offeneEntscheidungen(alle);
+  if (sperre) return { fehler: sperre };
   const stapel = alle.filter((z) => z.zeilennummer >= abZeilennummer && z.status !== "uebersprungen").slice(0, PROBELAUF_JE_STAPEL);
   const naechste = stapel.length === PROBELAUF_JE_STAPEL ? (alle.find((z) => z.zeilennummer > stapel[stapel.length - 1]!.zeilennummer && z.status !== "uebersprungen")?.zeilennummer ?? null) : null;
   const handelnder: Handelnder = { id: wache.zugang.id, email: wache.email, rolle: wache.zugang.rolle };
@@ -771,6 +902,12 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
           }
         };
         for (const z of stapel) {
+          // PR f (B3): ein Zuordnungs- oder Lesefehler an einem Feld haelt die Zeile im Fehler — kein Baustein, nie „ok".
+          const zf = zuordnungsFehler(z.felder);
+          if (zf) {
+            ergebnisse.set(z.id, zf);
+            continue;
+          }
           try {
             const belegId = await belegFuer(z.felder);
             const akteurId = await akteurFuer(z.felder);
@@ -867,7 +1004,8 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
   if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen." };
 
   const alle = await withDb((db) => ladeImportZeilen(db, lauf.id));
-  if (alle.some((z) => z.status === "aehnlich")) return { fehler: "Es gibt noch offene Akteur-Vorschläge — erst übernehmen oder neu anlegen." };
+  const sperre = offeneEntscheidungen(alle);
+  if (sperre) return { fehler: sperre };
   const offen = alle.filter((z) => z.status === "offen");
   const stapel = offen.filter((z) => z.zeilennummer >= abZeilennummer).slice(0, PROBELAUF_JE_STAPEL);
   const naechste = stapel.length === PROBELAUF_JE_STAPEL ? (offen.find((z) => z.zeilennummer > stapel[stapel.length - 1]!.zeilennummer)?.zeilennummer ?? null) : null;
@@ -991,6 +1129,13 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
         };
 
         for (const z of stapel) {
+          // PR f (B3): wie im Probelauf — eine Zeile mit Zuordnungsfehler wird nie angelegt.
+          const zf = zuordnungsFehler(z.felder);
+          if (zf) {
+            fehlerZeilen += 1;
+            await tx.update(importZeile).set({ status: "fehler", fehlergrund: zf }).where(eq(importZeile.id, z.id));
+            continue;
+          }
           try {
             const belegId = await belegFuer(z.felder);
             const akteurId = await akteurFuer(z.felder);
@@ -1075,11 +1220,17 @@ export async function importZeileBearbeiten(laufId: string, zeileId: string, ein
   if (!NACHARBEIT_ZUSTAENDE.includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — Nacharbeit gibt es nach der Zuordnung.` };
   const art = lauf.art as StromArt;
   const patch: Record<string, string> = {};
+  const hinweisePatch: Record<string, string> = {};
   for (const [k, v] of Object.entries(eingabe)) {
     if (istPersonenSchluessel(k)) return { fehler: `Feld „${k}": Personen-Daten werden nicht übernommen.` };
     const def = zielfeld(k);
     if (!def || !def.arten.includes(art) || def.typ === "einheit") return { fehler: `Feld „${k}" ist kein Zielfeld dieses Laufs.` };
-    patch[k] = typeof v === "string" ? v.trim() : "";
+    const roh = typeof v === "string" ? v.trim() : "";
+    // PR f: dieselben Regeln wie die Zuordnung (deutsche Zahl, Rundung E20, Monat, Datum, keine Kontaktdaten) — abgewiesen statt gespeichert.
+    const e = def.typ === "code" ? { wert: roh } : feldWert(def, roh);
+    if ("fehler" in e) return { fehler: `${def.label}: ${e.fehler}` };
+    patch[k] = e.wert;
+    if (e.hinweis) hinweisePatch[`${HINWEIS_PREFIX}${k}`] = e.hinweis;
   }
   if (Object.keys(patch).length === 0) return { fehler: "Keine Änderung." };
 
@@ -1095,11 +1246,20 @@ export async function importZeileBearbeiten(laufId: string, zeileId: string, ein
         if (zeile.status !== "fehler" && zeile.status !== "offen") return { fehler: `Zeile ${zeile.zeilennummer} ist „${zeile.status}" — nur offene und fehlerhafte Zeilen lassen sich bearbeiten.` };
         const alt = zeile.felder as Record<string, string>;
         const akteurGeaendert = ("akteur_name" in patch && patch.akteur_name !== (alt.akteur_name ?? "")) || ("akteur_sitz_plz" in patch && patch.akteur_sitz_plz !== (alt.akteur_sitz_plz ?? ""));
-        const entfernen: string[] = [...Object.keys(patch).filter((k) => patch[k] === ""), "probelauf", ...(akteurGeaendert ? AKTEUR_AUFLOESUNG : [])];
-        const setzen = Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== ""));
+        // PR f (B3): Fehler und Hinweise der korrigierten Felder fallen weg; bleiben andere Fehler, bleibt die Zeile im Fehler.
+        const entfernen: string[] = [
+          ...Object.keys(patch).filter((k) => patch[k] === ""),
+          ...Object.keys(patch).flatMap((k) => [`${FEHLER_PREFIX}${k}`, `${HINWEIS_PREFIX}${k}`]),
+          "probelauf",
+          ...(akteurGeaendert ? AKTEUR_AUFLOESUNG : []),
+        ];
+        const setzen = { ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")), ...hinweisePatch };
+        const neu: Record<string, string> = { ...alt };
+        for (const k of entfernen) delete neu[k];
+        Object.assign(neu, setzen);
         await tx
           .update(importZeile)
-          .set({ felder: felderPatch(setzen, entfernen), status: "offen", fehlergrund: null })
+          .set({ felder: felderPatch(setzen, entfernen), ...zustandNachKorrektur(neu, "offen") })
           .where(eq(importZeile.id, zeile.id));
         await protokolliere(tx, {
           art: "geaendert",

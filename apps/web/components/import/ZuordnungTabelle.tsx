@@ -85,7 +85,8 @@ export function ZuordnungTabelle({
   // Code-Zielfelder, die gerade einer Spalte zugeordnet sind → Werte-Tabellen darunter.
   const codeZiele = spalten
     .map((sp) => ({ sp, def: zielNachKey.get(ziel[sp.name] ?? "") }))
-    .filter((x): x is { sp: SpalteAnzeige; def: Zielfeld } => !!x.def && x.def.typ === "code" && !!x.def.werte);
+    // PR f: Einheiten bei Bedarfen (auto) werden gelesen und umgerechnet, nicht je Wert zugeordnet.
+    .filter((x): x is { sp: SpalteAnzeige; def: Zielfeld } => !!x.def && x.def.typ === "code" && !!x.def.werte && !x.def.auto);
 
   const pflichtOffen = zielfelder.filter((z) => z.pflicht && !Object.values(ziel).includes(z.key));
 

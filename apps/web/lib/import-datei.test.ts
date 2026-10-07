@@ -13,6 +13,7 @@ import * as XLSX from "xlsx";
 import {
   IMPORT_MAX_BYTES,
   IMPORT_MAX_ZEILEN,
+  datumAusSeriennummer,
   ImportDateiFehler,
   blaetterUebersicht,
   dateiErlaubt,
@@ -184,5 +185,20 @@ describe("parseImportDatei — Blattwahl, Kopfzeile, Datenblock (PR e, Testdatei
     expect(erkenneKopfzeile([["Titel"], [], ["A", "B", "C"], [1, 2, 3]])).toBe(3);
     expect(erkenneKopfzeile([[1, 2, 3], [4, 5, 6]])).toBeNull();
     expect(erkenneKopfzeile([["A", "B"]])).toBe(1); // Kandidat ohne Datenblock — der Parser meldet dann „keine Datenzeile"
+  });
+});
+
+describe("Datumszellen ohne Zeitzone (PR f, Befund CI 07.10.2026)", () => {
+  it("rechnet die Excel-Seriennummer mit Datumsformat direkt in JJJJ-MM-TT um; ohne Datumsformat bleibt die Zahl eine Zahl", () => {
+    expect(datumAusSeriennummer(46296, "dd\\.mm\\.yyyy")).toBe("2026-10-01");
+    expect(datumAusSeriennummer(46387, "yyyy-mm-dd")).toBe("2026-12-31");
+    expect(datumAusSeriennummer(4500, "#,##0")).toBeNull();
+    expect(datumAusSeriennummer(4500, undefined)).toBeNull();
+  });
+  it("die Testdatei liefert in jeder Zeitzone dieselben Daten (Zeile 28: 01.10.2026 und 31.01.2027)", () => {
+    const t = parseImportDatei(fixture("import-testdatei-ap27.xlsx"), "import-testdatei-ap27.xlsx", { blatt: "Erhebung Biomasse" });
+    const z = t.zeilen[t.zeilennummern.indexOf(28)]!;
+    expect([z[10], z[11]]).toEqual(["2026-10-01", "2027-01-31"]);
+    expect(t.zeilen[t.zeilennummern.indexOf(5)]![8]).toBe("4500");
   });
 });

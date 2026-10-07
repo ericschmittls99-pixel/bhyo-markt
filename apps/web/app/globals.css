@@ -5654,3 +5654,11 @@ table.st-tabelle tbody tr:focus-visible {
 .imp-nacharbeit-offen td {
   vertical-align: top;
 }
+/* PR f: Hinweise an der Zeile (Rundung, Umrechnung, Monat als Datum) — Caption mit Info-Icon, keine Ampel. */
+.imp-hinweis {
+  display: inline-block;
+  margin-top: 2px;
+}
+.imp-hinweis .ph {
+  vertical-align: -2px;
+}
