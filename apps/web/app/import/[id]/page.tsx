@@ -5,9 +5,11 @@ import { AdressenAufloesen } from "@/components/import/AdressenAufloesen";
 import { BlattKopfWahl } from "@/components/import/BlattKopfWahl";
 import { AkteureAufloesen } from "@/components/import/AkteureAufloesen";
 import { Ausfuehren } from "@/components/import/Ausfuehren";
+import { Doppelzeilen } from "@/components/import/Doppelzeilen";
 import { Nacharbeit } from "@/components/import/Nacharbeit";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
+import { Verwerfen } from "@/components/import/Verwerfen";
 import { Zuruecknehmen } from "@/components/import/Zuruecknehmen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
@@ -16,9 +18,10 @@ import { blaetterUebersicht, ImportDateiFehler, parseImportDatei, type BlattInfo
 import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
 import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
-import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
+import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL, IMPORT_LAUF_VERWERFBAR } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
-import { PERSON, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
+import { DOPPEL_VON, hinweise, PERSON, preisBezugVorschlag, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
+import { PREIS_BEZUEGE, PREIS_BEZUG_LABEL } from "@/lib/preis-bezug";
 import { BELEG_LABEL, BELEG_TYPEN, brauchtGueltigBis, istBelegTyp } from "@/lib/qualitaet";
 import { darf } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -56,7 +59,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
 
   let blattWahl: { blaetter: BlattInfo[]; blatt: string; kopfzeile: number; vorschau: string[][]; uebersprungen: ImportTabelle["uebersprungen"] } | null = null;
   let parseFehler: string | null = null;
-  let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen } | null = null;
+  let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen; preisBezugVorschlag: "fm" | "atro" | null } | null = null;
   const vorlagen = lauf.status === "angelegt" ? await withDb((db) => ladeImportVorlagen(db)) : [];
   const aktiveVorlage = vorlagen.find((v) => v.id === vorlageParam) ?? null;
   let rohFehlt = false;
@@ -86,6 +89,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
         sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
         beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
         menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+        preis_bezug: PREIS_BEZUEGE.map((b) => ({ code: b, label: PREIS_BEZUG_LABEL[b]! })),
       };
       const spalten: SpalteAnzeige[] = tabelle.spalten.map((name, i) => {
         // Erkannte Personen-Spalten: keine Werte an den Browser — nicht einmal als Beispiel.
@@ -98,10 +102,10 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
       const werteBasis: Record<string, Record<string, string>> = {};
       for (const sp of spalten) {
         const def = zielfeld(kandidaten.spalten[sp.name] ?? "");
-        if (def?.typ === "code" && def.werte) werteBasis[def.key] = werteVorschlag(sp.werte.map((w) => w.wert), optionen[def.werte]);
+        if (def?.typ === "code" && def.werte && !def.auto) werteBasis[def.key] = werteVorschlag(sp.werte.map((w) => w.wert), optionen[def.werte]);
       }
       const angewendet = aktiveVorlage ? vorlageAnwenden(aktiveVorlage, tabelle.spalten, kopfVorschlag, werteBasis) : { spalten: kopfVorschlag, werte: werteBasis };
-      zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen };
+      zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen, preisBezugVorschlag: art === "biomasse" ? preisBezugVorschlag(tabelle.spalten, angewendet.spalten) : null };
       }
     }
   }
@@ -109,6 +113,17 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
   const zeilen = alleZeilen.slice(0, ZEILEN_ANZEIGE);
   const gruppen = akteurGruppenAnzeige(alleZeilen);
   const nacharbeit = alleZeilen.filter((z) => z.status === "fehler");
+  // PR f: Sektor-Labels fuer den Konflikt in „Akteure auflösen", Doppelzeilen fuer die Entscheidung.
+  const sektorLabels = lauf.status === "angelegt" ? {} : Object.fromEntries((await ladeSektoren()).map((s) => [s.code, s.label]));
+  const doppelzeilen = alleZeilen
+    .filter((z) => z.status === "aehnlich" && z.felder[DOPPEL_VON])
+    .map((z) => ({
+      id: z.id,
+      zeilennummer: z.zeilennummer,
+      von: z.felder[DOPPEL_VON]!,
+      akteur: [z.felder.akteur_name, z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" · "),
+      inhalt: art === "biomasse" ? `${z.felder.materialart_code ?? ""} · ${z.felder.menge_roh_fm ?? ""} t FM/a` : `${z.felder.produkt_code ?? ""} · ${z.felder.menge_wert ?? ""} ${z.felder.menge_einheit ?? ""}`,
+    }));
   let nacharbeitOptionen: CodeOptionen | null = null;
   if (nacharbeit.length > 0) {
     const [materialarten, produkte, sektoren] = await Promise.all([listMaterialarten(), listOutputProdukte(), ladeSektoren()]);
@@ -118,6 +133,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
       sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
       beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
       menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+      preis_bezug: PREIS_BEZUEGE.map((b) => ({ code: b, label: PREIS_BEZUG_LABEL[b]! })),
     };
   }
 
@@ -134,6 +150,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             {IMPORT_ART_LABEL[art] ?? lauf.art} · Belegtyp {BELEG_LABEL[lauf.belegTyp as keyof typeof BELEG_LABEL] ?? lauf.belegTyp} ·{" "}
             {lauf.zaehler?.zeilen ?? "—"} Zeilen, {lauf.zaehler?.spalten ?? "—"} Spalten
             {lauf.zaehler?.fehler != null ? ` · ${lauf.zaehler.offen ?? 0} offen, ${lauf.zaehler.fehler} mit Fehler` : ""}
+            {lauf.zaehler?.doppelzeilen ? ` · ${lauf.zaehler.doppelzeilen} Doppelzeile(n)` : ""}
             {lauf.zaehler?.personen_spalten != null ? ` · ${lauf.zaehler.personen_spalten} Personen-Spalte(n) nicht übernommen` : ""} · angelegt{" "}
             {datum.format(lauf.createdAt)}
             {lauf.erstellerEmail ? ` von ${lauf.erstellerEmail}` : ""}
@@ -177,11 +194,13 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             vorschlag={zuordnung.vorschlag}
             werteVorschlag={zuordnung.werte}
             optionen={zuordnung.optionen}
+            preisBezugVorschlag={zuordnung.preisBezugVorschlag}
           />
         )}
         {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest" || gruppen.some((g) => g.ergebnis === "offen")) && (
-          <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} />
+          <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} sektorLabels={sektorLabels} />
         )}
+        {lauf.status !== "zurueckgenommen" && lauf.status !== "verworfen" && <Doppelzeilen laufId={lauf.id} zeilen={doppelzeilen} />}
         {["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status) && gruppen.some((g) => g.ergebnis === "neu") && (lauf.status === "aufgeloest" || adressStand(alleZeilen).gesamt > adressStand(alleZeilen).gefunden) && (
           <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />
         )}
@@ -199,11 +218,12 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
-        {nacharbeitOptionen && lauf.status !== "zurueckgenommen" && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
+        {nacharbeitOptionen && lauf.status !== "zurueckgenommen" && lauf.status !== "verworfen" && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
         {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
           <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
         )}
         {lauf.status === "ausgefuehrt" && darf(zugang, "import.zuruecknehmen") && <Zuruecknehmen laufId={lauf.id} zaehler={lauf.zaehler} />}
+        {(IMPORT_LAUF_VERWERFBAR as readonly string[]).includes(lauf.status) && darf(zugang, "import.verwerfen") && <Verwerfen laufId={lauf.id} zeilen={alleZeilen.length} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
@@ -252,7 +272,14 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
                           <Link href={`/karte?detail=${z.biomassestromId ?? z.outputBedarfId}&art=${art}`}>zum Strom</Link>
                         </>
                       )}
+                      {z.status === "aehnlich" && z.felder[DOPPEL_VON] && <span className="c"> Doppelzeile von Zeile {z.felder[DOPPEL_VON]}</span>}
                       {z.fehlergrund && <span className="c"> {z.fehlergrund}</span>}
+                      {hinweise(z.felder).map((h, i) => (
+                        <span key={i} className="c imp-hinweis">
+                          {" "}
+                          <i className="ph ph-info" aria-hidden /> {h}
+                        </span>
+                      ))}
                     </td>
                   </tr>
                 ))}

@@ -114,6 +114,7 @@ export function ladeStroeme(art: StromArt, nurId?: string, stichtag: string = he
           preisMittel: biomassestrom.preisMittel,
           preisMax: biomassestrom.preisMax,
           preisHerkunft: biomassestrom.preisHerkunft,
+          preisBezug: biomassestrom.preisBezug,
           zeitraumVon: biomassestrom.zeitraumVon,
           zeitraumBis: biomassestrom.zeitraumBis,
           saisonalitaet: biomassestrom.saisonalitaet,
@@ -347,6 +348,7 @@ export function ladeFormularWerte(
           preisMittel: biomassestrom.preisMittel,
           preisMax: biomassestrom.preisMax,
           preisHerkunft: biomassestrom.preisHerkunft,
+          preisBezug: biomassestrom.preisBezug,
           saisonalitaet: biomassestrom.saisonalitaet,
           status: biomassestrom.status,
           reserviertBhyo: biomassestrom.reserviertBhyo,
@@ -442,6 +444,7 @@ export function ladeFormularWerte(
         preisMin: null,
         preisMittel: null,
         preisMax: null,
+        preisBezug: null,
       },
       vergabenZuFormZeilen(vergaben),
     );

@@ -147,6 +147,8 @@ export interface FormularEingaben {
   preisMittel: string;
   preisMax: string;
   preis: string;
+  /** E69: Bezug des Feedstock-Preises (fm | atro) — Pflicht, sobald ein Preis gesetzt ist. */
+  preisBezug: string;
   vonMonat: string;
   bisMonat: string;
   begruendung: string;
@@ -221,6 +223,11 @@ export function validiereFormular(
     zahl("preis_min", e.preisMin);
     zahl("preis_mittel", e.preisMittel);
     zahl("preis_max", e.preisMax);
+    // E69: Ist ein Preis gesetzt, ist auch der Bezug gesetzt (CHECK biomassestrom_preis_bezug_check);
+    // „unbekannt" ist kein waehlbarer Wert — der Altbestand muss beim Speichern entscheiden.
+    if ((e.preisMin.trim() || e.preisMittel.trim() || e.preisMax.trim()) && e.preisBezug !== "fm" && e.preisBezug !== "atro") {
+      f.preis_bezug = "Preis-Bezug wählen (€/t FM oder €/t atro)";
+    }
     // E14: preis_* ist ein signierter Zahlungsstrom (negativ = Annahme-
     // entgelt). Die Reihenfolge Min <= Mittel <= Max muss auch ueber das
     // Vorzeichen hinweg gelten — verdrehte Werte wuerden Spannen und
@@ -339,6 +346,8 @@ export interface FormularWerte {
   preis: string;
   preisEinheit: string;
   preisHerkunft: string;
+  /** E69: fm | atro; leer nur im Altbestand („unbekannt" wird nicht angeboten). */
+  preisBezug: string;
   saisonalitaet: number[];
   status: string;
   reserviertBhyo: boolean;
@@ -378,6 +387,7 @@ export type FormularZeile = {
   preis: string | null;
   preisEinheit: string | null;
   preisHerkunft: string | null;
+  preisBezug: string | null;
   saisonalitaet: unknown;
   status: string;
   reserviertBhyo: boolean;
@@ -445,6 +455,8 @@ export function formularZeileZuWerte(
     preis: s(r.preis),
     preisEinheit: s(r.preisEinheit),
     preisHerkunft: s(r.preisHerkunft),
+    // E69: „unbekannt" (Altbestand) erscheint im Formular als leer — wer speichert, waehlt fm oder atro.
+    preisBezug: r.preisBezug === "fm" || r.preisBezug === "atro" ? r.preisBezug : "",
     saisonalitaet: saisonOderLeer(r.saisonalitaet, `strom ${r.id}`),
     status: r.status,
     reserviertBhyo: r.reserviertBhyo,

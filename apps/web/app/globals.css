@@ -2230,6 +2230,10 @@ button.leg-toggle.aus {
 .fp-zeile--3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
+/* E69: Min · Mittel · Max · Bezug in einer Zeile. */
+.fp-zeile--4 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
 /* Beleg-ID im Detail-Kopf (Beschluss 22.09.2026): kopierbar, suchbar. */
 .beleg-id {
   display: inline-flex;
@@ -5665,4 +5669,12 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .imp-nacharbeit-offen td {
   vertical-align: top;
+}
+/* PR f: Hinweise an der Zeile (Rundung, Umrechnung, Monat als Datum) — Caption mit Info-Icon, keine Ampel. */
+.imp-hinweis {
+  display: inline-block;
+  margin-top: 2px;
+}
+.imp-hinweis .ph {
+  vertical-align: -2px;
 }

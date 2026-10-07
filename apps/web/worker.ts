@@ -15,7 +15,7 @@ import { drizzle } from "drizzle-orm/postgres-js";
 
 import type { BelegeBucket } from "./lib/db";
 
-import { loescheAlteImportUploads, loescheAlteImportZeilen } from "./lib/jobs/import-aufraeumen";
+import { loescheAlteImportUploads, loescheAlteImportZeilen, verwirfInaktiveLaeufe } from "./lib/jobs/import-aufraeumen";
 import { fuehreVerifikationsJobAus } from "./lib/jobs/verifikation";
 import { JOB_STUNDE_BERLIN, istBerlinStunde } from "./lib/jobs/zeit";
 import { kalendertag } from "./lib/datum";
@@ -49,6 +49,9 @@ async function lauf(env: Umgebung, jetzt: Date): Promise<void> {
     // AP2.7 PR c (E67): Zeilen abgeschlossener Import-Laeufe nach der Aufbewahrungsfrist.
     const zeilen = await loescheAlteImportZeilen(db, kalendertag(jetzt));
     console.log(`JOB import-zeilen ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(zeilen)}`);
+    // AP2.7 PR g: liegengebliebene (nie ausgefuehrte) Laeufe nach import.lauf_inaktiv_tage verwerfen.
+    const verworfen = await verwirfInaktiveLaeufe(db, kalendertag(jetzt), env.BELEGE ? { bucket: env.BELEGE, env: env.ENVIRONMENT ?? "?" } : undefined);
+    console.log(`JOB import-verwerfen ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(verworfen)}`);
   } finally {
     await sql.end().catch(() => {});
   }

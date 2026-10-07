@@ -58,6 +58,8 @@ const strom = (patch: Partial<Strom>): Strom => ({
   preisMittel: null,
   preisMax: null,
   preisHerkunft: null,
+  // E69: die bestehenden Faelle rechnen in €/t atro — der Bezug steht jetzt ausdruecklich dabei.
+  preisBezug: "atro",
   gruppe: null,
   gruppeLabel: null,
   produktCode: null,
@@ -140,7 +142,7 @@ describe("kpiKarten", () => {
     expect(k[0]).toMatchObject({ wert: "50", einheit: "%", label: "belege geprüft." });
     expect(k[1]).toMatchObject({ wert: "150", einheit: "t atro/a", label: "trockenmasse." });
     // Ein signierter ø ueber alle Belege: (10*100 + 16*50) / 150 = 12
-    expect(k[2]).toMatchObject({ wert: "12", einheit: "€/t", label: "ø preis." });
+    expect(k[2]).toMatchObject({ wert: "12", einheit: "€/t atro", label: "ø preis." });
     expect(k[2]!.caption).toBe("atro-gewichtet");
     // Potenzial = -Σ(preis*menge): nur Einkaeufe -> negativ (Nettokosten)
     expect(k[3]).toMatchObject({ wert: "-1.800", einheit: "€/a", label: "feedstock-potenzial." });
@@ -159,7 +161,7 @@ describe("kpiKarten", () => {
     });
     // Gemischter ø: (10*100 - 8*100) / 200 = 1
     const k = kpiKarten([f1, fN], "feedstock");
-    expect(k[2]).toMatchObject({ wert: "1", einheit: "€/t" });
+    expect(k[2]).toMatchObject({ wert: "1", einheit: "€/t atro" });
     // Saldo 200 (Kosten) -> Potenzial -200
     expect(k[3]).toMatchObject({ wert: "-200", einheit: "€/a" });
     // Nur der Annahme-Beleg: Erloes 800 -> Potenzial +800

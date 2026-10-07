@@ -82,6 +82,9 @@ export const AKTIONEN = [
   // AP2.7 PR a (E67): Import nur Pruefer und Admin; Zuruecknehmen (PR d) nur Admin.
   "import.ausfuehren",
   "import.zuruecknehmen",
+  // AP2.7 PR g (Eric 07.10.2026): einen nie ausgefuehrten Lauf verwerfen — Ersteller,
+  // Pruefer, Admin; Ersteller sind immer Pruefer oder Admin (import.ausfuehren).
+  "import.verwerfen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -136,6 +139,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "akteur.zusammenfuehren": SPERREN,
   "import.ausfuehren": SPERREN,
   "import.zuruecknehmen": VERWALTEN,
+  "import.verwerfen": SPERREN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */

@@ -51,7 +51,17 @@ export const IMPORT_LAUF_STATUS_LABEL: Record<ImportLaufStatus, string> = {
   probelauf: "Probelauf",
   ausgefuehrt: "ausgeführt",
   zurueckgenommen: "zurückgenommen",
+  verworfen: "verworfen",
   fehler: "Fehler",
 };
 
 export const IMPORT_ART_LABEL: Record<"biomasse" | "output", string> = { biomasse: "Feedstock", output: "Bedarf" };
+
+/**
+ * AP2.7 PR g: Zustaende, in denen ein Lauf nie ausgefuehrt wurde und
+ * verworfen werden darf (Aktion und Job). Hier und nicht in import-actions.ts:
+ * eine "use server"-Datei darf nur async-Funktionen exportieren — eine
+ * exportierte Konstante dort bricht den Aufruf der Server-Action im Browser
+ * (Befund Preview 07.10.2026, React-Fehler beim Klick auf „Ja, Lauf verwerfen").
+ */
+export const IMPORT_LAUF_VERWERFBAR = ["angelegt", "zugeordnet", "aufgeloest", "probelauf", "fehler"] as const;

@@ -37,6 +37,7 @@ const biomasseBasis: BiomasseZeile = {
   preisMittel: "4",
   preisMax: null,
   preisHerkunft: null,
+  preisBezug: null,
   zeitraumVon: "2026-01-01",
   zeitraumBis: null,
   saisonalitaet: null,

@@ -46,6 +46,7 @@ const basis: Strom = {
   preisMittel: null,
   preisMax: null,
   preisHerkunft: null,
+  preisBezug: null,
   gruppe: null,
   gruppeLabel: null,
   produktCode: null,

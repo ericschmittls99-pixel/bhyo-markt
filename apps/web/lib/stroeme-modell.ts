@@ -138,6 +138,8 @@ export interface Strom {
   preisMittel: number | null;
   preisMax: number | null;
   preisHerkunft: string | null;
+  /** E69: fm | atro | unbekannt (Altbestand) — null ohne Preis. */
+  preisBezug: string | null;
   // Output
   gruppe: string | null;
   gruppeLabel: string | null;

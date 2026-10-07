@@ -970,6 +970,34 @@ mit Caption „n Zeile(n) ohne eigenen Zeitraum …". **Formular Strom:** Labels
 Pflicht-Stern. **Detail/Register:** Wert „unbekannt", Quelle „nicht erfasst —
 kein „geprüft" möglich".
 
+## import. — Korrekturen aus dem Testlauf (AP2.7 PR f, 07.10.2026)
+
+**Zeilen mit Zuordnungsfehler (B3):** ein Fehler an einem Feld (Einheit,
+Zahl, Datum, nicht zugeordneter Wert, Kontaktdaten) hält die Zeile im
+Zustand „fehler", Probelauf und Ausführen setzen nie „ok". In der Nacharbeit
+stehen alle Fehler der Zeile als Zeilen in der Spalte „Fehler", im
+Inline-Formular zusätzlich am betroffenen Feld hinter dem Label als
+`pf-fehler` („· Einheit „m³/a" ist nicht umrechenbar …"). **Hinweise an der
+Zeile** (Rundung E20, Umrechnung der Einheit, Monat als Datum, bewusst
+importierte Doppelzeile): Caption `c imp-hinweis` mit `ph-info` neben der
+Zustands-Pille in „zeilen." und in der Nacharbeit — keine Ampel, kein
+Pflicht-Stern. **Kontaktdaten (B5):** der Wert erscheint nirgends; die
+Zeile trägt „Bezeichnung: enthält Kontaktdaten, bitte entfernen".
+**Sektor-Konflikt (Weggabelung 6):** in „akteure auflösen." trägt die
+Gruppe die Pille `pill--accent` „Sektor-Konflikt" mit den Werten der Datei
+als Caption; in der Aktionsspalte eine Auswahl „Sektor wählen …" (nur die
+Werte der Datei) und „Übernehmen" (`btn--ghost btn--sm`); über der Tabelle
+die Caption „n Akteur(e) mit Sektor-Konflikt — … sonst startet der Probelauf
+nicht". **Doppelzeilen (Weggabelung 7):** eigener Abschnitt „doppelzeilen."
+zwischen „akteure auflösen." und „adressen auflösen." (nur, solange
+unentschiedene da sind): Schaltfläche `btn--primary btn--sm` „Alle n
+Doppelzeile(n) überspringen" (Voreinstellung, Icon `ph-skip-forward`),
+Tabelle Zeile · Akteur · Inhalt · Gleich wie · je Zeile „Überspringen" und
+„Trotzdem importieren" (`btn--ghost btn--sm`); in „zeilen." die Caption
+„Doppelzeile von Zeile n". **Zuordnung:** die Einheit bei Bedarfen bekommt
+keine Werte-Tabelle mehr (gelesen und umgerechnet); „Nr" am Zeilenanfang
+steht auf „Ignorieren".
+
 ## Adresse — PLZ aus Pin lokal, Quellenhinweis (E68 PR 1, 07.10.2026)
 
 **Pin:** Kartenklick, Ziehen und „vom Standort übernehmen" setzen nur noch
@@ -982,6 +1010,30 @@ und Ort bitte von Hand eintragen." **Prüftexte** (für PR 2/3, aus
 nicht zur PLZ 54636 — meinten Sie A, B, C …?" (höchstens drei Orte).
 **Quellenhinweis:** Attribution beider Karten (`KarteMap`, `AkteurKarte`)
 ergänzt um „PLZ-Gebiete © OpenStreetMap-Mitwirkende, ODbL".
+
+## Preis-Bezug (E69), Lauf verwerfen (AP2.7 PR g, 07.10.2026)
+
+**Formular Strom, Abschnitt „preis.":** vier Felder in einer Zeile
+(`fp-zeile--4`): Min · Mittel · Max · Bezug. Bezug als Auswahl „€/t FM" /
+„€/t atro", bei Neuanlage FM vorbelegt; im Altbestand mit Bezug „unbekannt"
+steht die Auswahl auf „— (Bezug unbekannt)" und das Speichern verlangt eine
+Wahl (`pf-fehler` „Preis-Bezug wählen (€/t FM oder €/t atro)"). **Detail:**
+Korridor und „ab/bis" tragen die Einheit mit Bezug („€/t FM", „€/t atro",
+„€/t (Bezug unbekannt)"), dazu die Zeile „Bezug". **Auswertung:** KPI
+„ø preis." in „€/t atro", Caption nennt „n Belege nicht vergleichbar
+(Preis-Bezug FM ohne TS-Anteil oder unbekannt)"; im Preiskorridor und
+Potenzial je Cluster steht hinter dem Mittel „· n nicht vergleichbar", ein
+Cluster nur mit solchen Preisen ist leer mit Hinweis. Am Einzelstrom (E38)
+der benannte Zustand „Preis nicht vergleichbar (…)". Keine Ampel, keine
+stille Rechnung mit dem Rohwert. **Import:** Zielfeld „Preis-Bezug (FM /
+atro)" mit Werte-Tabelle; in „spalten zuordnen." die Auswahl „Preis-Bezug des
+Laufs (E69)" (`imp-vorlage-wahl`), vorbelegt FM, bei „atro"/„TM" in einer
+Preis-Kopfzeile atro mit Caption „Aus der Kopfzeile vorgeschlagen — bitte
+bestätigen". **Lauf verwerfen:** Abschnitt „verwerfen." für nie ausgeführte
+Läufe (vor „zeilen."), `btn--ghost btn--sm` „Lauf verwerfen …" (Icon
+`ph-trash-simple`), Inline-Bestätigung `ak-confirm` („Ja, Lauf verwerfen" ·
+„Abbrechen"); danach Pille „verworfen", keine Nacharbeit, keine
+Doppelzeilen, leere Zeilenliste.
 
 ## Adresse — Prüfen-Knopf, Genauigkeit (E68 PR 2, 07.10.2026)
 

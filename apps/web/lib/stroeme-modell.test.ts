@@ -38,6 +38,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   preisMittel: null,
   preisMax: null,
   preisHerkunft: null,
+  preisBezug: null,
   gruppe: null,
   gruppeLabel: null,
   produktCode: null,

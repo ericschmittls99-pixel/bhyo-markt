@@ -196,6 +196,7 @@ export type BiomasseZeile = GemeinsameZeile & {
   preisMittel: string | null;
   preisMax: string | null;
   preisHerkunft: string | null;
+  preisBezug: string | null;
 };
 
 export type OutputZeile = GemeinsameZeile & {
@@ -238,6 +239,7 @@ export function biomasseZeileZuStrom(r: BiomasseZeile): Strom {
     preisMittel: num(r.preisMittel),
     preisMax: num(r.preisMax),
     preisHerkunft: r.preisHerkunft,
+    preisBezug: r.preisBezug,
     gruppe: null,
     gruppeLabel: null,
     produktCode: null,
@@ -317,6 +319,7 @@ export function outputZeileZuStrom(r: OutputZeile): Strom {
     preisMin: null,
     preisMittel: null,
     preisMax: null,
+    preisBezug: null,
     preisHerkunft: null,
     gruppe: r.gruppe,
     gruppeLabel: r.gruppe ? (GRUPPE_LABEL[r.gruppe] ?? r.gruppe) : null,

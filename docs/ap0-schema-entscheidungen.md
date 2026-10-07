@@ -1925,7 +1925,7 @@ Genauigkeit ist `unbekannt` (der Standort trägt sie nicht mit; nichts wird
 erfunden). Route `/api/adresse` ist ein lesender GET wie `/api/geocode`
 (Firmenadressen, keine Personendaten).
 
-**Genauigkeit (Migration 0049):** Enum `standort_genauigkeit` (hausnummer ·
+**Genauigkeit (Migration 0050):** Enum `standort_genauigkeit` (hausnummer ·
 strasse · plz_gebiet · manuell · unbekannt, E53: nie umbenennen), Spalten
 `biomassestrom.standort_genauigkeit`, `output_bedarf.standort_genauigkeit`,
 `akteur.sitz_genauigkeit`, NOT NULL DEFAULT `unbekannt` — der Altbestand
@@ -1990,3 +1990,78 @@ hebt die Genauigkeit, kein Treffer markiert nur „versucht".
 **Offen (nicht entschieden):** Zeilen ohne PLZ (nur Straße + Ort) — lokal
 nicht zuordenbar; Option: genaue Suche auch für sie zulassen. Die Testdatei
 `import-testdatei-ap27.xlsx` (Prüfstein) lag in der Nacht nicht vor.
+
+## 43. E69 Preis-Bezug, liegengebliebene Läufe, Konfliktmarker-Wächter (AP2.7 PR g), 07.10.2026
+
+**Anlass (Testlauf 07.10.2026):** `biomassestrom.preis_min/mittel/max` waren
+nackte Zahlen ohne Einheit im Schema; die Auswertung rechnete `preis ×
+menge_atro` und der Export beschriftete „€/t atro", Formular, Detail und
+Import sagten nur „€/t". Wer einen Angebotspreis je Tonne Frischmasse
+eintrug, bekam in der Auswertung einen atro-bezogenen Betrag — bei 30 % TS um
+den Faktor drei zu hoch.
+
+**Entscheidung Eric (E69, 07.10.2026): Der Preis wird mit seinem Bezug erfasst.**
+- Neue Spalte `preis_bezug` (Enum `fm | atro | unbekannt`, Migration 0049).
+  Standard bei neuer Erfassung `fm`; `unbekannt` nur für den Altbestand, nicht
+  wählbar. Migration additiv: bestehende Zeilen mit Preis bekommen
+  `unbekannt` (Production hat keine Ströme; auf der Preview trifft es die
+  Testdaten), Zeilen ohne Preis bleiben ohne Bezug. CHECK
+  `biomassestrom_preis_bezug_check`: ist ein Preis gesetzt, ist auch der
+  Bezug gesetzt — dieselbe Regel prüft `validiereFormular` vor dem Schreiben.
+- Ein Bezug gilt für Min, Mittel und Max gemeinsam; das Vorzeichen bleibt
+  wie in E14 (positiv = bhyo zahlt).
+- Formular: Auswahl „€/t FM" / „€/t atro" neben Min · Mittel · Max; Detail
+  zeigt den Bezug immer (Korridor-Einheit, Zeile „Bezug").
+- Import: Zielfeld „Preis-Bezug" (Werte-Zuordnung fm/atro); ohne Spalte gilt
+  der Lauf-Standard `import_lauf.preis_bezug_standard` (vorbelegt fm,
+  Auswahl in „spalten zuordnen."). Eine Preis-Kopfzeile mit „atro" oder
+  „TM" schlägt atro vor, zur Bestätigung (`preisBezugVorschlag`).
+- Auswertung (Potenzial, Preiskorridor E38, KPI-Kachel): gerechnet wird mit
+  dem **abgeleiteten Preis €/t atro** (`lib/preis-bezug.ts`), nie gespeichert
+  (E23): atro → unverändert; fm mit TS-Anteil → Preis ÷ TS-Anteil (als
+  Anteil); fm ohne TS-Anteil oder unbekannt → **„nicht vergleichbar"**: der
+  Strom wird **aus den preisbezogenen Größen ausgeschlossen** (ø Preis,
+  Preiskorridor, Feedstock-Potenzial in €/a, Export „Preis €/t atro
+  (abgeleitet)" und „Potenzial [€/a]"), seine Zahl steht am Band
+  („· n nicht vergleichbar") und in der Kachel-Caption. **Mengengrößen
+  hängen nicht am Preis-Bezug** (Präzisierung Eric 07.10.2026): Trockenmasse,
+  Cluster-Anteile, verfügbarer Feedstock je Jahr, Export „Menge [t atro/a]"
+  zählen jeden Strom unabhängig vom Preis (Test in `lib/preis-bezug.test.ts`).
+  Nichts rechnet stillschweigend mit dem Rohwert; am Einzelstrom (E38) heißt
+  der Zustand „Preis nicht vergleichbar (Preis-Bezug FM ohne TS-Anteil oder
+  unbekannt)". Der Rohpreis selbst bleibt überall sichtbar, immer mit seinem
+  Bezug (Formular, Detail, Grid, Tabelle, Export).
+- Export: „Preis min/mittel/max [€/t]" (Rohwert), „Preis-Bezug (FM / atro)",
+  „Preis mittel [€/t atro] (abgeleitet, E69)"; die bisherige Beschriftung
+  „€/t atro" am Rohpreis entfällt.
+- Feldeinstufung `preis_bezug`: fachlich — eine Änderung setzt die Prüfung
+  zurück wie beim Preis.
+- Tests (`lib/preis-bezug.test.ts`): 30 €/t FM bei 30 % TS → 100 €/t atro;
+  50 €/t atro → 50; FM ohne TS → nicht vergleichbar, nicht im Korridor.
+  Rot-Nachweis: vor E69 rechnete `potenzialEuroFeedstock` mit dem Rohwert
+  (30 statt 100). Testdatei Zeile 32 („Preis €/t", 85) wird als fm erwartet.
+
+**Liegengebliebene Läufe (Eric 07.10.2026):** Aktion „Lauf verwerfen"
+(`import.verwerfen`: Ersteller, Prüfer, Admin — Ersteller sind immer Prüfer
+oder Admin) für Läufe, die nie ausgeführt wurden (angelegt … probelauf,
+fehler): Zeilen gelöscht (Zwischendaten, keine Ströme), Status `verworfen`,
+`verworfen_am`, Ereignis `status_gesetzt` am Lauf, Roh-Upload und
+bereinigte Kopie in R2 weg. Derselbe Weg (`verwirfLauf`) im täglichen Job
+nach `import.lauf_inaktiv_tage` (Startwert 30) ohne Aktivität
+(`updated_at`); eigener Parameter statt `import.zeilen_aufbewahrung_tage`,
+weil er das Ende eines nie abgeschlossenen Laufs regelt, nicht die
+Aufbewahrung von Zwischendaten abgeschlossener Läufe — zwei Fristen,
+unabhängig justierbar, gleicher Startwert. Der Job protokolliert im Namen
+des Erstellers mit ausdrücklichem Text („vom täglichen Job nach n Tagen
+ohne Aktivität"). Status-CHECK um `verworfen` erweitert (Migration 0049).
+
+**Konfliktmarker-Wächter (Eric 07.10.2026):** `scripts/konfliktmarker-check.sh`
+prüft alle versionierten Dateien auf `<<<<<<< `, `=======`, `>>>>>>> ` am
+Zeilenanfang und macht `typen-und-tests` rot; Rot-Nachweis in
+`scripts/tests/konfliktmarker-test.sh`. Anlass: beim Angleichen von E68 PR 1
+blieben Marker in zwei Doku-Dateien stehen (siehe Memory 07.10.2026).
+
+**Vormerkungen:** AP6 — stark-Vorschläge unter neuen Akteuren desselben Laufs
+(Testdatei Zeile 37); Zeile 11 ist regelkonform (kein Ortsbezug, Präfix
+senkt die Ähnlichkeit).
+

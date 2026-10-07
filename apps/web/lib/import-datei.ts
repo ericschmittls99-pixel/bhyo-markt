@@ -153,20 +153,44 @@ function leseBuch(daten: ArrayBuffer, dateiname: string): XLSX.WorkBook {
     throw new ImportDateiFehler(`Datei ist größer als ${IMPORT_MAX_BYTES / 1024 / 1024} MB.`);
   }
   try {
+    // PR f: cellDates aus — SheetJS baut Date-Objekte in der Zeitzone des
+    // Prozesses, toISOString() verschiebt sie dann um einen Tag (Berlin vs.
+    // UTC-Worker, Befund CI 07.10.2026). Datumszellen werden stattdessen aus
+    // der Excel-Seriennummer gerechnet (rohZeilen), ohne Zeitzone.
     return dateiEndung(dateiname) === ".csv"
-      ? XLSX.read(csvText(daten), { type: "string", cellDates: true, raw: true, dense: true })
-      : XLSX.read(new Uint8Array(daten), { type: "array", cellDates: true, raw: true, dense: true });
+      ? XLSX.read(csvText(daten), { type: "string", cellDates: false, cellNF: true, raw: true, dense: true })
+      : XLSX.read(new Uint8Array(daten), { type: "array", cellDates: false, cellNF: true, raw: true, dense: true });
   } catch {
     throw new ImportDateiFehler("Datei konnte nicht gelesen werden — ist es eine CSV- oder Excel-Datei?");
   }
 }
 
-/** Rohzeilen eines Blatts mit Leerzeilen (Index = Excel-Zeile − 1) und die Zeilen mit Formeln. */
+type DenseZelle = { t?: string; v?: unknown; z?: string; f?: string } | undefined;
+
+/** Excel-Seriennummer mit Datumsformat → JJJJ-MM-TT, deterministisch (keine Zeitzone, kein Date-Objekt). */
+export function datumAusSeriennummer(wert: number, format: string | undefined): string | null {
+  if (!format || !XLSX.SSF.is_date(format)) return null;
+  const d = XLSX.SSF.parse_date_code(wert);
+  if (!d) return null;
+  return `${d.y}-${String(d.m).padStart(2, "0")}-${String(d.d).padStart(2, "0")}`;
+}
+
+/** Rohzeilen eines Blatts mit Leerzeilen (Index = Excel-Zeile − 1), Datumszellen als JJJJ-MM-TT, und die Zeilen mit Formeln. */
 function rohZeilen(blatt: XLSX.WorkSheet): { zeilen: Zeile[]; formelZeilen: Set<number> } {
   const zeilen = XLSX.utils.sheet_to_json<Zeile>(blatt, { header: 1, raw: true, defval: null, blankrows: true });
   const formelZeilen = new Set<number>();
-  const dense = (blatt as unknown as { "!data"?: ({ f?: string } | undefined)[][] })["!data"];
-  if (dense) dense.forEach((r, i) => r?.some((c) => c?.f) && formelZeilen.add(i + 1));
+  const dense = (blatt as unknown as { "!data"?: DenseZelle[][] })["!data"];
+  if (dense) {
+    dense.forEach((r, i) => {
+      if (r?.some((c) => c?.f)) formelZeilen.add(i + 1);
+      r?.forEach((c, j) => {
+        if (c?.t === "n" && typeof c.v === "number" && zeilen[i]) {
+          const datum = datumAusSeriennummer(c.v, c.z);
+          if (datum) zeilen[i]![j] = datum;
+        }
+      });
+    });
+  }
   return { zeilen, formelZeilen };
 }
 

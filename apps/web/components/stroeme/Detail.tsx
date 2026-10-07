@@ -32,6 +32,7 @@ import { fmtDatumZeit } from "@/lib/format";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutzer, type Strom } from "@/lib/stroeme-modell";
 import { PreisKorridorEinzel } from "@/components/stroeme/PreisKorridorEinzel";
 import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
+import { PREIS_BEZUG_LABEL, preisEinheitAnzeige } from "@/lib/preis-bezug";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
 import { verifikationPill } from "@/lib/verifikation";
 import {
@@ -680,12 +681,13 @@ export function Detail({
                       wert={
                         // Rueckmeldung 1: Spannen mit „bis" (formatSpanne); eine
                         // offene Seite wird als „ab"/„bis" benannt statt mit Strich.
+                        // E69: die Anzeige nennt immer den Bezug (€/t FM, €/t atro, Bezug unbekannt).
                         s.preisMin != null && s.preisMax != null
-                          ? formatSpanne(s.preisMin, s.preisMax, "€/t")
+                          ? formatSpanne(s.preisMin, s.preisMax, preisEinheitAnzeige(s.preisBezug))
                           : s.preisMin != null
-                            ? `ab ${fmtPreis(s.preisMin)} €/t`
+                            ? `ab ${fmtPreis(s.preisMin)} ${preisEinheitAnzeige(s.preisBezug)}`
                             : s.preisMax != null
-                              ? `bis ${fmtPreis(s.preisMax)} €/t`
+                              ? `bis ${fmtPreis(s.preisMax)} ${preisEinheitAnzeige(s.preisBezug)}`
                               : "–"
                       }
                     />
@@ -695,6 +697,9 @@ export function Detail({
                       // ein roher negativer Wert wird nie als "Preis" gerendert.
                       wert={s.preisMittel != null ? fmtZahlungsstrom(s.preisMittel) : "–"}
                     />
+                    {(s.preisMin != null || s.preisMittel != null || s.preisMax != null) && (
+                      <Kv label="Bezug" wert={PREIS_BEZUG_LABEL[s.preisBezug ?? "unbekannt"] ?? "Bezug unbekannt"} />
+                    )}
                   </>
                 ) : (
                   <Kv

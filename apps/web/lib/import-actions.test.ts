@@ -128,6 +128,7 @@ vi.mock("@/lib/adresse-pruefung-server", () => ({
   },
 }));
 const bausteinAufrufe: string[] = [];
+const preisBezuege: string[] = [];
 const belegDaten: { typ: string; erhebungsdatum: string | null; gueltigBis: string | null }[] = [];
 let stromFehltAb: Set<string> = new Set();
 vi.mock("@/lib/strom-schreibweg", async (orig) => {
@@ -136,6 +137,7 @@ vi.mock("@/lib/strom-schreibweg", async (orig) => {
     ...echt,
     stromAnlegenInTx: async (_tx: unknown, _h: unknown, e: { eingaben: { akteurId: string; materialartCode: string }; belegId?: string | null }) => {
       bausteinAufrufe.push(`strom:${e.eingaben.materialartCode}:${e.eingaben.akteurId}:${e.belegId ?? "-"}`);
+      preisBezuege.push((e.eingaben as { preisBezug?: string }).preisBezug ?? "");
       if (stromFehltAb.has(e.eingaben.materialartCode)) throw new echt.FeldFehlerAusnahme({ menge_roh_fm: "Pflichtfeld" });
       return { id: "strom-neu" };
     },
@@ -182,7 +184,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importPinsErmitteln, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importPinsErmitteln, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern, importAkteurSektorWaehlen, importDoppelzeileEntscheiden, importLaufVerwerfen } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -197,7 +199,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; plzStapel.length = 0; pruefAufrufe.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; plzStapel.length = 0; pruefAufrufe.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; preisBezuege.length = 0; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -327,10 +329,10 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     expect(erg.ok).toBe(true);
     expect(erg.zaehler).toMatchObject({ zeilen: 3, offen: 2, fehler: 1, personen_spalten: 2, spalten: 14 });
     expect(inserts).toHaveLength(3);
-    expect(inserts[0]).toMatchObject({ laufId: LAUF, zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof Mustermann", materialart_code: "guelle_rind", menge_roh_fm: "1.234,5", zeitraum_von: "2026-01" } });
+    expect(inserts[0]).toMatchObject({ laufId: LAUF, zeilennummer: 2, status: "offen", fehlergrund: null, felder: { akteur_name: "Hof Mustermann", materialart_code: "guelle_rind", menge_roh_fm: "1235", hinweis_menge_roh_fm: expect.stringMatching(/gerundet/), zeitraum_von: "2026-01" } });
     expect(inserts[2]).toMatchObject({ zeilennummer: 4, status: "fehler", fehlergrund: expect.stringMatching(/Festmist/) });
     expect(updates[0]).toMatchObject({ status: "zugeordnet", zaehler: expect.objectContaining({ offen: 2 }) });
-    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/Kopfzeile 1, 3 Zeilen \(2 offen, 1 mit Fehler\), übersprungen 0 über der Kopfzeile \/ 0 leer \/ 0 Summe \/ 0 Fußzeile\(n\), 2 Personen-Spalte/) });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/Kopfzeile 1, 3 Zeilen \(2 offen, 1 mit Fehler, 0 Doppelzeile\(n\)\), übersprungen 0 über der Kopfzeile \/ 0 leer \/ 0 Summe \/ 0 Fußzeile\(n\), 2 Personen-Spalte/) });
     expect(geloescht).toEqual([`import/test/${LAUF}/roh.csv`]);
     // „Hof Mustermann" ist der Betrieb (Akteur) und darf stehen; die Person „Max Mustermann", E-Mails und die Spaltennamen nicht.
     expect(JSON.stringify([inserts, updates, protokolle])).not.toMatch(/Max Mustermann|Erika|example\.invalid|Ansprech|E-Mail/);
@@ -829,5 +831,218 @@ describe("importZuruecknehmen (PR d: nur Admin, nur unbearbeitet, alles protokol
     expect(protokolle.map((p) => `${(p as { art: string }).art}:${(p as { entitaet: string }).entitaet}`)).toEqual(["verworfen:biomassestrom", "verworfen:biomassestrom", "akteur_geloescht:akteur", "status_gesetzt:import_lauf"]);
     expect(protokolle.every((p) => (p as { importLaufId?: string }).importLaufId === LAUF)).toBe(true);
     expect(protokolle[3]).toMatchObject({ text: "Import zurückgenommen: 2 Ströme, 1 Beleg(e), 1 Akteur(e) gelöscht" });
+  });
+});
+
+/** SQL-Texte eines Feld-Patches (jsonb || … - 'schluessel') als Beleg. */
+const sqlTexte = (o: unknown, seen = new Set<object>()): string[] => {
+  if (!o || typeof o !== "object" || seen.has(o)) return [];
+  seen.add(o);
+  return Object.values(o as Record<string, unknown>).flatMap((v) => (typeof v === "string" ? [v] : sqlTexte(v, seen)));
+};
+
+describe("PR f — B3: Zuordnungsfehler bleiben an der Zeile, Probelauf und Ausfuehren setzen nie ok", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (teil: Record<string, unknown> = {}) => ({ id: LAUF, art: "biomasse", dateiname: "t.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 2 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date(), ...teil });
+  const strom = (code: string) => ({ materialart_code: code, menge_roh_fm: "2400", zeitraum_von: "2026-01", zeitraum_bis: "2026-12" });
+  // z2: Einheit m³/a — der Zuordnungsfehler haengt am Mengenfeld, der Rohwert 2400 steht zur Korrektur da.
+  const zeilen = () => [
+    { id: "z1", zeilennummer: 5, status: "offen", fehlergrund: null, felder: { ...strom("guelle_rind"), akteur_name: "V", akteur_id: "a1" } },
+    { id: "z2", zeilennummer: 16, status: "fehler", fehlergrund: "Menge (t FM/a): Einheit „m³/a\" ist nicht umrechenbar", felder: { ...strom("klaerschlamm"), akteur_name: "V", akteur_id: "a1", fehler_menge_roh_fm: "Einheit „m³/a\" ist nicht umrechenbar — erlaubt sind t oder kg je Jahr oder Monat." } },
+  ];
+
+  it("Rot (Probelauf): Zeile 16 mit Einheitenfehler bleibt Fehler mit dem Zuordnungsgrund — kein Baustein fuer sie, Zeile 5 ist ok", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()], zeilen());
+    const erg = await importProbelauf(LAUF, 5);
+    expect(erg).toMatchObject({ ok: true, okZeilen: 1, fehlerZeilen: 1 });
+    expect(bausteinAufrufe.filter((b) => b.startsWith("strom:"))).toEqual(["strom:guelle_rind:a1:beleg-betriebsdaten-2026-10-06"]);
+    expect(updates.slice(0, 2).map((u) => [u.status, u.fehlergrund])).toEqual([
+      ["offen", null],
+      ["fehler", "Menge (t FM/a): Einheit „m³/a\" ist nicht umrechenbar — erlaubt sind t oder kg je Jahr oder Monat."],
+    ]);
+  });
+
+  it("Rot (Ausfuehren): eine offene Zeile mit Zuordnungsfehler wird nicht angelegt, sondern Fehler", async () => {
+    rolle = "pruefer";
+    const z = zeilen();
+    z[1]!.status = "offen";
+    dbSelects.push([lauf({ status: "probelauf" })], z);
+    const erg = await importAusfuehren(LAUF, 5);
+    expect(erg).toMatchObject({ ok: true, importiert: 1, fehlerZeilen: 1 });
+    expect(bausteinAufrufe.filter((b) => b.startsWith("strom:"))).toHaveLength(1);
+    expect(updates.map((u) => u.status)).toEqual(["importiert", "fehler", "ausgefuehrt"]);
+    expect(updates[1]).toMatchObject({ status: "fehler", fehlergrund: expect.stringMatching(/^Menge \(t FM\/a\): Einheit „m³\/a"/) });
+  });
+
+  it("Sektor-Konflikt (Weggabelung 6) blockiert Probelauf und Ausfuehren, bis je Akteur entschieden ist", async () => {
+    rolle = "pruefer";
+    const konflikt = [
+      { id: "z1", zeilennummer: 8, status: "offen", fehlergrund: null, felder: { ...strom("gruenschnitt"), akteur_name: "Stadtwerke Speyer", akteur_sitz_plz: "67346", akteur_sektor: "energie", akteur_neu: "1", akteur_gruppe: "stadtwerke speyer|67346", akteur_sitz_lat: "1", akteur_sitz_lng: "1" } },
+      { id: "z2", zeilennummer: 9, status: "offen", fehlergrund: null, felder: { ...strom("laub"), akteur_name: "SW Speyer", akteur_sitz_plz: "67346", akteur_sektor: "kommune", akteur_neu: "1", akteur_gruppe: "stadtwerke speyer|67346", akteur_sitz_lat: "1", akteur_sitz_lng: "1" } },
+    ];
+    dbSelects.push([lauf()], konflikt);
+    expect((await importProbelauf(LAUF, 8)).fehler).toMatch(/Sektor-Konflikt bei 1 Akteur/);
+    dbSelects.push([lauf({ status: "probelauf" })], konflikt);
+    expect((await importAusfuehren(LAUF, 8)).fehler).toMatch(/Sektor-Konflikt/);
+    expect(bausteinAufrufe).toHaveLength(0);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("importAkteurSektorWaehlen: nur aktive Sektoren; setzt den Sektor in allen Zeilen der Gruppe, Ereignis ohne Personen", async () => {
+    rolle = "bearbeiter";
+    expect((await importAkteurSektorWaehlen(LAUF, "stadtwerke speyer|67346", "landwirtschaft")).fehler).toMatch(/recht/i);
+    rolle = "pruefer";
+    dbSelects.push([lauf()]);
+    expect((await importAkteurSektorWaehlen(LAUF, "stadtwerke speyer|67346", "gastronomie")).fehler).toMatch(/kein aktiver Sektor/);
+    dbSelects.push([lauf()]);
+    txSelects.push([
+      { id: "z1", zeilennummer: 8, status: "offen", fehlergrund: null, felder: { akteur_name: "Stadtwerke Speyer", akteur_sitz_plz: "67346", akteur_sektor: "energie" } },
+      { id: "z2", zeilennummer: 9, status: "fehler", fehlergrund: "Akteur · Sektor: Wert „Kommune\" ist keinem Code zugeordnet.", felder: { akteur_name: "SW Speyer", akteur_sitz_plz: "67346", akteur_sektor: "", fehler_akteur_sektor: "Wert „Kommune\" ist keinem Code zugeordnet." } },
+      { id: "z3", zeilennummer: 10, status: "offen", fehlergrund: null, felder: { akteur_name: "Anderer", akteur_sitz_plz: "1", akteur_sektor: "forst" } },
+    ]);
+    expect(await importAkteurSektorWaehlen(LAUF, "stadtwerke speyer|67346", "landwirtschaft")).toEqual({ ok: true, zeilen: 2 });
+    // z1 bekommt den Sektor; z2 dazu: der Sektor-Fehler faellt weg, die Zeile wird wieder offen.
+    expect(updates).toHaveLength(2);
+    expect(sqlTexte(updates[0]!.felder).join(" ")).toContain("landwirtschaft");
+    expect(updates[1]).toMatchObject({ status: "offen", fehlergrund: null });
+    expect(sqlTexte(updates[1]!.felder).join(" ")).toContain("fehler_akteur_sektor");
+    expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Sektor-Konflikt entschieden: Gruppe stadtwerke speyer|67346 → landwirtschaft, 2 Zeile(n)" });
+  });
+});
+
+describe("PR f — Doppelzeilen (Weggabelung 7): aehnlich, voreingestellt ueberspringen", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const laufZeile = (status = "angelegt") => ({ id: LAUF, art: "biomasse", dateiname: "doppel.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 3, spalten: 6 }, belegErhebungsdatum: null, belegGueltigBis: null, zeitraumVon: null, zeitraumBis: null, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const SPALTEN = ["Betrieb", "PLZ", "Ort", "Materialart", "Menge", "Einheit"];
+  const csv = ["Betrieb;PLZ;Ort;Materialart;Menge;Einheit", "Hof A;67346;Speyer;Rindergülle;4500;t/a", "Hof B;67346;Speyer;Maissilage;100;t/a", "Hof A;67346;Speyer;Rindergülle;4500;t/a"].join("\r\n");
+
+  it("Zuordnung speichern: die dritte Zeile ist die Doppelzeile der ersten → aehnlich mit doppel_von, Zaehler und Ereignis nennen sie", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile()]);
+    r2Inhalt = new TextEncoder().encode(csv).buffer as ArrayBuffer;
+    const erg = await importZuordnungSpeichern(LAUF, { spalten: vorschlagZuordnung("biomasse", SPALTEN), werte: { materialart_code: { Rindergülle: "guelle_rind", Maissilage: "maissilage" } } });
+    expect(erg.ok).toBe(true);
+    expect(erg.zaehler).toMatchObject({ zeilen: 3, offen: 2, fehler: 0, doppelzeilen: 1 });
+    expect(inserts.map((i) => [i.zeilennummer, i.status])).toEqual([[2, "offen"], [3, "offen"], [4, "aehnlich"]]);
+    expect(inserts[2]).toMatchObject({ felder: expect.objectContaining({ doppel_von: "2" }) });
+    expect((protokolle[0] as { text: string }).text).toMatch(/1 Doppelzeile\(n\)/);
+  });
+
+  it("Entscheiden: ueberspringen setzt uebersprungen mit Grund; importieren setzt offen (oder Fehler, wenn Zuordnungsfehler da sind)", async () => {
+    rolle = "pruefer";
+    const z = (teil: Record<string, string> = {}) => ({ id: "z3", zeilennummer: 4, status: "aehnlich", fehlergrund: null, felder: { akteur_name: "Hof A", doppel_von: "2", ...teil } });
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([z()]);
+    expect(await importDoppelzeileEntscheiden(LAUF, null, "ueberspringen")).toEqual({ ok: true, zeilen: 1 });
+    expect(updates[0]).toMatchObject({ status: "uebersprungen", fehlergrund: "Doppelzeile von Zeile 2 — übersprungen." });
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([z()]);
+    expect(await importDoppelzeileEntscheiden(LAUF, "z3", "importieren")).toEqual({ ok: true, zeilen: 1 });
+    expect(updates[1]).toMatchObject({ status: "offen", fehlergrund: null });
+    expect(sqlTexte(updates[1]!.felder).join(" ")).toMatch(/hinweis_doppelzeile.*Doppelzeile von Zeile 2, bewusst importiert/);
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([z({ fehler_menge_roh_fm: "x" })]);
+    expect(await importDoppelzeileEntscheiden(LAUF, "z3", "importieren")).toEqual({ ok: true, zeilen: 1 });
+    expect(updates[2]).toMatchObject({ status: "fehler", fehlergrund: "Menge (t FM/a): x" });
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([]);
+    expect((await importDoppelzeileEntscheiden(LAUF, null, "ueberspringen")).fehler).toMatch(/Keine offene Doppelzeile/);
+    expect(protokolle).toHaveLength(3);
+    expect(JSON.stringify(protokolle)).not.toContain("Hof A");
+  });
+
+  it("Akteure aufloesen laesst eine Doppelzeile aehnlich (Status-CASE prueft doppel_von)", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([{ id: "z1", status: "offen", fehlergrund: null, zeilennummer: 2, felder: { akteur_name: "Hof A", akteur_sitz_plz: "67346" } }, { id: "z3", status: "aehnlich", fehlergrund: null, zeilennummer: 4, felder: { akteur_name: "Hof A", akteur_sitz_plz: "67346", doppel_von: "2" } }]);
+    expect((await importAkteureAufloesen(LAUF)).ok).toBe(true);
+    expect(sqlTexte(updates[0]!.status).join(" ")).toContain("doppel_von");
+  });
+});
+
+describe("PR f — Nacharbeit prueft die Werte wie die Zuordnung (B5, B8)", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const ZEILE = "22222222-2222-4222-8222-222222222222";
+  const lauf = () => ({ id: LAUF, art: "biomasse", dateiname: "x.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "probelauf", zaehler: {}, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const zeile = (felder: Record<string, string>) => ({ id: ZEILE, zeilennummer: 27, status: "fehler", felder });
+
+  it("Kontaktdaten und unlesbare Zahlen werden abgewiesen, nichts geschrieben", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { bezeichnung: "Rückruf musterfrau@example.com" })).fehler).toMatch(/Bezeichnung: enthält Kontaktdaten, bitte entfernen/);
+    dbSelects.push([lauf()]);
+    expect((await importZeileBearbeiten(LAUF, ZEILE, { menge_roh_fm: "ca. 3000" })).fehler).toMatch(/keine Zahl/);
+    expect(updates).toHaveLength(0);
+  });
+
+  it("korrigierte Menge wird deutsch gelesen und gerundet (Hinweis), der Fehler des Felds faellt weg; andere Fehler halten die Zeile im Fehler", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ akteur_name: "V", akteur_id: "a1", menge_roh_fm: "2400", fehler_menge_roh_fm: "Einheit m³", akteur_sektor: "", fehler_akteur_sektor: "Wert „Gastronomie\" ist keinem Code zugeordnet." })]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { menge_roh_fm: "1.200,5" })).toEqual({ ok: true });
+    expect(updates[0]).toMatchObject({ status: "fehler", fehlergrund: "Akteur · Sektor: Wert „Gastronomie\" ist keinem Code zugeordnet." });
+    const t = sqlTexte(updates[0]!.felder).join(" ");
+    expect(t).toContain("1201");
+    expect(t).toContain("fehler_menge_roh_fm");
+    expect(t).toMatch(/hinweis_menge_roh_fm/);
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ akteur_name: "V", akteur_id: "a1", menge_roh_fm: "1201", akteur_sektor: "", fehler_akteur_sektor: "x" })]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { akteur_sektor: "landwirtschaft" })).toEqual({ ok: true });
+    expect(updates[1]).toMatchObject({ status: "offen", fehlergrund: null });
+  });
+});
+
+describe("PR g — importLaufVerwerfen: nie ausgefuehrte Laeufe beenden", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (status: string) => ({ id: LAUF, art: "biomasse", dateiname: "liegt.xlsx", dateiHash: "a".repeat(64), belegTyp: "gespraech", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 36 }, belegErhebungsdatum: null, belegGueltigBis: null, zeitraumVon: null, zeitraumBis: null, preisBezugStandard: "fm", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+
+  it("Rot: Bearbeiter abgewiesen; ein ausgefuehrter Lauf wird nicht verworfen", async () => {
+    rolle = "bearbeiter";
+    expect((await importLaufVerwerfen(LAUF)).fehler).toMatch(/recht/i);
+    rolle = "pruefer";
+    dbSelects.push([lauf("ausgefuehrt")]);
+    expect((await importLaufVerwerfen(LAUF)).fehler).toMatch(/nie ausgeführt/);
+    expect(updates).toHaveLength(0);
+    expect(deletes).toHaveLength(0);
+  });
+
+  it("Pruefer verwirft einen zugeordneten Lauf: Zeilen geloescht, Status verworfen mit Zeitpunkt, Ereignis, Roh-Upload und Beleg-Kopie in R2 geloescht", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf("zugeordnet")]);
+    txSelects.push([{ zaehler: { zeilen: 36 } }]);
+    const erg = await importLaufVerwerfen(LAUF);
+    expect(erg).toEqual({ ok: true, zeilen: 0 });
+    expect(deletes).toEqual(["import_zeile"]);
+    expect(updates[0]).toMatchObject({ status: "verworfen", verworfenAm: expect.any(Date), zaehler: expect.objectContaining({ zeilen: 36, verworfen_zeilen: 0 }) });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/verworfen \(nie ausgeführt, von Hand verworfen\)/) });
+    expect(geloescht).toEqual([`import/test/${LAUF}/roh.xlsx`, `belege/test/import/${LAUF}/bereinigt.csv`]);
+  });
+});
+
+describe("PR g — E69 im Probelauf: Preis-Bezug aus der Zeile oder als Lauf-Standard", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (preisBezugStandard: string) => ({ id: LAUF, art: "biomasse", dateiname: "t.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 3 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", preisBezugStandard, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const strom = (teil: Record<string, string>) => ({ materialart_code: "guelle_rind", menge_roh_fm: "100", zeitraum_von: "2026-01", zeitraum_bis: "2026-12", akteur_name: "V", akteur_id: "a1", ...teil });
+  it("Zeile mit Preis ohne Bezug bekommt den Lauf-Standard (atro), Zeile mit eigener Spalte behaelt ihren Bezug, Zeile ohne Preis bekommt keinen", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf("atro")], [
+      { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: strom({ preis_mittel: "85" }) },
+      { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: strom({ preis_mittel: "85", preis_bezug: "fm" }) },
+      { id: "z3", zeilennummer: 4, status: "offen", fehlergrund: null, felder: strom({}) },
+    ]);
+    const erg = await importProbelauf(LAUF, 2);
+    expect(erg).toMatchObject({ ok: true, okZeilen: 3 });
+    expect(preisBezuege).toEqual(["atro", "fm", ""]);
+  });
+  it("Zuordnung speichern uebernimmt den gewaehlten Lauf-Standard", async () => {
+    rolle = "pruefer";
+    const SPALTEN = ["Betrieb", "Sektor", "Straße", "Hausnummer", "PLZ", "Ort", "Ansprechpartner", "E-Mail", "Materialart", "Menge", "Einheit", "TS-Anteil %", "Zeitraum von", "Zeitraum bis"];
+    dbSelects.push([{ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "angelegt", zaehler: { zeilen: 3, spalten: 14 }, preisBezugStandard: "fm", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() }]);
+    const b = readFileSync(join(BEISPIELE, "import-biomasse.csv"));
+    r2Inhalt = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+    const erg = await importZuordnungSpeichern(LAUF, { spalten: { ...vorschlagZuordnung("biomasse", SPALTEN), Hausnummer: "aschegehalt_pct" }, werte: { materialart_code: { Rindergülle: "guelle_rind", Maissilage: "maissilage", Festmist: "festmist" }, akteur_sektor: { Landwirtschaft: "landwirtschaft" } } }, { preisBezug: "atro" });
+    expect(erg.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: "zugeordnet", preisBezugStandard: "atro" });
   });
 });

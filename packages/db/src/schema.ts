@@ -88,6 +88,17 @@ export const benutzerRolle = pgEnum("benutzer_rolle", [
 // F0b: VG250-Ebenen — Laender (2-stelliger ARS) und Kreise (5-stellig).
 export const verwaltungsEbene = pgEnum("verwaltungs_ebene", ["land", "kreis"]);
 
+/**
+ * E69 (Eric 07.10.2026): Bezug des Feedstock-Preises — je Tonne Frischmasse
+ * (fm) oder je Tonne atro. Standard bei neuer Erfassung fm; „unbekannt" nur
+ * fuer den Altbestand (Migration 0049), nicht waehlbar. Ein Bezug gilt fuer
+ * preis_min, preis_mittel und preis_max gemeinsam; die Auswertung rechnet
+ * daraus den Preis €/t atro ab (E23: abgeleitet, nicht gespeichert).
+ */
+export const preisBezug = pgEnum("preis_bezug", ["fm", "atro", "unbekannt"]);
+export const PREIS_BEZUG = preisBezug.enumValues;
+export type PreisBezug = (typeof PREIS_BEZUG)[number];
+
 /** Herkunft des Preis-Korridors am Biomassestrom. */
 export const preisHerkunft = pgEnum("preis_herkunft", [
   "eigene_datenbank",
@@ -489,6 +500,9 @@ export const biomassestrom = pgTable("biomassestrom", {
   preisMittel: numeric("preis_mittel"),
   preisMax: numeric("preis_max"),
   preisHerkunft: preisHerkunft("preis_herkunft"),
+  // E69: Bezug des Preises (fm | atro | unbekannt); CHECK biomassestrom_preis_bezug_check:
+  // ist ein Preis gesetzt, ist auch der Bezug gesetzt (Migration 0049).
+  preisBezug: preisBezug("preis_bezug"),
   belegId: uuid("beleg_id").references(() => beleg.id),
   // E23: qualitaet liegt physisch noch in der Tabelle, ist hier aber bewusst
   // nicht mehr deklariert — die Stufe haengt an der Beleg-Zeile (Fremdzeile)
@@ -1261,7 +1275,8 @@ export const importVorlage = pgTable(
   ],
 );
 
-export const IMPORT_LAUF_STATUS = ["angelegt", "zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt", "zurueckgenommen", "fehler"] as const;
+// AP2.7 PR g: „verworfen" = nie ausgefuehrter Lauf, von Hand oder durch den Job nach Inaktivitaet beendet (Migration 0049).
+export const IMPORT_LAUF_STATUS = ["angelegt", "zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt", "zurueckgenommen", "verworfen", "fehler"] as const;
 export type ImportLaufStatus = (typeof IMPORT_LAUF_STATUS)[number];
 
 /** Ein Import-Lauf: eine Datei, eine Art, ein Belegtyp, ein Standard-Sektor. */
@@ -1304,11 +1319,15 @@ export const importLauf = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),
     zurueckgenommenAm: timestamp("zurueckgenommen_am", { withTimezone: true }),
+    // AP2.7 PR g: Lauf verworfen (nie ausgefuehrt) — von Hand oder durch den Job nach import.lauf_inaktiv_tage.
+    verworfenAm: timestamp("verworfen_am", { withTimezone: true }),
+    // E69: Preis-Bezug fuer Zeilen ohne eigene Spalte (vorbelegt fm, in der Zuordnung bestaetigt oder geaendert).
+    preisBezugStandard: preisBezug("preis_bezug_standard").notNull().default("fm"),
   },
   (t) => [
     index("import_lauf_datei_hash_idx").on(t.dateiHash),
     check("import_lauf_art_check", sql`${t.art} in ('biomasse', 'output')`),
-    check("import_lauf_status_check", sql`${t.status} in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'fehler')`),
+    check("import_lauf_status_check", sql`${t.status} in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'verworfen', 'fehler')`),
     check("import_lauf_datei_hash_check", sql`${t.dateiHash} ~ '^[0-9a-f]{64}$'`),
     check("import_lauf_dateiname_check", sql`length(btrim(${t.dateiname})) between 1 and 255`),
   ],
