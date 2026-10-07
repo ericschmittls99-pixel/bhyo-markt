@@ -19,11 +19,12 @@ export async function pruefePlzOrt(db: AppDb, plz: string, ort: string | null): 
   return { plzBekannt: r.plz_bekannt, ortPasst: r.ort_passt, orte: JSON.parse(r.orte_json) as string[] };
 }
 
-/** PLZ und Ort zum Pin; null, wenn der Punkt in keinem PLZ-Gebiet liegt. */
+/** PLZ (und ihre Orte) zum Pin; null, wenn der Punkt in keinem PLZ-Gebiet liegt. */
 export async function plzAusPunkt(db: AppDb, pin: { lng: number; lat: number }): Promise<PlzTreffer | null> {
   const rows = (await db.execute(sql`
-    select plz, ort, ars from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(${pin.lng}, ${pin.lat}), 4326)) limit 1`)) as unknown as PlzTreffer[];
-  return rows[0] ?? null;
+    select plz, array_to_json(orte)::text as orte_json from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(${pin.lng}, ${pin.lat}), 4326)) limit 1`)) as unknown as { plz: string; orte_json: string }[];
+  const r = rows[0];
+  return r ? { plz: r.plz, orte: JSON.parse(r.orte_json) as string[] } : null;
 }
 
 /** Liegt der Pin im Gebiet der PLZ? null bei unbekannter PLZ. */

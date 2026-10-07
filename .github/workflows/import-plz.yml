@@ -141,6 +141,9 @@ jobs:
           echo "Gemeinde-Staging: $(( $(date +%s) - start )) s"
 
       - name: Bestand ersetzen (Transaktion, Sollwerte, Zielnachweis, Messung)
+        env:
+          # Nur im Wegwerf-Lauf: Vereinfachung gegen Rohflaechen messen (PLZVERGLEICH).
+          PLZ_MESSUNG: ${{ inputs.umgebung == 'wegwerf' && 'ja' || 'nein' }}
         run: pnpm --filter @bhyo/db plz-import
 
       - name: Funktions-Check (Paritaet SQL/TS, Rot-Faelle)

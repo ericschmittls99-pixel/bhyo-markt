@@ -1764,20 +1764,37 @@ PLZ, wenn der Schnitt mindestens 10 % der Gemeinde- oder der PLZ-Fläche
 ausmacht. Ortsnamen sind damit **amtliche Gemeindenamen**, keine
 Ortsteile; „Oggersheim" passt nicht, „Ludwigshafen" schon (Kurzform).
 
+**Entscheidung Eric (07.10.2026):** Quelle übernommen — yetzt/postleitzahlen
+2026.02 (ODbL, SHA-256 fixiert) und die Orte aus dem Schnitt mit den
+VG250-Gemeinden. Quellenhinweise „© OpenStreetMap-Mitwirkende, ODbL" und
+„© GeoBasis-DE / BKG, dl-de/by-2-0" (Gemeinden). Ortsteile führen zu
+„Meinten Sie <Gemeinde>?" (Mannheim-Neckarau → Mannheim) — gewollt.
+**Speicher:** Neon Free hat eine harte Grenze (laut Preisseite 1 GB je
+Projekt, 20 GB je Konto; Production am 07.10.2026: 31 MB, davon
+verwaltungsgebiet 14 MB). Vor jeder Production-Migration gilt deshalb:
+`plz_ort` ohne Geometrie, `plz_gebiet` vereinfacht, Ziel deutlich unter
+25 MB zusammen; Messung im Wegwerf-Lauf, Entscheidung bei Eric.
+
 **Datenmodell (Migration 0047):** `plz_gebiet(plz PK, geom MultiPolygon
 4326, stichtag)` mit CHECK fünfstellig und GIST; `plz_ort(plz FK cascade,
-ort, ort_norm, ars 12-stellig, geom)` mit PK (plz, ars), GIST und Index
-auf `ort_norm`. `plz_ort.geom` ist der Schnitt PLZ × Gemeinde — ein Pin
-liefert so PLZ **und** Ort in einem ST_Covers (eine PLZ hat sonst bis zu 39
-Orte). Geometrie: ST_MakeValid, ST_SimplifyPreserveTopology 0,00005°
-(≈ 4–5 m), Rundung 1e-6. Die Größe wird beim Import protokolliert (PLZNACH).
+ort, ort_norm, ars 12-stellig)` mit PK (plz, ars) und Index auf `ort_norm`
+— **ohne Geometrie**. Der Schnitt PLZ × Gemeinde wird nur beim Import
+gerechnet (rohe Union, Schwelle 10 %). Folge: Ein Pin liefert die PLZ und
+die Liste ihrer Orte; bei genau einem Ort ist er eindeutig, sonst trägt der
+Mensch den Ort ein (Hinweis „PLZ 54636 hat 39 Orte — Ort bitte eintragen:
+…"). Geometrie: ST_MakeValid je Feature vor der Union, Rohflächen nur
+temporär, Bestand mit ST_SimplifyPreserveTopology `SIMPLIFY_TOLERANZ` =
+0,00015° (≈ 17 m N–S, ≈ 11 m O–W), Rundung 1e-6. Der Wegwerf-Lauf misst
+Größe vorher/nachher und den Anteil zufälliger Punkte mit anderer PLZ
+(PLZVERGLEICH); Größen stehen in PLZNACH, die Preview-Größe druckt
+`import-check` (GROESSE), Production `lese-diagnose`.
 
 **Funktionen (SQL, Spiegel in TS):** `plz_ort_norm(text)` (Kleinbuchstaben,
 ä/ö/ü/ß ausgeschrieben, alles außer Buchstaben/Ziffern ein Leerzeichen),
 `plz_ort_passt(eingabe, ort_norm)` (Gleichheit oder Kurzform als ganzes
 Wortpräfix: „halle" → „halle saale", „ludwigs" nicht), `plz_pruefung(plz,
 ort) → (plz_bekannt, ort_passt, orte[])`, `plz_fuer_punkt(geom) → (plz,
-ort, ars)` (kleinste Fläche zuerst), `punkt_in_plz(plz, geom) → bool|null`.
+orte[])` (kleinste Fläche zuerst), `punkt_in_plz(plz, geom) → bool|null`.
 TS-Spiegel `normalisiereOrt`/`ortPasst` in `packages/db/src/plz.ts`; die
 gemeinsamen Fälle prüft Vitest (TS) und `plz-check.ts` (SQL gegen TS) —
 eine Regel, zwei Laufzeiten.
@@ -1811,14 +1828,12 @@ fällt heraus; Doppel-PLZ 75378 wird eine Zeile; Grenzpunkt trifft beide
 Seiten mit deterministischer erster Zeile; Punkt außerhalb → keine Zeile,
 `punkt_in_plz` false, unbekannte PLZ null.
 
-**Offene Weggabelungen (nicht entschieden):** (1) Quelle der PLZ↔Ort-
-Zuordnung: Flächenschnitt mit VG250-Gemeinden (gewählt für den Entwurf;
-amtliche Namen, keine Ortsteile) oder postleitzahl.net nach Lizenzklärung
-(Post-Ortsnamen inkl. Ortsteile) oder ein selbst eingefrorener
-OSM-Snapshot (addr:city). (2) Schwelle 10 % und Vereinfachung 0,00005° —
-nach der Messung auf `wegwerf` bestätigen. (3) Exklaven außerhalb
-Deutschlands (87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (4)
-ODbL-Share-alike für die abgeleitete Tabelle `plz_ort` (juristisch offen).
+**Offene Weggabelungen (nicht entschieden):** (1) Vereinfachungstoleranz
+0,00015° und Schwelle 10 % — nach der Messung auf `wegwerf` bestätigen
+(Eric entscheidet anhand PLZVERGLEICH). (2) Exklaven außerhalb Deutschlands
+(87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (3) ODbL-Share-alike für
+die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
+07.10.2026): Quelle und Ableitung der Orte, siehe oben.
 
 ## 40. E68 PR 2: Prüfen-Knopf und Genauigkeit, 07.10.2026
 

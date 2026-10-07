@@ -69,10 +69,10 @@ async function main() {
     const nullOrt = await pruefung(plz, null);
     pruefe("plz_pruefung: ohne Ort nur PLZ-Existenz", nullOrt.plz_bekannt === true && nullOrt.ort_passt === false, nullOrt);
 
-    // Punkt im Inneren der ersten Schnittflaeche
-    const [innen] = await sql`select ST_AsText(ST_PointOnSurface(geom)) as p, plz, ort from plz_ort where plz = ${plz} and ort = ${ort} limit 1`;
-    const treffer = await sql`select * from plz_fuer_punkt(ST_GeomFromText(${innen!.p}, 4326))`;
-    pruefe("plz_fuer_punkt: Punkt in der Flaeche liefert PLZ und Ort", treffer.length >= 1 && treffer[0]!.plz === plz && treffer[0]!.ort === ort, { punkt: innen!.p, treffer: treffer.slice(0, 2) });
+    // Punkt im Inneren des PLZ-Gebiets
+    const [innen] = await sql`select ST_AsText(ST_PointOnSurface(geom)) as p from plz_gebiet where plz = ${plz}`;
+    const treffer = (await sql`select plz, array_to_json(orte)::text as orte_json from plz_fuer_punkt(ST_GeomFromText(${innen!.p}, 4326))`) as unknown as { plz: string; orte_json: string }[];
+    pruefe("plz_fuer_punkt: Punkt in der Flaeche liefert PLZ und ihre Orte", treffer.length >= 1 && treffer[0]!.plz === plz && (JSON.parse(treffer[0]!.orte_json) as string[]).includes(ort), { punkt: innen!.p, treffer: treffer.slice(0, 2) });
     const [drin] = await sql`select punkt_in_plz(${plz}, ST_GeomFromText(${innen!.p}, 4326)) as d`;
     pruefe("punkt_in_plz: innen true", drin!.d === true);
     const [draussen] = await sql`select punkt_in_plz(${plz}, ST_SetSRID(ST_MakePoint(0, 0), 4326)) as d`;
@@ -91,10 +91,12 @@ async function main() {
       pruefe("Fixture: Splitter (1 % Schnitt) faellt heraus", splitter!.n === 0, splitter);
       const [union] = await sql`select count(*)::int as n, (select ST_NumGeometries(geom) from plz_gebiet where plz = '75378') as teile from plz_gebiet where plz = '75378'`;
       pruefe("Fixture: 75378 doppelt in der Quelle -> eine PLZ (Union)", union!.n === 1 && Number(union!.teile) >= 1, union);
-      const grenze = await sql`select * from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(8.10, 49.05), 4326))`;
+      const grenze = await sql`select plz from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(8.10, 49.05), 4326))`;
       pruefe("Fixture: Grenzpunkt 8,10 trifft beide Seiten, erste Zeile deterministisch", grenze.length === 2 && grenze[0]!.plz === "11111", grenze);
-      const [pforzheim] = await sql`select * from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(8.37, 49.02), 4326))`;
-      pruefe("Fixture: Punkt im zweiten Teil von 75378 -> Pforzheim", pforzheim?.plz === "75378" && pforzheim?.ort === "Pforzheim", pforzheim);
+      const [pforzheim] = await sql`select plz, array_to_json(orte)::text as orte_json from plz_fuer_punkt(ST_SetSRID(ST_MakePoint(8.37, 49.02), 4326))`;
+      pruefe("Fixture: Punkt im zweiten Teil von 75378 -> PLZ 75378 mit Ort Pforzheim", pforzheim?.plz === "75378" && (JSON.parse(pforzheim!.orte_json as string) as string[]).includes("Pforzheim"), pforzheim);
+      const [tabelle] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'plz_ort' and column_name = 'geom'`;
+      pruefe("Fixture: plz_ort traegt keine Geometrie", tabelle!.n === 0, tabelle);
     }
   }
 
