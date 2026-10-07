@@ -116,12 +116,13 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
   basis.push(
     {
       sortKey: "preis",
-      label: feed ? "Preis (€/t)" : "Preis",
+      // E69: Rohpreis mit Bezug je Strom (FM / atro / ?).
+      label: feed ? "Preis (€/t, Bezug je Strom)" : "Preis",
       align: "right",
       render: (s) =>
         feed
           ? s.preisMin != null || s.preisMax != null
-            ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"}`
+            ? `${s.preisMin != null ? fmtPreis(s.preisMin) : "–"}–${s.preisMax != null ? fmtPreis(s.preisMax) : "–"} ${s.preisBezug === "fm" ? "FM" : s.preisBezug === "atro" ? "atro" : "Bezug ?"}`
             : "–"
           : // E20: umgerechnet in die Anzeigeeinheit statt erfasster Einheit roh.
             fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit),

@@ -1928,10 +1928,17 @@ den Faktor drei zu hoch.
   dem **abgeleiteten Preis €/t atro** (`lib/preis-bezug.ts`), nie gespeichert
   (E23): atro → unverändert; fm mit TS-Anteil → Preis ÷ TS-Anteil (als
   Anteil); fm ohne TS-Anteil oder unbekannt → **„nicht vergleichbar"**: der
-  Strom fällt aus Korridor und Potenzial heraus, seine Zahl steht am Band
-  („· n nicht vergleichbar") und in der Kachel-Caption. Nichts rechnet
-  stillschweigend mit dem Rohwert; am Einzelstrom (E38) heißt der Zustand
-  „Preis nicht vergleichbar (Preis-Bezug FM ohne TS-Anteil oder unbekannt)".
+  Strom wird **aus den preisbezogenen Größen ausgeschlossen** (ø Preis,
+  Preiskorridor, Feedstock-Potenzial in €/a, Export „Preis €/t atro
+  (abgeleitet)" und „Potenzial [€/a]"), seine Zahl steht am Band
+  („· n nicht vergleichbar") und in der Kachel-Caption. **Mengengrößen
+  hängen nicht am Preis-Bezug** (Präzisierung Eric 07.10.2026): Trockenmasse,
+  Cluster-Anteile, verfügbarer Feedstock je Jahr, Export „Menge [t atro/a]"
+  zählen jeden Strom unabhängig vom Preis (Test in `lib/preis-bezug.test.ts`).
+  Nichts rechnet stillschweigend mit dem Rohwert; am Einzelstrom (E38) heißt
+  der Zustand „Preis nicht vergleichbar (Preis-Bezug FM ohne TS-Anteil oder
+  unbekannt)". Der Rohpreis selbst bleibt überall sichtbar, immer mit seinem
+  Bezug (Formular, Detail, Grid, Tabelle, Export).
 - Export: „Preis min/mittel/max [€/t]" (Rohwert), „Preis-Bezug (FM / atro)",
   „Preis mittel [€/t atro] (abgeleitet, E69)"; die bisherige Beschriftung
   „€/t atro" am Rohpreis entfällt.

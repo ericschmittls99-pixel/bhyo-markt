@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { kpiKarten, potenzialZeilen, preisKorridorRoh, preisKorridorZeilen, preisVergleichbar, zaehleNichtVergleichbar } from "./auswertung-modell";
+import { clusterZeilen, kpiKarten, potenzialZeilen, preisKorridorRoh, preisKorridorZeilen, preisVergleichbar, zaehleNichtVergleichbar } from "./auswertung-modell";
+import { EXPORT_SPALTEN } from "./export-modell";
 import { potenzialEuroFeedstock } from "./potenzial";
 import { NICHT_VERGLEICHBAR, preisAtro, preisAtroVon, preisEinheitAnzeige, preisNichtVergleichbar } from "./preis-bezug";
 import { preisKorridorEinzel } from "./preiskorridor-einzel";
@@ -126,5 +127,30 @@ describe("E69: abgeleiteter Preis €/t atro", () => {
     expect(preisEinheitAnzeige("fm")).toBe("€/t FM");
     expect(preisEinheitAnzeige("atro")).toBe("€/t atro");
     expect(preisEinheitAnzeige("unbekannt")).toBe("€/t (Bezug unbekannt)");
+  });
+});
+
+describe("E69 (Eric 07.10.2026): Mengen haengen nicht am Preis-Bezug — nur preisbezogene Groessen schliessen aus", () => {
+  const nurNichtVergleichbar = [fmOhneTs, unbekannt];
+  it("Trockenmasse-Kachel und Cluster-Mengen zaehlen auch Stroeme mit nicht vergleichbarem Preis", () => {
+    const k = kpiKarten([fm30, atro50, fmOhneTs, unbekannt], "feedstock" as never);
+    // 27 + 27 + 27 t atro (fmOhneTs hat keine atro-Menge) — unabhaengig vom Preis.
+    expect(k[1]).toMatchObject({ wert: "81", einheit: "t atro/a" });
+    const cluster = clusterZeilen(nurNichtVergleichbar, nurNichtVergleichbar, "feedstock" as never).zeilen.find((z) => z.key === "organische_rest_abfallstoffe")!;
+    // Beide Stroeme zaehlen in der Zusammensetzung (27 t atro, der zweite ohne atro-Menge), die Zeile ist nicht null0.
+    expect(cluster.meta).toMatch(/2 Belege/);
+    expect(cluster.null0).toBe(false);
+    // Die Euro-Kachel dagegen ist leer und sagt warum.
+    const k2 = kpiKarten(nurNichtVergleichbar, "feedstock" as never);
+    expect(k2[3]).toMatchObject({ wert: "–", label: "feedstock-potenzial." });
+    expect(k2[3]!.caption).toMatch(/2 Belege nicht vergleichbar/);
+  });
+  it("Export: Menge [t atro/a] bleibt, nur Preis €/t atro (abgeleitet) und Potenzial [€/a] werden Zustand bzw. leer", () => {
+    const sp = (key: string) => EXPORT_SPALTEN.find((x) => x.key === key)!.wert(unbekannt);
+    expect(sp("menge_atro")).toEqual({ zahl: 27, art: "menge" });
+    expect(sp("preis_mittel")).toEqual({ zahl: 40, art: "preis" });
+    expect(sp("preis_bezug")).toBe("Bezug unbekannt");
+    expect(sp("preis_atro")).toBe(NICHT_VERGLEICHBAR);
+    expect(sp("potenzial")).toBe("nicht erfasst");
   });
 });
