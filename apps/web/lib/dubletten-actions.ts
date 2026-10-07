@@ -1,6 +1,6 @@
 "use server";
 
-import { akteur, akteurInteresse, akteurKeineDublette, biomassestrom, kontaktperson, outputBedarf } from "@bhyo/db/schema";
+import { akteur, akteurInteresse, akteurKeineDublette, biomassestrom, kommentar, kontaktperson, outputBedarf } from "@bhyo/db/schema";
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -145,6 +145,10 @@ export async function akteureZusammenfuehren(quelleId: string, zielId: string, e
           }
         }
 
+        // AP2.6 PR a (E71): Kommentare sind Marktdokumentation — sie wandern zum Ziel,
+        // statt mit der Quelle per CASCADE zu verschwinden (Zahl im Ereignistext).
+        const kommentare = await tx.update(kommentar).set({ akteurId: zielId }).where(eq(kommentar.akteurId, quelleId)).returning({ id: kommentar.id });
+
         // Das Ereignis der Quelle ZUERST — der Trigger der Kontaktpersonen liest es.
         await protokolliere(tx, {
           art: "akteur_zusammengefuehrt",
@@ -152,7 +156,7 @@ export async function akteureZusammenfuehren(quelleId: string, zielId: string, e
           id: quelleId,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `${zusammenfuehrungsText(quelleId, zielId)}; ${stroeme.length} Strom/Ströme; Felder aus Quelle: ${felder.join(", ") || "keine"}`,
+          text: `${zusammenfuehrungsText(quelleId, zielId)}; ${stroeme.length} Strom/Ströme; ${kommentare.length} Kommentar(e); Felder aus Quelle: ${felder.join(", ") || "keine"}`,
         });
 
         if (felder.length) {

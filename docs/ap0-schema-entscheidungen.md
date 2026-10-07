@@ -2104,3 +2104,70 @@ Preview-Menge) steht aus; ohne Messung kein zusätzlicher Index auf
 Abfrage). (c) Stufe 0 endet beim Verwerfen des Stroms; ein eigener Zustand
 „archiviert" existiert im Modell nicht.
 
+## 45. AP2.6 Kommentare — PR a: Datenmodell, Schreibweg, Rechte (E71), 07.10.2026
+
+**Entscheidungen Eric (E71, 07.10.2026):** Eigene Tabelle `kommentar` —
+der Inhalt ist Marktdokumentation, kein Protokoll; das Protokoll erhält nur
+die Ereignisse erstellt/bearbeitet/gelöscht ohne Text. Bezug auf Strom oder
+Akteur mit CHECK „genau ein Bezug" (wie Inbox); Beleg später als weitere
+Spalte. Löschverhalten nach dem Bestand (Ströme werden nie gelöscht, ein
+verwaister Akteur schon). Schreibweg `kommentar-schreibweg.ts` analog
+Strom/Akteur: darf() → Schreiben → protokolliere(tx) → zustellen, eine
+Transaktion. Tabelle `kommentar_erwaehnung` (kommentar_id, nutzer_id), PK aus
+beiden; der Server leitet sie aus den Markern `@[nutzer:<uuid>]` ab, einer
+Client-Liste wird nicht vertraut. Kommentare werden nicht automatisch
+gelöscht. Erwähnbar nur App-Nutzer, nie Kontaktpersonen (E57); Betrachter
+lesen, kommentieren nicht, sind nicht erwähnbar (wie `ladeZuweisbare`).
+Aktionen `kommentar.erstellen` / `.bearbeiten` / `.loeschen`. Eigene
+Kommentare bearbeiten (Marker „bearbeitet", kein Versionsverlauf) und
+löschen; Löschen weich (Text NULL, `geloescht_am`), Admin darf fremde
+löschen; beim Bearbeiten neu hinzugekommene Erwähnungen werden zugestellt,
+entfernte nicht zurückgenommen. Kommentieren am gesperrten Strom ist
+erlaubt (E44 nennt nur fachliche Änderungen am Strom — kein Widerspruch im
+Bestand). Feldeinstufung intern; nicht im Export, nicht im Import.
+
+**Umsetzung (Migration 0052):** `kommentar` (biomassestrom_id,
+output_bedarf_id, akteur_id — „Strom" heißt im Bestand Angebot oder Bedarf,
+deshalb zwei Strom-Spalten wie in `inbox_eintrag`; autor_id, text,
+erstellt_am, bearbeitet_am, geloescht_am), CHECKs
+`kommentar_genau_ein_bezug_check` und `kommentar_text_check` (1–2000
+Zeichen nach btrim, NULL genau bei gesetztem `geloescht_am`), Index je
+Bezugsspalte; akteur_id mit ON DELETE CASCADE (wie `inbox_eintrag.akteur_id`
+und das Musterpaar), Strom-Spalten ohne. `kommentar_erwaehnung` mit PK und
+CASCADE zum Kommentar. Enum `ereignis_art` + `kommentar_erstellt`,
+`kommentar_bearbeitet`, `kommentar_geloescht`; Protokoll-Entität
+`kommentar`. Matrix: die drei Aktionen ab bearbeiter; Objektregeln
+`nurAutor` (bearbeiten — auch admin keinen fremden) und `autorOderAdmin`
+(löschen) am neuen Objekt `{ autorId }`. Baustein
+`lib/kommentar-schreibweg.ts` (`kommentarErstellenInTx`,
+`pruefeKommentarObjekt` mit FOR UPDATE, `kommentarBearbeitenInTx`,
+`kommentarLoeschenInTx`, `pruefeErwaehnbare`), Marker-Parsing in
+`lib/kommentar-marker.ts`, Actions in `lib/kommentar-actions.ts`. Ein Marker
+auf einen nicht erwähnbaren Nutzer (unbekannt, deaktiviert, Betrachter)
+weist den Kommentar ab (fail closed) statt ihn stumm zu verschlucken.
+`akteurLoeschen` zählt die mitgelöschten Kommentare im Ereignistext,
+`akteurZusammenfuehren` hängt sie an das Ziel um. Wächter: rechte-check
+erkennt `pruefeKommentarObjekt(` als Objektstufe und sieht dafür auch den
+Rumpf des importierten Bausteins (eine Ebene, wie protokoll-check);
+protokoll-check prüft bei Entität `kommentar` die Interpolationen wie bei
+Kontaktpersonen (nur IDs, Bezugsart, Zähler). Tests:
+`lib/rechte/matrix.test.ts` (Rolle × Aktion, Objektregel Autor),
+`lib/kommentar-marker.test.ts`, `lib/kommentar-schreibweg.test.ts`,
+`lib/kommentar-actions.test.ts`, `scripts/kommentar-probe.ts` (Wegwerf-DB:
+CHECKs, PK/FK, Rechte am echten Baustein, weiches Löschen, kein Text im
+Protokoll mit Rot-Nachweis, CASCADE).
+
+**Schnitt:** PR a (dieser) Datenmodell + Schreibweg + Rechte + Tests; PR b
+UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
+`kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
+Inbox-Aufbewahrung (D14).
+
+**OFFEN:** (a) Reservierte Migrationsnummer: E71 nennt eine Migration 0052
+für AP2.6 — die Inbox-Erweiterung (PR c) und die Aufbewahrungs-Parameter
+(PR d) brauchen je eine eigene additive Migration (0053, 0054), weil sie mit
+ihrem ersten Verbraucher kommen (E21). (b) Textgrenze 2000 Zeichen und die
+Abweisung (statt stummem Überspringen) nicht erwähnbarer Marker sind
+konservative Vorgaben ohne ausdrückliche Entscheidung. (c) Erwähnungen
+eines später gelöschten Kommentars bleiben als Zeilen stehen (kein Text,
+keine Zustellung mehr) — Löschen ist weich.
+

@@ -208,6 +208,12 @@ jobs:
       # Anschlussvergabe, NULL, an_bhyo, frei_ab aendert sich, Idempotenz).
       - name: Wird-frei-Probe (Job-SQL, Rot-Faelle)
         run: pnpm --filter web exec tsx scripts/wird-frei-probe.ts
+      # AP2.6 PR a (E71): Kommentar-Modell (Migration 0052) und -Schreibweg gegen
+      # die Wegwerf-DB — CHECK genau ein Bezug, Text-CHECK, Erwaehnungs-PK/FK,
+      # Rechte je Rolle am echten Baustein, weiches Loeschen, kein Kommentartext
+      # im Protokoll (mit Rot-Nachweis), CASCADE beim geloeschten Akteur.
+      - name: Kommentar-Probe (Modell, Schreibweg, Rot-Faelle)
+        run: pnpm --filter web exec tsx scripts/kommentar-probe.ts
 
   schema-gate:
     needs: [typen-und-tests, ziel-wache]

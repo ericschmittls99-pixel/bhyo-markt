@@ -70,7 +70,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
    * Matrix? Ein Ausdruck wie `id == null ? "strom.anlegen" : "strom.bearbeiten"`
    * traegt zwei Literale — jedes muss bekannt sein. Gibt den Grund oder null.
    */
-  const pruefe = (text: string): string | null => {
+  const pruefe = (text: string, mitBausteinen: string): string | null => {
     const m = wache.exec(text);
     if (!m) return "kein Aufruf der Wache mit einer Aktion";
     const literale = [...m[2]!.matchAll(/"([^"]*)"/g)].map((l) => l[1]!);
@@ -80,8 +80,13 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     // E44: Objektstufe — wer eine Aktion mit Sperrregel nennt, muss sie in der
     // Transaktion pruefen (direkt oder ueber einen Rumpf mit demselben Literal).
     // AP2.2: Inbox-Objektregel (Empfaenger) prueft `pruefeInboxEmpfaenger(`.
-    if (literale.some((l) => mitObjekt.has(l)) && !/\b(pruefeStromSperre|pruefeInboxEmpfaenger)\s*\(/.test(text)) {
-      return `Aktion mit Objektregel ohne Objektstufe (pruefeStromSperre / pruefeInboxEmpfaenger) im Schreibpfad`;
+    // AP2.6 PR a (E71): Kommentar-Objektregel (Autor) prueft `pruefeKommentarObjekt(`
+    // — sie sitzt im Baustein kommentar-schreibweg.ts, den die Action in ihrer
+    // Transaktion ruft; deshalb zaehlt hier auch der Rumpf einer aus `@/lib/...`
+    // importierten Funktion (eine Ebene, wie beim Protokoll). Die Wache selbst
+    // bleibt am Eingang (oben: nur der Pfad und seine lokalen Helfer).
+    if (literale.some((l) => mitObjekt.has(l)) && !/\b(pruefeStromSperre|pruefeInboxEmpfaenger|pruefeKommentarObjekt)\s*\(/.test(mitBausteinen)) {
+      return `Aktion mit Objektregel ohne Objektstufe (pruefeStromSperre / pruefeInboxEmpfaenger / pruefeKommentarObjekt) im Schreibpfad`;
     }
     return null;
   };
@@ -89,7 +94,7 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
   // Die Wache muss im Pfad selbst oder einem LOKALEN Helfer sitzen — ein
   // importierter Helfer zaehlt hier nicht (die Wache gehoert an den Eingang).
   for (const pfad of schreibpfade(wurzel)) {
-    const grund = pruefe(pfad.mitLokalen);
+    const grund = pruefe(pfad.mitLokalen, pfad.mitImporten);
     if (grund) luecken.push({ datei: pfad.datei, pfad: pfad.pfad, grund: `${pfad.artText}: ${grund}` });
   }
 

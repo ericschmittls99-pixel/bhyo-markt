@@ -856,6 +856,11 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "keine_dublette_aufgehoben",
   /** AP2.7 PR a (E67): Import — Quelle enthielt Ansprechpartner, nicht uebernommen (ohne Namen, mit Lauf-ID). */
   "kontaktdaten_uebersprungen",
+  // AP2.6 PR a (E71): Kommentare — das Protokoll traegt nur das Ereignis
+  // (Objektbezug kommentar.id, Bezug als ID im Text), nie den Kommentartext.
+  "kommentar_erstellt",
+  "kommentar_bearbeitet",
+  "kommentar_geloescht",
 ]);
 
 export const aenderung = pgTable(
@@ -984,6 +989,71 @@ export const akteurKeineDublette = pgTable(
     unique("akteur_keine_dublette_paar_uniq").on(t.akteurA, t.akteurB),
     check("akteur_keine_dublette_ordnung_check", sql`${t.akteurA} < ${t.akteurB}`),
   ],
+);
+
+/**
+ * AP2.6 PR a (E71): Kommentar an einem Strom (Angebot oder Bedarf) oder einem
+ * Akteur — Marktdokumentation, kein Protokoll: der Text lebt hier, das
+ * Protokoll (aenderung) traegt nur die Ereignisse erstellt/bearbeitet/
+ * geloescht ohne Text. Genau ein Bezug (CHECK wie inbox_eintrag; Beleg kommt
+ * spaeter als weitere Spalte). Loeschverhalten nach dem Bestand: Stroeme
+ * werden nie geloescht (verworfen), ein verwaister Akteur schon — seine
+ * Kommentare gehen per CASCADE mit (wie inbox_eintrag.akteur_id und das
+ * Musterpaar akteur_keine_dublette); beim Zusammenfuehren haengt der
+ * Schreibpfad sie an das Ziel um. Loeschen durch Nutzer ist weich: text NULL
+ * und geloescht_am gesetzt (CHECK: beides zusammen), die Zeile bleibt als
+ * „Kommentar geloescht" im Verlauf. Kommentare werden nie automatisch
+ * geloescht.
+ */
+export const kommentar = pgTable(
+  "kommentar",
+  {
+    id: uuid("id").primaryKey().defaultRandom(),
+    biomassestromId: uuid("biomassestrom_id").references(() => biomassestrom.id),
+    outputBedarfId: uuid("output_bedarf_id").references(() => outputBedarf.id),
+    akteurId: uuid("akteur_id").references(() => akteur.id, { onDelete: "cascade" }),
+    /** Autor (benutzer.id) — bearbeiten darf nur er, loeschen er oder admin (Objektregel der Matrix). */
+    autorId: uuid("autor_id")
+      .notNull()
+      .references(() => benutzer.id),
+    /** NULL genau dann, wenn weich geloescht (CHECK kommentar_text_check). */
+    text: text("text"),
+    erstelltAm: timestamp("erstellt_am", { withTimezone: true }).notNull().defaultNow(),
+    /** Gesetzt ab der ersten Bearbeitung — die Anzeige zeigt „bearbeitet", kein Versionsverlauf. */
+    bearbeitetAm: timestamp("bearbeitet_am", { withTimezone: true }),
+    geloeschtAm: timestamp("geloescht_am", { withTimezone: true }),
+  },
+  (t) => [
+    index("kommentar_biomassestrom_id_idx").on(t.biomassestromId),
+    index("kommentar_output_bedarf_id_idx").on(t.outputBedarfId),
+    index("kommentar_akteur_id_idx").on(t.akteurId),
+    check("kommentar_genau_ein_bezug_check", sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}) = 1`),
+    check(
+      "kommentar_text_check",
+      sql`(${t.geloeschtAm} is null and ${t.text} is not null and length(btrim(${t.text})) between 1 and 2000) or (${t.geloeschtAm} is not null and ${t.text} is null)`,
+    ),
+  ],
+);
+
+/**
+ * AP2.6 PR a (E71): Erwaehnung eines App-Nutzers in einem Kommentar — vom
+ * Server aus den Markern @[nutzer:<uuid>] abgeleitet, einer Client-Liste
+ * wird nicht vertraut. Nur aktive Nutzer ab bearbeiter sind erwaehnbar
+ * (wie ladeZuweisbare); Kontaktpersonen nie (E57). Je Kommentar und Nutzer
+ * genau einmal (PK). Geht mit dem Kommentar (CASCADE); eine entfernte
+ * Erwaehnung wird beim Bearbeiten nicht zurueckgenommen.
+ */
+export const kommentarErwaehnung = pgTable(
+  "kommentar_erwaehnung",
+  {
+    kommentarId: uuid("kommentar_id")
+      .notNull()
+      .references(() => kommentar.id, { onDelete: "cascade" }),
+    nutzerId: uuid("nutzer_id")
+      .notNull()
+      .references(() => benutzer.id),
+  },
+  (t) => [primaryKey({ columns: [t.kommentarId, t.nutzerId] }), index("kommentar_erwaehnung_nutzer_id_idx").on(t.nutzerId)],
 );
 
 /**

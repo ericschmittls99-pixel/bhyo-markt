@@ -33,7 +33,9 @@ export type Entitaet =
   /** AP2.7 PR a (E67): Import-Lauf (import_lauf.id) — Anlegen, Ausfuehren, Ruecknahme. */
   | "import_lauf"
   /** AP2.7 PR b (E67): Import-Vorlage (import_vorlage.id) — Speichern aus der Zuordnung eines Laufs. */
-  | "import_vorlage";
+  | "import_vorlage"
+  /** AP2.6 PR a (E71): Kommentar (kommentar.id) — Freitext nur Bezug-IDs und Zaehler, nie der Kommentartext. */
+  | "kommentar";
 
 export interface Ereignis {
   art: Exclude<EreignisArt, "altbestand">;
@@ -105,6 +107,10 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   projekt_angelegt: "Projekt gestartet",
   // AP2.7 PR a (E67): ohne Namen — nur dass die Quelle Ansprechpartner enthielt.
   kontaktdaten_uebersprungen: "Quelle enthielt Ansprechpartner, nicht übernommen",
+  // AP2.6 PR a (E71): Kommentare — nur das Ereignis, der Text lebt in kommentar.
+  kommentar_erstellt: "Kommentar erstellt",
+  kommentar_bearbeitet: "Kommentar bearbeitet",
+  kommentar_geloescht: "Kommentar gelöscht",
 };
 
 /**
