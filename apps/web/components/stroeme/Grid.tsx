@@ -1,5 +1,6 @@
 "use client";
 
+import { preisEinheitAnzeige } from "@/lib/preis-bezug";
 import { Foto } from "@/components/stroeme/Foto";
 import { Orb } from "@/components/stroeme/Orb";
 import {
@@ -17,7 +18,8 @@ const RING_UMFANG = 65.97; // 2 * PI * r bei r = 10,5
 function preisText(s: Strom): string {
   if (s.art === "biomasse") {
     // Review 22.09.: auf der Karte nur der Mittelwert, kein Korridor.
-    return s.preisMittel != null ? `${fmtPreis(s.preisMittel)} €/t` : "–";
+    // E69: der Rohpreis traegt immer seinen Bezug (€/t FM, €/t atro, Bezug unbekannt).
+    return s.preisMittel != null ? `${fmtPreis(s.preisMittel)} ${preisEinheitAnzeige(s.preisBezug)}` : "–";
   }
   // E20: erfasste Einheit nicht roh anzeigen, sondern umrechnen (€/MWh, €/t).
   return fmtOutputPreis(s.produktCode, s.preis, s.preisEinheit);

@@ -57,6 +57,8 @@ export const FELD_EINSTUFUNG: Record<FeldTabelle, Record<string, FeldKlasse>> = 
     preis_min: "fachlich",
     preis_mittel: "fachlich",
     preis_max: "fachlich",
+    // E69: eine Aenderung des Bezugs setzt die Pruefung zurueck wie beim Preis.
+    preis_bezug: "fachlich",
   },
   output_bedarf: {
     ...STROM_GEMEINSAM,

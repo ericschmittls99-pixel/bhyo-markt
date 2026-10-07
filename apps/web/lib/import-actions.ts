@@ -8,10 +8,11 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
-import { istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
+import { IMPORT_LAUF_VERWERFBAR, istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
+import { verwirfLauf } from "@/lib/jobs/import-aufraeumen";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, zuordnungsFehler, type Zuordnung } from "@/lib/import-zuordnung";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
@@ -179,6 +180,8 @@ export interface ZuordnungErgebnis {
 export interface BlattWahl {
   blatt?: string;
   kopfzeile?: number;
+  /** E69: Preis-Bezug des Laufs (fm | atro) fuer Zeilen ohne eigene Spalte — nur Feedstock. */
+  preisBezug?: "fm" | "atro";
 }
 
 export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordnung, wahl: BlattWahl = {}): Promise<ZuordnungErgebnis> {
@@ -252,7 +255,10 @@ export async function importZuordnungSpeichern(laufId: string, zuordnung: Zuordn
         for (let i = 0; i < zeilen.length; i += 500) {
           await tx.insert(importZeile).values(zeilen.slice(i, i + 500));
         }
-        await tx.update(importLauf).set({ status: "zugeordnet", blatt: tabelle.blatt, kopfzeile: tabelle.kopfzeile, zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await tx
+          .update(importLauf)
+          .set({ status: "zugeordnet", blatt: tabelle.blatt, kopfzeile: tabelle.kopfzeile, zaehler, ...(wahl.preisBezug === "fm" || wahl.preisBezug === "atro" ? { preisBezugStandard: wahl.preisBezug } : {}), updatedAt: new Date() })
+          .where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "status_gesetzt",
           entitaet: "import_lauf",
@@ -781,12 +787,14 @@ function zeilenGrund(e: unknown): string {
 }
 
 /** FormData fuer den Formular-Baustein aus den Strom-Feldern der Zeile (akteur_* bleiben draussen, akteur_id kommt aufgeloest). */
-function formDataAusZeile(felder: Record<string, string>, akteurId: string, lauf?: { zeitraumVon: string | null; zeitraumBis: string | null }): FormData {
+function formDataAusZeile(felder: Record<string, string>, akteurId: string, lauf?: { zeitraumVon: string | null; zeitraumBis: string | null; preisBezugStandard?: string }): FormData {
   const fd = new FormData();
   for (const [k, v] of Object.entries(felder)) {
     const def = zielfeld(k);
     if (def && def.gruppe === "strom") fd.set(k, v);
   }
+  // E69: ohne eigene Spalte gilt der Preis-Bezug des Laufs — nur wenn ein Preis da ist.
+  if ((felder.preis_min || felder.preis_mittel || felder.preis_max) && !felder.preis_bezug) fd.set("preis_bezug", lauf?.preisBezugStandard ?? "fm");
   // PR e: ohne eigenen Zeitraum gilt der des Laufs (Pflicht am Lauf, geprueft in importBelegDatenSetzen).
   if (!felder.zeitraum_von && lauf?.zeitraumVon) fd.set("zeitraum_von", monatAusDatum(lauf.zeitraumVon));
   if (!felder.zeitraum_bis && lauf?.zeitraumBis) fd.set("zeitraum_bis", monatAusDatum(lauf.zeitraumBis));
@@ -1313,6 +1321,48 @@ export async function importZeileUeberspringen(laufId: string, zeileId: string):
   } catch (e) {
     console.error("Überspringen fehlgeschlagen:", e);
     return { fehler: "Die Zeile konnte nicht übersprungen werden." };
+  }
+}
+
+/**
+ * Lauf verwerfen (PR g, Eric 07.10.2026): ein Lauf, der nie ausgefuehrt wurde
+ * (angelegt … probelauf, fehler), wird beendet — Zeilen geloescht (es gibt
+ * keine Stroeme, nur Zwischendaten), Status „verworfen", Zeitpunkt,
+ * Ereignis. Ersteller, Pruefer und Admin (import.verwerfen); der taegliche
+ * Job macht dasselbe nach import.lauf_inaktiv_tage ohne Aktivitaet
+ * (lib/jobs/import-aufraeumen.ts, dieselbe Regel verwirfLauf). Roh-Upload und
+ * bereinigte Kopie in R2 gehen mit (best effort, der Job raeumt den Rest).
+ */
+export interface VerwerfenErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  zeilen?: number;
+}
+
+export async function importLaufVerwerfen(laufId: string): Promise<VerwerfenErgebnis> {
+  const wache = await rechtFuerAction("import.verwerfen");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!(IMPORT_LAUF_VERWERFBAR as readonly string[]).includes(lauf.status)) {
+    return { fehler: `Der Lauf ist „${lauf.status}" — verworfen wird nur ein Lauf, der nie ausgeführt wurde.` };
+  }
+  try {
+    const erg = await withDb((db) =>
+      db.transaction(async (tx) =>
+        verwirfLauf(tx, lauf.id, { benutzerId: wache.zugang.id, benutzerEmail: wache.email, text: "von Hand verworfen" }),
+      ),
+    );
+    const env = await getEnvironment();
+    const bucket = await getBelegeBucket();
+    for (const key of [importRohKey(env, lauf.id, lauf.dateiname), importBelegKey(env, lauf.id)]) {
+      await bucket.delete(key).catch((e) => console.error("Verwerfen: R2-Objekt nicht gelöscht:", key, e));
+    }
+    return { ok: true, zeilen: erg.zeilen };
+  } catch (e) {
+    console.error("Import-Lauf verwerfen fehlgeschlagen:", e);
+    return { fehler: "Der Lauf konnte nicht verworfen werden." };
   }
 }
 

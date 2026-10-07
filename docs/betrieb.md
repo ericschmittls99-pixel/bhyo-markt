@@ -258,6 +258,13 @@ Startwert 30, einstellungen. → Parameter) ab `abgeschlossen_am`; nur Läufe
 `ausgefuehrt` oder `zurueckgenommen`. Zähler und Protokoll bleiben am Lauf.
 Log-Zeile `JOB import-zeilen <env> {"laeufe","zeilen"}` nach dem
 Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
+- **Liegengebliebene Läufe (AP2.7 PR g, 07.10.2026):** nie ausgeführte Läufe
+  (angelegt … probelauf, fehler) ohne Aktivität seit
+  `import.lauf_inaktiv_tage` Tagen (Startwert 30, Migration 0049) verwirft
+  derselbe Job: Zeilen gelöscht, Status `verworfen`, Ereignis im Namen des
+  Erstellers („vom täglichen Job …"), bereinigte Kopie in R2 weg. Log-Zeile
+  `JOB import-verwerfen <env> {"laeufe","zeilen"}`. Von Hand: Abschnitt
+  „verwerfen." am Lauf (Ersteller, Prüfer, Admin).
 
 ## PLZ-Gebiete lokal: Import-Workflow und Wegwerf-Postgres (E68 PR 1, 07.10.2026)
 

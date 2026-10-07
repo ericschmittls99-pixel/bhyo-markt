@@ -1,6 +1,7 @@
 // Euro-Potenzial je Strom — EIN Ursprung für Auswertung (Kacheln, Module) und
 // Export (E36). Vorzeichen nach E18: positiv = Erlös für bhyo.
 import { energieKwh, preisEuroMwh, preisEuroT, STOFFLICHE_PRODUKTE } from "./energie";
+import { preisAtro } from "./preis-bezug";
 import type { Strom } from "./stroeme-modell";
 
 /**
@@ -9,8 +10,10 @@ import type { Strom } from "./stroeme-modell";
  * -(Preis mittel × t atro). Null ohne Preis oder ohne atro-Menge.
  */
 export function potenzialEuroFeedstock(s: Strom): number | null {
-  if (s.preisMittel == null || s.mengeAtro == null) return null;
-  return -(s.preisMittel * s.mengeAtro);
+  // E69: Rechnung mit dem abgeleiteten Preis €/t atro; nicht vergleichbar → kein Potenzial.
+  const preis = preisAtro(s.preisMittel, s.preisBezug, s.tsAnteil);
+  if (preis == null || s.mengeAtro == null) return null;
+  return -(preis * s.mengeAtro);
 }
 
 /**

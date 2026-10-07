@@ -29,6 +29,7 @@ const basis = (patch: Partial<Strom>): Strom =>
     preisMittel: null,
     preisMax: null,
     preisHerkunft: null,
+    preisBezug: "atro",
     gruppe: null,
     gruppeLabel: null,
     produktCode: null,

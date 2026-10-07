@@ -2230,6 +2230,10 @@ button.leg-toggle.aus {
 .fp-zeile--3 {
   grid-template-columns: 1fr 1fr 1fr;
 }
+/* E69: Min · Mittel · Max · Bezug in einer Zeile. */
+.fp-zeile--4 {
+  grid-template-columns: 1fr 1fr 1fr 1fr;
+}
 /* Beleg-ID im Detail-Kopf (Beschluss 22.09.2026): kopierbar, suchbar. */
 .beleg-id {
   display: inline-flex;

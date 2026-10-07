@@ -11,7 +11,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseImportDatei } from "./import-datei";
-import { FEHLER_PREFIX, HINWEIS_PREFIX, IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, einheitOutput, enthaeltKontaktdaten, findeDoppelzeilen, hinweise, monatAusText, vorschlagZuordnung, zahlAusText, zeileZuFelder, zuordnungsFehler, type Zuordnung } from "./import-zuordnung";
+import { FEHLER_PREFIX, HINWEIS_PREFIX, IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, einheitOutput, enthaeltKontaktdaten, findeDoppelzeilen, hinweise, monatAusText, preisBezugVorschlag, vorschlagZuordnung, zahlAusText, zeileZuFelder, zuordnungsFehler, type Zuordnung } from "./import-zuordnung";
 
 const bytes = (() => {
   const b = readFileSync(join(__dirname, "..", "..", "..", "docs", "beispiele", "import-testdatei-ap27.xlsx"));
@@ -260,5 +260,22 @@ describe("Einheiten bei Bedarfen (Weggabelung 9, Blatt Bedarfe)", () => {
   });
   it("Zeile 6: Personen-Spalte „Kontakt“ verlaesst die Funktion nie", () => {
     expect(JSON.stringify(f(6))).not.toMatch(/Beispiel|06221/);
+  });
+});
+
+describe("E69: Preis-Bezug im Import", () => {
+  it("Testdatei: „Preis €/t“ ist der Rohpreis ohne eigenen Bezug — Lauf-Standard fm wird vorgeschlagen; eine Kopfzeile mit atro/TM schlaegt atro vor", () => {
+    expect(preisBezugVorschlag(biomasse.spalten, zBiomasse.spalten)).toBe("fm");
+    expect(preisBezugVorschlag(["Betrieb", "Preis €/t atro"], { Betrieb: "akteur_name", "Preis €/t atro": "preis_mittel" })).toBe("atro");
+    expect(preisBezugVorschlag(["Preis (t TM)"], { "Preis (t TM)": "preis_mittel" })).toBe("atro");
+    // Nur Preis-Spalten zaehlen: „atro" in einer Mengenspalte aendert nichts.
+    expect(preisBezugVorschlag(["Menge t atro", "Preis"], { "Menge t atro": "menge_roh_fm", Preis: "preis_mittel" })).toBe("fm");
+    expect(zeileZuFelder(biomasse.spalten, zeile(biomasse, 32), zBiomasse).felder.preis_bezug).toBeUndefined();
+  });
+  it("eine Spalte „Preis-Bezug“ wird dem Zielfeld zugeordnet, Werte fm/atro per Werte-Zuordnung", () => {
+    const spalten = ["Betrieb", "Preis", "Preis-Bezug"];
+    const z: Zuordnung = { spalten: vorschlagZuordnung("biomasse", spalten), werte: { preis_bezug: { "je t atro": "atro" } } };
+    expect(z.spalten["Preis-Bezug"]).toBe("preis_bezug");
+    expect(zeileZuFelder(spalten, ["Hof", "85", "je t atro"], z).felder).toMatchObject({ preis_mittel: "85", preis_bezug: "atro" });
   });
 });

@@ -20,9 +20,10 @@
  * ungewichtet — die Auswertung kennt fuer Outputs keinen Korridor, hier
  * entsteht keiner mit zweiter Gewichtungslogik.
  */
-import { preisKorridorRoh } from "./auswertung-modell";
+import { preisKorridorRoh, preisVergleichbar } from "./auswertung-modell";
 import { STOFFLICHE_PRODUKTE } from "./energie";
 import { fmtPreis } from "./format";
+import { NICHT_VERGLEICHBAR, NICHT_VERGLEICHBAR_GRUND, preisAtroVon, preisNichtVergleichbar } from "./preis-bezug";
 import { type Strom, energetischerPreis, stofflicherPreis } from "./stroeme-modell";
 
 export const MINDEST_VERGLEICH = 2;
@@ -66,9 +67,8 @@ function outputPreis(s: Strom): number | null {
  */
 export function vergleichsStroeme(strom: Strom, pool: Strom[]): Strom[] {
   if (strom.art === "biomasse") {
-    return pool.filter(
-      (s) => s.art === "biomasse" && s.id !== strom.id && s.cluster === strom.cluster && s.preisMittel != null,
-    );
+    // E69: Vergleichswert ist nur, wer einen in €/t atro ableitbaren Preis hat.
+    return pool.filter((s) => s.art === "biomasse" && s.id !== strom.id && s.cluster === strom.cluster && preisVergleichbar(s));
   }
   const stofflich = STOFFLICHE_PRODUKTE.has(strom.produktCode ?? "");
   return pool.filter(
@@ -119,11 +119,10 @@ export function preisKorridorEinzel(
 
   if (strom.art === "biomasse") {
     const gruppe = strom.cluster ? (labels.cluster[strom.cluster] ?? strom.cluster) : "ohne Cluster";
-    const eigen =
-      strom.preisMittel != null
-        ? { min: strom.preisMin ?? strom.preisMittel, mittel: strom.preisMittel, max: strom.preisMax ?? strom.preisMittel }
-        : null;
+    // E69: der eigene Korridor in €/t atro (abgeleitet); mit Preis, aber ohne Ableitung → benannter Zustand.
+    const eigen = preisAtroVon(strom);
     const basis = { art: "biomasse" as const, einheit: "€/t atro" as const, gruppe, eigen };
+    if (preisNichtVergleichbar(strom)) return { ...basis, band: null, zustand: `Preis ${NICHT_VERGLEICHBAR} (${NICHT_VERGLEICHBAR_GRUND})`, wertung: null };
     if (peers.length < MINDEST_VERGLEICH) return { ...basis, band: null, zustand: ZU_WENIG, wertung: null };
     const roh = preisKorridorRoh(peers);
     if (roh.leer) return { ...basis, band: null, zustand: roh.hinweis ?? ZU_WENIG, wertung: null };

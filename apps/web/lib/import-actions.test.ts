@@ -111,6 +111,7 @@ vi.mock("@/lib/photon-server", async (orig) => {
   };
 });
 const bausteinAufrufe: string[] = [];
+const preisBezuege: string[] = [];
 const belegDaten: { typ: string; erhebungsdatum: string | null; gueltigBis: string | null }[] = [];
 let stromFehltAb: Set<string> = new Set();
 vi.mock("@/lib/strom-schreibweg", async (orig) => {
@@ -119,6 +120,7 @@ vi.mock("@/lib/strom-schreibweg", async (orig) => {
     ...echt,
     stromAnlegenInTx: async (_tx: unknown, _h: unknown, e: { eingaben: { akteurId: string; materialartCode: string }; belegId?: string | null }) => {
       bausteinAufrufe.push(`strom:${e.eingaben.materialartCode}:${e.eingaben.akteurId}:${e.belegId ?? "-"}`);
+      preisBezuege.push((e.eingaben as { preisBezug?: string }).preisBezug ?? "");
       if (stromFehltAb.has(e.eingaben.materialartCode)) throw new echt.FeldFehlerAusnahme({ menge_roh_fm: "Pflichtfeld" });
       return { id: "strom-neu" };
     },
@@ -165,7 +167,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAkteurSektorWaehlen, importAusfuehren, importDoppelzeileEntscheiden, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAkteurSektorWaehlen, importAusfuehren, importDoppelzeileEntscheiden, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importLaufVerwerfen, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -180,7 +182,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; preisBezuege.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -962,5 +964,59 @@ describe("PR f — Nacharbeit prueft die Werte wie die Zuordnung (B5, B8)", () =
     txSelects.push([zeile({ akteur_name: "V", akteur_id: "a1", menge_roh_fm: "1201", akteur_sektor: "", fehler_akteur_sektor: "x" })]);
     expect(await importZeileBearbeiten(LAUF, ZEILE, { akteur_sektor: "landwirtschaft" })).toEqual({ ok: true });
     expect(updates[1]).toMatchObject({ status: "offen", fehlergrund: null });
+  });
+});
+
+describe("PR g — importLaufVerwerfen: nie ausgefuehrte Laeufe beenden", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (status: string) => ({ id: LAUF, art: "biomasse", dateiname: "liegt.xlsx", dateiHash: "a".repeat(64), belegTyp: "gespraech", standardSektor: "ohne_sektor", status, zaehler: { zeilen: 36 }, belegErhebungsdatum: null, belegGueltigBis: null, zeitraumVon: null, zeitraumBis: null, preisBezugStandard: "fm", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+
+  it("Rot: Bearbeiter abgewiesen; ein ausgefuehrter Lauf wird nicht verworfen", async () => {
+    rolle = "bearbeiter";
+    expect((await importLaufVerwerfen(LAUF)).fehler).toMatch(/recht/i);
+    rolle = "pruefer";
+    dbSelects.push([lauf("ausgefuehrt")]);
+    expect((await importLaufVerwerfen(LAUF)).fehler).toMatch(/nie ausgeführt/);
+    expect(updates).toHaveLength(0);
+    expect(deletes).toHaveLength(0);
+  });
+
+  it("Pruefer verwirft einen zugeordneten Lauf: Zeilen geloescht, Status verworfen mit Zeitpunkt, Ereignis, Roh-Upload und Beleg-Kopie in R2 geloescht", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf("zugeordnet")]);
+    txSelects.push([{ zaehler: { zeilen: 36 } }]);
+    const erg = await importLaufVerwerfen(LAUF);
+    expect(erg).toEqual({ ok: true, zeilen: 0 });
+    expect(deletes).toEqual(["import_zeile"]);
+    expect(updates[0]).toMatchObject({ status: "verworfen", verworfenAm: expect.any(Date), zaehler: expect.objectContaining({ zeilen: 36, verworfen_zeilen: 0 }) });
+    expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", id: LAUF, importLaufId: LAUF, text: expect.stringMatching(/verworfen \(nie ausgeführt, von Hand verworfen\)/) });
+    expect(geloescht).toEqual([`import/test/${LAUF}/roh.xlsx`, `belege/test/import/${LAUF}/bereinigt.csv`]);
+  });
+});
+
+describe("PR g — E69 im Probelauf: Preis-Bezug aus der Zeile oder als Lauf-Standard", () => {
+  const LAUF = "11111111-1111-4111-8111-111111111111";
+  const lauf = (preisBezugStandard: string) => ({ id: LAUF, art: "biomasse", dateiname: "t.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "aufgeloest", zaehler: { zeilen: 3 }, belegErhebungsdatum: "2026-10-06", belegGueltigBis: "2027-10-06", zeitraumVon: "2026-01-01", zeitraumBis: "2026-12-31", preisBezugStandard, erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() });
+  const strom = (teil: Record<string, string>) => ({ materialart_code: "guelle_rind", menge_roh_fm: "100", zeitraum_von: "2026-01", zeitraum_bis: "2026-12", akteur_name: "V", akteur_id: "a1", ...teil });
+  it("Zeile mit Preis ohne Bezug bekommt den Lauf-Standard (atro), Zeile mit eigener Spalte behaelt ihren Bezug, Zeile ohne Preis bekommt keinen", async () => {
+    rolle = "pruefer";
+    dbSelects.push([lauf("atro")], [
+      { id: "z1", zeilennummer: 2, status: "offen", fehlergrund: null, felder: strom({ preis_mittel: "85" }) },
+      { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: strom({ preis_mittel: "85", preis_bezug: "fm" }) },
+      { id: "z3", zeilennummer: 4, status: "offen", fehlergrund: null, felder: strom({}) },
+    ]);
+    const erg = await importProbelauf(LAUF, 2);
+    expect(erg).toMatchObject({ ok: true, okZeilen: 3 });
+    expect(preisBezuege).toEqual(["atro", "fm", ""]);
+  });
+  it("Zuordnung speichern uebernimmt den gewaehlten Lauf-Standard", async () => {
+    rolle = "pruefer";
+    const SPALTEN = ["Betrieb", "Sektor", "Straße", "Hausnummer", "PLZ", "Ort", "Ansprechpartner", "E-Mail", "Materialart", "Menge", "Einheit", "TS-Anteil %", "Zeitraum von", "Zeitraum bis"];
+    dbSelects.push([{ id: LAUF, art: "biomasse", dateiname: "import-biomasse.csv", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor", status: "angelegt", zaehler: { zeilen: 3, spalten: 14 }, preisBezugStandard: "fm", erstellerEmail: null, createdAt: new Date(), updatedAt: new Date() }]);
+    const b = readFileSync(join(BEISPIELE, "import-biomasse.csv"));
+    r2Inhalt = b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength) as ArrayBuffer;
+    const erg = await importZuordnungSpeichern(LAUF, { spalten: { ...vorschlagZuordnung("biomasse", SPALTEN), Hausnummer: "aschegehalt_pct" }, werte: { materialart_code: { Rindergülle: "guelle_rind", Maissilage: "maissilage", Festmist: "festmist" }, akteur_sektor: { Landwirtschaft: "landwirtschaft" } } }, { preisBezug: "atro" });
+    expect(erg.ok).toBe(true);
+    expect(updates[0]).toMatchObject({ status: "zugeordnet", preisBezugStandard: "atro" });
   });
 });

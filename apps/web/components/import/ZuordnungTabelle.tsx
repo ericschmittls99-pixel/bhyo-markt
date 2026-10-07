@@ -21,6 +21,8 @@ export interface CodeOptionen {
   sektor: { code: string; label: string }[];
   beleg_typ: { code: string; label: string }[];
   menge_einheit: { code: string; label: string }[];
+  /** E69: fm / atro. */
+  preis_bezug: { code: string; label: string }[];
 }
 
 const GRUPPEN: { key: Zielfeld["gruppe"]; label: string }[] = [
@@ -45,10 +47,13 @@ export function ZuordnungTabelle({
   vorlagen,
   aktiveVorlage,
   wahl,
+  preisBezugVorschlag,
 }: {
   laufId: string;
   /** PR e: gewaehltes Blatt und Kopfzeile — wird mit der Zuordnung gespeichert. */
   wahl: { blatt?: string; kopfzeile?: number };
+  /** E69: Vorschlag fuer den Preis-Bezug des Laufs (atro, wenn eine Preis-Kopfzeile „atro"/„TM" nennt), null fuer Bedarfe. */
+  preisBezugVorschlag: "fm" | "atro" | null;
   spalten: SpalteAnzeige[];
   zielfelder: Zielfeld[];
   vorschlag: Record<string, string>;
@@ -65,6 +70,7 @@ export function ZuordnungTabelle({
   const [vorlageName, setVorlageName] = useState(aktiveVorlage ? (vorlagen.find((v) => v.id === aktiveVorlage)?.name ?? "") : "");
   const [vorlageQuelle, setVorlageQuelle] = useState(aktiveVorlage ? (vorlagen.find((v) => v.id === aktiveVorlage)?.quelle ?? "") : "");
   const [vorlageMeldung, setVorlageMeldung] = useState<string | null>(null);
+  const [preisBezug, setPreisBezug] = useState<"fm" | "atro">(preisBezugVorschlag ?? "fm");
   const [laeuft, starte] = useTransition();
 
   function aktuelleZuordnung(): Zuordnung {
@@ -93,7 +99,7 @@ export function ZuordnungTabelle({
   function speichern() {
     const zuordnung = aktuelleZuordnung();
     starte(async () => {
-      const erg = await importZuordnungSpeichern(laufId, zuordnung, wahl);
+      const erg = await importZuordnungSpeichern(laufId, zuordnung, { ...wahl, preisBezug: preisBezugVorschlag ? preisBezug : undefined });
       if (erg.ok) {
         setMeldungen([]);
         router.refresh();
@@ -182,6 +188,20 @@ export function ZuordnungTabelle({
         <p className="pf-fehler">Pflichtfelder ohne Spalte: {pflichtOffen.map((z) => z.label).join(", ")} — ohne sie würde jede Zeile scheitern.</p>
       )}
 
+      {preisBezugVorschlag && (
+        <label className="pf imp-vorlage-wahl">
+          <span>Preis-Bezug des Laufs (E69)</span>
+          <span className="pf-feld">
+            <select value={preisBezug} onChange={(e) => setPreisBezug(e.target.value as "fm" | "atro")}>
+              <option value="fm">€/t FM</option>
+              <option value="atro">€/t atro</option>
+            </select>
+          </span>
+          <span className="c">
+            {preisBezugVorschlag === "atro" ? "Aus der Kopfzeile vorgeschlagen (atro/TM) — bitte bestätigen." : "Vorbelegt FM; gilt für Zeilen ohne eigene Spalte „Preis-Bezug“."}
+          </span>
+        </label>
+      )}
       {codeZiele.map(({ sp, def }) => {
         const liste = def.werte ? optionen[def.werte] : [];
         const map = werte[def.key] ?? {};

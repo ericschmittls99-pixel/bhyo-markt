@@ -9,6 +9,7 @@ import { Doppelzeilen } from "@/components/import/Doppelzeilen";
 import { Nacharbeit } from "@/components/import/Nacharbeit";
 import { Probelauf } from "@/components/import/Probelauf";
 import { ZuordnungTabelle, type CodeOptionen, type SpalteAnzeige } from "@/components/import/ZuordnungTabelle";
+import { Verwerfen } from "@/components/import/Verwerfen";
 import { Zuruecknehmen } from "@/components/import/Zuruecknehmen";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
@@ -17,9 +18,10 @@ import { blaetterUebersicht, ImportDateiFehler, parseImportDatei, type BlattInfo
 import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
 import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
-import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
+import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL, IMPORT_LAUF_VERWERFBAR } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
-import { DOPPEL_VON, hinweise, PERSON, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
+import { DOPPEL_VON, hinweise, PERSON, preisBezugVorschlag, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
+import { PREIS_BEZUEGE, PREIS_BEZUG_LABEL } from "@/lib/preis-bezug";
 import { BELEG_LABEL, BELEG_TYPEN, brauchtGueltigBis, istBelegTyp } from "@/lib/qualitaet";
 import { darf } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -57,7 +59,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
 
   let blattWahl: { blaetter: BlattInfo[]; blatt: string; kopfzeile: number; vorschau: string[][]; uebersprungen: ImportTabelle["uebersprungen"] } | null = null;
   let parseFehler: string | null = null;
-  let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen } | null = null;
+  let zuordnung: { spalten: SpalteAnzeige[]; vorschlag: Record<string, string>; werte: Record<string, Record<string, string>>; optionen: CodeOptionen; preisBezugVorschlag: "fm" | "atro" | null } | null = null;
   const vorlagen = lauf.status === "angelegt" ? await withDb((db) => ladeImportVorlagen(db)) : [];
   const aktiveVorlage = vorlagen.find((v) => v.id === vorlageParam) ?? null;
   let rohFehlt = false;
@@ -87,6 +89,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
         sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
         beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
         menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+        preis_bezug: PREIS_BEZUEGE.map((b) => ({ code: b, label: PREIS_BEZUG_LABEL[b]! })),
       };
       const spalten: SpalteAnzeige[] = tabelle.spalten.map((name, i) => {
         // Erkannte Personen-Spalten: keine Werte an den Browser — nicht einmal als Beispiel.
@@ -102,7 +105,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
         if (def?.typ === "code" && def.werte && !def.auto) werteBasis[def.key] = werteVorschlag(sp.werte.map((w) => w.wert), optionen[def.werte]);
       }
       const angewendet = aktiveVorlage ? vorlageAnwenden(aktiveVorlage, tabelle.spalten, kopfVorschlag, werteBasis) : { spalten: kopfVorschlag, werte: werteBasis };
-      zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen };
+      zuordnung = { spalten, vorschlag: angewendet.spalten, werte: angewendet.werte, optionen, preisBezugVorschlag: art === "biomasse" ? preisBezugVorschlag(tabelle.spalten, angewendet.spalten) : null };
       }
     }
   }
@@ -130,6 +133,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
       sektor: sektoren.filter((s) => s.aktiv).map((s) => ({ code: s.code, label: s.label })),
       beleg_typ: BELEG_TYPEN.map((t) => ({ code: t, label: BELEG_LABEL[t] })),
       menge_einheit: MENGE_EINHEITEN.map((e) => ({ code: e, label: e })),
+      preis_bezug: PREIS_BEZUEGE.map((b) => ({ code: b, label: PREIS_BEZUG_LABEL[b]! })),
     };
   }
 
@@ -190,12 +194,13 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             vorschlag={zuordnung.vorschlag}
             werteVorschlag={zuordnung.werte}
             optionen={zuordnung.optionen}
+            preisBezugVorschlag={zuordnung.preisBezugVorschlag}
           />
         )}
         {(lauf.status === "zugeordnet" || lauf.status === "aufgeloest" || gruppen.some((g) => g.ergebnis === "offen")) && (
           <AkteureAufloesen laufId={lauf.id} status={lauf.status} gruppen={gruppen} sektorLabels={sektorLabels} />
         )}
-        {lauf.status !== "zurueckgenommen" && <Doppelzeilen laufId={lauf.id} zeilen={doppelzeilen} />}
+        {lauf.status !== "zurueckgenommen" && lauf.status !== "verworfen" && <Doppelzeilen laufId={lauf.id} zeilen={doppelzeilen} />}
         {["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status) && gruppen.some((g) => g.ergebnis === "neu") && (lauf.status === "aufgeloest" || adressStand(alleZeilen).gesamt > adressStand(alleZeilen).gefunden) && (
           <AdressenAufloesen laufId={lauf.id} stand={adressStand(alleZeilen)} />
         )}
@@ -213,11 +218,12 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             zaehler={lauf.zaehler}
           />
         )}
-        {nacharbeitOptionen && lauf.status !== "zurueckgenommen" && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
+        {nacharbeitOptionen && lauf.status !== "zurueckgenommen" && lauf.status !== "verworfen" && <Nacharbeit laufId={lauf.id} zeilen={nacharbeit} zielfelder={zielfelderFuer(art)} optionen={nacharbeitOptionen} />}
         {(lauf.status === "probelauf" || lauf.status === "ausgefuehrt") && (
           <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
         )}
         {lauf.status === "ausgefuehrt" && darf(zugang, "import.zuruecknehmen") && <Zuruecknehmen laufId={lauf.id} zaehler={lauf.zaehler} />}
+        {(IMPORT_LAUF_VERWERFBAR as readonly string[]).includes(lauf.status) && darf(zugang, "import.verwerfen") && <Verwerfen laufId={lauf.id} zeilen={alleZeilen.length} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
