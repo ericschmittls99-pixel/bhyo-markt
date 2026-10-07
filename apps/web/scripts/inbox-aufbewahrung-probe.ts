@@ -66,7 +66,8 @@ async function main() {
         values (${STROM}, ${AKTEUR}, ${mat!.code}, 100, '2020-01-01', '2035-12-31', '[100,100,100,100,100,100,100,100,100,100,100,100]'::jsonb, 'entwurf')`);
       const [er] = await x<{ id: string }>(sql`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id) values ('biomassestrom', ${STROM}, 'Probe', 'geaendert', ${P1}) returning id`);
       // Zeitpunkt „vor n Tagen" um 12:00 Berlin — tagesgenau, fern der Mitternachtsgrenze.
-      const vorTagen = (n: number) => sql`((${STICHTAG}::date - ${n})::timestamp + interval '12 hours') at time zone 'Europe/Berlin'`;
+      // Parameter kommen als Text an — Typen ausdruecklich (date - int), sonst „operator does not exist".
+      const vorTagen = (n: number) => sql`((${STICHTAG}::date - ${n}::int)::timestamp + interval '12 hours') at time zone 'Europe/Berlin'`;
       const eintrag = (id: string, zustand: string, zustandVor: number, gelesenVor: number | null) => sql`
         insert into inbox_eintrag (id, empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, erstellt_am, aktualisiert_am, gelesen_am, zustand, zustand_seit)
         values (${id}, ${P1}, ${P1}, 'aenderung_eintrag', ${STROM}, ${er!.id}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))},
@@ -109,7 +110,8 @@ async function main() {
     });
   } catch (e) {
     if (!(e instanceof Error) || e.message !== ROLLBACK) {
-      console.error("::error::AUFBEWAHRUNGSPROBE abgebrochen: " + (e instanceof Error ? e.message : String(e)));
+      const ursache = e instanceof Error && e.cause instanceof Error ? ` — Ursache: ${e.cause.message}` : "";
+      console.error("::error::AUFBEWAHRUNGSPROBE abgebrochen: " + (e instanceof Error ? e.message : String(e)) + ursache);
       await verbindung.end();
       process.exit(1);
     }
