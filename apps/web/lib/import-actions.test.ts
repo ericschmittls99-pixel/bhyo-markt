@@ -293,7 +293,8 @@ describe("importZuordnungSpeichern (PR b: Zeilen uebernehmen, Roh-Upload loesche
     const z = vollstaendig();
     z.spalten.Hausnummer = "akteur_sitz_hausnummer";
     // PR e: Aschegehalt ist keine Pflicht mehr (unbekannt erlaubt) — die Materialart bleibt es.
-    for (const k of Object.keys(z.spalten)) if (z.spalten[k] === "materialart_code") z.spalten[k] = "ignorieren";
+    const sp = z.spalten as Record<string, string>;
+    for (const k of Object.keys(sp)) if (sp[k] === "materialart_code") sp[k] = "ignorieren";
     const erg = await importZuordnungSpeichern(LAUF, z);
     expect(erg.fehlerListe).toEqual([expect.stringMatching(/Pflichtfelder ohne Spalte: Materialart/)]);
     expect(schreibversuche).toBe(0);
