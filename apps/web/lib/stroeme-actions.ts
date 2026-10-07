@@ -1,7 +1,7 @@
 "use server";
 
 import { beleg, biomassestrom, outputBedarf } from "@bhyo/db/schema";
-import { and, eq } from "drizzle-orm";
+import { and, eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
 import { heuteBerlin } from "@/lib/datum";
@@ -41,7 +41,7 @@ async function wechsleStatus(
    * dem Schreiben — wirft mit der Meldung fuer die Oberflaeche (Beleg-Pflicht
    * beim Pruefen, Entscheidung Eric 01.10.2026).
    */
-  vorbedingung?: (zeile: { status: string; belegId: string | null }) => void,
+  vorbedingung?: (zeile: { status: string; belegId: string | null; tsAnteilPct: string | null; aschegehaltPct: string | null }) => void,
 ): Promise<AktionErgebnis> {
   const email = zugang.email;
   if (!(neu in STATUS_LABEL)) return { ok: false, fehler: "Unbekannter Status." };
@@ -56,7 +56,13 @@ async function wechsleStatus(
         await pruefeStromSperre(tx, zugang, aktion, art, id);
         const tabelle = art === "biomasse" ? biomassestrom : outputBedarf;
         const [zeile] = await tx
-          .select({ status: tabelle.status, belegId: tabelle.belegId })
+          .select({
+            status: tabelle.status,
+            belegId: tabelle.belegId,
+            // PR e: Biomasse ohne TS-Anteil/Aschegehalt ist unvollstaendig — Vorbedingung beim Pruefen.
+            tsAnteilPct: art === "biomasse" ? biomassestrom.tsAnteilPct : sql<string | null>`null`,
+            aschegehaltPct: art === "biomasse" ? biomassestrom.aschegehaltPct : sql<string | null>`null`,
+          })
           .from(tabelle)
           .where(eq(tabelle.id, id))
           .limit(1);
@@ -136,6 +142,8 @@ export async function stromVerwerfen(
 
 /** Meldung der Beleg-Pflicht (PR b, Entscheidung Eric 01.10.2026) — Pruefen und erneut Verifizieren. */
 const OHNE_BELEG = "Ohne Beleg kann nicht geprüft werden.";
+/** PR e (Eric 07.10.2026): ohne TS-Anteil und Aschegehalt kein „geprueft" — dieselbe Regel als DB-CHECK (Migration 0047). */
+const UNVOLLSTAENDIG = "TS-Anteil und Aschegehalt fehlen — erst ergänzen, dann prüfen.";
 
 /**
  * AP2.4 PR a (E62, D4): „geprueft" setzen — nur pruefer/admin, aus entwurf
@@ -156,6 +164,7 @@ export async function stromPruefen(art: StromArt, id: string): Promise<AktionErg
     () => "geprueft",
     (zeile) => {
       if (!zeile.belegId) throw new Error(OHNE_BELEG);
+      if (art === "biomasse" && (zeile.tsAnteilPct == null || zeile.aschegehaltPct == null)) throw new Error(UNVOLLSTAENDIG);
     },
   );
 }

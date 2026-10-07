@@ -1737,7 +1737,63 @@ Aufrufe für drei Zeilen); Photon nicht erreichbar → nichts geschrieben;
 Probelauf ohne Belegdaten oder mit offenen Vorschlägen startet nicht.
 
 
-## 39. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
+## 39. AP2.7 PR e: Import — Blattwahl, Kopfzeile, fehlende Pflichtwerte (E67), 07.10.2026
+
+**Anlass:** Durchlauf mit der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`
+(Eric, fiktiv): Kopfzeile in Zeile 4 wurde nicht erkannt, kein Blatt wählbar,
+Zuordnung gesperrt, weil TS-Anteil und Aschegehalt in der Datei fehlen.
+Entscheidungen Eric (07.10.2026), hier umgesetzt:
+
+**Blattwahl (B2):** Nach dem Upload zeigt die Zuordnung alle Blätter mit
+Zeilenzahl; Blätter ohne erkennbare Tabelle sind markiert („keine Tabelle
+erkannt"), nicht verboten — wer sie wählt, bekommt die Meldung „keine
+Kopfzeile erkennbar — Kopfzeile von Hand wählen". Ohne Wahl nimmt der Parser
+das erste Blatt mit Tabelle. Die Wahl reist als `?blatt=&kopf=`, wird mit der
+Zuordnung gespeichert (`import_lauf.blatt`, `import_lauf.kopfzeile`,
+Migration 0047) und steht im Protokolltext.
+
+**Kopfzeile (B1):** `erkenneKopfzeile`: die erste Zeile mit mindestens zwei
+nicht-leeren Zellen, davon überwiegend Text, auf die innerhalb von drei
+Zeilen ein Datenblock (eine Zeile mit mindestens zwei Zellen) folgt; sonst
+der erste Kandidat ohne Datenblock (dann „keine Datenzeile"). Feld
+„Kopfzeile ist Zeile n" mit Vorschau (bis vier Rohzeilen ab der Kopfzeile).
+Zeilen darüber werden ignoriert; darunter werden Leerzeilen, eine
+Summenzeile (Formel in der Zeile oder erste Textzelle „Summe"/„Gesamt"/
+„Total") und Fußzeilen (höchstens eine Zelle bei mindestens drei Spalten)
+übersprungen und gezählt (`zaehler.uebersprungen_oben/_leer/_summe/_fuss`,
+Oberfläche, Protokoll). Zeilennummern sind die echten Excel-Zeilen, damit
+Nacharbeit und Datei zusammenpassen. Die Personen-Erkennung greift danach
+über die echten Spaltennamen.
+
+**Fehlende Pflichtwerte (W1):** Die Materialart-Referenz trägt **keine**
+TS- und Aschewerte (nur Code, Label, Cluster) — es gibt keinen Typwert.
+Also gilt: TS-Anteil und Aschegehalt dürfen fehlen (Spalte oder Zelle);
+`biomassestrom.ts_anteil_pct` und `aschegehalt_pct` sind nullable
+(Migration 0047), NULL heißt „unbekannt", nie ein erfundener Wert. Der
+Strom ist dann unvollständig (Vollständigkeit zählt beide Felder) und kann
+nicht „geprüft" werden: `stromPruefen` weist ab („TS-Anteil und Aschegehalt
+fehlen — erst ergänzen, dann prüfen."), der DB-CHECK
+`biomassestrom_geprueft_vollstaendig_check` ist das Sicherheitsnetz (E21:
+vorher gab es keine NULL-Werte, Zählbeweis `PR_E geprueft_unvollstaendig=0`).
+**Eine Logik für Formular und Import:** das Formular verlangt die Felder
+nicht mehr („leer = unbekannt"), Detail und Register zeigen „unbekannt".
+
+**Zeitraum:** Ohne Spalte oder mit leerer Zelle gilt der Zeitraum des
+Laufs: „Zeitraum von" **und** „Zeitraum bis" (MM/JJJJ) sind Pflichtangaben
+bei den Belegdaten, sobald eine Zeile keinen eigenen Zeitraum trägt, ohne
+Vorbelegung (`import_lauf.zeitraum_von/_bis`). **Gemeldet:** `zeitraum_bis`
+ist im Modell NOT NULL — „unbefristet" gibt es nicht, deshalb ist auch
+„Zeitraum bis" am Lauf Pflicht (Erics Vorbehalt „falls das Modell es
+zulässt"). Eine zugeordnete Spalte geht dem Lauf-Wert je Zeile vor.
+
+**Rot gezeigt (Vitest):** Legende ohne Kopfzeile abgewiesen mit Hinweis auf
+die Handwahl; unbekanntes Blatt abgewiesen; Zeilen ohne Zeitraum und ohne
+Lauf-Zeitraum → Feldfehler, nichts gespeichert; bis vor von → Fehler;
+fehlende Materialart bleibt Pflichtverletzung, fehlender Aschegehalt nicht
+mehr; `stromPruefen` ohne TS/Asche (Fixture mit Werten grün, Vorbedingung
+im Code).
+
+## 40. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
 
 **E68 (Eric, 06.10.2026):** Adressprüfung statt Autocomplete. Kein
 Bezahldienst; ein gehosteter Dienst (Geofabrik/Geoapify) bleibt als spätere
@@ -1775,7 +1831,7 @@ verwaltungsgebiet 14 MB). Vor jeder Production-Migration gilt deshalb:
 `plz_ort` ohne Geometrie, `plz_gebiet` vereinfacht, Ziel deutlich unter
 25 MB zusammen; Messung im Wegwerf-Lauf, Entscheidung bei Eric.
 
-**Datenmodell (Migration 0047):** `plz_gebiet(plz PK, geom MultiPolygon
+**Datenmodell (Migration 0048):** `plz_gebiet(plz PK, geom MultiPolygon
 4326, stichtag)` mit CHECK fünfstellig und GIST; `plz_ort(plz FK cascade,
 ort, ort_norm, ars 12-stellig)` mit PK (plz, ars) und Index auf `ort_norm`
 — **ohne Geometrie**. Der Schnitt PLZ × Gemeinde wird nur beim Import
@@ -1828,14 +1884,22 @@ fällt heraus; Doppel-PLZ 75378 wird eine Zeile; Grenzpunkt trifft beide
 Seiten mit deterministischer erster Zeile; Punkt außerhalb → keine Zeile,
 `punkt_in_plz` false, unbekannte PLZ null.
 
-**Offene Weggabelungen (nicht entschieden):** (1) Vereinfachungstoleranz
-0,00015° und Schwelle 10 % — nach der Messung auf `wegwerf` bestätigen
-(Eric entscheidet anhand PLZVERGLEICH). (2) Exklaven außerhalb Deutschlands
+**Entscheidung Eric (07.10.2026, nach Messung):** Toleranz **0,00015°**
+(Standard im Code). Gemessen auf `wegwerf`: Rohflächen 6,4 Mio.
+Stützpunkte / 98 MB → 1,7 Mio. / 27 MB, Tabelle 30 MB, mit `plz_ort`
+32 MB; 7 von 12.838 Zufallspunkten mit anderer PLZ, keiner ohne PLZ.
+0,0005° hätte 17 MB gebracht, aber 44 abweichende und 6 PLZ-lose Punkte.
+Neon Free hat 1 GB je Projekt, Production liegt bei 31 MB — 32 MB
+zusätzlich sind unkritisch; das frühere 25-MB-Ziel beruhte auf einer
+falschen Annahme (0,5 GB).
+
+**Offene Weggabelungen (nicht entschieden):** (1) Schwelle 10 % für die
+Ortszuordnung. (2) Exklaven außerhalb Deutschlands
 (87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (3) ODbL-Share-alike für
 die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
 07.10.2026): Quelle und Ableitung der Orte, siehe oben.
 
-## 40. E68 PR 2: Prüfen-Knopf und Genauigkeit, 07.10.2026
+## 41. E68 PR 2: Prüfen-Knopf und Genauigkeit, 07.10.2026
 
 **Ablauf (ein Klick, höchstens eine externe Anfrage):** `lib/adresse-pruefung-server.ts`
 1. lokal PLZ↔Ort (`plz_pruefung`, PR 1): unbekannte PLZ oder Ort passt nicht
@@ -1861,7 +1925,7 @@ Genauigkeit ist `unbekannt` (der Standort trägt sie nicht mit; nichts wird
 erfunden). Route `/api/adresse` ist ein lesender GET wie `/api/geocode`
 (Firmenadressen, keine Personendaten).
 
-**Genauigkeit (Migration 0048):** Enum `standort_genauigkeit` (hausnummer ·
+**Genauigkeit (Migration 0049):** Enum `standort_genauigkeit` (hausnummer ·
 strasse · plz_gebiet · manuell · unbekannt, E53: nie umbenennen), Spalten
 `biomassestrom.standort_genauigkeit`, `output_bedarf.standort_genauigkeit`,
 `akteur.sitz_genauigkeit`, NOT NULL DEFAULT `unbekannt` — der Altbestand

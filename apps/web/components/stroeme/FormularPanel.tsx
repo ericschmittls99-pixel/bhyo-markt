@@ -628,9 +628,7 @@ export function FormularPanel({
                     {f.menge_roh_fm && <span className="pf-fehler">{f.menge_roh_fm}</span>}
                   </label>
                   <label className="pf">
-                    <span>
-                      TS-Anteil<em className="pf-pflicht" aria-hidden> *</em>
-                    </span>
+                    <span>TS-Anteil (leer = unbekannt)</span>
                     <span className="pf-feld">
                       <input
                         type="text"
@@ -645,9 +643,7 @@ export function FormularPanel({
                     {f.ts_anteil_pct && <span className="pf-fehler">{f.ts_anteil_pct}</span>}
                   </label>
                   <label className="pf">
-                    <span>
-                      Aschegehalt<em className="pf-pflicht" aria-hidden> *</em>
-                    </span>
+                    <span>Aschegehalt (leer = unbekannt)</span>
                     <span className="pf-feld">
                       <input
                         type="text"

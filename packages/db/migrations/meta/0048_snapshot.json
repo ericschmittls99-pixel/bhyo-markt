@@ -1,6 +1,6 @@
 {
-  "id": "a932a7ed-2502-48c2-9fde-90729fbf2e93",
-  "prevId": "35ef43ed-69eb-4c56-a717-1ba55b423e7e",
+  "id": "4e42288b-8929-40f0-a0f9-d94de439ab2a",
+  "prevId": "cf6048eb-81a9-459c-b233-1408c2f2f90c",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -195,14 +195,6 @@
           "type": "geometry(point)",
           "primaryKey": false,
           "notNull": false
-        },
-        "sitz_genauigkeit": {
-          "name": "sitz_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
         },
         "status": {
           "name": "status",
@@ -800,14 +792,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "standort_genauigkeit": {
-          "name": "standort_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
-        },
         "materialart_code": {
           "name": "materialart_code",
           "type": "text",
@@ -824,13 +808,13 @@
           "name": "ts_anteil_pct",
           "type": "numeric",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "aschegehalt_pct": {
           "name": "aschegehalt_pct",
           "type": "numeric",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "menge_atro": {
           "name": "menge_atro",
@@ -1217,6 +1201,30 @@
         },
         "beleg_gueltig_bis": {
           "name": "beleg_gueltig_bis",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "blatt": {
+          "name": "blatt",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kopfzeile": {
+          "name": "kopfzeile",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zeitraum_von": {
+          "name": "zeitraum_von",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "zeitraum_bis": {
+          "name": "zeitraum_bis",
           "type": "date",
           "primaryKey": false,
           "notNull": false
@@ -2491,14 +2499,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "standort_genauigkeit": {
-          "name": "standort_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
-        },
         "produkt_code": {
           "name": "produkt_code",
           "type": "text",
@@ -3711,17 +3711,6 @@
         "B",
         "C",
         "D"
-      ]
-    },
-    "public.standort_genauigkeit": {
-      "name": "standort_genauigkeit",
-      "schema": "public",
-      "values": [
-        "hausnummer",
-        "strasse",
-        "plz_gebiet",
-        "manuell",
-        "unbekannt"
       ]
     },
     "public.verwaltungs_ebene": {

@@ -14,7 +14,9 @@ import {
   IMPORT_MAX_BYTES,
   IMPORT_MAX_ZEILEN,
   ImportDateiFehler,
+  blaetterUebersicht,
   dateiErlaubt,
+  erkenneKopfzeile,
   parseImportDatei,
   sha256Hex,
   spaltenNamen,
@@ -130,5 +132,57 @@ describe("sha256Hex", () => {
     expect(h).toBe("9e03cf9b31e8720138b4b743151f7d967e1a0181c205b3e2cc996c734a71e8fa");
     expect(h).toMatch(/^[0-9a-f]{64}$/);
     expect(await sha256Hex(csvAus("abc"))).toBe("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
+  });
+});
+
+describe("parseImportDatei — Blattwahl, Kopfzeile, Datenblock (PR e, Testdatei AP2.7)", () => {
+  const datei = () => fixture("import-testdatei-ap27.xlsx");
+
+  it("Uebersicht: vier Blaetter, Legende ohne erkennbare Tabelle, Erhebung mit Kopfzeile 4", () => {
+    const b = blaetterUebersicht(datei(), "t.xlsx");
+    expect(b.map((x) => [x.name, x.tabelle, x.kopfzeile])).toEqual([
+      ["Erhebung Biomasse", true, 4],
+      ["Bedarfe", true, 1],
+      ["Legende", false, null],
+      ["Testfälle (nicht importieren)", true, 1],
+    ]);
+  });
+
+  it("Kopfzeile in Zeile 4 wird erkannt; Titelzeilen ignoriert, Leerzeile, Summenzeile (Formel) und Fussnote uebersprungen", () => {
+    const t = parseImportDatei(datei(), "t.xlsx");
+    expect(t.blatt).toBe("Erhebung Biomasse");
+    expect(t.kopfzeile).toBe(4);
+    expect(t.spalten.slice(0, 6)).toEqual(["Nr", "Betrieb / Firma", "Straße", "Hausnr.", "PLZ", "Ort"]);
+    expect(t.zeilen).toHaveLength(36);
+    expect(t.zeilennummern[0]).toBe(5);
+    expect(t.zeilennummern[t.zeilennummern.length - 1]).toBe(41);
+    expect(t.zeilennummern).not.toContain(35); // Leerzeile
+    expect(t.uebersprungen).toEqual({ oben: 3, leer: 2, summe: 1, fuss: 1 });
+    expect(t.vorschau[0]![1]).toBe("Betrieb / Firma");
+  });
+
+  it("Blatt waehlbar: Bedarfe mit Kopfzeile 1 und acht Zeilen", () => {
+    const t = parseImportDatei(datei(), "t.xlsx", { blatt: "Bedarfe" });
+    expect(t.kopfzeile).toBe(1);
+    expect(t.spalten[0]).toBe("Abnehmer");
+    expect(t.zeilen).toHaveLength(8);
+  });
+
+  it("Rot: Legende ohne Kopfzeile wird abgewiesen, mit Hinweis auf die Handwahl", () => {
+    expect(() => parseImportDatei(datei(), "t.xlsx", { blatt: "Legende" })).toThrow(/keine Kopfzeile erkennbar/);
+    expect(() => parseImportDatei(datei(), "t.xlsx", { blatt: "Gibt es nicht" })).toThrow(/gibt es in der Datei nicht/);
+  });
+
+  it("Kopfzeile von Hand: Zeile 2 statt 4 macht die Titelzeile zur Kopfzeile", () => {
+    const t = parseImportDatei(datei(), "t.xlsx", { kopfzeile: 2 });
+    expect(t.kopfzeile).toBe(2);
+    expect(t.uebersprungen.oben).toBe(1);
+    expect(t.zeilennummern[0]).toBe(4);
+  });
+
+  it("erkenneKopfzeile: Zeile mit einer Zelle ist keine Kopfzeile, Zahlenzeile auch nicht", () => {
+    expect(erkenneKopfzeile([["Titel"], [], ["A", "B", "C"], [1, 2, 3]])).toBe(3);
+    expect(erkenneKopfzeile([[1, 2, 3], [4, 5, 6]])).toBeNull();
+    expect(erkenneKopfzeile([["A", "B"]])).toBe(1); // Kandidat ohne Datenblock — der Parser meldet dann „keine Datenzeile"
   });
 });

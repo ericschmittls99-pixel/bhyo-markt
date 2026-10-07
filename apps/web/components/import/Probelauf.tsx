@@ -18,6 +18,9 @@ export function Probelauf({
   erhebungsdatum,
   gueltigBis,
   gueltigBisPflicht,
+  zeitraumVon,
+  zeitraumBis,
+  zeilenOhneZeitraum,
   ersteZeile,
   zaehler,
 }: {
@@ -26,22 +29,29 @@ export function Probelauf({
   erhebungsdatum: string | null;
   gueltigBis: string | null;
   gueltigBisPflicht: boolean;
+  /** PR e: Zeitraum des Laufs (MM/JJJJ) fuer Zeilen ohne eigenen; Pflicht, sobald solche Zeilen da sind. */
+  zeitraumVon: string | null;
+  zeitraumBis: string | null;
+  zeilenOhneZeitraum: number;
   ersteZeile: number | null;
   zaehler: Record<string, number> | null;
 }) {
   const router = useRouter();
   const [e, setE] = useState(erhebungsdatum ?? "");
   const [g, setG] = useState(gueltigBis ?? "");
+  const [zv, setZv] = useState(zeitraumVon ?? "");
+  const [zb, setZb] = useState(zeitraumBis ?? "");
+  const zeitraumPflicht = zeilenOhneZeitraum > 0;
   const [belegMeldung, setBelegMeldung] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
   const [probelaufLaeuft, setProbelaufLaeuft] = useState(false);
   const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [probelaufFehler, setProbelaufFehler] = useState<string | null>(null);
-  const belegdatenDa = !!erhebungsdatum && (!gueltigBisPflicht || !!gueltigBis);
+  const belegdatenDa = !!erhebungsdatum && (!gueltigBisPflicht || !!gueltigBis) && (!zeitraumPflicht || (!!zeitraumVon && !!zeitraumBis));
 
   function belegdatenSpeichern() {
     starte(async () => {
-      const erg = await importBelegDatenSetzen(laufId, e, g);
+      const erg = await importBelegDatenSetzen(laufId, e, g, zv, zb);
       if (erg.ok) {
         setBelegMeldung(null);
         router.refresh();
@@ -98,6 +108,23 @@ export function Probelauf({
             <input type="date" value={g} onChange={(ev) => setG(ev.target.value)} />
           </span>
         </label>
+        {zeitraumPflicht && (
+          <>
+            <label className="pf adr-kurz">
+              <span>Zeitraum von (MM/JJJJ, Pflicht)</span>
+              <span className="pf-feld">
+                <input type="text" inputMode="numeric" placeholder="MM/JJJJ" value={zv} onChange={(ev) => setZv(ev.target.value)} required />
+              </span>
+            </label>
+            <label className="pf adr-kurz">
+              <span>Zeitraum bis (MM/JJJJ, Pflicht)</span>
+              <span className="pf-feld">
+                <input type="text" inputMode="numeric" placeholder="MM/JJJJ" value={zb} onChange={(ev) => setZb(ev.target.value)} required />
+              </span>
+            </label>
+            <span className="c">{zeilenOhneZeitraum} Zeile(n) ohne eigenen Zeitraum — der Zeitraum des Laufs gilt für sie (kein „unbefristet“ im Modell).</span>
+          </>
+        )}
         <button type="button" className="btn btn--ghost btn--sm" onClick={belegdatenSpeichern} disabled={laeuft || !e}>
           <i className="ph ph-calendar-check" aria-hidden />
           Belegdaten speichern

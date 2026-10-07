@@ -1,6 +1,6 @@
 {
-  "id": "cf6048eb-81a9-459c-b233-1408c2f2f90c",
-  "prevId": "ee741879-8584-4628-b8d7-602ad86c432e",
+  "id": "1998de38-b57b-4f7c-9dfb-adddbeed37f1",
+  "prevId": "4e42288b-8929-40f0-a0f9-d94de439ab2a",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -195,6 +195,14 @@
           "type": "geometry(point)",
           "primaryKey": false,
           "notNull": false
+        },
+        "sitz_genauigkeit": {
+          "name": "sitz_genauigkeit",
+          "type": "standort_genauigkeit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unbekannt'"
         },
         "status": {
           "name": "status",
@@ -791,6 +799,14 @@
           "type": "geometry(point)",
           "primaryKey": false,
           "notNull": false
+        },
+        "standort_genauigkeit": {
+          "name": "standort_genauigkeit",
+          "type": "standort_genauigkeit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unbekannt'"
         },
         "materialart_code": {
           "name": "materialart_code",
@@ -2499,6 +2515,14 @@
           "primaryKey": false,
           "notNull": false
         },
+        "standort_genauigkeit": {
+          "name": "standort_genauigkeit",
+          "type": "standort_genauigkeit",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'unbekannt'"
+        },
         "produkt_code": {
           "name": "produkt_code",
           "type": "text",
@@ -2911,6 +2935,96 @@
           "value": "\"parameter_wert\".\"gueltig_ab\" = '-infinity'::date or \"parameter_wert\".\"erstellt_von\" is not null"
         }
       },
+      "isRLSEnabled": false
+    },
+    "public.plz_gebiet": {
+      "name": "plz_gebiet",
+      "schema": "",
+      "columns": {
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": true,
+          "notNull": true
+        },
+        "geom": {
+          "name": "geom",
+          "type": "geometry(MultiPolygon,4326)",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "stichtag": {
+          "name": "stichtag",
+          "type": "date",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {},
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.plz_ort": {
+      "name": "plz_ort",
+      "schema": "",
+      "columns": {
+        "plz": {
+          "name": "plz",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ort": {
+          "name": "ort",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ort_norm": {
+          "name": "ort_norm",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "ars": {
+          "name": "ars",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "plz_ort_plz_plz_gebiet_plz_fk": {
+          "name": "plz_ort_plz_plz_gebiet_plz_fk",
+          "tableFrom": "plz_ort",
+          "tableTo": "plz_gebiet",
+          "columnsFrom": [
+            "plz"
+          ],
+          "columnsTo": [
+            "plz"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "plz_ort_plz_ars_pk": {
+          "name": "plz_ort_plz_ars_pk",
+          "columns": [
+            "plz",
+            "ars"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
       "isRLSEnabled": false
     },
     "public.region": {
@@ -3621,6 +3735,17 @@
         "B",
         "C",
         "D"
+      ]
+    },
+    "public.standort_genauigkeit": {
+      "name": "standort_genauigkeit",
+      "schema": "public",
+      "values": [
+        "hausnummer",
+        "strasse",
+        "plz_gebiet",
+        "manuell",
+        "unbekannt"
       ]
     },
     "public.verwaltungs_ebene": {

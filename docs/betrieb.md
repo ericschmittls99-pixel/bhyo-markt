@@ -261,7 +261,7 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
 
 ## PLZ-Gebiete lokal: Import-Workflow und Wegwerf-Postgres (E68 PR 1, 07.10.2026)
 
-- **`import-plz.yml`** befüllt `plz_gebiet` und `plz_ort` (Migration 0047) aus
+- **`import-plz.yml`** befüllt `plz_gebiet` und `plz_ort` (Migration 0048) aus
   yetzt/postleitzahlen 2026.02 (ODbL) und dem Schnitt mit den
   VG250-Gemeinden (dieselbe BKG-Lieferung wie `import-vg250.yml`). Nur
   manuell, Zielumgebung wörtlich bestätigen, Host-Prüfung, SHA-256 beider
@@ -283,7 +283,7 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
 - **Speicher (Eric 07.10.2026):** Neon Free, harte Grenze laut Preisseite
   1 GB je Projekt. `lese-diagnose` druckt die Production-Größe (GROESSE),
   `import-check` im Deploy die Preview-Größe. Vor der Production-Migration
-  von 0047: Wegwerf-Messung (PLZNACH, PLZVERGLEICH) vorlegen, Ziel deutlich
+  von 0048: Wegwerf-Messung (PLZNACH, PLZVERGLEICH) vorlegen, Ziel deutlich
   unter 25 MB für `plz_gebiet` + `plz_ort`.
 - **Neuer Stand der Quelle:** SHA-256 im Workflow, `PLZ_STICHTAG` und
   `SOLL_PLZ` in `packages/db/src/plz-import.ts` bewusst anpassen; den auf
@@ -295,5 +295,5 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
   `https://photon.komoot.io`. Nur https, ohne Schrägstrich am Ende; ein
   ungültiger Wert fällt auf Photon zurück. Nutzungsregeln (User-Agent mit
   Kontakt, eine Anfrage je Klick) gelten für jede Instanz.
-- Migration 0048 (Enum `standort_genauigkeit`, drei Spalten mit Default)
+- Migration 0049 (Enum `standort_genauigkeit`, drei Spalten mit Default)
   läuft über das Label; der Altbestand bleibt „unbekannt".
