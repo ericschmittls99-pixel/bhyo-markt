@@ -63,7 +63,12 @@ async function main() {
     console.log(`${ok ? "OK " : "ROT"} ${name}: ${JSON.stringify(ist)}`);
     if (!ok) fehler.push(name);
   };
-  /** Erwartete Abweisung in einem Savepoint: liefert die Fehlermeldung oder null (= durchgekommen). */
+  /**
+   * Erwartete Abweisung in einem Savepoint: liefert die Fehlermeldung oder
+   * null (= durchgekommen). Drizzle verpackt DB-Fehler als „Failed query: …"
+   * — der Constraint-Name steht in `cause` (dem Postgres-Fehler), deshalb
+   * wird die Ursache bevorzugt.
+   */
   const scheitert = async (tx: Tx, fn: (sp: Tx) => Promise<unknown>): Promise<string | null> => {
     try {
       await tx.transaction(async (sp) => {
@@ -71,7 +76,8 @@ async function main() {
       });
       return null;
     } catch (e) {
-      return e instanceof Error ? e.message : String(e);
+      const ursache = e instanceof Error && e.cause instanceof Error ? e.cause.message : null;
+      return ursache ?? (e instanceof Error ? e.message : String(e));
     }
   };
   try {
@@ -159,8 +165,9 @@ async function main() {
       pruefe("6c admin loescht fremden weich: text NULL, geloescht_am gesetzt, Zeile und Erwaehnungen bleiben", z3[0]?.text === null && z3[0]?.geloescht === true && z3[0]?.n_erw === 2, z3[0]);
       const nochmal = await scheitert(tx, (sp) => kommentarLoeschenInTx(sp, admin, k1.id));
       pruefe("6d erneutes Loeschen abgewiesen", nochmal === "Der Kommentar ist bereits gelöscht.", nochmal);
-      const e3 = await x<{ art: string }>(sql`select art::text from aenderung where entitaet_id = ${k1.id} order by zeitpunkt, id`);
-      pruefe("6e drei Ereignisse: erstellt, bearbeitet, geloescht", e3.map((e) => e.art).join(",") === "kommentar_erstellt,kommentar_bearbeitet,kommentar_geloescht", e3);
+      // Innerhalb EINER Transaktion ist now() konstant — die Reihenfolge ist nicht pruefbar, die Menge schon.
+      const e3 = await x<{ art: string }>(sql`select art::text from aenderung where entitaet_id = ${k1.id} order by art`);
+      pruefe("6e drei Ereignisse: erstellt, bearbeitet, geloescht (je genau eins)", e3.map((e) => e.art).join(",") === "kommentar_bearbeitet,kommentar_erstellt,kommentar_geloescht", e3);
 
       // 7. Kein Kommentartext im Protokoll (und Rot-Nachweis der Suche)
       const treffer = await x<{ n: number }>(sql`select count(*)::int as n from aenderung where text like ${"%" + SENTINEL + "%"}`);
@@ -175,11 +182,14 @@ async function main() {
 
       // 8. Loeschverhalten: verwaister Akteur weg → Kommentare per CASCADE weg
       const k3 = await kommentarErstellenInTx(tx, pruefer, { art: "akteur", id: AKTEUR2 }, `${SENTINEL} am verwaisten Akteur ${erwaehnungsMarker(BEARB)}`);
+      const stromVorher = (await x<{ n: number }>(sql`select count(*)::int as n from kommentar where biomassestrom_id = ${STROM}`))[0]!.n;
       await x(sql`delete from akteur where id = ${AKTEUR2}`);
-      const rest = await x<{ k: number; e: number }>(
-        sql`select (select count(*)::int from kommentar where id = ${k3.id}) as k, (select count(*)::int from kommentar_erwaehnung where kommentar_id = ${k3.id}) as e`,
+      const rest = await x<{ k: number; e: number; strom: number }>(
+        sql`select (select count(*)::int from kommentar where id = ${k3.id}) as k,
+                   (select count(*)::int from kommentar_erwaehnung where kommentar_id = ${k3.id}) as e,
+                   (select count(*)::int from kommentar where biomassestrom_id = ${STROM}) as strom`,
       );
-      pruefe("8 Akteur geloescht: Kommentar und Erwaehnung per CASCADE weg; Strom-Kommentare unberuehrt", rest[0]?.k === 0 && rest[0]?.e === 0 && (await x<{ n: number }>(sql`select count(*)::int as n from kommentar where biomassestrom_id = ${STROM}`))[0]?.n === 1, rest[0]);
+      pruefe("8 Akteur geloescht: Kommentar und Erwaehnung per CASCADE weg; Strom-Kommentare unberuehrt", rest[0]?.k === 0 && rest[0]?.e === 0 && rest[0]?.strom === stromVorher && stromVorher > 0, { ...rest[0], stromVorher });
 
       throw new Error(ROLLBACK);
     });
