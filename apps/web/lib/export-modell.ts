@@ -25,6 +25,7 @@
  * Beleg). Auch in Zahlenspalten steht dann Text — Excel lässt Text beim
  * Summieren aus, es entsteht nie eine stille Null.
  */
+import { NICHT_VERGLEICHBAR, PREIS_BEZUG_LABEL, preisAtroVon, preisNichtVergleichbar } from "./preis-bezug";
 import { CLUSTER_LABEL } from "./farben";
 import { fmtMenge, fmtPreis } from "./format";
 import { potenzialEuroFeedstock, potenzialEuroOutput } from "./potenzial";
@@ -266,10 +267,13 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
     }),
   },
   { key: "menge_energetisch", gruppe: "mengen", kopf: "Menge energetisch [MWh/a]", einstufung: KEINE_BELEGANGABE, wert: nurOutput((s) => groesse(energetischeMenge(s), "menge")) },
-  // 6. Preise — Vorzeichen nach E14 in Worten im Kopf
-  { key: "preis_min", gruppe: "preise", kopf: "Preis min [€/t atro] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMin, "preis")) },
-  { key: "preis_mittel", gruppe: "preise", kopf: "Preis mittel [€/t atro] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMittel, "preis")) },
-  { key: "preis_max", gruppe: "preise", kopf: "Preis max [€/t atro] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMax, "preis")) },
+  // 6. Preise — Vorzeichen nach E14 in Worten im Kopf. E69: der Rohpreis traegt seinen
+  //    Bezug (Spalte „Preis-Bezug"), der Preis €/t atro ist abgeleitet (E23), nicht gespeichert.
+  { key: "preis_min", gruppe: "preise", kopf: "Preis min [€/t] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMin, "preis")) },
+  { key: "preis_mittel", gruppe: "preise", kopf: "Preis mittel [€/t] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMittel, "preis")) },
+  { key: "preis_max", gruppe: "preise", kopf: "Preis max [€/t] (positiv = Kosten für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.preisMax, "preis")) },
+  { key: "preis_bezug", gruppe: "preise", kopf: "Preis-Bezug (FM / atro)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => (s.preisMittel == null && s.preisMin == null && s.preisMax == null ? NICHT_ERFASST : (PREIS_BEZUG_LABEL[s.preisBezug ?? "unbekannt"] ?? "Bezug unbekannt"))) },
+  { key: "preis_atro", gruppe: "preise", kopf: "Preis mittel [€/t atro] (abgeleitet, E69)", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => (s.preisMittel == null ? NICHT_ERFASST : preisNichtVergleichbar(s) ? NICHT_VERGLEICHBAR : { zahl: preisAtroVon(s)!.mittel, art: "preis" })) },
   { key: "preis_stofflich", gruppe: "preise", kopf: "Preis stofflich [€/t] (Erlös für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurOutput((s) => groesse(stofflicherPreis(s), "preis")) },
   { key: "preis_energetisch", gruppe: "preise", kopf: "Preis energetisch [€/MWh] (Erlös für bhyo)", einstufung: KEINE_BELEGANGABE, wert: nurOutput((s) => groesse(energetischerPreis(s), "preis")) },
   // 7. Potenzial — E18: positiv = Erlös für bhyo, für beide Arten

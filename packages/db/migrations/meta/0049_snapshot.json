@@ -1,5 +1,5 @@
 {
-  "id": "1998de38-b57b-4f7c-9dfb-adddbeed37f1",
+  "id": "8962ae62-1029-40b3-9164-afa229f88071",
   "prevId": "4e42288b-8929-40f0-a0f9-d94de439ab2a",
   "version": "7",
   "dialect": "postgresql",
@@ -195,14 +195,6 @@
           "type": "geometry(point)",
           "primaryKey": false,
           "notNull": false
-        },
-        "sitz_genauigkeit": {
-          "name": "sitz_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
         },
         "status": {
           "name": "status",
@@ -800,14 +792,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "standort_genauigkeit": {
-          "name": "standort_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
-        },
         "materialart_code": {
           "name": "materialart_code",
           "type": "text",
@@ -881,6 +865,13 @@
         "preis_herkunft": {
           "name": "preis_herkunft",
           "type": "preis_herkunft",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_bezug": {
+          "name": "preis_bezug",
+          "type": "preis_bezug",
           "typeSchema": "public",
           "primaryKey": false,
           "notNull": false
@@ -1270,6 +1261,20 @@
           "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
+        },
+        "verworfen_am": {
+          "name": "verworfen_am",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "preis_bezug_standard": {
+          "name": "preis_bezug_standard",
+          "type": "preis_bezug",
+          "typeSchema": "public",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'fm'"
         }
       },
       "indexes": {
@@ -1340,7 +1345,7 @@
         },
         "import_lauf_status_check": {
           "name": "import_lauf_status_check",
-          "value": "\"import_lauf\".\"status\" in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'fehler')"
+          "value": "\"import_lauf\".\"status\" in ('angelegt', 'zugeordnet', 'aufgeloest', 'probelauf', 'ausgefuehrt', 'zurueckgenommen', 'verworfen', 'fehler')"
         },
         "import_lauf_datei_hash_check": {
           "name": "import_lauf_datei_hash_check",
@@ -2514,14 +2519,6 @@
           "type": "geometry(point)",
           "primaryKey": false,
           "notNull": false
-        },
-        "standort_genauigkeit": {
-          "name": "standort_genauigkeit",
-          "type": "standort_genauigkeit",
-          "typeSchema": "public",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'unbekannt'"
         },
         "produkt_code": {
           "name": "produkt_code",
@@ -3718,6 +3715,15 @@
         "add_ons"
       ]
     },
+    "public.preis_bezug": {
+      "name": "preis_bezug",
+      "schema": "public",
+      "values": [
+        "fm",
+        "atro",
+        "unbekannt"
+      ]
+    },
     "public.preis_herkunft": {
       "name": "preis_herkunft",
       "schema": "public",
@@ -3735,17 +3741,6 @@
         "B",
         "C",
         "D"
-      ]
-    },
-    "public.standort_genauigkeit": {
-      "name": "standort_genauigkeit",
-      "schema": "public",
-      "values": [
-        "hausnummer",
-        "strasse",
-        "plz_gebiet",
-        "manuell",
-        "unbekannt"
       ]
     },
     "public.verwaltungs_ebene": {

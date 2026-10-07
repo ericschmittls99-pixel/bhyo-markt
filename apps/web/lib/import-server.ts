@@ -25,6 +25,8 @@ export interface ImportLaufZeile {
   kopfzeile: number | null;
   zeitraumVon: string | null;
   zeitraumBis: string | null;
+  /** E69: Preis-Bezug fuer Zeilen ohne eigene Spalte (fm | atro), gesetzt mit der Zuordnung. */
+  preisBezugStandard: string;
   erstellerEmail: string | null;
   createdAt: Date;
   updatedAt: Date;
@@ -49,6 +51,7 @@ export function ladeImportLaeufe(db: Leser): Promise<ImportLaufZeile[]> {
       kopfzeile: importLauf.kopfzeile,
       zeitraumVon: importLauf.zeitraumVon,
       zeitraumBis: importLauf.zeitraumBis,
+      preisBezugStandard: importLauf.preisBezugStandard,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,
@@ -75,6 +78,7 @@ export async function ladeImportLauf(db: Leser, id: string): Promise<ImportLaufZ
       kopfzeile: importLauf.kopfzeile,
       zeitraumVon: importLauf.zeitraumVon,
       zeitraumBis: importLauf.zeitraumBis,
+      preisBezugStandard: importLauf.preisBezugStandard,
       erstellerEmail: benutzer.email,
       createdAt: importLauf.createdAt,
       updatedAt: importLauf.updatedAt,

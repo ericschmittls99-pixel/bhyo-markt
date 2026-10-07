@@ -149,6 +149,15 @@ jobs:
       - name: freigabe-test (Waechter freigabe.sh)
         run: scripts/tests/freigabe-test.sh
 
+      # AP2.7 PR g (Eric 07.10.2026): Konfliktmarker (<<<<<<<, =======, >>>>>>>
+      # am Zeilenanfang) in versionierten Dateien machen den Lauf rot — beim
+      # Angleichen von E68 PR 1 blieben welche in zwei Doku-Dateien stehen.
+      # Rot-Nachweis: scripts/tests/konfliktmarker-test.sh (Wegwerf-Repo).
+      - name: konfliktmarker-test (Rot-Nachweis des Waechters)
+        run: scripts/tests/konfliktmarker-test.sh
+      - name: konfliktmarker-check (versionierte Dateien)
+        run: scripts/konfliktmarker-check.sh
+
   # E68 PR 1 (Eric 06.10.2026): DB-Tests der Entwuerfe gegen eine Wegwerf-
   # Postgres im Runner statt gegen die geteilte Preview. Alle Migrationen auf
   # eine leere PostGIS, dann die Staging-Fixture der PLZ-Kette, der echte

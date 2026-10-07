@@ -498,6 +498,7 @@ export function getDetail(
           preisMittel: biomassestrom.preisMittel,
           preisMax: biomassestrom.preisMax,
           preisHerkunft: biomassestrom.preisHerkunft,
+          preisBezug: biomassestrom.preisBezug,
           qualitaet: beleg.qualitaet,
           status: biomassestrom.status,
           ...belegSelect,

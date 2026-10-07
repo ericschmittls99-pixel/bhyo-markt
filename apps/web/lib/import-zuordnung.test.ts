@@ -115,7 +115,9 @@ describe("zeileZuFelder", () => {
       akteur_sitz_plz: "67346",
       akteur_sitz_ort: "Speyer",
       materialart_code: "guelle_rind",
-      menge_roh_fm: "1.234,5",
+      // PR f (E20): Mengen in ganzen Einheiten, der Hinweis bleibt an der Zeile.
+      menge_roh_fm: "1235",
+      hinweis_menge_roh_fm: expect.stringMatching(/1\.234,5.*1\.235 t FM\/a gerundet/),
       ts_anteil_pct: "8,5",
       zeitraum_von: "2026-01",
       zeitraum_bis: "2026-12",
@@ -143,10 +145,10 @@ describe("zeileZuFelder", () => {
     expect(zeileZuFelder(fixture.spalten, zeile, z).fehlergrund).toMatch(/Trockenmasse/);
   });
 
-  it("Monate: MM/JJJJ, Datumszelle und Rohtext", () => {
-    expect(monatAusText("01/2026")).toBe("2026-01");
-    expect(monatAusText("2026-03-15")).toBe("2026-03");
-    expect(monatAusText("Frühjahr")).toBe("Frühjahr");
+  it("Monate: MM/JJJJ, Datumszelle (mit Hinweis) und Freitext (Fehler, PR f)", () => {
+    expect(monatAusText("01/2026")).toEqual({ wert: "2026-01" });
+    expect(monatAusText("2026-03-15")).toEqual({ wert: "2026-03", hinweis: expect.stringMatching(/03\/2026/) });
+    expect(monatAusText("Frühjahr")).toMatchObject({ fehler: expect.stringMatching(/kein Monat/) });
   });
 
   it("ignorierte und Personen-Spalten fallen weg, auch wenn der Mensch sie umbenennt", () => {
@@ -220,10 +222,10 @@ describe("bereinigteCsv (E67, DSGVO)", () => {
 });
 
 describe("Belegdaten je Zeile (Eric 06.10.2026)", () => {
-  it("datumAusText: JJJJ-MM-TT bleibt, TT.MM.JJJJ wird kanonisch, Rohtext bleibt zur Meldung", () => {
-    expect(datumAusText("2026-03-15")).toBe("2026-03-15");
-    expect(datumAusText("5.3.2026")).toBe("2026-03-05");
-    expect(datumAusText("Frühjahr")).toBe("Frühjahr");
+  it("datumAusText: JJJJ-MM-TT bleibt, TT.MM.JJJJ wird kanonisch, Freitext ist ein Fehler (PR f)", () => {
+    expect(datumAusText("2026-03-15", "anfang")).toEqual({ wert: "2026-03-15" });
+    expect(datumAusText("5.3.2026", "ende")).toEqual({ wert: "2026-03-05" });
+    expect(datumAusText("Frühjahr", "anfang")).toMatchObject({ fehler: expect.stringMatching(/kein Datum/) });
   });
   it("Spalten Erhebungsdatum und gültig bis werden den Beleg-Zielfeldern zugeordnet und je Zeile uebernommen", () => {
     const spalten = ["Betrieb", "Erhebungsdatum", "Gültig bis"];
