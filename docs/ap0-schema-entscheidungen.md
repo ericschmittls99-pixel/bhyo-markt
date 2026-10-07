@@ -1737,7 +1737,6 @@ Aufrufe für drei Zeilen); Photon nicht erreichbar → nichts geschrieben;
 Probelauf ohne Belegdaten oder mit offenen Vorschlägen startet nicht.
 
 
-<<<<<<< HEAD
 ## 39. AP2.7 PR e: Import — Blattwahl, Kopfzeile, fehlende Pflichtwerte (E67), 07.10.2026
 
 **Anlass:** Durchlauf mit der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`
@@ -1751,7 +1750,7 @@ erkannt"), nicht verboten — wer sie wählt, bekommt die Meldung „keine
 Kopfzeile erkennbar — Kopfzeile von Hand wählen". Ohne Wahl nimmt der Parser
 das erste Blatt mit Tabelle. Die Wahl reist als `?blatt=&kopf=`, wird mit der
 Zuordnung gespeichert (`import_lauf.blatt`, `import_lauf.kopfzeile`,
-Migration 0048) und steht im Protokolltext.
+Migration 0047) und steht im Protokolltext.
 
 **Kopfzeile (B1):** `erkenneKopfzeile`: die erste Zeile mit mindestens zwei
 nicht-leeren Zellen, davon überwiegend Text, auf die innerhalb von drei
@@ -1770,7 +1769,7 @@ Nacharbeit und Datei zusammenpassen. Die Personen-Erkennung greift danach
 TS- und Aschewerte (nur Code, Label, Cluster) — es gibt keinen Typwert.
 Also gilt: TS-Anteil und Aschegehalt dürfen fehlen (Spalte oder Zelle);
 `biomassestrom.ts_anteil_pct` und `aschegehalt_pct` sind nullable
-(Migration 0048), NULL heißt „unbekannt", nie ein erfundener Wert. Der
+(Migration 0047), NULL heißt „unbekannt", nie ein erfundener Wert. Der
 Strom ist dann unvollständig (Vollständigkeit zählt beide Felder) und kann
 nicht „geprüft" werden: `stromPruefen` weist ab („TS-Anteil und Aschegehalt
 fehlen — erst ergänzen, dann prüfen."), der DB-CHECK
@@ -1793,7 +1792,6 @@ Lauf-Zeitraum → Feldfehler, nichts gespeichert; bis vor von → Fehler;
 fehlende Materialart bleibt Pflichtverletzung, fehlender Aschegehalt nicht
 mehr; `stromPruefen` ohne TS/Asche (Fixture mit Werten grün, Vorbedingung
 im Code).
->>>>>>> origin/main
 
 ## 40. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
 
@@ -1900,4 +1898,3 @@ Ortszuordnung. (2) Exklaven außerhalb Deutschlands
 (87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (3) ODbL-Share-alike für
 die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
 07.10.2026): Quelle und Ableitung der Orte, siehe oben.
-=======

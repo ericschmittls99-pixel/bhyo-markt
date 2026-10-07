@@ -952,20 +952,6 @@ Daten noch 30 Tage." · `btn--primary` „Ja, Import zurücknehmen" ·
 Schaltfläche; die Bestätigung klappt dabei zu. Nach Erfolg zeigt die Seite
 die Pille „zurückgenommen", die Zeilen ohne Strom-Link, keine Nacharbeit.
 
-<<<<<<< HEAD
-## Adresse — PLZ aus Pin lokal, Quellenhinweis (E68 PR 1, 07.10.2026)
-
-**Pin:** Kartenklick, Ziehen und „vom Standort übernehmen" setzen nur noch
-PLZ und Ort (lokal aus den PLZ-Gebieten); Straße und Hausnummer bleiben
-stehen. Hinweise: „PLZ und Ort aus Pin übernommen." · „Am Pin wurde keine
-Adresse gefunden — PLZ und Ort bitte von Hand eintragen." · ohne Bestand
-unverändert der Servertext „PLZ-Gebiete sind noch nicht importiert — PLZ
-und Ort bitte von Hand eintragen." **Prüftexte** (für PR 2/3, aus
-`plzPruefungText`): „PLZ 00000 ist unbekannt — bitte prüfen." · „Ort passt
-nicht zur PLZ 54636 — meinten Sie A, B, C …?" (höchstens drei Orte).
-**Quellenhinweis:** Attribution beider Karten (`KarteMap`, `AkteurKarte`)
-ergänzt um „PLZ-Gebiete © OpenStreetMap-Mitwirkende, ODbL".
-=======
 ## import. — Blatt und Kopfzeile, unbekannte Werte (AP2.7 PR e, 07.10.2026)
 
 **Abschnitt „blatt und kopfzeile."** vor „spalten zuordnen.": Auswahl
@@ -983,4 +969,16 @@ mit Caption „n Zeile(n) ohne eigenen Zeitraum …". **Formular Strom:** Labels
 „TS-Anteil (leer = unbekannt)", „Aschegehalt (leer = unbekannt)", kein
 Pflicht-Stern. **Detail/Register:** Wert „unbekannt", Quelle „nicht erfasst —
 kein „geprüft" möglich".
->>>>>>> origin/main
+
+## Adresse — PLZ aus Pin lokal, Quellenhinweis (E68 PR 1, 07.10.2026)
+
+**Pin:** Kartenklick, Ziehen und „vom Standort übernehmen" setzen nur noch
+PLZ und Ort (lokal aus den PLZ-Gebieten); Straße und Hausnummer bleiben
+stehen. Hinweise: „PLZ und Ort aus Pin übernommen." · „Am Pin wurde keine
+Adresse gefunden — PLZ und Ort bitte von Hand eintragen." · ohne Bestand
+unverändert der Servertext „PLZ-Gebiete sind noch nicht importiert — PLZ
+und Ort bitte von Hand eintragen." **Prüftexte** (für PR 2/3, aus
+`plzPruefungText`): „PLZ 00000 ist unbekannt — bitte prüfen." · „Ort passt
+nicht zur PLZ 54636 — meinten Sie A, B, C …?" (höchstens drei Orte).
+**Quellenhinweis:** Attribution beider Karten (`KarteMap`, `AkteurKarte`)
+ergänzt um „PLZ-Gebiete © OpenStreetMap-Mitwirkende, ODbL".
