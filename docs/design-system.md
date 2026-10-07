@@ -1099,6 +1099,18 @@ nutzen." (Caption), Knopf „Kommentieren" (primär, klein). Schlägt das
 Kontaktdaten-Muster des Imports an (E-Mail/Telefon), erscheint statt des
 Speicherns eine Warnzeile (`kom-warnung`, versenkte Fläche, Icon
 `ph-warning`) mit „Trotzdem speichern" — warnt, blockiert nicht. Keine
-Ampelfarben, Light/Dark über die Tokens. Die @-Auswahl per Tastatur folgt in
-PR c.
+Ampelfarben, Light/Dark über die Tokens.
 
+**@-Auswahl (PR c):** „@" im Feld öffnet unter dem Textfeld die Liste der
+erwähnbaren Nutzer (`kom-vorschlaege`, starke Glasstufe wie Comboboxen,
+Radius 12 px): je Zeile Avatar, Name fett, E-Mail gedämpft; die aktive Zeile
+trägt die versenkte Fläche, kein Rahmen. Tippen filtert nach Name oder
+E-Mail, Pfeiltasten wechseln, Enter/Tab übernehmen, Escape schließt — die
+Liste ist ein `listbox` mit `aria-activedescendant`. Im Feld steht danach
+„@Name" (bei gleichem Namen „@Name (E-Mail)"), gespeichert wird der Marker.
+Platzhalter: „Kommentar schreiben … (@ erwähnt eine Kollegin oder einen
+Kollegen)". **Inbox:** „<Name> hat <Objekt> kommentiert" und „<Name> hat dich
+in einem Kommentar zu <Objekt> erwähnt" mit Avatar des Autors, reine
+Hinweise; Öffnen springt zum Kommentar im Detail bzw. auf der Akteur-Seite,
+der Eintrag wird kurz mit der versenkten Fläche hervorgehoben
+(`kom-eintrag--ziel`).

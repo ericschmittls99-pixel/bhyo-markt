@@ -21,6 +21,12 @@
  *     aenderung-Zeile (Rot-Nachweis: eine gefaelschte Zeile wird gefunden).
  *  8. Loeschverhalten: ein verwaister Akteur wird geloescht → seine
  *     Kommentare und Erwaehnungen sind per CASCADE weg.
+ *  9. PR c — Zustellung in derselben Transaktion: Erwaehnte bekommen nur
+ *     erwaehnung, Verantwortliche (Beteiligte, Sperrinhaber) und bisherige
+ *     Kommentatoren kommentar, der Autor nichts; beim Bearbeiten nur die neu
+ *     Erwaehnten; je Kommentar und Empfaenger ein Eintrag; der genau-ein-CHECK
+ *     weist kommentar_id neben biomassestrom_id ab; Inbox-Eintraege gehen mit
+ *     dem Kommentar (CASCADE ueber den Akteur).
  */
 import { createSql } from "@bhyo/db";
 import * as schema from "@bhyo/db/schema";
@@ -94,6 +100,10 @@ async function main() {
       const [mat] = await x<{ code: string }>(sql`select code from materialart order by code limit 1`);
       await x(sql`insert into biomassestrom (id, akteur_id, materialart_code, menge_roh_fm, zeitraum_von, zeitraum_bis, saisonalitaet, status, gesperrt_von, gesperrt_am)
         values (${STROM}, ${AKTEUR}, ${mat!.code}, 100, '2020-01-01', '2035-12-31', '[100,100,100,100,100,100,100,100,100,100,100,100]'::jsonb, 'entwurf', ${ADMIN}, now())`);
+      // PR c: der Pruefer ist Beteiligter des Stroms (angelegt), der Admin Sperrinhaber — beide „Verantwortliche".
+      await x(sql`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id) values ('biomassestrom', ${STROM}, 'Probe', 'angelegt', ${PRUEF})`);
+      const inbox = async (kommentarId: string) =>
+        x<{ empfaenger_id: string; typ: string }>(sql`select empfaenger_id, typ::text from inbox_eintrag where kommentar_id = ${kommentarId} order by typ, empfaenger_id`);
 
       // 1. CHECK genau ein Bezug
       const roh = (strom: string | null, akteur: string | null, text = "ok") =>
@@ -133,6 +143,17 @@ async function main() {
       pruefe("4d Marker auf Betrachterin abgewiesen", mBetr === NICHT_ERWAEHNBAR, mBetr);
       const mFremd = await scheitert(tx, (sp) => kommentarErstellenInTx(sp, bearbeiter, { art: "akteur", id: AKTEUR }, `Hallo ${erwaehnungsMarker(FREMD)}`));
       pruefe("4e Marker auf fremde UUID abgewiesen", mFremd === NICHT_ERWAEHNBAR, mFremd);
+      const z1i = await inbox(k1.id);
+      pruefe(
+        "9a Zustellung erstellt: Admin (erwaehnt, Sperrinhaber) nur erwaehnung; Pruefer (Beteiligter) kommentar; Autor und Betrachterin nichts",
+        z1i.length === 2 && z1i.some((z) => z.empfaenger_id === ADMIN && z.typ === "erwaehnung") && z1i.some((z) => z.empfaenger_id === PRUEF && z.typ === "kommentar"),
+        z1i,
+      );
+      const gemischt = await scheitert(tx, (sp) =>
+        sp.execute(sql`insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, kommentar_id, biomassestrom_id, ereignis_id)
+          values (${PRUEF}, ${BEARB}, 'kommentar', ${k1.id}, ${STROM}, (select id from aenderung where entitaet_id = ${k1.id} limit 1))`),
+      );
+      pruefe("9b genau-ein-CHECK: kommentar_id neben biomassestrom_id abgewiesen", /genau_ein_strom_check/.test(gemischt ?? ""), gemischt);
 
       // 3. Erwaehnung: PK und FK
       const dop = await scheitert(tx, (sp) => sp.execute(sql`insert into kommentar_erwaehnung (kommentar_id, nutzer_id) values (${k1.id}, ${ADMIN})`));
@@ -151,6 +172,20 @@ async function main() {
       );
       const erw = Array.isArray(z2[0]?.erw) ? z2[0]!.erw : String(z2[0]?.erw ?? "").replace(/[{}]/g, "").split(",").filter(Boolean);
       pruefe("5b Autor bearbeitet: neue Erwaehnung kommt dazu, entfernte bleibt, bearbeitet_am gesetzt", b1.neueErwaehnte.join() === PRUEF && z2[0]?.bearbeitet === true && erw.length === 2 && erw.includes(ADMIN) && erw.includes(PRUEF), { b1, z2: z2[0] });
+      const z1b = await inbox(k1.id);
+      pruefe(
+        "9c Zustellung bearbeitet: Pruefer bekommt zusaetzlich erwaehnung, sonst nichts Neues (3 Eintraege, je Empfaenger und Typ einer)",
+        z1b.length === 3 && z1b.filter((z) => z.empfaenger_id === PRUEF).map((z) => z.typ).sort().join() === "erwaehnung,kommentar" && z1b.filter((z) => z.empfaenger_id === ADMIN).length === 1,
+        z1b,
+      );
+      // Zweiter Kommentar des Pruefers am selben Strom ohne Erwaehnung: bisheriger Kommentator (BEARB) und Sperrinhaber (ADMIN) bekommen kommentar.
+      const k5 = await kommentarErstellenInTx(tx, pruefer, { art: "biomasse", id: STROM }, `${SENTINEL} zweiter Kommentar`);
+      const z5 = await inbox(k5.id);
+      pruefe(
+        "9d zweiter Kommentar: bisheriger Kommentator und Sperrinhaber bekommen kommentar, der Autor nichts",
+        z5.length === 2 && z5.every((z) => z.typ === "kommentar") && z5.some((z) => z.empfaenger_id === BEARB) && z5.some((z) => z.empfaenger_id === ADMIN),
+        z5,
+      );
 
       // 6. Loeschen
       const k2 = await kommentarErstellenInTx(tx, admin, { art: "akteur", id: AKTEUR }, `${SENTINEL} vom Admin`);
@@ -184,12 +219,13 @@ async function main() {
       const k3 = await kommentarErstellenInTx(tx, pruefer, { art: "akteur", id: AKTEUR2 }, `${SENTINEL} am verwaisten Akteur ${erwaehnungsMarker(BEARB)}`);
       const stromVorher = (await x<{ n: number }>(sql`select count(*)::int as n from kommentar where biomassestrom_id = ${STROM}`))[0]!.n;
       await x(sql`delete from akteur where id = ${AKTEUR2}`);
-      const rest = await x<{ k: number; e: number; strom: number }>(
+      const rest = await x<{ k: number; e: number; strom: number; inbox: number }>(
         sql`select (select count(*)::int from kommentar where id = ${k3.id}) as k,
                    (select count(*)::int from kommentar_erwaehnung where kommentar_id = ${k3.id}) as e,
-                   (select count(*)::int from kommentar where biomassestrom_id = ${STROM}) as strom`,
+                   (select count(*)::int from kommentar where biomassestrom_id = ${STROM}) as strom,
+                   (select count(*)::int from inbox_eintrag where kommentar_id = ${k3.id}) as inbox`,
       );
-      pruefe("8 Akteur geloescht: Kommentar und Erwaehnung per CASCADE weg; Strom-Kommentare unberuehrt", rest[0]?.k === 0 && rest[0]?.e === 0 && rest[0]?.strom === stromVorher && stromVorher > 0, { ...rest[0], stromVorher });
+      pruefe("8 Akteur geloescht: Kommentar, Erwaehnung und Inbox-Eintraege per CASCADE weg; Strom-Kommentare unberuehrt", rest[0]?.k === 0 && rest[0]?.e === 0 && rest[0]?.inbox === 0 && rest[0]?.strom === stromVorher && stromVorher > 0, { ...rest[0], stromVorher });
 
       throw new Error(ROLLBACK);
     });

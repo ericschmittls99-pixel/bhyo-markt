@@ -57,6 +57,8 @@ export interface Ereignis {
   aufgabe?: string;
   /** AP2.7 PR a (E67): Lauf-ID an jedem Ereignis des Imports (aenderung.import_lauf_id). */
   importLaufId?: string;
+  /** AP2.6 PR c (E71): neu erwaehnte Nutzer eines Kommentars — Empfaenger des Typs erwaehnung (nicht gespeichert, nur zugestellt). */
+  erwaehnteIds?: readonly string[];
 }
 
 /** Ein Schreiber ist die Transaktion (oder in Tests eine Attrappe davon). */
@@ -148,6 +150,7 @@ export async function protokolliere(tx: Schreiber, ereignis: Ereignis): Promise<
     betrifftId: ereignis.betrifftId ?? null,
     text: ereignis.text?.trim() || null,
     aufgabe: ereignis.aufgabe ?? null,
+    erwaehnteIds: ereignis.erwaehnteIds ?? null,
   });
   return { id: zeile!.id };
 }

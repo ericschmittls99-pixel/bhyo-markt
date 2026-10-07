@@ -2176,6 +2176,39 @@ Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
 `components/kommentare/Kommentare.test.tsx`, Segmente in
 `lib/kommentar-marker.test.ts`.
 
+**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0053):** Enum
+`inbox_typ` + `kommentar`, `erwaehnung` (nur erweitert, E53); Spalte
+`inbox_eintrag.kommentar_id` (FK, CASCADE — greift nur, wenn ein verwaister
+Akteur mitsamt Kommentaren gelöscht wird) im genau-ein-CHECK, Index. Keine
+Bündelung: je Kommentar und Empfänger ein Eintrag (kein Upsert, kein
+Unique-Index). Zustellung in `lib/inbox/zustellung.ts`
+(`zustelleKommentar`, Register-Reihenfolge erwaehnung vor kommentar, D6):
+Erwähnte bekommen nur `erwaehnung`; `kommentar` geht an die
+**Verantwortlichen des Objekts** — Strom: Beteiligte laut Protokoll (E23),
+Sperrinhaber und Zugewiesene (E44); Akteur: Urheber seiner
+Protokollereignisse — plus bisherige Kommentatoren des Verlaufs; ohne Autor,
+Betrachter, Deaktivierte. Beim Bearbeiten nur `erwaehnung` für die neu
+Erwähnten (Register: `kommentar` nur bei `kommentar_erstellt`); Löschen
+stellt nichts zu. Der Schreibweg gibt die Erwähnten über
+`protokolliere({ erwaehnteIds })` mit — dieselbe Transaktion. Inbox-Zeile
+löst Strom bzw. Akteur aus dem Kommentar auf (`coalesce` in
+`lib/inbox/server.ts`), der Link springt zum Kommentar (`#kommentar-<id>`,
+hervorgehoben). @-Auswahl in der Komponente per Tastatur
+(`lib/kommentar-eingabe.ts`: im Feld „@Name", gespeichert der Marker; nur
+Tokens aus der Auswahl werden Marker, ein getippter „@Name" bleibt Text;
+gleicher Name → E-Mail im Token). Erwähnbare = `ladeZuweisbare`. Tests:
+`lib/inbox/zustellung.kommentar.test.ts`, `lib/inbox/register.test.ts`,
+`lib/kommentar-eingabe.test.ts`, Probe Fälle 9a–9d und 8 (Inbox-CASCADE),
+DB-Check `packages/db/src/inbox-check.ts` (14 Indizes, 15 Typen,
+Spalte/CHECK).
+
+**OFFEN (PR c):** (e) „Verantwortliche des Objekts" ist in E71 nicht
+definiert — gewählt wie oben (Strom: Beteiligte + Sperrinhaber + Zugewiesene;
+Akteur: Urheber der Akteur-Ereignisse). (f) Erwähnt wird, wer zum Zeitpunkt
+des Speicherns erwähnbar ist; eine Erwähnung an einen inzwischen
+deaktivierten Nutzer bleibt im Text als Marker und wird beim Bearbeiten nicht
+zum Token (bleibt erhalten, keine neue Zustellung).
+
 **OFFEN:** (a) Reservierte Migrationsnummer: E71 nennt eine Migration 0052
 für AP2.6 — die Inbox-Erweiterung (PR c) und die Aufbewahrungs-Parameter
 (PR d) brauchen je eine eigene additive Migration (0053, 0054), weil sie mit

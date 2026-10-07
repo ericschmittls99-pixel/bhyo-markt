@@ -83,3 +83,20 @@ describe("zeilenText: unbekannter Typ eines spaeteren Stands", () => {
     expect(zeilenText("freischaltung", { ...z, ausloeserName: "Eric" })).toMatch(/^Eric hat dir Zugriff/);
   });
 });
+
+describe("Register — Kommentare (AP2.6 PR c, E71)", () => {
+  it("kommentar_erstellt → erwaehnung VOR kommentar; kommentar_bearbeitet → nur erwaehnung; kommentar_geloescht → nichts", () => {
+    expect(typenFuerArt("kommentar_erstellt")).toEqual(["erwaehnung", "kommentar"]);
+    expect(typenFuerArt("kommentar_bearbeitet")).toEqual(["erwaehnung"]);
+    expect(typenFuerArt("kommentar_geloescht")).toEqual([]);
+  });
+  it("Zeilentexte nennen Ausloeser und Objekt; beide sind reine Hinweise ohne Buendelung", () => {
+    const z = { ausloeserName: "Bernd", belegNr: "B-000012", bezeichnung: "Papierschlamm", anzahl: 1 };
+    expect(INBOX_TYPEN.kommentar.text(z)).toBe("Bernd hat B-000012 Papierschlamm kommentiert");
+    expect(INBOX_TYPEN.erwaehnung.text(z)).toBe("Bernd hat dich in einem Kommentar zu B-000012 Papierschlamm erwähnt");
+    expect(INBOX_TYPEN.kommentar.reinerHinweis).toBe(true);
+    expect(INBOX_TYPEN.erwaehnung.reinerHinweis).toBe(true);
+    expect(INBOX_TYPEN.kommentar.buendelung).toMatch(/keine/);
+  });
+});
+

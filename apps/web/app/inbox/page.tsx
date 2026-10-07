@@ -125,6 +125,7 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           kommentare={detail.kommentare}
           kommentarZugang={detail.kommentarZugang}
           darfKommentieren={detail.darfKommentieren}
+          erwaehnbare={detail.erwaehnbare}
         />
       )}
     </main>

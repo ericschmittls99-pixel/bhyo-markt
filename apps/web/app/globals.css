@@ -5794,3 +5794,56 @@ table.st-tabelle tbody tr:focus-visible {
 .kom-aktionen {
   margin-top: 0;
 }
+
+/* AP2.6 PR c (E71): @-Auswahl und Inbox-Ziel. Die Liste schwebt ueber fremdem
+   Inhalt — starke Glasstufe wie Comboboxen; Auswahl ueber Flaeche, nicht Rahmen. */
+.kom-feld-huelle {
+  position: relative;
+}
+.kom-vorschlaege {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: calc(100% + 4px);
+  z-index: 5;
+  margin: 0;
+  padding: 6px;
+  list-style: none;
+  display: grid;
+  gap: 2px;
+  border-radius: var(--radius-md);
+  background: var(--glass-fill-strong);
+  backdrop-filter: blur(20px) saturate(160%);
+  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  border: 1px solid var(--border-subtle);
+  box-shadow: var(--shadow-modal);
+}
+.kom-vorschlag {
+  display: grid;
+  grid-template-columns: 24px minmax(0, auto) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  padding: 6px 8px;
+  border-radius: var(--radius-sm);
+  font: var(--type-body-sm);
+  cursor: pointer;
+}
+.kom-vorschlag[aria-selected="true"] {
+  background: var(--surface-sunken);
+}
+.kom-vorschlag-name {
+  font-weight: 600;
+}
+.kom-eintrag--ziel {
+  animation: kom-ziel 2.4s var(--ease-standard);
+  border-radius: var(--radius-md);
+}
+@keyframes kom-ziel {
+  0%,
+  40% {
+    background: var(--surface-sunken);
+  }
+  100% {
+    background: transparent;
+  }
+}

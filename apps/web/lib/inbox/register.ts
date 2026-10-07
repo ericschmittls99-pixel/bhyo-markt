@@ -45,6 +45,8 @@ export interface ZeilenDaten {
   /** AP2.8 (E70): Stufe (Tage) des Wird-frei-Hinweises und ob die endende Vergabe an bhyo war. */
   stufe?: number | null;
   anBhyo?: boolean | null;
+  /** AP2.6 PR c (E71): Objektbezug Kommentar — der Link springt zum Kommentar im Objekt. */
+  kommentarId?: string | null;
 }
 
 export interface TypDefinition {
@@ -72,6 +74,26 @@ function objektText(z: ZeilenDaten): string {
  * bekommt, bekommt keinen aenderung_eintrag mehr (zustellung.ts).
  */
 export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
+  // AP2.6 PR c (E71): Erwaehnung VOR kommentar — wer erwaehnt ist, bekommt nur die
+  // Erwaehnung (D6: der erste Typ der Registerreihenfolge bedient die Person).
+  // Keine Buendelung, je Kommentar und Empfaenger ein Eintrag; der Autor bekommt nichts.
+  erwaehnung: {
+    arten: ["kommentar_erstellt", "kommentar_bearbeitet"],
+    empfaengerregel: "die im Kommentar erwaehnten Nutzer (beim Bearbeiten nur die neu hinzugekommenen) — aktiv, Rolle >= bearbeiter, nie der Autor",
+    buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `${z.ausloeserName} hat dich in einem Kommentar zu ${objektText(z)} erwähnt`,
+  },
+  kommentar: {
+    arten: ["kommentar_erstellt"],
+    empfaengerregel:
+      "Verantwortliche des Objekts (Strom: Beteiligte laut Protokoll, Sperrinhaber, Zugewiesene; Akteur: Urheber seiner Protokollereignisse) plus bisherige Kommentatoren — ohne Autor, ohne Betrachter, ohne Deaktivierte; Erwaehnte bekommen nur die Erwaehnung",
+    buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `${z.ausloeserName} hat ${objektText(z)} kommentiert`,
+  },
   // AP2.4 PR a (E62)
   pruefauftrag: {
     arten: ["in_pruefung_gegeben", "zurueckgesetzt"],

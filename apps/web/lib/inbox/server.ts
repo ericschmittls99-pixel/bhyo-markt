@@ -2,7 +2,7 @@
  * Abfragen der Inbox (Zaehler, Liste) und die Objektstufe der Wache:
  * Eintraege liest und aendert nur der Empfaenger (Matrix: nurEmpfaenger).
  */
-import { akteur, benutzer, biomassestrom, inboxEintrag, kontaktperson, outputBedarf, importLauf } from "@bhyo/db/schema";
+import { akteur, benutzer, biomassestrom, inboxEintrag, kommentar, kontaktperson, outputBedarf, importLauf } from "@bhyo/db/schema";
 import { and, desc, eq, isNull, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
@@ -34,6 +34,8 @@ export interface InboxZeile {
   kontaktperson: { id: string; name: string; akteurId: string } | null;
   /** AP2.7 PR c (E67): Objektbezug Import-Lauf beim Typ import_abgeschlossen. */
   importLauf?: { id: string; dateiname: string } | null;
+  /** AP2.6 PR c (E71): Objektbezug Kommentar (kommentar/erwaehnung) — strom bzw. akteur sind aus dem Kommentar abgeleitet. */
+  kommentar?: { id: string } | null;
   /** PR b: Bezugsdatum eines Job-Hinweises (verifiziert_bis). */
   bezugsdatum: string | null;
   /** PR c: Aufgabentext beim Typ aufgabe. */
@@ -57,6 +59,10 @@ export async function zaehleUngelesen(db: Leser, nutzerId: string): Promise<numb
 
 /** Liste des Empfaengers: „offen" oder „erledigt" (dort auch Verworfene, gekennzeichnet). */
 export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" | "erledigt"): Promise<InboxZeile[]> {
+  // AP2.6 PR c (E71): beim Objektbezug Kommentar kommen Strom bzw. Akteur aus dem Kommentar — dieselben Joins, eine Quelle.
+  const stromB = sql<string | null>`coalesce(${inboxEintrag.biomassestromId}, ${kommentar.biomassestromId})`;
+  const stromO = sql<string | null>`coalesce(${inboxEintrag.outputBedarfId}, ${kommentar.outputBedarfId})`;
+  const akteurRef = sql<string | null>`coalesce(${inboxEintrag.akteurId}, ${kommentar.akteurId})`;
   const zeilen = await db
     .select({
       id: inboxEintrag.id,
@@ -72,9 +78,10 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       // AP2.8 (E70): Stufe des Wird-frei-Hinweises; an_bhyo der endenden Vergabe nur zur Anzeige abgeleitet (nie gespeichert).
       stufe: inboxEintrag.stufe,
       anBhyo: sql<boolean | null>`(select v.an_bhyo from vergabe_zeitraum v where v.biomassestrom_id = ${inboxEintrag.biomassestromId} and v.vergeben_bis = ${inboxEintrag.bezugsdatum} order by v.an_bhyo desc limit 1)`,
-      biomassestromId: inboxEintrag.biomassestromId,
-      outputBedarfId: inboxEintrag.outputBedarfId,
-      akteurId: inboxEintrag.akteurId,
+      biomassestromId: stromB,
+      outputBedarfId: stromO,
+      akteurId: akteurRef,
+      kommentarId: inboxEintrag.kommentarId,
       hinweisAkteurName: sql<string | null>`coalesce(${akteur.name}, (select a2.name from akteur a2 where a2.id = ${kontaktperson.akteurId}))`,
       kontaktpersonId: inboxEintrag.kontaktpersonId,
       kontaktpersonName: kontaktperson.name,
@@ -91,9 +98,10 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
     })
     .from(inboxEintrag)
     .leftJoin(benutzer, eq(benutzer.id, inboxEintrag.ausloeserId))
-    .leftJoin(biomassestrom, eq(biomassestrom.id, inboxEintrag.biomassestromId))
-    .leftJoin(outputBedarf, eq(outputBedarf.id, inboxEintrag.outputBedarfId))
-    .leftJoin(akteur, eq(akteur.id, inboxEintrag.akteurId))
+    .leftJoin(kommentar, eq(kommentar.id, inboxEintrag.kommentarId))
+    .leftJoin(biomassestrom, eq(biomassestrom.id, stromB))
+    .leftJoin(outputBedarf, eq(outputBedarf.id, stromO))
+    .leftJoin(akteur, eq(akteur.id, akteurRef))
     .leftJoin(kontaktperson, eq(kontaktperson.id, inboxEintrag.kontaktpersonId))
     .leftJoin(importLauf, eq(importLauf.id, inboxEintrag.importLaufId))
     .where(
@@ -119,6 +127,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       akteur: z.akteurId ? { id: z.akteurId, name: z.hinweisAkteurName ?? "–" } : null,
       kontaktperson: z.kontaktpersonId ? { id: z.kontaktpersonId, name: z.kontaktpersonName ?? "–", akteurId: z.kontaktpersonAkteurId ?? "" } : null,
       importLauf: z.importLaufId ? { id: z.importLaufId, dateiname: z.importDateiname ?? "–" } : null,
+      kommentar: z.kommentarId ? { id: z.kommentarId } : null,
       belegNr: z.belegNr,
       bezeichnung,
       notiz: z.notiz,
@@ -135,6 +144,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         kontaktpersonName: z.kontaktpersonName,
         stufe: z.stufe,
         anBhyo: z.anBhyo,
+        kommentarId: z.kommentarId,
               importDateiname: z.importDateiname ?? null,
         importZaehler: (z.importZaehler as Record<string, number> | null) ?? null,
       }, z.id),
