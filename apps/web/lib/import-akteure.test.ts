@@ -4,7 +4,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { akteurGruppen, akteurGruppenAnzeige, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, type ZeileFuerAkteur } from "./import-akteure";
+import { akteurGruppen, akteurGruppenAnzeige, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte, type ZeileFuerAkteur } from "./import-akteure";
 
 const zeilen: ZeileFuerAkteur[] = [
   { id: "z1", status: "offen", felder: { akteur_name: "Hof Mustermann", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } },
@@ -72,5 +72,25 @@ describe("offeneAkteurGruppen (fortsetzbar)", () => {
       { id: "b", status: "offen", felder: { akteur_name: "B", akteur_sitz_plz: "2" } },
     ]);
     expect(offen.map((g) => g.name)).toEqual(["B"]);
+  });
+});
+
+describe("Sektor-Konflikt (PR f, Weggabelung 6)", () => {
+  it("verschiedene Sektoren bei einem neuen oder noch offenen Akteur sind ein Konflikt; ein vorhandener Akteur behaelt seinen Sektor", () => {
+    const anzeige = akteurGruppenAnzeige([
+      { id: "a1", status: "offen", felder: { akteur_name: "Stadtwerke Speyer", akteur_sitz_plz: "67346", akteur_sektor: "energie", akteur_neu: "1" } },
+      { id: "a2", status: "offen", felder: { akteur_name: "SW Speyer", akteur_sitz_plz: "67346", akteur_sektor: "kommune", akteur_neu: "1" } },
+      { id: "a3", status: "fehler", felder: { akteur_name: "SW Speyer", akteur_sitz_plz: "67346", akteur_sektor: "" } },
+      { id: "b1", status: "offen", felder: { akteur_name: "Hof A", akteur_sitz_plz: "1", akteur_sektor: "landwirtschaft", akteur_id: "x1" } },
+      { id: "b2", status: "offen", felder: { akteur_name: "Hof A", akteur_sitz_plz: "1", akteur_sektor: "energie", akteur_id: "x1" } },
+      { id: "c1", status: "offen", felder: { akteur_name: "Hof C", akteur_sitz_plz: "2", akteur_sektor: "forst", akteur_neu: "1" } },
+      { id: "c2", status: "offen", felder: { akteur_name: "Hof C", akteur_sitz_plz: "2", akteur_sektor: "forst", akteur_neu: "1" } },
+    ]);
+    expect(anzeige.map((g) => [g.name, g.sektoren, g.sektorKonflikt])).toEqual([
+      ["Stadtwerke Speyer", ["energie", "kommune"], true],
+      ["Hof A", ["landwirtschaft", "energie"], false],
+      ["Hof C", ["forst"], false],
+    ]);
+    expect(sektorKonflikte([]).length).toBe(0);
   });
 });

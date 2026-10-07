@@ -61,6 +61,14 @@ export interface AkteurGruppeAnzeige extends AkteurGruppe {
   akteurId: string | null;
   vorschlagId: string | null;
   vorschlagName: string | null;
+  /** PR f (Weggabelung 6): verschiedene Sektor-Codes der Zeilen dieser Gruppe (leere ausgenommen). */
+  sektoren: string[];
+  /**
+   * Mehr als ein Sektor bei einem Akteur, der neu angelegt oder noch
+   * entschieden wird: Pflichtentscheidung je Akteur, keine stille Uebernahme
+   * des ersten Werts. Ein vorhandener Akteur behaelt seinen Sektor — kein Konflikt.
+   */
+  sektorKonflikt: boolean;
 }
 
 /** Gruppen mit dem Stand aus den Feldern — fuer die Seite nach dem Aufloesen. */
@@ -69,8 +77,14 @@ export function akteurGruppenAnzeige(zeilen: readonly ZeileFuerAkteur[]): Akteur
   return akteurGruppen(zeilen).map((g) => {
     const f = nachId.get(g.zeilenIds[0]!)!.felder;
     const ergebnis: GruppenErgebnis = f.akteur_id ? "identisch" : f.akteur_vorschlag_id ? "vorschlag" : f.akteur_neu === "1" ? "neu" : "offen";
-    return { ...g, ergebnis, akteurId: f.akteur_id ?? null, vorschlagId: f.akteur_vorschlag_id ?? null, vorschlagName: f.akteur_vorschlag_name ?? null };
+    const sektoren = [...new Set(g.zeilenIds.map((id) => (nachId.get(id)!.felder.akteur_sektor ?? "").trim()).filter(Boolean))];
+    return { ...g, ergebnis, akteurId: f.akteur_id ?? null, vorschlagId: f.akteur_vorschlag_id ?? null, vorschlagName: f.akteur_vorschlag_name ?? null, sektoren, sektorKonflikt: sektoren.length > 1 && ergebnis !== "identisch" };
   });
+}
+
+/** Gruppen mit Sektor-Konflikt — Probelauf und Ausfuehren warten darauf. */
+export function sektorKonflikte(zeilen: readonly ZeileFuerAkteur[]): AkteurGruppeAnzeige[] {
+  return akteurGruppenAnzeige(zeilen).filter((g) => g.sektorKonflikt);
 }
 
 export interface TrefferFuerImport {
