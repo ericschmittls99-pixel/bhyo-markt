@@ -106,14 +106,26 @@ export function AdresseBlock({
         const data = (await res.json().catch(() => null)) as { error?: string } | null;
         throw new Error(data?.error ?? String(res.status));
       }
-      const data = (await res.json()) as { adressen?: Adresse[] };
-      const r = uebernimmAusPin(wRef.current, data.adressen?.[0] ?? null, modus);
+      const data = (await res.json()) as { adressen?: (Adresse & { orte?: string[] })[] };
+      const treffer = data.adressen?.[0] ?? null;
+      const r = uebernimmAusPin(wRef.current, treffer, modus);
       setW(r.werte);
-      setHinweis(r.hinweis);
+      // Mehrere Orte zur PLZ: der Pin kennt nur die PLZ, der Ort bleibt Sache des Menschen (E68, plz_ort ohne Geometrie).
+      const orte = treffer?.orte ?? [];
+      setHinweis(
+        orte.length > 1 && !r.werte.ort
+          ? `PLZ ${treffer!.plz} hat ${orte.length} Orte — Ort bitte eintragen: ${orte.slice(0, 3).join(", ")}${orte.length > 3 ? " …" : ""}`
+          : r.hinweis,
+      );
     } catch (e) {
       if ((e as Error).name === "AbortError") return;
       // Die Ursache kommt vom Proxy (Zeitlimit, Status, Netz); der Pin bleibt, PLZ und Ort gehen von Hand.
       const grund = (e as Error).message;
+      // E68 PR 1: fehlt der PLZ-Bestand, sagt der Server das im Klartext — unveraendert anzeigen.
+      if (/PLZ-Gebiete/.test(grund)) {
+        setHinweis(grund);
+        return;
+      }
       setHinweis(`${/Adresssuche/.test(grund) ? grund.replace(/ — Adresse und Pin.*$/, "") : "Rückwärtssuche nicht erreichbar"} — PLZ und Ort bitte von Hand eintragen.`);
     }
   }

@@ -1792,3 +1792,109 @@ Lauf-Zeitraum → Feldfehler, nichts gespeichert; bis vor von → Fehler;
 fehlende Materialart bleibt Pflichtverletzung, fehlender Aschegehalt nicht
 mehr; `stromPruefen` ohne TS/Asche (Fixture mit Werten grün, Vorbedingung
 im Code).
+
+## 40. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
+
+**E68 (Eric, 06.10.2026):** Adressprüfung statt Autocomplete. Kein
+Bezahldienst; ein gehosteter Dienst (Geofabrik/Geoapify) bleibt als spätere
+Optimierung AP6 vorgemerkt. Ziel: Straße, Hausnummer, PLZ, Ort eingeben →
+„Adresse prüfen" → Pin oder Fehlermeldung mit „Meinten Sie …?". Eine externe
+Anfrage je Klick, keine je Tastendruck. Drei PRs: 1 PLZ-Gebiete lokal,
+2 Prüfen-Knopf und Genauigkeit, 3 Import anpassen. Übergangsweise bleiben
+Abbruch laufender Anfragen und Entprellung im AdresseBlock.
+
+**Quelle (Recherche 06./07.10.2026, Weggabelung — siehe unten):** Die im
+Auftrag genannte Quelle suche-postleitzahl.org liefert keine Downloads mehr
+(Downloadseite 404, Wayback-Snapshot Januar 2026 ebenfalls 404). Einzige
+geprüfte Quelle mit fester, versionierter URL, ODbL und aktuellem Stand:
+GitHub-Release **yetzt/postleitzahlen 2026.02** (20.02.2026, OSM via
+Overpass; 8.176 Features, 8.175 verschiedene PLZ, 75378 doppelt; 24,4 MB
+Brotli, 502 MB GeoJSON; SHA-256 im Workflow). Sie enthält **keine**
+PLZ↔Ort-Zuordnung. postleitzahl.net hätte eine (13.128 Zeilen), aber mit
+tokenisierten URLs, widersprüchlicher Lizenz (Impressum verbietet
+Weitergabe) und älterem Stand; opendatasoft ist abgeschaltet; BKG/Deutsche
+Post sind Vertrag bzw. Bezahlung. Der Entwurf leitet die Orte deshalb aus
+dem **Flächenschnitt PLZ-Gebiet × VG250-Gemeinde** (BKG, dl-de/by-2-0,
+dieselbe Lieferung wie `import-vg250.yml`) ab: eine Gemeinde gehört zur
+PLZ, wenn der Schnitt mindestens 10 % der Gemeinde- oder der PLZ-Fläche
+ausmacht. Ortsnamen sind damit **amtliche Gemeindenamen**, keine
+Ortsteile; „Oggersheim" passt nicht, „Ludwigshafen" schon (Kurzform).
+
+**Entscheidung Eric (07.10.2026):** Quelle übernommen — yetzt/postleitzahlen
+2026.02 (ODbL, SHA-256 fixiert) und die Orte aus dem Schnitt mit den
+VG250-Gemeinden. Quellenhinweise „© OpenStreetMap-Mitwirkende, ODbL" und
+„© GeoBasis-DE / BKG, dl-de/by-2-0" (Gemeinden). Ortsteile führen zu
+„Meinten Sie <Gemeinde>?" (Mannheim-Neckarau → Mannheim) — gewollt.
+**Speicher:** Neon Free hat eine harte Grenze (laut Preisseite 1 GB je
+Projekt, 20 GB je Konto; Production am 07.10.2026: 31 MB, davon
+verwaltungsgebiet 14 MB). Vor jeder Production-Migration gilt deshalb:
+`plz_ort` ohne Geometrie, `plz_gebiet` vereinfacht, Ziel deutlich unter
+25 MB zusammen; Messung im Wegwerf-Lauf, Entscheidung bei Eric.
+
+**Datenmodell (Migration 0048):** `plz_gebiet(plz PK, geom MultiPolygon
+4326, stichtag)` mit CHECK fünfstellig und GIST; `plz_ort(plz FK cascade,
+ort, ort_norm, ars 12-stellig)` mit PK (plz, ars) und Index auf `ort_norm`
+— **ohne Geometrie**. Der Schnitt PLZ × Gemeinde wird nur beim Import
+gerechnet (rohe Union, Schwelle 10 %). Folge: Ein Pin liefert die PLZ und
+die Liste ihrer Orte; bei genau einem Ort ist er eindeutig, sonst trägt der
+Mensch den Ort ein (Hinweis „PLZ 54636 hat 39 Orte — Ort bitte eintragen:
+…"). Geometrie: ST_MakeValid je Feature vor der Union, Rohflächen nur
+temporär, Bestand mit ST_SimplifyPreserveTopology `SIMPLIFY_TOLERANZ` =
+0,00015° (≈ 17 m N–S, ≈ 11 m O–W), Rundung 1e-6. Der Wegwerf-Lauf misst
+Größe vorher/nachher und den Anteil zufälliger Punkte mit anderer PLZ
+(PLZVERGLEICH); Größen stehen in PLZNACH, die Preview-Größe druckt
+`import-check` (GROESSE), Production `lese-diagnose`.
+
+**Funktionen (SQL, Spiegel in TS):** `plz_ort_norm(text)` (Kleinbuchstaben,
+ä/ö/ü/ß ausgeschrieben, alles außer Buchstaben/Ziffern ein Leerzeichen),
+`plz_ort_passt(eingabe, ort_norm)` (Gleichheit oder Kurzform als ganzes
+Wortpräfix: „halle" → „halle saale", „ludwigs" nicht), `plz_pruefung(plz,
+ort) → (plz_bekannt, ort_passt, orte[])`, `plz_fuer_punkt(geom) → (plz,
+orte[])` (kleinste Fläche zuerst), `punkt_in_plz(plz, geom) → bool|null`.
+TS-Spiegel `normalisiereOrt`/`ortPasst` in `packages/db/src/plz.ts`; die
+gemeinsamen Fälle prüft Vitest (TS) und `plz-check.ts` (SQL gegen TS) —
+eine Regel, zwei Laufzeiten.
+
+**App:** `/api/geocode?lat&lon` („PLZ aus Pin", Kartenklick, „vom Standort
+übernehmen") fragt nur noch die lokale Funktion, kein externer Dienst mehr;
+Photon-Rückwärtssuche und Treffer-Auswahl entfernt. Der Pin überschreibt
+nur PLZ und Ort, Straße und Hausnummer bleiben (der lokale Treffer kennt
+keine Straße; PR 2 prüft sie). Neue Route `/api/plz?plz&ort` für PR 2 und
+PR 3. Solange der Bestand leer ist, antworten beide Routen mit 503 und
+Klartext („PLZ-Gebiete sind noch nicht importiert …") statt still nichts zu
+finden. Quellenhinweis „PLZ-Gebiete © OpenStreetMap-Mitwirkende, ODbL" in
+der Attribution beider Karten.
+
+**Betrieb:** Workflow `import-plz.yml` wie VG250 (wörtliche Bestätigung,
+Host-Prüfung, SHA-256 beider Quellen, Staging per ogr2ogr, Ersetzung in
+einer Transaktion, Sollwert 8.175 PLZ, Gemeinden 10.500–11.500 als
+Plausibilität bis zum gemessenen Soll) mit dritter Zielumgebung
+**`wegwerf`** (PostGIS 18 im Runner, alle Migrationen auf leer, Messung von
+Dauer und Größe). Neuer CI-Job `wegwerf-db` im Deploy: Migrationen auf eine
+leere PostGIS, Staging-Fixture (zwei PLZ, fünf Gemeinden, Splitter,
+Doppel-PLZ), Import ohne Sollwerte, `plz-check`. Reihenfolge nach dem Merge:
+Migration läuft über das Label, danach `import-plz.yml` auf preview, auf
+production nur nach Freigabe.
+
+**Rot gezeigt (PR 1):** unbekannte PLZ → `plz_bekannt false`, keine Orte,
+Text „PLZ 00000 ist unbekannt — bitte prüfen."; Ort passt nicht → Vorschlag
+der Orte der PLZ (höchstens drei im Text); Tippfehler („Speier") passt nicht;
+Kurzform „Gross" passt zu „Groß Köris"; Splitter-Gemeinde mit 1 % Schnitt
+fällt heraus; Doppel-PLZ 75378 wird eine Zeile; Grenzpunkt trifft beide
+Seiten mit deterministischer erster Zeile; Punkt außerhalb → keine Zeile,
+`punkt_in_plz` false, unbekannte PLZ null.
+
+**Entscheidung Eric (07.10.2026, nach Messung):** Toleranz **0,00015°**
+(Standard im Code). Gemessen auf `wegwerf`: Rohflächen 6,4 Mio.
+Stützpunkte / 98 MB → 1,7 Mio. / 27 MB, Tabelle 30 MB, mit `plz_ort`
+32 MB; 7 von 12.838 Zufallspunkten mit anderer PLZ, keiner ohne PLZ.
+0,0005° hätte 17 MB gebracht, aber 44 abweichende und 6 PLZ-lose Punkte.
+Neon Free hat 1 GB je Projekt, Production liegt bei 31 MB — 32 MB
+zusätzlich sind unkritisch; das frühere 25-MB-Ziel beruhte auf einer
+falschen Annahme (0,5 GB).
+
+**Offene Weggabelungen (nicht entschieden):** (1) Schwelle 10 % für die
+Ortszuordnung. (2) Exklaven außerhalb Deutschlands
+(87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (3) ODbL-Share-alike für
+die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
+07.10.2026): Quelle und Ableitung der Orte, siehe oben.

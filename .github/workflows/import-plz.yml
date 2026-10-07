@@ -1,0 +1,155 @@
+name: Import PLZ-Gebiete
+
+# E68 PR 1: befuellt `plz_gebiet` und `plz_ort` aus den OSM-PLZ-Gebieten
+# (yetzt/postleitzahlen, Release 2026.02, ODbL) und dem Flaechenschnitt mit
+# den VG250-Gemeinden des BKG (dieselbe Lieferung wie import-vg250.yml).
+# NUR manuell, mit woertlicher Bestaetigung der Zielumgebung, Host-Pruefung
+# und Zielnachweis. Preview darf direkt laufen; Production erst nach
+# ausdruecklicher Freigabe von Eric. `wegwerf` laeuft gegen eine
+# PostGIS-Postgres im Runner (keine Secrets, nichts bleibt) — der Probelauf
+# der gesamten Kette inklusive Messung von Dauer und Groesse.
+# Der Import ist idempotent: Ersetzung in einer Transaktion, Sollwerte
+# (8.175 PLZ) brechen sonst laut ab.
+on:
+  workflow_dispatch:
+    inputs:
+      umgebung:
+        description: "Zielumgebung"
+        required: true
+        type: choice
+        options: [wegwerf, preview, production]
+      bestaetigung:
+        description: 'Zur Freigabe die Zielumgebung woertlich wiederholen'
+        required: true
+      toleranz:
+        description: 'Nur wegwerf: Vereinfachungstoleranz in Grad fuer die Messung (leer = Standard aus plz-import.ts)'
+        required: false
+        default: ''
+
+concurrency:
+  group: import-plz
+  cancel-in-progress: false
+
+env:
+  # Feste, versionierte Quellen. Jede Abweichung der Pruefsumme bricht ab —
+  # dann liegt ein neuer Stand vor: Hash, Stichtag (src/plz-import.ts) und
+  # Sollwerte bewusst aktualisieren. Gemessen 06.10.2026 (Recherche E68).
+  PLZ_URL: https://github.com/yetzt/postleitzahlen/releases/download/2026.02/postleitzahlen.geojson.br
+  PLZ_SHA256: 3ead6646869a389ccd17a00bd4179b287d2a8440f3499f16983cb86aaee99dbd
+  VG250_URL: https://daten.gdz.bkg.bund.de/produkte/vg/vg250_ebenen_0101/2026/vg250_01-01.utm32s.gpkg.ebenen.zip
+  VG250_SHA256: 6b096eb4862b4eafda9294e425fb5a6d0e7773eb5815a4d4edc78b639ec2728f
+
+jobs:
+  import:
+    runs-on: ubuntu-24.04
+    environment: ${{ inputs.umgebung == 'production' && 'production' || '' }}
+    permissions:
+      contents: read
+    services:
+      # Nur fuer `wegwerf` genutzt (bei preview/production laeuft der Container leer mit).
+      postgis:
+        image: postgis/postgis:18-3.6
+        env:
+          POSTGRES_PASSWORD: wegwerf
+          POSTGRES_DB: bhyo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres -d bhyo"
+          --health-interval 5s --health-timeout 5s --health-retries 20
+    steps:
+      - name: Bestaetigung pruefen
+        if: inputs.bestaetigung != inputs.umgebung
+        run: |
+          echo '::error::Abbruch: "bestaetigung" muss woertlich der Zielumgebung entsprechen.'
+          exit 1
+
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: DATABASE_URL bestimmen
+        env:
+          URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
+          URL_PRODUCTION: ${{ secrets.DATABASE_URL_PRODUCTION }}
+          UMGEBUNG: ${{ inputs.umgebung }}
+        run: |
+          case "$UMGEBUNG" in
+            wegwerf)    url="postgres://postgres:wegwerf@localhost:5432/bhyo" ;;
+            preview)    url="$URL_PREVIEW" ;;
+            production) url="$URL_PRODUCTION" ;;
+            *) echo "::error::unbekannte Umgebung '$UMGEBUNG'"; exit 1 ;;
+          esac
+          echo "::add-mask::$url"
+          echo "DATABASE_URL=$url" >> "$GITHUB_ENV"
+
+      - name: Host pruefen (Ziel = gewaehlte Umgebung)
+        env:
+          UMGEBUNG: ${{ inputs.umgebung }}
+        run: |
+          host=$(node -e 'console.log(new URL(process.env.DATABASE_URL).hostname)')
+          case "$UMGEBUNG:$host" in
+            production:ep-purple-glade-b2tra1g7*|preview:ep-rough-term-b29rvd6c*|wegwerf:localhost)
+              echo "Endpoint bestaetigt: $UMGEBUNG -> $host" ;;
+            *)
+              echo "::error::DATABASE_URL zeigt auf '$host' — passt nicht zur Umgebung '$UMGEBUNG'. Abbruch."
+              exit 1 ;;
+          esac
+
+      - name: Wegwerf-DB migrieren (alle Migrationen, leere PostGIS)
+        if: inputs.umgebung == 'wegwerf'
+        working-directory: packages/db
+        run: pnpm run migrate
+
+      - name: GDAL und brotli installieren
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq gdal-bin brotli
+
+      - name: Quellen laden und Pruefsummen verifizieren
+        run: |
+          curl -sSL -o plz.geojson.br "$PLZ_URL"
+          echo "$PLZ_SHA256  plz.geojson.br" | sha256sum -c - || {
+            echo "::error::SHA-256 der PLZ-Datei weicht ab — neues Release? Hash/Stichtag/Sollwert bewusst aktualisieren. Abbruch."
+            exit 1
+          }
+          brotli -d plz.geojson.br -o plz.geojson
+          ls -l plz.geojson
+          curl -sSL -o vg250.zip "$VG250_URL"
+          echo "$VG250_SHA256  vg250.zip" | sha256sum -c - || {
+            echo "::error::SHA-256 der VG250-Lieferung weicht ab — neue BKG-Lieferung? Hash bewusst aktualisieren. Abbruch."
+            exit 1
+          }
+          unzip -q vg250.zip -d vg250
+          find vg250 -name "*.gpkg"
+
+      - name: "Staging laden (ogr2ogr: PLZ WGS84, Gemeinden 25832 -> 4326, nur GF=4)"
+        run: |
+          pg=$(node -e '
+            const u = new URL(process.env.DATABASE_URL);
+            console.log(`PG:host=${u.hostname} port=${u.port || 5432} dbname=${u.pathname.slice(1)} user=${decodeURIComponent(u.username)} password=${decodeURIComponent(u.password)} sslmode=${u.hostname === "localhost" ? "disable" : "require"}`);
+          ')
+          start=$(date +%s)
+          ogr2ogr -f PostgreSQL "$pg" plz.geojson \
+            -nln plz_import_gebiet -overwrite -nlt PROMOTE_TO_MULTI -lco GEOMETRY_NAME=geom \
+            -sql "SELECT postcode AS plz FROM plz"
+          echo "PLZ-Staging: $(( $(date +%s) - start )) s"
+          gpkg=$(find vg250 -name "*.gpkg" | head -1)
+          start=$(date +%s)
+          ogr2ogr -f PostgreSQL "$pg" "$gpkg" \
+            -nln plz_import_gem -overwrite -t_srs EPSG:4326 -nlt PROMOTE_TO_MULTI \
+            -lco GEOMETRY_NAME=geom -dialect SQLITE \
+            -sql "SELECT geom, \"Regionalschlüssel_ARS\" AS ars, \"GeografischerName_GEN\" AS gen FROM v_vg250_gem WHERE GF = 4"
+          echo "Gemeinde-Staging: $(( $(date +%s) - start )) s"
+
+      - name: Bestand ersetzen (Transaktion, Sollwerte, Zielnachweis, Messung)
+        env:
+          # Nur im Wegwerf-Lauf: Vereinfachung gegen Rohflaechen messen (PLZVERGLEICH).
+          PLZ_MESSUNG: ${{ inputs.umgebung == 'wegwerf' && 'ja' || 'nein' }}
+          PLZ_TOLERANZ: ${{ inputs.umgebung == 'wegwerf' && inputs.toleranz || '' }}
+        run: pnpm --filter @bhyo/db plz-import
+
+      - name: Funktions-Check (Paritaet SQL/TS, Rot-Faelle)
+        run: pnpm --filter @bhyo/db plz-check

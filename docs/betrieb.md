@@ -258,3 +258,33 @@ Startwert 30, einstellungen. → Parameter) ab `abgeschlossen_am`; nur Läufe
 `ausgefuehrt` oder `zurueckgenommen`. Zähler und Protokoll bleiben am Lauf.
 Log-Zeile `JOB import-zeilen <env> {"laeufe","zeilen"}` nach dem
 Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
+
+## PLZ-Gebiete lokal: Import-Workflow und Wegwerf-Postgres (E68 PR 1, 07.10.2026)
+
+- **`import-plz.yml`** befüllt `plz_gebiet` und `plz_ort` (Migration 0048) aus
+  yetzt/postleitzahlen 2026.02 (ODbL) und dem Schnitt mit den
+  VG250-Gemeinden (dieselbe BKG-Lieferung wie `import-vg250.yml`). Nur
+  manuell, Zielumgebung wörtlich bestätigen, Host-Prüfung, SHA-256 beider
+  Quellen, Ersetzung in einer Transaktion, Sollwert 8.175 PLZ. Production
+  nur nach Freigabe von Eric. Reihenfolge nach dem Merge: Label migriert
+  die Preview → Workflow auf `preview` → Stichprobe „PLZ aus Pin" →
+  später `production`. Bis der Import gelaufen ist, antworten
+  `/api/geocode?lat&lon` und `/api/plz` mit 503 und Klartext.
+- **Zielumgebung `wegwerf`:** PostGIS 18 als Service-Container im Runner,
+  alle Migrationen auf leer, dann die echte Kette mit Messung (Dauer der
+  ogr2ogr-Schritte, `PLZNACH` mit Größe beider Tabellen). Keine Secrets,
+  nichts bleibt. Vor einem Preview-Lauf einmal `wegwerf` laufen lassen.
+- **CI-Job `wegwerf-db`** (Deploy, vor `deploy`): Migrationen auf eine leere
+  PostGIS, Staging-Fixture `packages/db/fixtures/plz-wegwerf-staging.sql`
+  über `sql-datei`, Import ohne Sollwerte (`PLZ_SOLL_PRUEFEN=nein`),
+  `plz-check` mit Fixture-Fällen (`PLZ_FIXTURE=ja`). Damit laufen
+  DB-Tests der Entwürfe nicht mehr gegen die geteilte Preview. `sql-datei`
+  weist Production-Hosts ab.
+- **Speicher (Eric 07.10.2026):** Neon Free, harte Grenze laut Preisseite
+  1 GB je Projekt. `lese-diagnose` druckt die Production-Größe (GROESSE),
+  `import-check` im Deploy die Preview-Größe. Vor der Production-Migration
+  von 0048: Wegwerf-Messung (PLZNACH, PLZVERGLEICH) vorlegen, Ziel deutlich
+  unter 25 MB für `plz_gebiet` + `plz_ort`.
+- **Neuer Stand der Quelle:** SHA-256 im Workflow, `PLZ_STICHTAG` und
+  `SOLL_PLZ` in `packages/db/src/plz-import.ts` bewusst anpassen; den auf
+  `wegwerf` gemessenen Gemeindewert als exaktes Soll eintragen.
