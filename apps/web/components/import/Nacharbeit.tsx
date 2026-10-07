@@ -39,7 +39,8 @@ export function Nacharbeit({ laufId, zeilen, zielfelder, optionen }: { laufId: s
 
   function speichern(z: NacharbeitZeile) {
     const patch: Record<string, string> = {};
-    for (const f of felder) if ((werte[f.key] ?? "") !== (z.felder[f.key] ?? "")) patch[f.key] = werte[f.key] ?? "";
+    // Ein Feld mit Fehler geht immer mit — auch unveraendert leer (B5: der Wert mit Kontaktdaten wurde nie uebernommen, „leer lassen" ist die Korrektur).
+    for (const f of felder) if ((werte[f.key] ?? "") !== (z.felder[f.key] ?? "") || z.felder[`${FEHLER_PREFIX}${f.key}`]) patch[f.key] = werte[f.key] ?? "";
     starte(async () => {
       const erg = await importZeileBearbeiten(laufId, z.id, patch);
       if (erg.ok) {

@@ -135,7 +135,7 @@ export function AkteureAufloesen({ laufId, status, gruppen, sektorLabels }: { la
                         ))}
                       </select>
                       <button type="button" className="btn btn--ghost btn--sm" onClick={() => lauf(() => importAkteurSektorWaehlen(laufId, g.schluessel, sektorWahl[g.schluessel] ?? ""))} disabled={laeuft || !sektorWahl[g.schluessel]}>
-                        Übernehmen
+                        Sektor übernehmen
                       </button>
                     </span>
                   )}
