@@ -205,12 +205,12 @@ describe("B8/E20: Zahlen und Mengen der Testdatei", () => {
     expect(f(5).felder[`${HINWEIS_PREFIX}menge_roh_fm`]).toBeUndefined();
   });
   it("Zeile 32/33: Preis bleibt mit Vorzeichen und ohne Rundung; Belegdaten je Zeile", () => {
-    expect(f(32).felder).toMatchObject({ preis_mittel: "85", beleg_typ: "angebot", beleg_erhebungsdatum: "2026-09-14", beleg_gueltig_bis: "2026-12-30" });
+    expect(f(32).felder).toMatchObject({ preis_mittel: "85", beleg_typ: "angebot", beleg_erhebungsdatum: "2026-09-15", beleg_gueltig_bis: "2026-12-31" });
     expect(f(33).felder.preis_mittel).toBe("-15");
   });
   it("Zeile 28 (Datumszellen fuer den Zeitraum): Monat uebernommen, Hinweis an der Zeile", () => {
     const r = f(28);
-    expect(r.felder.zeitraum_von).toBe("2026-09");
+    expect(r.felder.zeitraum_von).toBe("2026-10");
     expect(r.felder.zeitraum_bis).toBe("2027-01");
     expect(hinweise(r.felder)).toHaveLength(2);
   });
@@ -251,7 +251,7 @@ describe("Doppelzeilen (Weggabelung 7)", () => {
 describe("Einheiten bei Bedarfen (Weggabelung 9, Blatt Bedarfe)", () => {
   const f = (nr: number) => zeileZuFelder(bedarfe.spalten, zeile(bedarfe, nr), zBedarfe);
   it("MWh/a bleibt, kg/a wird t/a, GWh/a wird MWh/a — mit Hinweis; unbekanntes Produkt ist ein Fehler", () => {
-    expect(f(2).felder).toMatchObject({ produkt_code: "waerme", menge_wert: "12000", menge_einheit: "MWh/a", zeitraum_von: "2026-12" });
+    expect(f(2).felder).toMatchObject({ produkt_code: "waerme", menge_wert: "12000", menge_einheit: "MWh/a", zeitraum_von: "2027-01" });
     expect(f(2).fehlergrund).toBeNull();
     expect(f(7).felder).toMatchObject({ menge_wert: "30", menge_einheit: "t/a" });
     expect(f(7).felder[`${HINWEIS_PREFIX}menge_wert`]).toMatch(/30000 kg\/a.*30 t\/a/);
