@@ -2218,3 +2218,31 @@ konservative Vorgaben ohne ausdrückliche Entscheidung. (c) Erwähnungen
 eines später gelöschten Kommentars bleiben als Zeilen stehen (kein Text,
 keine Zustellung mehr) — Löschen ist weich.
 
+**PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0054):** Parameter
+`inbox.aufbewahrung_erledigt_tage` = 14 und `inbox.aufbewahrung_gelesen_tage`
+= 60 (Startwerte, Verlauf E60, Gruppe „Inbox" in einstellungen.). Der
+tägliche Job (`worker.ts`, nach dem Verifikations-Job) löscht in
+`lib/inbox/aufbewahrung.ts` (einzige Löschstelle, ein Statement, Stichtag
+hereingereicht): Einträge im Zustand erledigt oder verworfen, deren
+`zustand_seit` plus Frist den Stichtag erreicht (tagesgenau Europe/Berlin),
+und offene gelesene Einträge, deren `gelesen_am` plus Frist den Stichtag
+erreicht. Ungelesene bleiben. Bestand gewinnt: der Zustand „erledigt"
+existiert (Enum `inbox_zustand`), „verworfen" (vom Empfänger weggeklickt)
+wird wie erledigt behandelt. Log-Zeile `JOB inbox-aufbewahrung <env>
+{"erledigt","gelesen"}`. Tests: `lib/inbox/aufbewahrung.test.ts`,
+`scripts/inbox-aufbewahrung-probe.ts` (Wegwerf-DB: 13/14 und 59/60 Tage,
+ungelesen bleibt, Wird-frei bleibt, idempotent, Parameter wirkt),
+`parameter-check` 15 Schlüssel.
+
+**OFFEN (PR d):** (h) Zustandsbasierte Hinweise des Jobs
+(`verifikation_laeuft_ab`, `verifikation_abgelaufen`, `akteur_verwaist`,
+`kontaktperson_loeschpruefung`, `biomasse_wird_frei`) sind von der
+Aufbewahrung ganz ausgenommen — auch erledigte: ihre Idempotenz-Indizes
+gelten über alle Zustände („dauerhaft", E63/E70), ein gelöschter Eintrag
+entstünde beim nächsten Lauf als neuer ungelesener Hinweis, solange seine
+Bedingung gilt. Sie bleiben damit, bis Eric eine Regel für sie trifft (z. B.
+löschen, sobald die Bedingung nicht mehr gilt UND die Frist erreicht ist).
+(i) „verworfen" ist in D14 nicht genannt — wie erledigt behandelt. (j) Die
+Leitplanke „Keine Daten löschen" gilt für Datensätze; Inbox-Einträge sind
+Mitteilungen, D14 ist Erics ausdrückliche Entscheidung (wie
+`import.zeilen_aufbewahrung_tage`).
