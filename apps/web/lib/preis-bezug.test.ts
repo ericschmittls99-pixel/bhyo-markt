@@ -40,6 +40,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   preisHerkunft: null,
   // E69: die bestehenden Faelle rechnen in €/t atro — der Bezug steht jetzt ausdruecklich dabei.
   preisBezug: "atro",
+  standortGenauigkeit: "unbekannt",
   gruppe: null,
   gruppeLabel: null,
   produktCode: null,
