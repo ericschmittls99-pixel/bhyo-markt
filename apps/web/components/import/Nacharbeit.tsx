@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { Fragment, useState, useTransition } from "react";
 
 import { importZeileBearbeiten, importZeileUeberspringen } from "@/lib/import-actions";
-import type { Zielfeld } from "@/lib/import-zuordnung";
+import { FEHLER_PREFIX, hinweise, zuordnungsFehlerListe, type Zielfeld } from "@/lib/import-zuordnung";
 import type { CodeOptionen } from "./ZuordnungTabelle";
 
 export interface NacharbeitZeile {
@@ -19,7 +19,9 @@ export interface NacharbeitZeile {
  * Nacharbeit (AP2.7 PR c, E67): Zeilen mit Fehler je Zeile korrigieren —
  * dieselben Zielfelder wie die Zuordnung, Code-Felder als Auswahl — oder
  * ueberspringen. Gespeichert wird nur, was sich geaendert hat; die Zeile
- * geht danach wieder durch Probelauf und Ausfuehren.
+ * geht danach wieder durch Probelauf und Ausfuehren. PR f (B3): Fehler je
+ * Feld stehen am Feld, Hinweise (Rundung, Umrechnung) an der Zeile; der
+ * Server prueft die Eingabe nach denselben Regeln wie die Zuordnung.
  */
 export function Nacharbeit({ laufId, zeilen, zielfelder, optionen }: { laufId: string; zeilen: NacharbeitZeile[]; zielfelder: Zielfeld[]; optionen: CodeOptionen }) {
   const router = useRouter();
@@ -83,7 +85,18 @@ export function Nacharbeit({ laufId, zeilen, zielfelder, optionen }: { laufId: s
                   {z.felder.akteur_name ?? "—"}
                   {z.felder.akteur_sitz_plz || z.felder.akteur_sitz_ort ? <span className="c"> · {[z.felder.akteur_sitz_plz, z.felder.akteur_sitz_ort].filter(Boolean).join(" ")}</span> : null}
                 </td>
-                <td className="c">{z.fehlergrund ?? "—"}</td>
+                <td className="c">
+                  {(() => {
+                    const liste = zuordnungsFehlerListe(z.felder);
+                    const alle = liste.length > 0 ? liste : z.fehlergrund ? [z.fehlergrund] : [];
+                    return alle.length > 0 ? alle.map((t, i) => <div key={i}>{t}</div>) : "—";
+                  })()}
+                  {hinweise(z.felder).map((h, i) => (
+                    <div key={`h${i}`} className="imp-hinweis">
+                      <i className="ph ph-info" aria-hidden /> {h}
+                    </div>
+                  ))}
+                </td>
                 <td>
                   {offen === z.id ? (
                     <button type="button" className="btn btn--ghost btn--sm" onClick={() => setOffen(null)} disabled={laeuft}>
@@ -110,6 +123,7 @@ export function Nacharbeit({ laufId, zeilen, zielfelder, optionen }: { laufId: s
                           <span>
                             {f.label}
                             {f.pflicht ? " *" : ""}
+                            {z.felder[`${FEHLER_PREFIX}${f.key}`] && <span className="pf-fehler"> · {z.felder[`${FEHLER_PREFIX}${f.key}`]}</span>}
                           </span>
                           <span className="pf-feld">
                             {f.typ === "code" && f.werte ? (

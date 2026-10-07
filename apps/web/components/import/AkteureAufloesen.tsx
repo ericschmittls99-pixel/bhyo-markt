@@ -4,20 +4,25 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
-import { importAkteurEntscheiden, importAkteureAufloesen } from "@/lib/import-actions";
+import { importAkteurEntscheiden, importAkteureAufloesen, importAkteurSektorWaehlen } from "@/lib/import-actions";
 import type { AkteurGruppeAnzeige } from "@/lib/import-akteure";
 
 /**
  * Akteure eines Laufs aufloesen (AP2.7 PR b, E67): je Gruppe (Normname +
  * PLZ) das Ergebnis des Matchers — identisch uebernommen, starker Treffer als
  * Vorschlag mit Bestaetigung (einzeln oder gesammelt), sonst neuer Akteur.
+ * PR f (Weggabelung 6): verschiedene Sektoren bei einem Akteur sind ein
+ * Konflikt mit Pflichtentscheidung je Akteur — Auswahl aus den Werten der
+ * Datei, keine stille Uebernahme des ersten.
  */
-export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; status: string; gruppen: AkteurGruppeAnzeige[] }) {
+export function AkteureAufloesen({ laufId, status, gruppen, sektorLabels }: { laufId: string; status: string; gruppen: AkteurGruppeAnzeige[]; sektorLabels: Record<string, string> }) {
   const router = useRouter();
   const [meldung, setMeldung] = useState<string | null>(null);
   const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
+  const [sektorWahl, setSektorWahl] = useState<Record<string, string>>({});
   const vorschlaege = gruppen.filter((g) => g.ergebnis === "vorschlag");
+  const konflikte = gruppen.filter((g) => g.sektorKonflikt).length;
   const offeneGruppen = gruppen.filter((g) => g.ergebnis === "offen").length;
 
   function lauf(fn: () => Promise<{ ok?: boolean; fehler?: string }>) {
@@ -71,9 +76,10 @@ export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; 
             Alle {vorschlaege.length} Vorschläge übernehmen
           </button>
         )}
+        {konflikte > 0 && <span className="c">{konflikte} Akteur(e) mit Sektor-Konflikt — je Akteur einen Sektor wählen, sonst startet der Probelauf nicht.</span>}
         {meldung && <span className="pf-fehler">{meldung}</span>}
       </div>
-      {(status === "aufgeloest" || gruppen.some((g) => g.ergebnis !== "offen")) && (
+      {(status === "aufgeloest" || gruppen.some((g) => g.ergebnis !== "offen" || g.sektorKonflikt)) && (
         <table className="einst-tabelle imp-tabelle">
           <thead>
             <tr>
@@ -109,8 +115,30 @@ export function AkteureAufloesen({ laufId, status, gruppen }: { laufId: string; 
                   )}
                   {g.ergebnis === "neu" && <span className="pill pill--muted">neuer Akteur</span>}
                   {g.ergebnis === "offen" && <span className="pill pill--muted">offen</span>}
+                  {g.sektorKonflikt && (
+                    <>
+                      {" "}
+                      <span className="pill pill--accent">Sektor-Konflikt</span>{" "}
+                      <span className="c">{g.sektoren.map((s) => sektorLabels[s] ?? s).join(" / ")}</span>
+                    </>
+                  )}
                 </td>
                 <td>
+                  {g.sektorKonflikt && (
+                    <span className="imp-aktionen">
+                      <select value={sektorWahl[g.schluessel] ?? ""} onChange={(e) => setSektorWahl((alt) => ({ ...alt, [g.schluessel]: e.target.value }))} aria-label={`Sektor für ${g.name}`}>
+                        <option value="">Sektor wählen …</option>
+                        {g.sektoren.map((s) => (
+                          <option key={s} value={s}>
+                            {sektorLabels[s] ?? s}
+                          </option>
+                        ))}
+                      </select>
+                      <button type="button" className="btn btn--ghost btn--sm" onClick={() => lauf(() => importAkteurSektorWaehlen(laufId, g.schluessel, sektorWahl[g.schluessel] ?? ""))} disabled={laeuft || !sektorWahl[g.schluessel]}>
+                        Übernehmen
+                      </button>
+                    </span>
+                  )}
                   {g.ergebnis === "vorschlag" && (
                     <span className="imp-aktionen">
                       <button type="button" className="btn btn--ghost btn--sm" onClick={() => lauf(() => importAkteurEntscheiden(laufId, g.schluessel, "vorhanden"))} disabled={laeuft}>
