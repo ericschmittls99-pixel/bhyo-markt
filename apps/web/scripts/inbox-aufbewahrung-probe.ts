@@ -34,7 +34,10 @@ const ROLLBACK = "__rollback__";
 
 const P1 = "00000000-0000-4000-8000-00000000a2d0";
 const AKTEUR = "00000000-0000-4000-8000-00000000a2d1";
-const STROM = "00000000-0000-4000-8000-00000000a2d2";
+// Drei Stroeme: der Buendelungs-Index (Empfaenger, Strom) WHERE offen AND aenderung_eintrag
+// laesst je Strom nur EINEN offenen Eintrag zu — die offenen Probezeilen bekommen eigene Stroeme.
+const STROEME = ["00000000-0000-4000-8000-00000000a2d2", "00000000-0000-4000-8000-00000000a2d3", "00000000-0000-4000-8000-00000000a2d4"] as const;
+const STROM = STROEME[0];
 const E = {
   erledigt13: "00000000-0000-4000-8000-00000000a2e1",
   erledigt14: "00000000-0000-4000-8000-00000000a2e2",
@@ -62,22 +65,24 @@ async function main() {
       await x(sql`insert into benutzer (id, email, name, rolle, aktiv) values (${P1}, 'aufbewahrung-p1@example.invalid', 'Probe Pruefer', 'pruefer', true)`);
       await x(sql`insert into akteur (id, name, sektor, status, sitz_plz, sitz_ort) values (${AKTEUR}, 'Probe Akteur Aufbewahrung', 'ohne_sektor', 'entwurf', '00000', 'Probe')`);
       const [mat] = await x<{ code: string }>(sql`select code from materialart order by code limit 1`);
-      await x(sql`insert into biomassestrom (id, akteur_id, materialart_code, menge_roh_fm, zeitraum_von, zeitraum_bis, saisonalitaet, status)
-        values (${STROM}, ${AKTEUR}, ${mat!.code}, 100, '2020-01-01', '2035-12-31', '[100,100,100,100,100,100,100,100,100,100,100,100]'::jsonb, 'entwurf')`);
+      for (const sid of STROEME) {
+        await x(sql`insert into biomassestrom (id, akteur_id, materialart_code, menge_roh_fm, zeitraum_von, zeitraum_bis, saisonalitaet, status)
+          values (${sid}, ${AKTEUR}, ${mat!.code}, 100, '2020-01-01', '2035-12-31', '[100,100,100,100,100,100,100,100,100,100,100,100]'::jsonb, 'entwurf')`);
+      }
       const [er] = await x<{ id: string }>(sql`insert into aenderung (entitaet_typ, entitaet_id, text, art, benutzer_id) values ('biomassestrom', ${STROM}, 'Probe', 'geaendert', ${P1}) returning id`);
       // Zeitpunkt „vor n Tagen" um 12:00 Berlin — tagesgenau, fern der Mitternachtsgrenze.
       // Parameter kommen als Text an — Typen ausdruecklich (date - int), sonst „operator does not exist".
       const vorTagen = (n: number) => sql`((${STICHTAG}::date - ${n}::int)::timestamp + interval '12 hours') at time zone 'Europe/Berlin'`;
-      const eintrag = (id: string, zustand: string, zustandVor: number, gelesenVor: number | null) => sql`
+      const eintrag = (id: string, zustand: string, zustandVor: number, gelesenVor: number | null, strom: string = STROM) => sql`
         insert into inbox_eintrag (id, empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, erstellt_am, aktualisiert_am, gelesen_am, zustand, zustand_seit)
-        values (${id}, ${P1}, ${P1}, 'aenderung_eintrag', ${STROM}, ${er!.id}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))},
+        values (${id}, ${P1}, ${P1}, 'aenderung_eintrag', ${strom}, ${er!.id}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))}, ${vorTagen(Math.max(zustandVor, gelesenVor ?? 0, 1))},
                 ${gelesenVor == null ? sql`null` : vorTagen(gelesenVor)}, ${zustand}::inbox_zustand, ${vorTagen(zustandVor)})`;
       await x(eintrag(E.erledigt13, "erledigt", 13, 20));
       await x(eintrag(E.erledigt14, "erledigt", 14, 20));
       await x(eintrag(E.verworfen14, "verworfen", 14, 20));
-      await x(eintrag(E.gelesen59, "offen", 70, 59));
-      await x(eintrag(E.gelesen60, "offen", 70, 60));
-      await x(eintrag(E.ungelesen400, "offen", 400, null));
+      await x(eintrag(E.gelesen59, "offen", 70, 59, STROEME[0]));
+      await x(eintrag(E.gelesen60, "offen", 70, 60, STROEME[1]));
+      await x(eintrag(E.ungelesen400, "offen", 400, null, STROEME[2]));
       // AP2.8-Hinweise (zustandsbasiert, ohne Urheber): einer offen und alt gelesen, einer erledigt und alt.
       const wirdFrei = (id: string, zustand: string, stufe: number) => sql`
         insert into inbox_eintrag (id, empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, bezugsdatum, stufe, erstellt_am, aktualisiert_am, gelesen_am, zustand, zustand_seit)
