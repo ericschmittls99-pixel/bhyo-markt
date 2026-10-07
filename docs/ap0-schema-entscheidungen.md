@@ -1738,7 +1738,64 @@ Probelauf ohne Belegdaten oder mit offenen Vorschlägen startet nicht.
 
 
 <<<<<<< HEAD
-## 39. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
+## 39. AP2.7 PR e: Import — Blattwahl, Kopfzeile, fehlende Pflichtwerte (E67), 07.10.2026
+
+**Anlass:** Durchlauf mit der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`
+(Eric, fiktiv): Kopfzeile in Zeile 4 wurde nicht erkannt, kein Blatt wählbar,
+Zuordnung gesperrt, weil TS-Anteil und Aschegehalt in der Datei fehlen.
+Entscheidungen Eric (07.10.2026), hier umgesetzt:
+
+**Blattwahl (B2):** Nach dem Upload zeigt die Zuordnung alle Blätter mit
+Zeilenzahl; Blätter ohne erkennbare Tabelle sind markiert („keine Tabelle
+erkannt"), nicht verboten — wer sie wählt, bekommt die Meldung „keine
+Kopfzeile erkennbar — Kopfzeile von Hand wählen". Ohne Wahl nimmt der Parser
+das erste Blatt mit Tabelle. Die Wahl reist als `?blatt=&kopf=`, wird mit der
+Zuordnung gespeichert (`import_lauf.blatt`, `import_lauf.kopfzeile`,
+Migration 0048) und steht im Protokolltext.
+
+**Kopfzeile (B1):** `erkenneKopfzeile`: die erste Zeile mit mindestens zwei
+nicht-leeren Zellen, davon überwiegend Text, auf die innerhalb von drei
+Zeilen ein Datenblock (eine Zeile mit mindestens zwei Zellen) folgt; sonst
+der erste Kandidat ohne Datenblock (dann „keine Datenzeile"). Feld
+„Kopfzeile ist Zeile n" mit Vorschau (bis vier Rohzeilen ab der Kopfzeile).
+Zeilen darüber werden ignoriert; darunter werden Leerzeilen, eine
+Summenzeile (Formel in der Zeile oder erste Textzelle „Summe"/„Gesamt"/
+„Total") und Fußzeilen (höchstens eine Zelle bei mindestens drei Spalten)
+übersprungen und gezählt (`zaehler.uebersprungen_oben/_leer/_summe/_fuss`,
+Oberfläche, Protokoll). Zeilennummern sind die echten Excel-Zeilen, damit
+Nacharbeit und Datei zusammenpassen. Die Personen-Erkennung greift danach
+über die echten Spaltennamen.
+
+**Fehlende Pflichtwerte (W1):** Die Materialart-Referenz trägt **keine**
+TS- und Aschewerte (nur Code, Label, Cluster) — es gibt keinen Typwert.
+Also gilt: TS-Anteil und Aschegehalt dürfen fehlen (Spalte oder Zelle);
+`biomassestrom.ts_anteil_pct` und `aschegehalt_pct` sind nullable
+(Migration 0048), NULL heißt „unbekannt", nie ein erfundener Wert. Der
+Strom ist dann unvollständig (Vollständigkeit zählt beide Felder) und kann
+nicht „geprüft" werden: `stromPruefen` weist ab („TS-Anteil und Aschegehalt
+fehlen — erst ergänzen, dann prüfen."), der DB-CHECK
+`biomassestrom_geprueft_vollstaendig_check` ist das Sicherheitsnetz (E21:
+vorher gab es keine NULL-Werte, Zählbeweis `PR_E geprueft_unvollstaendig=0`).
+**Eine Logik für Formular und Import:** das Formular verlangt die Felder
+nicht mehr („leer = unbekannt"), Detail und Register zeigen „unbekannt".
+
+**Zeitraum:** Ohne Spalte oder mit leerer Zelle gilt der Zeitraum des
+Laufs: „Zeitraum von" **und** „Zeitraum bis" (MM/JJJJ) sind Pflichtangaben
+bei den Belegdaten, sobald eine Zeile keinen eigenen Zeitraum trägt, ohne
+Vorbelegung (`import_lauf.zeitraum_von/_bis`). **Gemeldet:** `zeitraum_bis`
+ist im Modell NOT NULL — „unbefristet" gibt es nicht, deshalb ist auch
+„Zeitraum bis" am Lauf Pflicht (Erics Vorbehalt „falls das Modell es
+zulässt"). Eine zugeordnete Spalte geht dem Lauf-Wert je Zeile vor.
+
+**Rot gezeigt (Vitest):** Legende ohne Kopfzeile abgewiesen mit Hinweis auf
+die Handwahl; unbekanntes Blatt abgewiesen; Zeilen ohne Zeitraum und ohne
+Lauf-Zeitraum → Feldfehler, nichts gespeichert; bis vor von → Fehler;
+fehlende Materialart bleibt Pflichtverletzung, fehlender Aschegehalt nicht
+mehr; `stromPruefen` ohne TS/Asche (Fixture mit Werten grün, Vorbedingung
+im Code).
+>>>>>>> origin/main
+
+## 40. E68 Adressprüfung statt Vorschläge beim Tippen — PR 1: PLZ-Gebiete lokal, 07.10.2026
 
 **E68 (Eric, 06.10.2026):** Adressprüfung statt Autocomplete. Kein
 Bezahldienst; ein gehosteter Dienst (Geofabrik/Geoapify) bleibt als spätere
@@ -1844,59 +1901,3 @@ Ortszuordnung. (2) Exklaven außerhalb Deutschlands
 die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
 07.10.2026): Quelle und Ableitung der Orte, siehe oben.
 =======
-## 39. AP2.7 PR e: Import — Blattwahl, Kopfzeile, fehlende Pflichtwerte (E67), 07.10.2026
-
-**Anlass:** Durchlauf mit der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`
-(Eric, fiktiv): Kopfzeile in Zeile 4 wurde nicht erkannt, kein Blatt wählbar,
-Zuordnung gesperrt, weil TS-Anteil und Aschegehalt in der Datei fehlen.
-Entscheidungen Eric (07.10.2026), hier umgesetzt:
-
-**Blattwahl (B2):** Nach dem Upload zeigt die Zuordnung alle Blätter mit
-Zeilenzahl; Blätter ohne erkennbare Tabelle sind markiert („keine Tabelle
-erkannt"), nicht verboten — wer sie wählt, bekommt die Meldung „keine
-Kopfzeile erkennbar — Kopfzeile von Hand wählen". Ohne Wahl nimmt der Parser
-das erste Blatt mit Tabelle. Die Wahl reist als `?blatt=&kopf=`, wird mit der
-Zuordnung gespeichert (`import_lauf.blatt`, `import_lauf.kopfzeile`,
-Migration 0048) und steht im Protokolltext.
-
-**Kopfzeile (B1):** `erkenneKopfzeile`: die erste Zeile mit mindestens zwei
-nicht-leeren Zellen, davon überwiegend Text, auf die innerhalb von drei
-Zeilen ein Datenblock (eine Zeile mit mindestens zwei Zellen) folgt; sonst
-der erste Kandidat ohne Datenblock (dann „keine Datenzeile"). Feld
-„Kopfzeile ist Zeile n" mit Vorschau (bis vier Rohzeilen ab der Kopfzeile).
-Zeilen darüber werden ignoriert; darunter werden Leerzeilen, eine
-Summenzeile (Formel in der Zeile oder erste Textzelle „Summe"/„Gesamt"/
-„Total") und Fußzeilen (höchstens eine Zelle bei mindestens drei Spalten)
-übersprungen und gezählt (`zaehler.uebersprungen_oben/_leer/_summe/_fuss`,
-Oberfläche, Protokoll). Zeilennummern sind die echten Excel-Zeilen, damit
-Nacharbeit und Datei zusammenpassen. Die Personen-Erkennung greift danach
-über die echten Spaltennamen.
-
-**Fehlende Pflichtwerte (W1):** Die Materialart-Referenz trägt **keine**
-TS- und Aschewerte (nur Code, Label, Cluster) — es gibt keinen Typwert.
-Also gilt: TS-Anteil und Aschegehalt dürfen fehlen (Spalte oder Zelle);
-`biomassestrom.ts_anteil_pct` und `aschegehalt_pct` sind nullable
-(Migration 0048), NULL heißt „unbekannt", nie ein erfundener Wert. Der
-Strom ist dann unvollständig (Vollständigkeit zählt beide Felder) und kann
-nicht „geprüft" werden: `stromPruefen` weist ab („TS-Anteil und Aschegehalt
-fehlen — erst ergänzen, dann prüfen."), der DB-CHECK
-`biomassestrom_geprueft_vollstaendig_check` ist das Sicherheitsnetz (E21:
-vorher gab es keine NULL-Werte, Zählbeweis `PR_E geprueft_unvollstaendig=0`).
-**Eine Logik für Formular und Import:** das Formular verlangt die Felder
-nicht mehr („leer = unbekannt"), Detail und Register zeigen „unbekannt".
-
-**Zeitraum:** Ohne Spalte oder mit leerer Zelle gilt der Zeitraum des
-Laufs: „Zeitraum von" **und** „Zeitraum bis" (MM/JJJJ) sind Pflichtangaben
-bei den Belegdaten, sobald eine Zeile keinen eigenen Zeitraum trägt, ohne
-Vorbelegung (`import_lauf.zeitraum_von/_bis`). **Gemeldet:** `zeitraum_bis`
-ist im Modell NOT NULL — „unbefristet" gibt es nicht, deshalb ist auch
-„Zeitraum bis" am Lauf Pflicht (Erics Vorbehalt „falls das Modell es
-zulässt"). Eine zugeordnete Spalte geht dem Lauf-Wert je Zeile vor.
-
-**Rot gezeigt (Vitest):** Legende ohne Kopfzeile abgewiesen mit Hinweis auf
-die Handwahl; unbekanntes Blatt abgewiesen; Zeilen ohne Zeitraum und ohne
-Lauf-Zeitraum → Feldfehler, nichts gespeichert; bis vor von → Fehler;
-fehlende Materialart bleibt Pflichtverletzung, fehlender Aschegehalt nicht
-mehr; `stromPruefen` ohne TS/Asche (Fixture mit Werten grün, Vorbedingung
-im Code).
->>>>>>> origin/main
