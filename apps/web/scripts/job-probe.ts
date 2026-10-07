@@ -89,14 +89,19 @@ async function main() {
       pruefe("1b zweiter Lauf desselben Tages erzeugt nichts", lauf2.laeuftAb === 0 && lauf2.abgelaufen === 0 && (await zaehle()).length === 1, lauf2);
 
       // 2. Nachholen: Stichtag heute + 4 (gueltig_bis ueberschritten) → Ablauf-Hinweis, Vorab erledigt.
+      // Der Vorlauf oben gilt nur fuer `heute`: Bestands-Stroeme, deren Frist zwischen heute
+      // und heute + 4 endet, laufen hier ebenfalls ab und zaehlen in lauf3 mit (Rot 07.10.2026,
+      // 00:15 Berlin: 9 statt 1, sobald der Kalendertag wechselte). Deshalb werden die Zaehler
+      // nur als Untergrenze geprueft; was genau geschah, belegt der Probe-Strom selbst (nach3).
       const [spaeter] = (await tx.execute<{ t: string }>(sql`select (${heute}::date + 4)::text as t`)) as unknown as { t: string }[];
       const lauf3 = await stelleVerifikationsHinweiseZu(tx, spaeter!.t);
       const nach3 = await zaehle();
       pruefe(
         "2 spaeterer Stichtag: Ablauf-Hinweis neu, Vorab-Hinweis erledigt, gleiches Bezugsdatum",
-        lauf3.abgelaufen === 1 && lauf3.laeuftAb === 0 && lauf3.vorabErledigt === 1 &&
-          nach3.some((z) => z.typ === "verifikation_abgelaufen" && z.zustand === "offen") &&
-          nach3.some((z) => z.typ === "verifikation_laeuft_ab" && z.zustand === "erledigt") &&
+        lauf3.abgelaufen >= 1 && lauf3.laeuftAb === 0 && lauf3.vorabErledigt >= 1 &&
+          nach3.length === 2 &&
+          nach3.some((z) => z.typ === "verifikation_abgelaufen" && z.zustand === "offen" && z.empfaenger_id === p1) &&
+          nach3.some((z) => z.typ === "verifikation_laeuft_ab" && z.zustand === "erledigt" && z.empfaenger_id === p1) &&
           new Set(nach3.map((z) => z.bezugsdatum)).size === 1,
         { lauf3, nach3 },
       );
