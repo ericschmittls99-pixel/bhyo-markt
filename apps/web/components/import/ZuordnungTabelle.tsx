@@ -44,8 +44,11 @@ export function ZuordnungTabelle({
   optionen,
   vorlagen,
   aktiveVorlage,
+  wahl,
 }: {
   laufId: string;
+  /** PR e: gewaehltes Blatt und Kopfzeile — wird mit der Zuordnung gespeichert. */
+  wahl: { blatt?: string; kopfzeile?: number };
   spalten: SpalteAnzeige[];
   zielfelder: Zielfeld[];
   vorschlag: Record<string, string>;
@@ -89,7 +92,7 @@ export function ZuordnungTabelle({
   function speichern() {
     const zuordnung = aktuelleZuordnung();
     starte(async () => {
-      const erg = await importZuordnungSpeichern(laufId, zuordnung);
+      const erg = await importZuordnungSpeichern(laufId, zuordnung, wahl);
       if (erg.ok) {
         setMeldungen([]);
         router.refresh();
@@ -170,6 +173,10 @@ export function ZuordnungTabelle({
           })}
         </tbody>
       </table>
+      <p className="c">
+        Ohne Spalte für TS-Anteil oder Aschegehalt bleiben die Werte „unbekannt“ (Strom unvollständig, kein „geprüft“ ohne
+        Ergänzung). Ohne Spalte oder Wert für den Zeitraum gilt der Zeitraum des Laufs, der vor dem Probelauf abgefragt wird.
+      </p>
       {pflichtOffen.length > 0 && (
         <p className="pf-fehler">Pflichtfelder ohne Spalte: {pflichtOffen.map((z) => z.label).join(", ")} — ohne sie würde jede Zeile scheitern.</p>
       )}

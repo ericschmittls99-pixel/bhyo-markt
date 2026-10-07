@@ -467,8 +467,11 @@ export const biomassestrom = pgTable("biomassestrom", {
     .notNull()
     .references(() => materialart.code),
   mengeRohFm: numeric("menge_roh_fm").notNull(),
-  tsAnteilPct: numeric("ts_anteil_pct").notNull(),
-  aschegehaltPct: numeric("aschegehalt_pct").notNull(),
+  // AP2.7 PR e (Eric 07.10.2026): NULL = unbekannt. Die Materialart-Referenz traegt
+  // keine Typwerte; ein Strom ohne beide Werte ist unvollstaendig und wird nie
+  // „geprueft" (CHECK biomassestrom_geprueft_vollstaendig_check, Migration 0047).
+  tsAnteilPct: numeric("ts_anteil_pct"),
+  aschegehaltPct: numeric("aschegehalt_pct"),
   // Trockenmasse (atro) deterministisch aus Rohmenge, TS-Anteil und Aschegehalt.
   // Generated Column: Postgres rechnet, es gibt keine schreibbare Spalte.
   mengeAtro: numeric("menge_atro").generatedAlwaysAs(
@@ -1291,6 +1294,12 @@ export const importLauf = pgTable(
      */
     belegErhebungsdatum: date("beleg_erhebungsdatum"),
     belegGueltigBis: date("beleg_gueltig_bis"),
+    // AP2.7 PR e: gewaehltes Tabellenblatt und Kopfzeile (1-basiert, wie in Excel) — fuer Bericht und Nacharbeit.
+    blatt: text("blatt"),
+    kopfzeile: integer("kopfzeile"),
+    // AP2.7 PR e: Zeitraum des Laufs fuer Zeilen ohne eigenen Wert (Pflicht am Lauf, keine Vorbelegung).
+    zeitraumVon: date("zeitraum_von"),
+    zeitraumBis: date("zeitraum_bis"),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),

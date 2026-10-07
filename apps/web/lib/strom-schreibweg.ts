@@ -209,8 +209,9 @@ export function stromWerte(e: StromEingabe) {
           materialartCode: e.eingaben.materialartCode,
           // Aus `eingaben`, nicht aus dem Rohtext: sonst landete "1,5" in numeric.
           mengeRohFm: nichtLeer(e.eingaben.mengeRohFm, "Rohmenge"),
-          tsAnteilPct: nichtLeer(e.eingaben.tsAnteilPct, "TS-Anteil"),
-          aschegehaltPct: nichtLeer(e.eingaben.aschegehaltPct, "Aschegehalt"),
+          // PR e: leer = unbekannt (NULL), nie ein erfundener Wert.
+          tsAnteilPct: leerZuNull(e.eingaben.tsAnteilPct),
+          aschegehaltPct: leerZuNull(e.eingaben.aschegehaltPct),
           preisMin: leerZuNull(e.eingaben.preisMin),
           preisMittel: leerZuNull(e.eingaben.preisMittel),
           preisMax: leerZuNull(e.eingaben.preisMax),

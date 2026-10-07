@@ -1,6 +1,6 @@
 /**
  * E68 PR 1: Spiegel der SQL-Funktionen plz_ort_norm / plz_ort_passt aus
- * Migration 0047 — eine Regel, zwei Laufzeiten. plz-check.ts rechnet beide
+ * Migration 0048 — eine Regel, zwei Laufzeiten. plz-check.ts rechnet beide
  * auf denselben Eingaben gegeneinander; weicht eine ab, ist die CI rot.
  */
 

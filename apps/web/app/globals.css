@@ -5628,6 +5628,9 @@ table.st-tabelle tbody tr:focus-visible {
   margin: 0;
   padding-left: 18px;
 }
+/* AP2.7 PR e: Vorschau der Kopfzeilen-Wahl. */
+.imp-vorschau td { white-space: nowrap; max-width: 180px; overflow: hidden; text-overflow: ellipsis; }
+.imp-vorschau-kopf td { font-weight: 600; }
 .imp-aktionen {
   display: flex;
   flex-wrap: wrap;

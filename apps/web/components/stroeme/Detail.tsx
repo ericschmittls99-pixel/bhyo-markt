@@ -252,15 +252,15 @@ export function Detail({
         },
         {
           label: "Trockensubstanz",
-          wert: s.tsAnteil != null ? fmtFaktor(s.tsAnteil) : "–",
-          einheit: "%",
-          quelle: "TS-Anteil",
+          wert: s.tsAnteil != null ? fmtFaktor(s.tsAnteil) : "unbekannt",
+          einheit: s.tsAnteil != null ? "%" : "",
+          quelle: s.tsAnteil != null ? "TS-Anteil" : "nicht erfasst — kein „geprüft“ möglich",
         },
         {
           label: "Aschegehalt",
-          wert: s.aschegehalt != null ? fmtFaktor(s.aschegehalt) : "–",
-          einheit: "%",
-          quelle: "Anteil an TS",
+          wert: s.aschegehalt != null ? fmtFaktor(s.aschegehalt) : "unbekannt",
+          einheit: s.aschegehalt != null ? "%" : "",
+          quelle: s.aschegehalt != null ? "Anteil an TS" : "nicht erfasst — kein „geprüft“ möglich",
         },
         {
           label: "Ergebnis",

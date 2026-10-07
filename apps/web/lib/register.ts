@@ -521,8 +521,8 @@ export function getDetail(
         zeitraumBis: r.zeitraumBis,
         mengen: [
           { label: "Rohmenge (FM)", wert: r.mengeRohFm != null ? formatZahl(r.mengeRohFm) : "—" },
-          { label: "TS-Anteil", wert: pct(r.tsAnteilPct) },
-          { label: "Aschegehalt", wert: pct(r.aschegehaltPct) },
+          { label: "TS-Anteil", wert: r.tsAnteilPct != null ? pct(r.tsAnteilPct) : "unbekannt" },
+          { label: "Aschegehalt", wert: r.aschegehaltPct != null ? pct(r.aschegehaltPct) : "unbekannt" },
           { label: "Trockenmasse", wert: r.mengeAtro != null ? `${formatZahl(r.mengeAtro)} t atro` : "—" },
         ],
         saisonalitaet: parseSaison(r.saisonalitaet),
