@@ -1,5 +1,5 @@
 {
-  "id": "b42817f7-1a4b-468d-a8f7-4521d26689d6",
+  "id": "35ef43ed-69eb-4c56-a717-1ba55b423e7e",
   "prevId": "ee741879-8584-4628-b8d7-602ad86c432e",
   "version": "7",
   "dialect": "postgresql",
@@ -2945,12 +2945,6 @@
         "ars": {
           "name": "ars",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "geom": {
-          "name": "geom",
-          "type": "geometry(MultiPolygon,4326)",
           "primaryKey": false,
           "notNull": true
         }

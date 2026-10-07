@@ -280,6 +280,11 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
   `plz-check` mit Fixture-Fällen (`PLZ_FIXTURE=ja`). Damit laufen
   DB-Tests der Entwürfe nicht mehr gegen die geteilte Preview. `sql-datei`
   weist Production-Hosts ab.
+- **Speicher (Eric 07.10.2026):** Neon Free, harte Grenze laut Preisseite
+  1 GB je Projekt. `lese-diagnose` druckt die Production-Größe (GROESSE),
+  `import-check` im Deploy die Preview-Größe. Vor der Production-Migration
+  von 0047: Wegwerf-Messung (PLZNACH, PLZVERGLEICH) vorlegen, Ziel deutlich
+  unter 25 MB für `plz_gebiet` + `plz_ort`.
 - **Neuer Stand der Quelle:** SHA-256 im Workflow, `PLZ_STICHTAG` und
   `SOLL_PLZ` in `packages/db/src/plz-import.ts` bewusst anpassen; den auf
   `wegwerf` gemessenen Gemeindewert als exaktes Soll eintragen.

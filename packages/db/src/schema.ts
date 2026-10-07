@@ -281,7 +281,7 @@ export const verwaltungsgebiet = pgTable("verwaltungsgebiet", {
  */
 export const plzGebiet = pgTable("plz_gebiet", {
   plz: text("plz").primaryKey(),
-  // Volle Aufloesung (auf 1e-6 Grad gerundet, ~10 cm) fuer ST_Covers, EPSG:4326.
+  // Vereinfacht (ST_SimplifyPreserveTopology, Toleranz in src/plz-import.ts) fuer ST_Covers, EPSG:4326.
   geom: geometryMultiPolygon("geom").notNull(),
   // Release-Stand der Quelle (Tag des GitHub-Releases).
   stichtag: date("stichtag").notNull(),
@@ -289,10 +289,11 @@ export const plzGebiet = pgTable("plz_gebiet", {
 
 /**
  * E68 PR 1: Orte je PLZ — abgeleitet aus dem Flaechenschnitt PLZ-Gebiet x
- * VG250-Gemeinde (BKG, GF=4): eine Gemeinde gehoert zur PLZ, wenn der Schnitt
- * mindestens 10 % der Gemeinde- oder der PLZ-Flaeche ausmacht (Splitter aus
- * Grenzabweichungen OSM/BKG fallen heraus). `ort_norm` ist die normalisierte
- * Form (Funktion plz_ort_norm, Spiegel in src/plz.ts) fuer den Vergleich
+ * VG250-Gemeinde (BKG, GF=4) BEIM IMPORT: eine Gemeinde gehoert zur PLZ, wenn
+ * der Schnitt mindestens 10 % der Gemeinde- oder der PLZ-Flaeche ausmacht
+ * (Splitter aus Grenzabweichungen OSM/BKG fallen heraus). Ohne Geometrie
+ * (Eric 07.10.2026, Speicher): nur PLZ, Gemeindename, ARS. `ort_norm` ist die
+ * normalisierte Form (plz_ort_norm, Spiegel in src/plz.ts) fuer den Vergleich
  * mit der Nutzereingabe; `ort` der amtliche Gemeindename fuer die Anzeige.
  */
 export const plzOrt = pgTable(
@@ -303,9 +304,6 @@ export const plzOrt = pgTable(
     ortNorm: text("ort_norm").notNull(),
     // Amtlicher Gemeindeschluessel (ARS, 12-stellig) — fuer spaetere Kreis-Hinweise.
     ars: text("ars").notNull(),
-    // Schnittflaeche PLZ-Gebiet x Gemeinde: liefert zu einem Pin PLZ UND Ort
-    // in einem ST_Covers (eine PLZ mit mehreren Orten braucht sonst Raten).
-    geom: geometryMultiPolygon("geom").notNull(),
   },
   (t) => [primaryKey({ columns: [t.plz, t.ars] })],
 );

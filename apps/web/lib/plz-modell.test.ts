@@ -14,9 +14,10 @@ describe("plzPruefungText (E68 PR 1)", () => {
   it("passt → kein Text", () => {
     expect(plzPruefungText({ plzBekannt: true, ortPasst: true, orte: ["Speyer"] }, "67346")).toBeNull();
   });
-  it("Treffer aus dem Pin wird eine Adresse der Art plz ohne Strassenanteil", () => {
-    expect(plzTrefferZuAdresse({ plz: "67346", ort: "Speyer", ars: "073180000000" }, { lng: 8.43, lat: 49.32 })).toEqual({
-      art: "plz", strasse: null, hausnummer: null, plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32,
+  it("Treffer aus dem Pin wird eine Adresse der Art plz ohne Strassenanteil; ein Ort eindeutig, mehrere bleiben offen", () => {
+    expect(plzTrefferZuAdresse({ plz: "67346", orte: ["Speyer"] }, { lng: 8.43, lat: 49.32 })).toEqual({
+      art: "plz", strasse: null, hausnummer: null, plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32, orte: ["Speyer"],
     });
+    expect(plzTrefferZuAdresse({ plz: "54636", orte: ["Bitburg", "Esch"] }, { lng: 6.5, lat: 50.0 }).ort).toBeNull();
   });
 });
