@@ -2157,10 +2157,24 @@ Kontaktpersonen (nur IDs, Bezugsart, Zähler). Tests:
 CHECKs, PK/FK, Rechte am echten Baustein, weiches Löschen, kein Text im
 Protokoll mit Rot-Nachweis, CASCADE).
 
-**Schnitt:** PR a (dieser) Datenmodell + Schreibweg + Rechte + Tests; PR b
+**Schnitt:** PR a Datenmodell + Schreibweg + Rechte + Tests; PR b
 UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
 `kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
 Inbox-Aufbewahrung (D14).
+
+**PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
+(SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
+`lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
+im Strom-Detail (über `lib/detail-daten.ts`, damit ströme. und inbox.
+dasselbe Panel zeigen) und im Akteur-Detail. Marker → aktueller Name
+(`kommentarSegmente`), deaktiviert/unbekannt → „ehemaliger Nutzer".
+Rechte zum Ausblenden aus derselben Matrix (`darf`), durchgesetzt bleibt
+serverseitig. Hinweis unter dem Feld und Kontaktdaten-Warnung (Muster aus
+dem Import, warnt, blockiert nicht) sind hier schon enthalten, weil sie am
+Eingabefeld hängen; die @-Auswahl und die Zustellung kommen mit PR c.
+Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
+`components/kommentare/Kommentare.test.tsx`, Segmente in
+`lib/kommentar-marker.test.ts`.
 
 **OFFEN:** (a) Reservierte Migrationsnummer: E71 nennt eine Migration 0052
 für AP2.6 — die Inbox-Erweiterung (PR c) und die Aufbewahrungs-Parameter

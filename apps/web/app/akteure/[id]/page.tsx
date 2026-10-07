@@ -3,12 +3,14 @@ import { notFound, redirect } from "next/navigation";
 
 import { AkteurSpalten } from "@/components/akteure/AkteurSpalten";
 import { Kontaktpersonen } from "@/components/akteure/Kontaktpersonen";
+import { Kommentare } from "@/components/kommentare/Kommentare";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteur, ladeAkteurStroeme, ladeAkteurVerlauf } from "@/lib/akteure";
 import { AKTEUR_ZUSTAND_LABEL, zustaendeAus } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
 import { zielNachZusammenfuehrung } from "@/lib/dubletten";
 import { fmtDatum } from "@/lib/format";
+import { ladeKommentare } from "@/lib/kommentare";
 import { ladeKontaktpersonen } from "@/lib/kontaktpersonen";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -35,12 +37,13 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
       </main>
     );
   }
-  const [a, stroeme, sektoren, personen, verlauf] = await Promise.all([
+  const [a, stroeme, sektoren, personen, verlauf, kommentare] = await Promise.all([
     withDb((db) => ladeAkteur(db, id)),
     withDb((db) => ladeAkteurStroeme(db, id)),
     ladeSektoren(),
     withDb((db) => ladeKontaktpersonen(db, id)),
     withDb((db) => ladeAkteurVerlauf(db, id)),
+    withDb((db) => ladeKommentare(db, { art: "akteur", id })),
   ]);
   if (!a) {
     // AP2.5 PR c: alte Links zur Quelle einer Zusammenfuehrung leiten ueber das Protokoll aufs Ziel.
@@ -153,6 +156,8 @@ export default async function AkteurSeite({ params, searchParams }: { params: Pr
               ))}
             </div>
           )}
+          {/* AP2.6 PR b (E71): Kommentare am Akteur — lesen alle, schreiben ab bearbeiter. */}
+          <Kommentare bezug={{ art: "akteur", id: a.id }} kommentare={kommentare} zugang={{ id: zugang.id, rolle: zugang.rolle }} darfErstellen={darfRolle(zugang, "kommentar.erstellen")} />
       </AkteurSpalten>
       )}
     </main>

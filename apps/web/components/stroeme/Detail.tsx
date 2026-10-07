@@ -31,6 +31,9 @@ import { Avatar, AvatarStapel, anzeigeName } from "@/components/Avatar";
 import { fmtDatumZeit } from "@/lib/format";
 import { BELEG_LABEL, KATEGORIE_LABEL, kreisAnzeige, landAnzeige, type SperrNutzer, type Strom } from "@/lib/stroeme-modell";
 import { PreisKorridorEinzel } from "@/components/stroeme/PreisKorridorEinzel";
+import { Kommentare } from "@/components/kommentare/Kommentare";
+import type { Kommentar } from "@/lib/kommentar-modell";
+import type { Rolle } from "@/lib/rechte";
 import type { PreisKorridorEinzel as PreisKorridorEinzelDaten } from "@/lib/preiskorridor-einzel";
 import { PREIS_BEZUG_LABEL, preisEinheitAnzeige } from "@/lib/preis-bezug";
 import { GUELTIG_BIS_BESCHRIFTUNG, istBelegTyp } from "@/lib/qualitaet";
@@ -81,6 +84,9 @@ export function Detail({
   sperrRechte = null,
   zuweisbare = [],
   anfrage = null,
+  kommentare = null,
+  kommentarZugang = null,
+  darfKommentieren = false,
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -116,6 +122,10 @@ export function Detail({
   anfrage?: { am: string } | null;
   /** E44: aktive Nutzer mit Rolle >= bearbeiter, an die zugewiesen werden kann. */
   zuweisbare?: SperrNutzer[];
+  /** AP2.6 PR b (E71): Kommentare des Stroms; null (karte./auswertung.) = kein Abschnitt. */
+  kommentare?: Kommentar[] | null;
+  kommentarZugang?: { id: string; rolle: Rolle } | null;
+  darfKommentieren?: boolean;
 }) {
   const s = strom;
   const [zuweisenOffen, setZuweisenOffen] = useState(false);
@@ -810,6 +820,12 @@ export function Detail({
               <section className="ov-sec">
                 <h3>begründung.</h3>
                 <p className="ov-text">{begruendung}</p>
+              </section>
+            )}
+
+            {kommentare && (
+              <section className="ov-sec">
+                <Kommentare bezug={{ art: s.art, id: s.id }} kommentare={kommentare} zugang={kommentarZugang} darfErstellen={darfKommentieren} />
               </section>
             )}
 
