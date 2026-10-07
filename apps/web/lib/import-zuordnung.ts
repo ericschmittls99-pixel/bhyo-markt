@@ -13,7 +13,7 @@ import type { StromArt } from "@/lib/stroeme-modell";
  */
 
 export type ZielTyp = "text" | "zahl" | "monat" | "datum" | "einheit" | "code";
-export type WerteListe = "materialart" | "produkt" | "sektor" | "beleg_typ" | "menge_einheit";
+export type WerteListe = "materialart" | "produkt" | "sektor" | "beleg_typ" | "menge_einheit" | "preis_bezug";
 
 export interface Zielfeld {
   key: string;
@@ -67,6 +67,8 @@ export const ZIELFELDER: readonly Zielfeld[] = [
   { key: "preis_min", label: "Preis min €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis min", "preis von", "min preis"] },
   { key: "preis_mittel", label: "Preis mittel €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis", "preis mittel", "mittelpreis", "preis t", "preis je t", "preis pro t", "preis t fm", "preis eur t"] },
   { key: "preis_max", label: "Preis max €/t", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "zahl", synonyme: ["preis max", "preis bis", "max preis"] },
+  // E69: Bezug des Preises aus einer Spalte (Werte-Zuordnung fm/atro); ohne Spalte gilt der Lauf-Standard (import_lauf.preis_bezug_standard).
+  { key: "preis_bezug", label: "Preis-Bezug (FM / atro)", gruppe: "strom", arten: ["biomasse"], pflicht: false, typ: "code", werte: "preis_bezug", synonyme: ["preis bezug", "preisbezug", "bezug", "preisbasis", "bezug preis", "preis einheit"] },
   // Strom — Bedarf
   { key: "produkt_code", label: "Produkt", gruppe: "strom", arten: ["output"], pflicht: true, typ: "code", werte: "produkt", synonyme: ["produkt", "output", "output produkt", "produktart", "bedarfsart", "energietraeger"] },
   // PR f (B6): „Bedarf" ist die Menge, nicht das Produkt (Testdatei, Blatt Bedarfe).
@@ -584,4 +586,15 @@ export function bereinigteCsv(spalten: readonly string[], zeilen: readonly strin
   const zelle = (t: string) => csvZelle(enthaeltKontaktdaten(t) ? KONTAKTDATEN_ERSATZ : t);
   const rumpf = zeilen.map((zeile) => indizes.map((i) => zelle(zeile[i] ?? "")).join(";"));
   return `\ufeff${[kopf, ...rumpf].join("\r\n")}\r\n`;
+}
+
+/**
+ * E69: Vorschlag fuer den Preis-Bezug des Laufs aus den Kopfzeilen der
+ * Preis-Spalten — „atro" oder „TM" im Namen schlaegt atro vor (zur
+ * Bestaetigung in der Zuordnung), sonst fm. Nur fuer Spalten, die einem
+ * Preisfeld zugeordnet sind.
+ */
+export function preisBezugVorschlag(spalten: readonly string[], zuordnung: Record<string, string>): "fm" | "atro" {
+  const preisSpalten = spalten.filter((sp) => /^preis_(min|mittel|max)$/.test(zuordnung[sp] ?? ""));
+  return preisSpalten.some((sp) => /atro|\btm\b|trockenmasse/i.test(sp)) ? "atro" : "fm";
 }

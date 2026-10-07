@@ -6,6 +6,7 @@
 // Die Fachregeln folgen dashVals() aus dem V2-Mockup.
 
 import { energieKwh, preisEuroMwh, preisEuroT, STOFFLICHE_PRODUKTE } from "./energie";
+import { NICHT_VERGLEICHBAR_GRUND, nichtVergleichbarZusatz, preisAtroVon, preisNichtVergleichbar } from "./preis-bezug";
 import { jahresAnteil, type FensterKategorie } from "./fenster";
 import type { VergabeDaten } from "./verfuegbarkeit";
 import { CLUSTER_FARBE, CLUSTER_LABEL, OUTPUT_FARBE, OUTPUT_LABEL } from "./farben";
@@ -230,12 +231,23 @@ export function auswahlZeile(recs: Strom[]): string {
  * negativ = Nettobeschaffungskosten. Spanne = Min/Max je Position,
  * mengengewichtet — beim Flip tauschen Min und Max die Seiten.
  */
+/**
+ * E69: Preis in €/t atro je Strom — nur fuer vergleichbare Stroeme (Bezug atro,
+ * oder fm mit TS-Anteil). `mitPreis` ist ueberall vorab mit preisVergleichbar
+ * gefiltert; der Zugriff hier ist deshalb nie null.
+ */
+const preisAtroStrom = (s: Strom) => preisAtroVon(s)!;
+/** Strom mit vergleichbarem Preis (E69) — ersetzt das fruehere `preisMittel != null`. */
+export const preisVergleichbar = (s: Strom): boolean => preisAtroVon(s) != null;
+/** Stroeme mit Preis, der nicht in €/t atro gebracht werden kann — sie werden ausgeschlossen und gezaehlt. */
+export const zaehleNichtVergleichbar = (rs: readonly Strom[]): number => rs.filter(preisNichtVergleichbar).length;
+
 function potenzialSumme(mitPreis: Strom[]) {
-  const saldoMin = sum(mitPreis, (s) => (s.preisMin ?? s.preisMittel!) * atroVon(s));
-  const saldoMax = sum(mitPreis, (s) => (s.preisMax ?? s.preisMittel!) * atroVon(s));
+  const saldoMin = sum(mitPreis, (s) => preisAtroStrom(s).min * atroVon(s));
+  const saldoMax = sum(mitPreis, (s) => preisAtroStrom(s).max * atroVon(s));
   return {
     min: -saldoMax,
-    mittel: -sum(mitPreis, (s) => s.preisMittel! * atroVon(s)),
+    mittel: -sum(mitPreis, (s) => preisAtroStrom(s).mittel * atroVon(s)),
     max: -saldoMin,
   };
 }
@@ -406,12 +418,15 @@ export function kpiKarten(
 
   // Feedstock (E12/E18): Pruefquote, Menge, EIN signierter ø-Preis,
   // Potenzial — Belegzahl und Erfassungsgrad wandern in die auswahlZeile.
-  const mitPreis = feed.filter((s) => s.preisMittel != null);
-  const ohnePreis = feed.length - mitPreis.length;
+  // E69: nur vergleichbare Preise (€/t atro ableitbar); die anderen werden gezaehlt und genannt.
+  const mitPreis = feed.filter(preisVergleichbar);
+  const nichtVergleichbar = zaehleNichtVergleichbar(feed);
+  const ohnePreis = feed.length - mitPreis.length - nichtVergleichbar;
+  const nvText = nichtVergleichbar ? `${nBelege(nichtVergleichbar)} nicht vergleichbar (${NICHT_VERGLEICHBAR_GRUND})` : "";
   let preisKpi: KpiKarte;
   let potenzialKpi: KpiKarte;
   if (mitPreis.length === 0) {
-    const keine = { wert: "–", einheit: "", caption: "keine Preise in der Auswahl" };
+    const keine = { wert: "–", einheit: "", caption: nichtVergleichbar ? nvText : "keine Preise in der Auswahl" };
     preisKpi = { ...keine, label: "ø preis." };
     potenzialKpi = { ...keine, label: "feedstock-potenzial." };
   } else {
@@ -424,20 +439,17 @@ export function kpiKarten(
       // Review 22.09.: Caption schlank — n-Angabe, Vorzeichen-Legende und
       // ohne-Preis-Zaehler entfallen hier.
       preisKpi = {
-        wert: fmtPreis(basis.oe((s) => s.preisMittel!)),
-        einheit: "€/t",
+        wert: fmtPreis(basis.oe((s) => preisAtroStrom(s).mittel)),
+        einheit: "€/t atro",
         label: "ø preis.",
-        caption:
-          basis.fall === "ungewichtet"
-            ? "ungewichtet · keine atro-Menge ableitbar"
-            : "atro-gewichtet",
+        caption: [basis.fall === "ungewichtet" ? "ungewichtet · keine atro-Menge ableitbar" : "atro-gewichtet", nvText].filter(Boolean).join(" · "),
       };
     }
     potenzialKpi = {
       ...skaliereEinheit(fmtGeldGross(potenzialSumme(mitPreis).mittel), einheitJahr),
       label: "feedstock-potenzial.",
-      // Review 22.09.: nur der ohne-Preis-Zaehler bleibt.
-      caption: ohnePreis ? `${nBelege(ohnePreis)} ohne Preis` : "",
+      // Review 22.09.: nur der ohne-Preis-Zaehler bleibt — E69 dazu die nicht vergleichbaren.
+      caption: [ohnePreis ? `${nBelege(ohnePreis)} ohne Preis` : "", nvText].filter(Boolean).join(" · "),
     };
   }
 
@@ -800,9 +812,15 @@ function clusterSpannen(
   spanneVon: (mitPreis: Strom[]) => SpannenErgebnis,
   fmt: (n: number) => string,
 ): SpannenZeile[] {
+  // E69: nicht vergleichbare Preise fallen heraus und werden am Band gezaehlt.
   const spanneAus = (rs: Strom[]): SpannenErgebnis => {
-    const mitPreis = rs.filter((s) => s.preisMittel != null);
-    return mitPreis.length ? spanneVon(mitPreis) : { leer: true, hinweis: null };
+    const mitPreis = rs.filter(preisVergleichbar);
+    const nv = zaehleNichtVergleichbar(rs);
+    const zusatzNv = nichtVergleichbarZusatz(nv);
+    if (!mitPreis.length) return { leer: true, hinweis: nv ? `${nBelege(nv)} nicht vergleichbar (${NICHT_VERGLEICHBAR_GRUND})` : null };
+    const sp = spanneVon(mitPreis);
+    if (sp.leer || !zusatzNv) return sp;
+    return { ...sp, zusatz: [sp.zusatz, zusatzNv].filter(Boolean).join(" "), hinweis: [sp.hinweis, `${nv} ${NICHT_VERGLEICHBAR_GRUND}`].filter(Boolean).join(" · ") };
   };
   // Eine gemeinsame Skala fuer alle Cluster: exakt vom kleinsten Min bis
   // zum groessten Max ueber alle Zeilen (Eric, E18-Nachtrag) — kein
@@ -903,9 +921,9 @@ export function preisKorridorRoh(mitPreis: Strom[]): SpannenErgebnis {
     return { leer: true, hinweis: hinweisKeineMenge(basis.n) };
   return {
     leer: false,
-    min: basis.oe((s) => s.preisMin ?? s.preisMittel!),
-    mittel: basis.oe((s) => s.preisMittel!),
-    max: basis.oe((s) => s.preisMax ?? s.preisMittel!),
+    min: basis.oe((s) => preisAtroStrom(s).min),
+    mittel: basis.oe((s) => preisAtroStrom(s).mittel),
+    max: basis.oe((s) => preisAtroStrom(s).max),
     zusatz: basis.fall === "ungewichtet" ? "· ungewichtet" : null,
     hinweis: basis.fall === "ungewichtet" ? HINWEIS_OHNE_ATRO : null,
   };

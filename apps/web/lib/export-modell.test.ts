@@ -47,6 +47,7 @@ const strom = (patch: Partial<Strom>): Strom =>
     preisMittel: -5,
     preisMax: 3,
     preisHerkunft: "schaetzung",
+    preisBezug: "atro",
     gruppe: null,
     gruppeLabel: null,
     produktCode: null,
@@ -153,7 +154,7 @@ describe("Exportmodell: Einstufung ist Pflicht", () => {
       "cluster_gruppe", "materialart_produkt",
       "zeitraum_von", "zeitraum_bis",
       "menge_atro", "menge_stofflich", "menge_energetisch",
-      "preis_min", "preis_mittel", "preis_max", "preis_stofflich", "preis_energetisch",
+      "preis_min", "preis_mittel", "preis_max", "preis_bezug", "preis_atro", "preis_stofflich", "preis_energetisch",
       "potenzial",
       "qualitaet", "belegtyp", "quellenangabe", "datei", "link", "verifikation", "verifiziert_bis",
       "status", "verfuegbarkeit", "reserviert", "reserviert_seit", "vergeben_ab", "vergeben_bis", "vergeben_an",
@@ -192,7 +193,10 @@ describe("Externe Datei: nichts Zurückgehaltenes kommt vor", () => {
     expect(geheimZeile[spalte("Vergeben an")]).toBe("extern | bhyo");
     // Mengen und Preise gehen hinaus — einzeln wie in Summen.
     expect(geheimZeile[spalte("Menge [t atro/a]")]).toBe("87");
-    expect(geheimZeile[spalte("Preis mittel [€/t atro] (positiv = Kosten für bhyo)")]).toBe("-5");
+    expect(geheimZeile[spalte("Preis mittel [€/t] (positiv = Kosten für bhyo)")]).toBe("-5");
+    // E69: Bezug und abgeleiteter atro-Preis als eigene Spalten (Fixture: Bezug atro → gleich).
+    expect(geheimZeile[spalte("Preis-Bezug (FM / atro)")]).toBe("€/t atro");
+    expect(geheimZeile[spalte("Preis mittel [€/t atro] (abgeleitet, E69)")]).toBe("-5");
     expect(geheimZeile[spalte("Potenzial [€/a] (positiv = Erlös für bhyo)")]).toBe("434");
     // Freigegeben: alles da; ohne Beleg: benannter Zustand, nicht „zurückgehalten".
     const freiZeile = zeilen.filter((z) => z.length === kopf.length && z[0] === "Feedstock")[2]!;

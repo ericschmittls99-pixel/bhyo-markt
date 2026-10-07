@@ -134,6 +134,7 @@ export function stromEingabeAusFormData(art: StromArt, formData: FormData): Stro
     preisMittel: zahl(formData, "preis_mittel"),
     preisMax: zahl(formData, "preis_max"),
     preis: zahl(formData, "preis"),
+    preisBezug: s(text(formData, "preis_bezug")),
     vonMonat: monatKanonisch(s(text(formData, "zeitraum_von"))),
     bisMonat: monatKanonisch(s(text(formData, "zeitraum_bis"))),
     begruendung: s(text(formData, "begruendung")),
@@ -212,6 +213,11 @@ export function stromWerte(e: StromEingabe) {
           preisMittel: leerZuNull(e.eingaben.preisMittel),
           preisMax: leerZuNull(e.eingaben.preisMax),
           preisHerkunft: herkunftOderNull(e.felder.preisHerkunft),
+          // E69: Bezug nur mit Preis; validiereFormular hat ihn dann als fm|atro gesichert.
+          preisBezug:
+            e.eingaben.preisMin.trim() || e.eingaben.preisMittel.trim() || e.eingaben.preisMax.trim()
+              ? (e.eingaben.preisBezug as "fm" | "atro")
+              : null,
         }
       : {
           ...gemeinsam,

@@ -712,7 +712,7 @@ export function FormularPanel({
           <section className="ov-sec">
             <h3>preis.</h3>
             {feed ? (
-              <div className="fp-zeile fp-zeile--3">
+              <div className="fp-zeile fp-zeile--4">
                 <label className="pf">
                   <span>Min</span>
                   <span className="pf-feld">
@@ -751,6 +751,20 @@ export function FormularPanel({
                     <em>€/t</em>
                   </span>
                   {f.preis_max && <span className="pf-fehler">{f.preis_max}</span>}
+                </label>
+                <label className="pf">
+                  <span>Bezug</span>
+                  <span className="pf-feld">
+                    {/* E69: ein Bezug fuer Min/Mittel/Max; „unbekannt" (Altbestand) ist nicht
+                        waehlbar — wer speichert, entscheidet. Neu: fm vorbelegt. */}
+                    <select name="preis_bezug" defaultValue={neu ? "fm" : (werte?.preisBezug ?? "")} aria-invalid={f.preis_bezug ? true : undefined}>
+                      {!neu && !werte?.preisBezug && <option value="">— (Bezug unbekannt)</option>}
+                      <option value="fm">€/t FM</option>
+                      <option value="atro">€/t atro</option>
+                    </select>
+                    <i className="ph-bold ph-caret-down scb-caret" aria-hidden />
+                  </span>
+                  {f.preis_bezug && <span className="pf-fehler">{f.preis_bezug}</span>}
                 </label>
               </div>
             ) : (

@@ -51,6 +51,7 @@ export const IMPORT_LAUF_STATUS_LABEL: Record<ImportLaufStatus, string> = {
   probelauf: "Probelauf",
   ausgefuehrt: "ausgeführt",
   zurueckgenommen: "zurückgenommen",
+  verworfen: "verworfen",
   fehler: "Fehler",
 };
 
