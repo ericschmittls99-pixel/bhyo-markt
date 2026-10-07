@@ -1,6 +1,6 @@
 {
-  "id": "aa26e1f4-0a39-4f94-aa38-23aefda316cf",
-  "prevId": "b42817f7-1a4b-468d-a8f7-4521d26689d6",
+  "id": "a932a7ed-2502-48c2-9fde-90729fbf2e93",
+  "prevId": "35ef43ed-69eb-4c56-a717-1ba55b423e7e",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -2969,12 +2969,6 @@
         "ars": {
           "name": "ars",
           "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "geom": {
-          "name": "geom",
-          "type": "geometry(MultiPolygon,4326)",
           "primaryKey": false,
           "notNull": true
         }
