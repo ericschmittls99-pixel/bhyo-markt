@@ -8,7 +8,7 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
-import { istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
+import { IMPORT_LAUF_VERWERFBAR, istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
 import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
@@ -1339,15 +1339,13 @@ export interface VerwerfenErgebnis {
   zeilen?: number;
 }
 
-export const VERWERFBARE_ZUSTAENDE = ["angelegt", "zugeordnet", "aufgeloest", "probelauf", "fehler"] as const;
-
 export async function importLaufVerwerfen(laufId: string): Promise<VerwerfenErgebnis> {
   const wache = await rechtFuerAction("import.verwerfen");
   if ("fehler" in wache) return { fehler: wache.fehler };
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
   const lauf = await withDb((db) => ladeImportLauf(db, laufId));
   if (!lauf) return { fehler: "Lauf nicht gefunden." };
-  if (!(VERWERFBARE_ZUSTAENDE as readonly string[]).includes(lauf.status)) {
+  if (!(IMPORT_LAUF_VERWERFBAR as readonly string[]).includes(lauf.status)) {
     return { fehler: `Der Lauf ist „${lauf.status}" — verworfen wird nur ein Lauf, der nie ausgeführt wurde.` };
   }
   try {

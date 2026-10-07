@@ -18,7 +18,7 @@ import { blaetterUebersicht, ImportDateiFehler, parseImportDatei, type BlattInfo
 import { monatAusDatum, zeilenOhneZeitraum } from "@/lib/import-zeitraum";
 import { adressStand } from "@/lib/import-adressen";
 import { akteurGruppenAnzeige } from "@/lib/import-akteure";
-import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL } from "@/lib/import-modell";
+import { IMPORT_ART_LABEL, IMPORT_LAUF_STATUS_LABEL, IMPORT_LAUF_VERWERFBAR } from "@/lib/import-modell";
 import { importRohKey, ladeGleicheDatei, ladeImportLauf, ladeImportVorlagen, ladeImportZeilen } from "@/lib/import-server";
 import { DOPPEL_VON, hinweise, PERSON, preisBezugVorschlag, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zielfeld, zielfelderFuer } from "@/lib/import-zuordnung";
 import { PREIS_BEZUEGE, PREIS_BEZUG_LABEL } from "@/lib/preis-bezug";
@@ -223,7 +223,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
           <Ausfuehren laufId={lauf.id} status={lauf.status} ersteZeile={alleZeilen.find((z) => z.status === "offen")?.zeilennummer ?? null} zaehler={lauf.zaehler} />
         )}
         {lauf.status === "ausgefuehrt" && darf(zugang, "import.zuruecknehmen") && <Zuruecknehmen laufId={lauf.id} zaehler={lauf.zaehler} />}
-        {["angelegt", "zugeordnet", "aufgeloest", "probelauf", "fehler"].includes(lauf.status) && darf(zugang, "import.verwerfen") && <Verwerfen laufId={lauf.id} zeilen={alleZeilen.length} />}
+        {(IMPORT_LAUF_VERWERFBAR as readonly string[]).includes(lauf.status) && darf(zugang, "import.verwerfen") && <Verwerfen laufId={lauf.id} zeilen={alleZeilen.length} />}
         {lauf.status !== "angelegt" && (
           <section>
             <header className="einst-kopf">
