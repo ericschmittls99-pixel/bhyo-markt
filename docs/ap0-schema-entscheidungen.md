@@ -1828,9 +1828,17 @@ fällt heraus; Doppel-PLZ 75378 wird eine Zeile; Grenzpunkt trifft beide
 Seiten mit deterministischer erster Zeile; Punkt außerhalb → keine Zeile,
 `punkt_in_plz` false, unbekannte PLZ null.
 
-**Offene Weggabelungen (nicht entschieden):** (1) Vereinfachungstoleranz
-0,00015° und Schwelle 10 % — nach der Messung auf `wegwerf` bestätigen
-(Eric entscheidet anhand PLZVERGLEICH). (2) Exklaven außerhalb Deutschlands
+**Entscheidung Eric (07.10.2026, nach Messung):** Toleranz **0,00015°**
+(Standard im Code). Gemessen auf `wegwerf`: Rohflächen 6,4 Mio.
+Stützpunkte / 98 MB → 1,7 Mio. / 27 MB, Tabelle 30 MB, mit `plz_ort`
+32 MB; 7 von 12.838 Zufallspunkten mit anderer PLZ, keiner ohne PLZ.
+0,0005° hätte 17 MB gebracht, aber 44 abweichende und 6 PLZ-lose Punkte.
+Neon Free hat 1 GB je Projekt, Production liegt bei 31 MB — 32 MB
+zusätzlich sind unkritisch; das frühere 25-MB-Ziel beruhte auf einer
+falschen Annahme (0,5 GB).
+
+**Offene Weggabelungen (nicht entschieden):** (1) Schwelle 10 % für die
+Ortszuordnung. (2) Exklaven außerhalb Deutschlands
 (87491, 87567–69, 78266) bleiben als PLZ ohne Ort. (3) ODbL-Share-alike für
 die abgeleitete Tabelle `plz_ort` (juristisch offen). Entschieden (Eric
 07.10.2026): Quelle und Ableitung der Orte, siehe oben.
