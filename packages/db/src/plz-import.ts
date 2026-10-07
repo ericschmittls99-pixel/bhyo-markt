@@ -38,7 +38,9 @@ export const SOLL_GEMEINDEN = 10_939;
  * Tabelle schrumpft um den Grossteil der Stuetzpunkte. Gemessen im Wegwerf-
  * Lauf (PLZVERGLEICH), Entscheidung bei Eric.
  */
-export const SIMPLIFY_TOLERANZ = 0.00015;
+export const SIMPLIFY_TOLERANZ_STANDARD = 0.00015;
+/** Nur fuer Messlaeufe (wegwerf) ueberschreibbar — der Bestand nimmt immer den Standard, sofern nichts gesetzt ist. */
+const SIMPLIFY_TOLERANZ = process.env.PLZ_TOLERANZ ? Number(process.env.PLZ_TOLERANZ) : SIMPLIFY_TOLERANZ_STANDARD;
 const RUNDUNG = 0.000001;
 const MESSPUNKTE = 20_000;
 const ANTEIL_MIN = 0.1;
@@ -130,7 +132,7 @@ async function main() {
       // Rohflaechen, die in mindestens einer Rohflaeche liegen; abweichend =
       // andere (oder keine) PLZ nach ST_Covers auf der vereinfachten Flaeche.
       const [v] = await tx`
-        with rahmen as (select ST_Extent(geom)::geometry as b from plz_roh),
+        with rahmen as (select ST_SetSRID(ST_Extent(geom)::geometry, 4326) as b from plz_roh),
              punkte as (
                select (ST_Dump(ST_GeneratePoints(b, ${MESSPUNKTE}, 42))).geom as p from rahmen
              ),
@@ -145,12 +147,11 @@ async function main() {
         select count(*)::int as punkte,
                count(*) filter (where plz_roh is distinct from plz_neu)::int as abweichend,
                count(*) filter (where plz_neu is null)::int as ohne_plz_neu,
-               pg_size_pretty(sum(pg_column_size(r.geom))::bigint) as geom_roh,
+               (select pg_size_pretty(sum(pg_column_size(geom))::bigint) from plz_roh) as geom_roh,
                (select pg_size_pretty(sum(pg_column_size(geom))::bigint) from plz_tmp) as geom_neu,
-               (select sum(ST_NPoints(geom))::bigint from plz_roh) as punkte_roh,
-               (select sum(ST_NPoints(geom))::bigint from plz_tmp) as punkte_neu
-        from beide, plz_roh r
-        group by ()`;
+               (select sum(ST_NPoints(geom))::bigint from plz_roh) as stuetzpunkte_roh,
+               (select sum(ST_NPoints(geom))::bigint from plz_tmp) as stuetzpunkte_neu
+        from beide`;
       console.log("PLZVERGLEICH " + JSON.stringify({ toleranz_grad: SIMPLIFY_TOLERANZ, ...v }));
     }
 

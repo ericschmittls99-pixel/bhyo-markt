@@ -798,7 +798,7 @@ describe("importZuruecknehmen (PR d: nur Admin, nur unbearbeitet, alles protokol
     expect(erg).toEqual({ ok: true, stroeme: 2, belege: 1, akteure: 1 });
     expect(deletes).toEqual(["strom_zuweisung", "vergabe_zeitraum", "inbox_eintrag", "biomassestrom", "beleg", "akteur_interesse", "kontaktperson", "akteur"]);
     expect(updates[0]).toMatchObject({ biomassestromId: null, status: "offen" });
-    expect(updates[updates.length - 1]).toMatchObject({ status: "zurueckgenommen", zurueckgenommenAm: expect.any(Date), zaehler: expect.objectContaining({ zurueckgenommen_stroeme: 2, zurueckgenommen_belege: 1, zurueckgenommen_akteure: 1 }) });
+    expect(updates[updates.length - 1]).toMatchObject({ status: "zurueckgenommen", zurueckgenommenAm: expect.any(Date), zaehler: expect.objectContaining({ importiert: 0, offen: 2, zurueckgenommen_stroeme: 2, zurueckgenommen_belege: 1, zurueckgenommen_akteure: 1 }) });
     expect(protokolle.map((p) => `${(p as { art: string }).art}:${(p as { entitaet: string }).entitaet}`)).toEqual(["verworfen:biomassestrom", "verworfen:biomassestrom", "akteur_geloescht:akteur", "status_gesetzt:import_lauf"]);
     expect(protokolle.every((p) => (p as { importLaufId?: string }).importLaufId === LAUF)).toBe(true);
     expect(protokolle[3]).toMatchObject({ text: "Import zurückgenommen: 2 Ströme, 1 Beleg(e), 1 Akteur(e) gelöscht" });

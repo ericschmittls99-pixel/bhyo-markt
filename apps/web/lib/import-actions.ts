@@ -323,8 +323,11 @@ export interface AufloesenErgebnis {
 }
 
 function felderPatch(patch: Record<string, string>, entfernen: readonly string[] = []) {
-  let ausdruck = sql`${importZeile.felder} || ${JSON.stringify(patch)}::jsonb`;
-  for (const k of entfernen) ausdruck = sql`${ausdruck} - ${k}`;
+  // Klammern sind Pflicht: in Postgres bindet `-` staerker als `||`, ohne sie
+  // wuerde `felder || ('{}'::jsonb - 'k')` den Schluessel nie entfernen
+  // (Befund 07.10.2026: „Probelauf ok" blieb nach der Ruecknahme stehen).
+  let ausdruck = sql`(${importZeile.felder} || ${JSON.stringify(patch)}::jsonb)`;
+  for (const k of entfernen) ausdruck = sql`(${ausdruck} - ${k})`;
   return ausdruck;
 }
 
@@ -1323,7 +1326,15 @@ export async function importZuruecknehmen(laufId: string): Promise<RuecknahmeErg
           akteure += 1;
         }
 
-        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}), zurueckgenommen_stroeme: stroeme.length, zurueckgenommen_belege: belege, zurueckgenommen_akteure: akteure };
+        // Zaehler: die Zeilen sind wieder offen, nichts mehr importiert; die Ruecknahme bleibt als eigene Zahl stehen.
+        const zaehler: Record<string, number> = {
+          ...(lauf.zaehler ?? {}),
+          importiert: 0,
+          offen: stroeme.length,
+          zurueckgenommen_stroeme: stroeme.length,
+          zurueckgenommen_belege: belege,
+          zurueckgenommen_akteure: akteure,
+        };
         await tx.update(importLauf).set({ status: "zurueckgenommen", zurueckgenommenAm: new Date(), zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "status_gesetzt",
