@@ -21,6 +21,10 @@ on:
       bestaetigung:
         description: 'Zur Freigabe die Zielumgebung woertlich wiederholen'
         required: true
+      toleranz:
+        description: 'Nur wegwerf: Vereinfachungstoleranz in Grad fuer die Messung (leer = Standard aus plz-import.ts)'
+        required: false
+        default: ''
 
 concurrency:
   group: import-plz
@@ -144,6 +148,7 @@ jobs:
         env:
           # Nur im Wegwerf-Lauf: Vereinfachung gegen Rohflaechen messen (PLZVERGLEICH).
           PLZ_MESSUNG: ${{ inputs.umgebung == 'wegwerf' && 'ja' || 'nein' }}
+          PLZ_TOLERANZ: ${{ inputs.umgebung == 'wegwerf' && inputs.toleranz || '' }}
         run: pnpm --filter @bhyo/db plz-import
 
       - name: Funktions-Check (Paritaet SQL/TS, Rot-Faelle)

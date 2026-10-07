@@ -38,7 +38,9 @@ export const SOLL_GEMEINDEN = 10_939;
  * Tabelle schrumpft um den Grossteil der Stuetzpunkte. Gemessen im Wegwerf-
  * Lauf (PLZVERGLEICH), Entscheidung bei Eric.
  */
-export const SIMPLIFY_TOLERANZ = 0.00015;
+export const SIMPLIFY_TOLERANZ_STANDARD = 0.00015;
+/** Nur fuer Messlaeufe (wegwerf) ueberschreibbar — der Bestand nimmt immer den Standard, sofern nichts gesetzt ist. */
+const SIMPLIFY_TOLERANZ = process.env.PLZ_TOLERANZ ? Number(process.env.PLZ_TOLERANZ) : SIMPLIFY_TOLERANZ_STANDARD;
 const RUNDUNG = 0.000001;
 const MESSPUNKTE = 20_000;
 const ANTEIL_MIN = 0.1;
