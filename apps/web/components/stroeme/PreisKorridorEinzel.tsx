@@ -1,4 +1,5 @@
 import { fmtPreis, formatSpanne } from "@/lib/format";
+import { NICHT_VERGLEICHBAR } from "@/lib/preis-bezug";
 import type { PreisKorridorEinzel as Korridor } from "@/lib/preiskorridor-einzel";
 
 /**
@@ -13,6 +14,8 @@ import type { PreisKorridorEinzel as Korridor } from "@/lib/preiskorridor-einzel
  */
 export function PreisKorridorEinzel({ k }: { k: Korridor }) {
   if (!k.eigen && !k.band) {
+    // E69: ein nicht vergleichbarer Preis IST erfasst — nur der Zustand, kein „Kein Preis erfasst".
+    if (k.zustand?.includes(NICHT_VERGLEICHBAR)) return <p className="pk-zustand">{k.zustand}</p>;
     return <p className="pk-zustand">Kein Preis erfasst · {k.zustand ?? "zu wenig Vergleichswerte"}</p>;
   }
   if (!k.band) {
