@@ -210,8 +210,8 @@ export function validiereFormular(
   if (art === "biomasse") {
     pflicht("materialart_code", e.materialartCode);
     pflicht("menge_roh_fm", e.mengeRohFm);
-    pflicht("ts_anteil_pct", e.tsAnteilPct);
-    pflicht("aschegehalt_pct", e.aschegehaltPct);
+    // PR e (Eric 07.10.2026): TS-Anteil und Aschegehalt duerfen fehlen („unbekannt");
+    // der Strom ist dann unvollstaendig und kann nicht „geprueft" werden (stromPruefen, DB-CHECK).
     zahl("menge_roh_fm", e.mengeRohFm);
     zahl("ts_anteil_pct", e.tsAnteilPct);
     zahl("aschegehalt_pct", e.aschegehaltPct);

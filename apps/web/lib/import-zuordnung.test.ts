@@ -51,9 +51,11 @@ describe("vorschlagZuordnung", () => {
 describe("pruefeZuordnung", () => {
   const basis = (): Zuordnung => ({ spalten: vorschlagZuordnung("biomasse", fixture.spalten), werte: {} });
 
-  it("nennt fehlende Pflichtfelder (die Fixture hat keinen Aschegehalt)", () => {
-    const f = pruefeZuordnung("biomasse", fixture.spalten, basis());
-    expect(f).toEqual([expect.stringMatching(/Pflichtfelder ohne Spalte: Aschegehalt %/)]);
+  it("PR e: fehlender Aschegehalt ist keine Pflichtverletzung mehr (unbekannt), fehlende Materialart schon", () => {
+    expect(pruefeZuordnung("biomasse", fixture.spalten, basis())).toEqual([]);
+    const z = basis();
+    delete z.spalten.Materialart;
+    expect(pruefeZuordnung("biomasse", fixture.spalten, z)).toEqual([expect.stringMatching(/Pflichtfelder ohne Spalte: Materialart/)]);
   });
 
   it("weist doppelte Zielfelder, Personen-Ziele und fremde Zielfelder ab", () => {
