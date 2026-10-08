@@ -158,6 +158,15 @@ async function main() {
     const dauerOrt = Date.now() - t1;
     const mitTreffer = kandidaten.filter((r) => Number(r.n) > 0).length;
     console.log(`PLZMESSUNG_ORT ${JSON.stringify({ orte: ortEintraege.length, dauer_ms: dauerOrt, mit_treffer: mitTreffer })}`);
+    // Plan derselben Abfrage (Eric 08.10.2026: Seq Scan oder Index?) — nur Zaehlungen und Knoten, keine Ortsnamen.
+    const plan = (await sql`explain (analyze, buffers, costs off, timing off, format text)
+      with e as (select t.i, t.ort from jsonb_to_recordset(${sql.json(ortEintraege)}) as t(i int, ort text))
+      select e.i, count(k.plz)::int as n
+      from e left join lateral plz_fuer_ort(e.ort) k on true
+      group by e.i order by e.i`) as unknown as { "QUERY PLAN": string }[];
+    for (const z of plan) console.log(`PLZEXPLAIN_ORT ${z["QUERY PLAN"]}`);
+    const [idx] = await sql`select count(*)::int as n from pg_indexes where tablename = 'plz_ort'`;
+    console.log(`PLZEXPLAIN_ORT indizes_plz_ort=${idx!.n} zeilen_plz_ort=${(await sql`select count(*)::int as n from plz_ort`)[0]!.n}`);
     pruefe("E72 Messung: 200 Orte in einer Abfrage, jeder findet mindestens seine eigene PLZ", kandidaten.length === ortEintraege.length && mitTreffer === ortEintraege.length, { dauerOrt });
   }
 
