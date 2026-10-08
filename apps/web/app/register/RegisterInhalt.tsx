@@ -35,6 +35,7 @@ import {
 } from "@/lib/stroeme-modell";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
+import { ladeWirdFreiStufen } from "@/lib/wird-frei-server";
 import { detailDatenAus } from "@/lib/detail-daten";
 import { darfRolle } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
@@ -107,8 +108,10 @@ export async function RegisterInhalt({
   // (stichtag = Serverdatum) — Grid, Tabelle, Detail und die neue Facette
   // lesen alle dasselbe Feld.
   const stichtag = heuteBerlin();
+  // E70: Staffel der Wird-frei-Pille aus den Parametern — einmal je Request.
+  const stufen = await withDb((db) => ladeWirdFreiStufen(db, stichtag));
   // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
-  const poolBasis = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
+  const poolBasis = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag, stufen);
   // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
   const pool = fuerMich && zugang.art === "erlaubt" ? reichereFuerMichAn(poolBasis, zugang.id, beteiligt) : poolBasis;
 
@@ -177,7 +180,7 @@ export async function RegisterInhalt({
   let detailStrom = detailId ? (pool.find((s) => s.id === detailId) ?? null) : null;
   if (detailId && !detailStrom) {
     const nachgeladen = (await ladeStroeme(art, detailId))[0] ?? null;
-    detailStrom = nachgeladen ? reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag)[0]! : null;
+    detailStrom = nachgeladen ? reichereVerfuegbarkeitAn([nachgeladen], vergabenMap, stichtag, stufen)[0]! : null;
   }
   // Detail-Daten an einer Stelle (lib/detail-daten.ts) — dieselbe
   // Zusammenstellung wie in inbox. („Öffnen" zeigt dasselbe Panel, AP2.2).

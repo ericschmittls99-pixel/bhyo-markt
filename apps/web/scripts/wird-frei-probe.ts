@@ -21,13 +21,17 @@
  *  7. frei_ab aendert sich (Vergabe verlaengert) → alte Eintraege erledigt,
  *     neuer Eintrag zum neuen frei_ab.
  *  8. Zwei Laeufe desselben Stichtags: idempotent.
+ *  9. MESSUNG (Eric 08.10.2026, kein Index ohne Messung): synthetische Menge
+ *     (MESSUNG_STROEME Angebote, je zwei Vergaben; Standard 3000 ≈ zehnfache
+ *     Preview-Menge), dann EXPLAIN (ANALYZE, BUFFERS) der Bewertungs-CTE —
+ *     der Plan steht im CI-Log und wandert in den PR-Text. Zurueckgerollt.
  */
 import { createSql } from "@bhyo/db";
 import * as schema from "@bhyo/db/schema";
 import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 
-import { stelleVerifikationsHinweiseZu } from "../lib/inbox/hinweise";
+import { stelleVerifikationsHinweiseZu, wirdFreiBewertungSql } from "../lib/inbox/hinweise";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -152,6 +156,25 @@ async function main() {
       await x(sql`delete from vergabe_zeitraum where biomassestrom_id = ${S6b}`);
       await lauf("2026-06-01");
       pruefe("7c Vergabe geloescht: keine offenen Hinweise", (await offen(S6b)).length === 0, await zeilen(S6b));
+
+      // 9. MESSUNG: synthetische Menge und EXPLAIN der Bewertung (nur Lesen der CTE, keine Zustellung).
+      const n = Number(process.env.MESSUNG_STROEME ?? 3000);
+      await x(sql`insert into biomassestrom (id, akteur_id, materialart_code, menge_roh_fm, zeitraum_von, zeitraum_bis, saisonalitaet, status)
+        select ('10000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid, ${A}, ${mat!.code}, 100, '2020-01-01', '2035-12-31',
+               '[100,100,100,100,100,100,100,100,100,100,100,100]'::jsonb, 'entwurf'
+          from generate_series(1, ${n}::int) g`);
+      await x(sql`insert into vergabe_zeitraum (biomassestrom_id, vergeben_von, vergeben_bis, vergeben_an, an_bhyo)
+        select ('10000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid, date '2025-01-01' + (g % 400), date '2026-01-01' + (g % 400), 'Messung', false
+          from generate_series(1, ${n}::int) g
+        union all
+        select ('10000000-0000-4000-8000-' || lpad(to_hex(g), 12, '0'))::uuid, date '2026-01-02' + (g % 400), date '2027-01-01' + (g % 400), 'Messung', (g % 7 = 0)
+          from generate_series(1, ${n}::int) g`);
+      const menge = await x<{ stroeme: number; vergaben: number }>(sql`select (select count(*)::int from biomassestrom) as stroeme, (select count(*)::int from vergabe_zeitraum) as vergaben`);
+      console.log(`MESSUNG menge ${JSON.stringify(menge[0])}`);
+      const plan = await x<{ "QUERY PLAN": string }>(sql`explain (analyze, buffers) ${wirdFreiBewertungSql("2026-06-01")} select count(*) from bewertet`);
+      for (const z of plan) console.log(`MESSUNG plan ${z["QUERY PLAN"]}`);
+      const idx = await x<{ indexname: string }>(sql`select indexname from pg_indexes where tablename = 'vergabe_zeitraum' order by indexname`);
+      console.log(`MESSUNG indizes ${idx.map((i) => i.indexname).join(", ")}`);
 
       throw new Error(ROLLBACK);
     });

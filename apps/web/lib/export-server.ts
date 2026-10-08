@@ -7,6 +7,8 @@ import { type Ansicht, type Sicht, filterLabel, leiste, leseSicht } from "./filt
 import { ladeAlleVergaben, ladeRegionOptionen, ladeStroeme } from "./stroeme";
 import { type Strom, facettenOptionen, filterAusSearchParams } from "./stroeme-modell";
 import { type VergabeDaten, reichereVerfuegbarkeitAn } from "./verfuegbarkeit";
+import { ladeWirdFreiStufen } from "./wird-frei-server";
+import { withDb } from "./db";
 import { fensterAusJahren, leseZeitbezug, zeitbezugText } from "./zeitbezug";
 import { fmtDatum } from "./format";
 
@@ -62,6 +64,8 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
     ladeRegionOptionen(),
   ]);
   const stichtag = kalendertag(jetzt);
+  // E70: Staffel aus den Parametern — dieselbe wie in stroeme./karte.
+  const stufen = await withDb((db) => ladeWirdFreiStufen(db, stichtag));
   // E41: Aus auswertung. gilt der Verfuegbarkeitsstatus gegen das gewaehlte
   // Jahr bzw. den Zeitraum (dieselbe Ableitung wie die Seite, lib/zeitbezug);
   // aus stroeme./karte. gegen heute. Die Metazeile nennt den Bezug.
@@ -71,7 +75,7 @@ export async function ladeExport(roh: Record<string, string>, jetzt = new Date()
   const verfuegbarkeitBezug = zeitbezug ? zeitbezugText(zeitbezug) : `heute (${fmtDatum(stichtag)})`;
   // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
   const anreichern = (pool: Strom[], vergaben: Map<string, VergabeDaten[]>) =>
-    reichereVerfuegbarkeitAn(pool, vergaben, bezug);
+    reichereVerfuegbarkeitAn(pool, vergaben, bezug, stufen);
   const bio = anreichern(bioRoh, vergabenBio);
   const out = anreichern(outRoh, vergabenOut);
   const rows = [...exportZeilen(bio, roh), ...exportZeilen(out, roh)];

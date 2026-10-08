@@ -2096,13 +2096,20 @@ Stichtag („frei seit"); sonst das nächste künftige. Anschluss heißt wörtli
 Tests: `lib/wird-frei.test.ts` (Regel) und `scripts/wird-frei-probe.ts`
 (Job-SQL gegen die Wegwerf-DB im CI, zurückgerollt).
 
-**OFFEN:** (a) `parameter_wert` kennt nur ganzzahlige Einzelwerte — die
-Staffel liegt als vier Schlüssel `hinweis.wird_frei_stufe_1…4` (180/60/30/0)
-statt eines Listenparameters. (b) Index-Messung (EXPLAIN bei zehnfacher
-Preview-Menge) steht aus; ohne Messung kein zusätzlicher Index auf
-`vergabe_zeitraum` (die bestehenden Indizes auf `biomassestrom_id` tragen die
-Abfrage). (c) Stufe 0 endet beim Verwerfen des Stroms; ein eigener Zustand
-„archiviert" existiert im Modell nicht.
+**Entschieden (Eric 08.10.2026):** (a) Die Staffel liegt als vier
+Schlüssel `hinweis.wird_frei_stufe_1…4` (180/60/30/0). Die Logik sortiert
+die Werte absteigend und fasst gleiche zusammen (`normalisiereStufen` in
+`lib/wird-frei.ts`, `distinct … where s >= 0` in der SQL-Spiegelung) — die
+Reihenfolge der Schlüssel ist egal; negative Werte weist die
+Parameter-Prüfung ab (min 0, `pruefeParameterEingabe` und Trigger). Pille
+und Facette lesen dieselben Parameter (`ladeWirdFreiStufen`, einmal je
+Request), nicht die Standardkonstante. Tests: `lib/wird-frei.test.ts` („E70
+Staffel aus vier Parametern"), `lib/parameter.test.ts`. (b) Kein Index ohne
+Messung: `scripts/wird-frei-probe.ts` misst die Bewertungs-CTE mit EXPLAIN
+(ANALYZE, BUFFERS) auf synthetischer Menge (Standard 3000 Angebote mit je
+zwei Vergaben ≈ zehnfache Preview-Menge; `job-probe` druckt den Bestand der
+Preview als BESTAND-Zeile); der Plan steht im CI-Log und bis zur Freigabe im
+PR-Text. (c) Verwerfen des Stroms beendet Stufe 0 wie ein Erledigen.
 
 ## 45. AP2.6 Kommentare — PR a: Datenmodell, Schreibweg, Rechte (E71), 07.10.2026
 
