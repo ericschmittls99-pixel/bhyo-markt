@@ -1,4 +1,4 @@
-import { wirdFreiStand } from "./wird-frei";
+import { WIRD_FREI_STUFEN_STANDARD, wirdFreiStand } from "./wird-frei";
 import { fmtMonat, formatZeitspanne } from "./format";
 import {
   datumZuMonat,
@@ -204,6 +204,8 @@ export function reichereVerfuegbarkeitAn<
   stroeme: T[],
   vergabenJeStrom: Map<string, VergabeDaten[]>,
   bezug: VerfuegbarkeitsBezug,
+  /** E70: Staffel aus den Parametern (ladeWirdFreiStufen); Standard nur fuer Tests und Aufrufer ohne Datenbank. */
+  stufen: readonly number[] = WIRD_FREI_STUFEN_STANDARD,
 ): T[] {
   return stroeme.map((s) => {
     // Die Vergaben haengen wir IMMER an — auch bei unvollstaendigem
@@ -211,7 +213,7 @@ export function reichereVerfuegbarkeitAn<
     // braucht sie unabhaengig davon.
     const vergaben = vergabenJeStrom.get(s.id) ?? [];
     // E70: frei_ab aus denselben Vergaben; Bezug ist der Stichtag (bei einem Fenster dessen Anfang).
-    const mitVergaben = { ...s, vergaben, wirdFrei: wirdFreiStand(vergaben, bezugFenster(bezug).von) };
+    const mitVergaben = { ...s, vergaben, wirdFrei: wirdFreiStand(vergaben, bezugFenster(bezug).von, stufen) };
     return s.zeitraumVon && s.zeitraumBis
       ? {
           ...mitVergaben,

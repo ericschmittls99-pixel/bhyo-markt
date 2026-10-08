@@ -16,6 +16,7 @@ import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
 import { ladeAlleVergaben, ladeErsteAenderung, ladeHistorie, ladeStroeme } from "@/lib/stroeme";
 import type { SperrNutzer, Strom, StromArt } from "@/lib/stroeme-modell";
 import { reichereVerfuegbarkeitAn, type VerfuegbarkeitsErgebnis, type VergabeDaten } from "@/lib/verfuegbarkeit";
+import { ladeWirdFreiStufen } from "@/lib/wird-frei-server";
 
 export interface DetailDaten {
   strom: Strom;
@@ -107,7 +108,8 @@ export async function ladeDetailDaten(art: StromArt, id: string, zugang: Zugang)
     ladeErsteAenderung(art, id),
   ]);
   const stichtag = heuteBerlin();
-  const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag);
+  const stufen = await withDb((db) => ladeWirdFreiStufen(db, stichtag));
+  const pool = reichereVerfuegbarkeitAn(poolRoh, vergabenMap, stichtag, stufen);
   const strom = pool.find((s) => s.id === id);
   if (!strom) return null;
   return detailDatenAus(strom, pool, vergabenMap.get(id) ?? [], zugang, historie, ersteAenderung);

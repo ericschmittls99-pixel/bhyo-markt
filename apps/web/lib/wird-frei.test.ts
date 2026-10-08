@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { kalendertag } from "./datum";
 import type { VergabeDaten } from "./verfuegbarkeit";
-import { freiAbAus, kettenEnden, stufeFuer, tageZwischen, wirdFreiPill, wirdFreiStand, wirdFreiText } from "./wird-frei";
+import { freiAbAus, kettenEnden, normalisiereStufen, stufeFuer, tageZwischen, wirdFreiPill, wirdFreiStand, wirdFreiText } from "./wird-frei";
 
 const v = (von: string | null, bis: string | null, anBhyo = false): VergabeDaten => ({ vergebenVon: von, vergebenBis: bis, vergebenAn: anBhyo ? "bhyo" : "Extern", anBhyo });
 
@@ -84,3 +84,19 @@ describe("Tagesgrenze Europe/Berlin (Regel 5)", () => {
     expect(wirdFreiStand(vg, kalendertag(new Date("2026-10-24T21:30:00Z")))!.stufe).toBe(30);
   });
 });
+
+describe("E70 Staffel aus vier Parametern (Eric 08.10.2026)", () => {
+  it("sortiert absteigend und fasst gleiche Werte zusammen — die Reihenfolge der Schluessel ist egal", () => {
+    expect(normalisiereStufen([0, 30, 60, 180])).toEqual([180, 60, 30, 0]);
+    expect(normalisiereStufen([60, 180, 60, 0, 30, 30])).toEqual([180, 60, 30, 0]);
+    expect(stufeFuer(45, [0, 30, 60, 180])).toBe(60);
+    expect(stufeFuer(45, [60, 60, 180, 0])).toBe(60);
+    expect(stufeFuer(200, [60, 180, 0, 30])).toBeNull();
+  });
+  it("negative oder gebrochene Werte werden abgewiesen (fail closed — die Parameter-Pruefung laesst sie gar nicht zu)", () => {
+    expect(() => normalisiereStufen([180, -1, 30, 0])).toThrow("nur ganze Tage >= 0");
+    expect(() => stufeFuer(10, [180, 60, 30, -5])).toThrow();
+    expect(() => normalisiereStufen([180, 60.5, 30, 0])).toThrow();
+  });
+});
+

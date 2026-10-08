@@ -2096,13 +2096,20 @@ Stichtag („frei seit"); sonst das nächste künftige. Anschluss heißt wörtli
 Tests: `lib/wird-frei.test.ts` (Regel) und `scripts/wird-frei-probe.ts`
 (Job-SQL gegen die Wegwerf-DB im CI, zurückgerollt).
 
-**OFFEN:** (a) `parameter_wert` kennt nur ganzzahlige Einzelwerte — die
-Staffel liegt als vier Schlüssel `hinweis.wird_frei_stufe_1…4` (180/60/30/0)
-statt eines Listenparameters. (b) Index-Messung (EXPLAIN bei zehnfacher
-Preview-Menge) steht aus; ohne Messung kein zusätzlicher Index auf
-`vergabe_zeitraum` (die bestehenden Indizes auf `biomassestrom_id` tragen die
-Abfrage). (c) Stufe 0 endet beim Verwerfen des Stroms; ein eigener Zustand
-„archiviert" existiert im Modell nicht.
+**Entschieden (Eric 08.10.2026):** (a) Die Staffel liegt als vier
+Schlüssel `hinweis.wird_frei_stufe_1…4` (180/60/30/0). Die Logik sortiert
+die Werte absteigend und fasst gleiche zusammen (`normalisiereStufen` in
+`lib/wird-frei.ts`, `distinct … where s >= 0` in der SQL-Spiegelung) — die
+Reihenfolge der Schlüssel ist egal; negative Werte weist die
+Parameter-Prüfung ab (min 0, `pruefeParameterEingabe` und Trigger). Pille
+und Facette lesen dieselben Parameter (`ladeWirdFreiStufen`, einmal je
+Request), nicht die Standardkonstante. Tests: `lib/wird-frei.test.ts` („E70
+Staffel aus vier Parametern"), `lib/parameter.test.ts`. (b) Kein Index ohne
+Messung: `scripts/wird-frei-probe.ts` misst die Bewertungs-CTE mit EXPLAIN
+(ANALYZE, BUFFERS) auf synthetischer Menge (Standard 3000 Angebote mit je
+zwei Vergaben ≈ zehnfache Preview-Menge; `job-probe` druckt den Bestand der
+Preview als BESTAND-Zeile); der Plan steht im CI-Log und bis zur Freigabe im
+PR-Text. (c) Verwerfen des Stroms beendet Stufe 0 wie ein Erledigen.
 
 ## 45. AP2.6 Kommentare — PR a: Datenmodell, Schreibweg, Rechte (E71), 07.10.2026
 
@@ -2145,6 +2152,7 @@ CASCADE zum Kommentar. Enum `ereignis_art` + `kommentar_erstellt`,
 `lib/kommentar-marker.ts`, Actions in `lib/kommentar-actions.ts`. Ein Marker
 auf einen nicht erwähnbaren Nutzer (unbekannt, deaktiviert, Betrachter)
 weist den Kommentar ab (fail closed) statt ihn stumm zu verschlucken.
+Weiches Löschen entfernt die Erwähnungszeilen mit dem Text.
 `akteurLoeschen` zählt die mitgelöschten Kommentare im Ereignistext,
 `akteurZusammenfuehren` hängt sie an das Ziel um. Wächter: rechte-check
 erkennt `pruefeKommentarObjekt(` als Objektstufe und sieht dafür auch den
@@ -2162,6 +2170,7 @@ UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
 `kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
 Inbox-Aufbewahrung (D14).
 
+<<<<<<< HEAD
 **PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
 (SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
 `lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
@@ -2184,4 +2193,16 @@ Abweisung (statt stummem Überspringen) nicht erwähnbarer Marker sind
 konservative Vorgaben ohne ausdrückliche Entscheidung. (c) Erwähnungen
 eines später gelöschten Kommentars bleiben als Zeilen stehen (kein Text,
 keine Zustellung mehr) — Löschen ist weich.
+=======
+**Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
+gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
+auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
+weist den ganzen Kommentar mit Meldung ab, nichts wird gespeichert. (c)
+Zwei Strom-Spalten (`biomassestrom_id`, `output_bedarf_id`) neben
+`akteur_id`, CHECK „genau ein Bezug" über alle drei (Probe 1a–1d). (d)
+Weiches Löschen entfernt auch die Erwähnungszeilen — sie leiten sich aus dem
+Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
+„Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
+(„Erwaehnungszeilen weg"), Probe 6c.
+>>>>>>> origin/ap26a-kommentare
 
