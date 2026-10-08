@@ -23,7 +23,7 @@
  */
 import postgres from "postgres";
 
-import { ORT_NORM_FAELLE, ORT_PASST_FAELLE, normalisiereOrt, ortPasst } from "./plz";
+import { ORT_NORM_FAELLE, ORT_PASST_FAELLE, ORT_PRAEFIX_FAELLE, normalisiereOrt, ortNormPraefixe, ortPasst } from "./plz";
 
 const url = process.env.DATABASE_URL;
 if (!url) {
@@ -56,6 +56,14 @@ async function main() {
     const [r] = await sql`select plz_ort_passt(${eingabe}, ${ortNorm}) as p`;
     pruefe(`passt „${eingabe}“ zu „${ortNorm}“`, r!.p === erwartet && ortPasst(eingabe, ortNorm) === erwartet, { sql: r!.p, ts: ortPasst(eingabe, ortNorm) });
   }
+
+  for (const [norm, erwartet] of ORT_PRAEFIX_FAELLE) {
+    const [r] = await sql`select array_to_json(plz_ort_norm_praefixe(${norm}))::text as p`;
+    const sqlWert = JSON.parse(r!.p as string) as string[];
+    pruefe(`praefixe „${norm}“`, JSON.stringify(sqlWert) === JSON.stringify(erwartet) && JSON.stringify(ortNormPraefixe(norm)) === JSON.stringify(erwartet), { sql: sqlWert, ts: ortNormPraefixe(norm) });
+  }
+  const [idxMuster] = await sql`select count(*)::int as n from pg_indexes where tablename = 'plz_ort' and indexname = 'plz_ort_norm_muster_idx'`;
+  pruefe("E72: Index plz_ort_norm_muster_idx (text_pattern_ops) vorhanden", idxMuster!.n === 1, idxMuster);
 
   // B) Bestand
   const [{ n }] = await sql`select count(*)::int as n from plz_gebiet`;

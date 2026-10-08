@@ -14,20 +14,41 @@
 --       und passen zu „mannheim" / „stuttgart". „Mannheimer Str." passt
 --       nicht (kein Wortende nach „mannheim"). Der Ort bleibt, wie er
 --       eingegeben wurde; es gibt keine Meldung.
+-- Wortpraefixe einer Normalform: „mannheim neckarau" -> {mannheim, mannheim neckarau}.
+-- Damit wird die Ortsteil-Bedingung („Eingabe beginnt mit dem amtlichen Ort
+-- und einem Wortende") zu `ort_norm = ANY(praefixe)` — indexfaehig ueber
+-- plz_ort_norm_idx. Spiegel: ortNormPraefixe().
+CREATE FUNCTION plz_ort_norm_praefixe(p_norm text) RETURNS text[]
+LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
+  SELECT coalesce(array_agg(array_to_string(w[1:i], ' ') ORDER BY i), '{}')
+  FROM regexp_split_to_array(p_norm, ' ') AS w, generate_series(1, array_length(w, 1)) AS i
+  WHERE p_norm <> ''
+$$;--> statement-breakpoint
+-- Passt-Regel auf Normalformen, in indexfaehiger Form (Messung 08.10.2026:
+-- die erste Fassung normalisierte die Eingabe je plz_ort-Zeile neu, Seq Scan,
+-- 200 Orte 6,5 s). a) gleich und c) Ortsteil: ort_norm ist eines der
+-- Wortpraefixe der Eingabe; b) Kurzform: ort_norm beginnt mit Eingabe + Leer-
+-- zeichen — als Bereich [n||' ', n||'!') ueber die text_pattern_ops-Operatoren
+-- (ort_norm enthaelt nur a-z, 0-9 und Leerzeichen; '!' ist das Zeichen nach
+-- dem Leerzeichen). Beide Teile nutzen Indizes auf plz_ort(ort_norm).
 CREATE FUNCTION plz_ort_norm_passt(p_norm text, p_ort_norm text) RETURNS boolean
 LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
   SELECT p_norm <> '' AND p_ort_norm <> ''
-     AND (p_ort_norm = p_norm
-          OR p_ort_norm LIKE replace(replace(p_norm, '\', '\\'), '%', '\%') || ' %'
-          OR p_norm LIKE replace(replace(p_ort_norm, '\', '\\'), '%', '\%') || ' %')
+     AND (p_ort_norm = ANY (plz_ort_norm_praefixe(p_norm))
+          OR (p_ort_norm ~>=~ (p_norm || ' ') AND p_ort_norm ~<~ (p_norm || '!')))
 $$;--> statement-breakpoint
 CREATE OR REPLACE FUNCTION plz_ort_passt(p_eingabe text, p_ort_norm text) RETURNS boolean
 LANGUAGE sql IMMUTABLE STRICT PARALLEL SAFE AS $$
   SELECT plz_ort_norm_passt(plz_ort_norm(p_eingabe), p_ort_norm)
 $$;--> statement-breakpoint
+-- Bereichssuche der Kurzform ueber die Muster-Operatoren braucht einen Index
+-- mit text_pattern_ops (der vorhandene plz_ort_norm_idx traegt die
+-- Gleichheit/ANY). Von Hand wie plz_ort_norm_idx in 0048 (nicht im Drizzle-Schema).
+CREATE INDEX "plz_ort_norm_muster_idx" ON "plz_ort" ("ort_norm" text_pattern_ops);--> statement-breakpoint
 -- 2. PLZ-Kandidaten zu einem Ort ohne PLZ (E72 a/b): alle (PLZ, Gemeinde),
---    deren Gemeindename zur Eingabe passt (dieselbe Regel wie oben, die
---    Eingabe wird EINMAL normalisiert). Kreis und Land kommen ueber den ARS
+--    deren Gemeindename zur Eingabe passt (dieselbe Regel wie oben; die
+--    Normalisierung der Eingabe steht in den Index-Bedingungen und wird je
+--    Aufruf, nicht je Zeile berechnet). Kreis und Land kommen ueber den ARS
 --    (Gemeinde-ARS 12-stellig: Land = 2, Kreis = 5 Stellen) aus
 --    verwaltungsgebiet — NULL, wenn die VG250-Ebenen nicht importiert sind.
 --    Genau eine Zeile heisst: PLZ eindeutig; mehrere: der Mensch waehlt in
@@ -35,11 +56,10 @@ $$;--> statement-breakpoint
 CREATE FUNCTION plz_fuer_ort(p_ort text)
 RETURNS TABLE (plz text, ort text, ars text, kreis text, land text)
 LANGUAGE sql STABLE AS $$
-  WITH n AS (SELECT plz_ort_norm(p_ort) AS norm)
   SELECT o.plz, o.ort, o.ars,
          (SELECT k.bez || ' ' || k.name FROM verwaltungsgebiet k WHERE k.ebene = 'kreis' AND k.ars = left(o.ars, 5)),
          (SELECT l.name FROM verwaltungsgebiet l WHERE l.ebene = 'land' AND l.ars = left(o.ars, 2))
-  FROM plz_ort o, n
-  WHERE plz_ort_norm_passt(n.norm, o.ort_norm)
+  FROM plz_ort o
+  WHERE plz_ort_norm_passt(plz_ort_norm(p_ort), o.ort_norm)
   ORDER BY o.ort, o.ars, o.plz
 $$;

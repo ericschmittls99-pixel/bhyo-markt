@@ -27,7 +27,14 @@ export function normalisiereOrt(t: string): string {
  * nicht). Bindestrich und Leerzeichen sind in der Normalform dasselbe.
  */
 export function ortNormPasst(norm: string, ortNorm: string): boolean {
-  return norm !== "" && ortNorm !== "" && (ortNorm === norm || ortNorm.startsWith(`${norm} `) || norm.startsWith(`${ortNorm} `));
+  return norm !== "" && ortNorm !== "" && (ortNormPraefixe(norm).includes(ortNorm) || ortNorm.startsWith(`${norm} `));
+}
+
+/** Wortpraefixe einer Normalform (Spiegel von plz_ort_norm_praefixe): „mannheim neckarau" -> ["mannheim", "mannheim neckarau"]. */
+export function ortNormPraefixe(norm: string): string[] {
+  if (norm === "") return [];
+  const w = norm.split(" ");
+  return w.map((_, i) => w.slice(0, i + 1).join(" "));
 }
 
 /** Passt die Eingabe zu einem Ort (Spiegel von plz_ort_passt)? Normalisiert einmal, dann ortNormPasst. */
@@ -47,6 +54,13 @@ export const ORT_NORM_FAELLE: ReadonlyArray<readonly [string, string]> = [
   ["Sankt   Blasien", "sankt blasien"],
   ["", ""],
   ["---", ""],
+];
+
+export const ORT_PRAEFIX_FAELLE: ReadonlyArray<readonly [string, readonly string[]]> = [
+  ["mannheim", ["mannheim"]],
+  ["mannheim neckarau", ["mannheim", "mannheim neckarau"]],
+  ["ludwigshafen am rhein", ["ludwigshafen", "ludwigshafen am", "ludwigshafen am rhein"]],
+  ["", []],
 ];
 
 export const ORT_PASST_FAELLE: ReadonlyArray<readonly [string, string, boolean]> = [

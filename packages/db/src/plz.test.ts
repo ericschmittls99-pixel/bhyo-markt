@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { ORT_NORM_FAELLE, ORT_PASST_FAELLE, normalisiereOrt, ortNormPasst, ortPasst } from "./plz";
+import { ORT_NORM_FAELLE, ORT_PASST_FAELLE, ORT_PRAEFIX_FAELLE, normalisiereOrt, ortNormPasst, ortNormPraefixe, ortPasst } from "./plz";
 
 describe("normalisiereOrt (E68 PR 1, Spiegel von plz_ort_norm)", () => {
   it.each(ORT_NORM_FAELLE)("„%s“ -> „%s“", (eingabe, erwartet) => {
@@ -31,6 +31,9 @@ describe("Ortsteil-Toleranz (E72 e, Eric 08.10.2026): Formular und Import teilen
   });
   it("Rot: „Heidelberg-Rohrbach“ zu 68159 (Mannheim) passt nicht — „meinten Sie Mannheim?“ kommt aus der Pruefung", () => {
     expect(ortPasst("Heidelberg-Rohrbach", "mannheim")).toBe(false);
+  });
+  it.each(ORT_PRAEFIX_FAELLE)("Wortpraefixe von „%s“", (norm, erwartet) => {
+    expect(ortNormPraefixe(norm)).toEqual(erwartet);
   });
   it("leere Normalformen passen nie (auch nicht leer zu leer)", () => {
     expect(ortNormPasst("", "")).toBe(false);
