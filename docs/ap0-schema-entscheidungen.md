@@ -1952,6 +1952,55 @@ Suche (Photon kennt nur Freitext; die Felder werden zu einem Text gefügt);
 Genauigkeit in der Karten-Popup („am Pin") — im Entwurf nur Detail und
 Stammdaten; Import setzt die Genauigkeit erst mit PR 3.
 
+## 42. E68 PR 3: Import — Adressen lokal, genaue Pins optional, 07.10.2026
+
+**Adressen zuordnen (lokal, sofort):** `importAdressenAufloesen` fragt keinen
+Dienst mehr. Alle eindeutigen Adressen neuer Akteure gehen in **einer**
+Abfrage an `plz_pruefung` + `ST_PointOnSurface(plz_gebiet)`
+(`pruefePlzOrtStapel`, jsonb-gebunden): PLZ bekannt und Ort passt → Pin im
+PLZ-Gebiet, Felder `akteur_sitz_quelle = plz_gebiet`,
+`akteur_sitz_genauigkeit = plz_gebiet`; fehlt der Ort, gilt der einzige Ort
+der PLZ, bei mehreren bleibt die Zeile offen mit der Liste. Befunde sind
+Sätze für die Nacharbeit („PLZ 00000 ist unbekannt — bitte prüfen.", „Ort
+passt nicht zur PLZ 54636 — meinten Sie A, B, C …?", „Ohne PLZ keine
+Zuordnung — PLZ in der Zeile ergänzen."). Ein Aufruf statt Stapel; die Dauer
+steht im Lauf-Zähler `adressen_lokal_ms` und im Protokolltext. Die Zeile
+ohne PLZ, die bisher über Photon aus Straße + Ort einen Sitz bekam, bleibt
+jetzt offen — bewusst: ohne PLZ keine lokale Zuordnung (Weggabelung unten).
+
+**Genaue Pins ermitteln (optional):** `importPinsErmitteln` für Adressen mit
+`quelle = plz_gebiet` ohne `akteur_sitz_genau_versucht`: je eindeutiger
+Adresse eine Anfrage über denselben Ablauf wie der Prüfen-Knopf
+(`pruefeAdresse`, PR 2), **eine Anfrage je Sekunde** (Abstand im Stapel),
+vier je Aufruf, der Browser setzt fort, Fortschritt sichtbar. Treffer →
+`quelle = photon`, Genauigkeit hausnummer/strasse; sonst bleibt der
+ungefähre Pin, die Adresse gilt als versucht (keine Endlosschleife). Die
+Genauigkeit läuft beim Ausführen in `akteurAnlegenInTx` (`genauigkeit` der
+Eingabe) in `akteur.sitz_genauigkeit`.
+
+**Messung:** `plz-check` misst mit Bestand 5.000 (PLZ, Ort) in einer Abfrage
+(jede zehnte mit falschem Ort) und druckt `PLZMESSUNG` — läuft im
+Wegwerf-Lauf von `import-plz.yml`; Wert im PR-Kommentar.
+
+**Rot gezeigt (PR 3, Vitest):** unbekannte PLZ und falscher Ort bleiben mit
+Satz stehen (drei Gruppen, eine Abfrage, zwei offen); Bearbeiter abgewiesen
+ohne Abfrage; genaue Suche fragt versuchte Adressen nicht erneut, Treffer
+hebt die Genauigkeit, kein Treffer markiert nur „versucht".
+
+**Offen (nicht entschieden):** Zeilen ohne PLZ (nur Straße + Ort) — lokal
+nicht zuordenbar; Option: genaue Suche auch für sie zulassen. Die Testdatei
+`import-testdatei-ap27.xlsx` (Prüfstein) lag in der Nacht nicht vor.
+
+**Nachtrag 08.10.2026 (Zeile 39 der Testdatei, Eric):** Bei vorhandenem
+Akteur wird die Zeilen-Sitzadresse verworfen; in den Strom gehen nur die
+Spalten der Gruppe „Standort" (`plz`, `ort`, Straße, Hausnummer) — und die
+waren ungeprüft. Jetzt prüft der Adressschritt auch sie lokal
+(`standortGruppen`, `standortBefund`), je eindeutigem (PLZ, Ort) einmal,
+unabhängig vom Akteur; ein Befund steht als Zeilenfehler am Feld Standort ·
+PLZ und führt in die Nacharbeit, eine Korrektur dort wird sofort erneut
+geprüft. Zähler `standort_befunde` am Lauf. Tests in
+`lib/import-adressen.test.ts` („Standort-Spalten").
+
 ## 43. E69 Preis-Bezug, liegengebliebene Läufe, Konfliktmarker-Wächter (AP2.7 PR g), 07.10.2026
 
 **Anlass (Testlauf 07.10.2026):** `biomassestrom.preis_min/mittel/max` waren

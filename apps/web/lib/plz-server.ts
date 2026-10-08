@@ -41,3 +41,35 @@ export async function plzBestandVorhanden(db: AppDb): Promise<boolean> {
 }
 
 export const PLZ_BESTAND_FEHLT = "PLZ-Gebiete sind noch nicht importiert — PLZ und Ort bitte von Hand eintragen.";
+
+/** Ergebnis je Eingabe des Stapels (E68 PR 3): Pruefung plus Punkt im PLZ-Gebiet (null bei unbekannter PLZ). */
+export interface PlzStapelErgebnis extends PlzPruefung {
+  pin: { lng: number; lat: number } | null;
+}
+
+/**
+ * E68 PR 3: Pruefung vieler (PLZ, Ort) in EINER Abfrage — fuer den Import
+ * (5.000 Zeilen in einem Aufruf statt je Zeile). Eingaben als jsonb gebunden
+ * (Worker-Treiber: Arrays kommen als Text, jsonb geht sicher), Ergebnisse in
+ * Eingabereihenfolge.
+ */
+export async function pruefePlzOrtStapel(db: AppDb, eintraege: readonly { plz: string; ort: string }[]): Promise<PlzStapelErgebnis[]> {
+  if (eintraege.length === 0) return [];
+  const rows = (await db.execute(sql`
+    with e as (
+      select t.i, t.plz, nullif(t.ort, '') as ort
+      from jsonb_to_recordset(${JSON.stringify(eintraege.map((x, i) => ({ i, plz: x.plz, ort: x.ort })))}::jsonb) as t(i int, plz text, ort text)
+    )
+    select e.i, p.plz_bekannt, p.ort_passt, array_to_json(p.orte)::text as orte_json,
+           ST_X(q.pt) as lng, ST_Y(q.pt) as lat
+    from e
+    cross join lateral plz_pruefung(e.plz, e.ort) p
+    left join lateral (select ST_PointOnSurface(g.geom) as pt from plz_gebiet g where g.plz = e.plz) q on true
+    order by e.i`)) as unknown as { i: number; plz_bekannt: boolean; ort_passt: boolean; orte_json: string; lng: unknown; lat: unknown }[];
+  return rows.map((r) => ({
+    plzBekannt: r.plz_bekannt,
+    ortPasst: r.ort_passt,
+    orte: JSON.parse(r.orte_json) as string[],
+    pin: r.lng == null || r.lat == null ? null : { lng: Number(r.lng), lat: Number(r.lat) },
+  }));
+}

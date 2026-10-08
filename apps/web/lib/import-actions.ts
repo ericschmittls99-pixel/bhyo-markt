@@ -8,13 +8,15 @@ import { and, eq, inArray, sql } from "drizzle-orm";
 import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
-import { IMPORT_LAUF_VERWERFBAR, istPersonenSchluessel, pruefeImportLaufEingabe, type ImportLaufEingabe, type ImportLaufFehler } from "@/lib/import-modell";
-import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, sitzPatch, waehleSitz } from "@/lib/import-adressen";
+import { IMPORT_LAUF_VERWERFBAR, type ImportLaufEingabe, type ImportLaufFehler, istPersonenSchluessel, pruefeImportLaufEingabe } from "@/lib/import-modell";
+import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, gruppenFuerGenauePins, istStandortBefund, sitzAusLokal, sitzPatch, standortBefund, standortGruppen, waehleSitz } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { verwirfLauf } from "@/lib/jobs/import-aufraeumen";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
-import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, zuordnungsFehler, type Zuordnung } from "@/lib/import-zuordnung";
+import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung, zuordnungsFehler } from "@/lib/import-zuordnung";
+import { pruefeAdresse } from "@/lib/adresse-pruefung-server";
+import { pruefePlzOrtStapel } from "@/lib/plz-server";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
 import { stelleImportAbschlussZu } from "@/lib/inbox/zustellung";
 import { protokolliere } from "@/lib/protokoll";
@@ -639,39 +641,54 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
       }),
     );
   }
+  // E68 PR 3: lokal, ohne Netz, alle Adressen in EINER Abfrage (5.000 Zeilen in einem Aufruf).
   const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
   const gruppen = adressGruppen(zeilen);
-  const stapel = gruppen.slice(0, ADRESSEN_JE_STAPEL);
-  if (stapel.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
-
-  // Erst alle Netzaufrufe des Stapels, dann eine Transaktion — ein Netzfehler laesst die DB unberuehrt.
-  const ergebnisse: { gruppe: (typeof stapel)[number]; patch: Record<string, string>; offen: boolean }[] = [];
-  for (const g of stapel) {
-    const text = adressText(g);
-    let e: ReturnType<typeof waehleSitz>;
-    if (!text) e = waehleSitz(g, []);
-    else {
-      try {
-        e = waehleSitz(g, await photonSuche(text));
-      } catch (err) {
-        if (err instanceof PhotonNichtErreichbar) return { fehler: `${err.message} Später fortsetzen, der Stand bleibt erhalten.` };
-        throw err;
-      }
-    }
-    ergebnisse.push({ gruppe: g, patch: sitzPatch(e), offen: "offen" in e });
-  }
-
+  // Zeile 39 (Eric 08.10.2026): Standort-Spalten (plz/ort) werden ebenfalls geprueft — auch bei vorhandenem Akteur.
+  const standorte = standortGruppen(zeilen);
+  if (gruppen.length === 0 && standorte.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
+  const start = Date.now();
   try {
     return await withDb((db) =>
       db.transaction(async (tx) => {
+        const pruefungen = await pruefePlzOrtStapel(tx, gruppen.map((g) => ({ plz: g.plz, ort: g.ort })));
+        const ergebnisse = gruppen.map((g, i) => {
+          const e = sitzAusLokal(g, pruefungen[i]!);
+          return { gruppe: g, patch: sitzPatch(e), offen: "offen" in e };
+        });
         for (const r of ergebnisse) {
           await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
         }
+        let standortBefunde = 0;
+        if (standorte.length > 0) {
+          const sp = await pruefePlzOrtStapel(tx, standorte.map((g) => ({ plz: g.plz, ort: g.ort })));
+          const jeZeile = new Map(zeilen.map((z) => [z.id, z]));
+          for (let i = 0; i < standorte.length; i++) {
+            const befund = standortBefund(standorte[i]!, sp[i]!);
+            if (befund) standortBefunde += standorte[i]!.zeilenIds.length;
+            for (const zeileId of standorte[i]!.zeilenIds) {
+              const z = jeZeile.get(zeileId)!;
+              const alter = z.felder[`${FEHLER_PREFIX}plz`];
+              // Ein Formatfehler von feldWert bleibt stehen; nur eigene Befunde werden gesetzt oder geraeumt.
+              if (!befund && !istStandortBefund(alter)) continue;
+              if (befund && alter === befund) continue;
+              const neu = { ...z.felder };
+              if (befund) neu[`${FEHLER_PREFIX}plz`] = befund;
+              else delete neu[`${FEHLER_PREFIX}plz`];
+              await tx
+                .update(importZeile)
+                .set({ felder: befund ? felderPatch({ [`${FEHLER_PREFIX}plz`]: befund }) : felderPatch({}, [`${FEHLER_PREFIX}plz`]), ...zustandNachKorrektur(neu, z.status) })
+                .where(eq(importZeile.id, zeileId));
+            }
+          }
+        }
         const ohneTreffer = ergebnisse.filter((r) => r.offen).length;
-        const offen = gruppen.length - stapel.length;
+        const dauerMs = Date.now() - start;
         const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
-        zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (stapel.length - ohneTreffer);
+        zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (gruppen.length - ohneTreffer);
         zaehler.adressen_offen = (zaehler.adressen_offen ?? 0) + ohneTreffer;
+        zaehler.standort_befunde = standortBefunde;
+        zaehler.adressen_lokal_ms = dauerMs;
         await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "geaendert",
@@ -679,10 +696,10 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
           id: lauf.id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Adressen aufgelöst: ${stapel.length} Adresse(n), ${ohneTreffer} ohne eindeutigen Treffer, ${offen} noch offen`,
+          text: `Adressen lokal zugeordnet: ${gruppen.length} Adresse(n), ${ohneTreffer} offen (PLZ/Ort), ${dauerMs} ms`,
           importLaufId: lauf.id,
         });
-        return { ok: true, bearbeitet: stapel.length, offen, ohneTreffer };
+        return { ok: true, bearbeitet: gruppen.length, offen: 0, ohneTreffer };
       }),
     );
   } catch (e) {
@@ -703,6 +720,84 @@ export interface BelegDatenErgebnis {
 }
 
 const DATUM = /^\d{4}-\d{2}-\d{2}$/;
+
+/** E68 PR 3: Stapel der genauen Suche — eine Anfrage je Sekunde (Nutzungsregel), vier je Aufruf bleiben unter ~10 s. */
+const GENAUE_PINS_JE_STAPEL = 4;
+const GENAUE_PINS_ABSTAND_MS = 1000;
+
+export interface GenauePinsErgebnis {
+  ok?: boolean;
+  fehler?: string;
+  bearbeitet?: number;
+  verbessert?: number;
+  offen?: number;
+}
+
+/**
+ * E68 PR 3, optional: „genaue Pins ermitteln" — fuer Adressen mit Pin im
+ * PLZ-Gebiet je eindeutiger Adresse eine Anfrage an den Adressdienst,
+ * gedrosselt (1/s), fortsetzbar (Stand in den Zeilen). Ein Treffer hebt die
+ * Genauigkeit auf hausnummer/strasse; sonst bleibt der ungefaehre Pin und
+ * die Adresse gilt als versucht. Dienstausfall: Fehler genannt, Stand bleibt.
+ */
+export async function importPinsErmitteln(laufId: string): Promise<GenauePinsErgebnis> {
+  const wache = await rechtFuerAction("import.ausfuehren");
+  if ("fehler" in wache) return { fehler: wache.fehler };
+  if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
+  const lauf = await withDb((db) => ladeImportLauf(db, laufId));
+  if (!lauf) return { fehler: "Lauf nicht gefunden." };
+  if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — genaue Pins gibt es nach dem Auflösen.` };
+
+  const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
+  const gruppen = gruppenFuerGenauePins(zeilen);
+  const stapel = gruppen.slice(0, GENAUE_PINS_JE_STAPEL);
+  if (stapel.length === 0) return { ok: true, bearbeitet: 0, verbessert: 0, offen: 0 };
+
+  // Erst alle Anfragen des Stapels (gedrosselt), dann eine Transaktion.
+  const ergebnisse: { gruppe: (typeof stapel)[number]; patch: Record<string, string>; verbessert: boolean }[] = [];
+  for (const [i, g] of stapel.entries()) {
+    if (i > 0) await new Promise((r) => setTimeout(r, GENAUE_PINS_ABSTAND_MS));
+    const antwort = await withDb((db) => pruefeAdresse(db, { strasse: g.strasse, hausnummer: g.hausnummer, plz: g.plz, ort: g.ort }));
+    const e = antwort.ergebnis;
+    if (e.status === "treffer") {
+      ergebnisse.push({
+        gruppe: g,
+        patch: { akteur_sitz_lat: String(e.adresse.lat), akteur_sitz_lng: String(e.adresse.lng), akteur_sitz_quelle: "photon", akteur_sitz_genauigkeit: e.genauigkeit, akteur_sitz_genau_versucht: "1" },
+        verbessert: true,
+      });
+    } else {
+      ergebnisse.push({ gruppe: g, patch: { akteur_sitz_genau_versucht: "1" }, verbessert: false });
+    }
+  }
+
+  try {
+    return await withDb((db) =>
+      db.transaction(async (tx) => {
+        for (const r of ergebnisse) {
+          await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
+        }
+        const verbessert = ergebnisse.filter((r) => r.verbessert).length;
+        const offen = gruppen.length - stapel.length;
+        const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
+        zaehler.pins_genau = (zaehler.pins_genau ?? 0) + verbessert;
+        await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
+        await protokolliere(tx, {
+          art: "geaendert",
+          entitaet: "import_lauf",
+          id: lauf.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Genaue Pins ermittelt: ${stapel.length} Adresse(n), ${verbessert} verbessert, ${offen} noch offen`,
+          importLaufId: lauf.id,
+        });
+        return { ok: true, bearbeitet: stapel.length, verbessert, offen };
+      }),
+    );
+  } catch (e) {
+    console.error("Genaue Pins fehlgeschlagen:", e);
+    return { fehler: "Die genauen Pins konnten nicht gespeichert werden." };
+  }
+}
 
 const MONAT = /^(0[1-9]|1[0-2])\/\d{4}$/;
 /** „MM/JJJJ" -> „JJJJ-MM" (Form von monatZuVon/monatZuBis). */
@@ -897,6 +992,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
                   sitz_ort: f.akteur_sitz_ort,
                   lat: f.akteur_sitz_lat,
                   lng: f.akteur_sitz_lng,
+                  genauigkeit: f.akteur_sitz_genauigkeit,
                 },
                 aktiveCodes,
                 importLaufId: lauf.id,
@@ -1120,6 +1216,7 @@ export async function importAusfuehren(laufId: string, abZeilennummer: number): 
                   sitz_ort: f.akteur_sitz_ort,
                   lat: f.akteur_sitz_lat,
                   lng: f.akteur_sitz_lng,
+                  genauigkeit: f.akteur_sitz_genauigkeit,
                 },
                 aktiveCodes,
                 importLaufId: lauf.id,
@@ -1216,7 +1313,7 @@ export interface ZeileErgebnisAction {
   fehler?: string;
 }
 
-const AKTEUR_AUFLOESUNG = ["akteur_id", "akteur_neu", "akteur_gruppe", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_sitz_lat", "akteur_sitz_lng", "akteur_sitz_quelle", "akteur_sitz_offen"] as const;
+const AKTEUR_AUFLOESUNG = ["akteur_id", "akteur_neu", "akteur_gruppe", "akteur_vorschlag_id", "akteur_vorschlag_name", "akteur_vorschlag_grad", "akteur_sitz_lat", "akteur_sitz_lng", "akteur_sitz_quelle", "akteur_sitz_genauigkeit", "akteur_sitz_genau_versucht", "akteur_sitz_offen"] as const;
 const NACHARBEIT_ZUSTAENDE = ["zugeordnet", "aufgeloest", "probelauf", "ausgefuehrt"];
 
 export async function importZeileBearbeiten(laufId: string, zeileId: string, eingabe: Record<string, string>): Promise<ZeileErgebnisAction> {
@@ -1265,6 +1362,16 @@ export async function importZeileBearbeiten(laufId: string, zeileId: string, ein
         const neu: Record<string, string> = { ...alt };
         for (const k of entfernen) delete neu[k];
         Object.assign(neu, setzen);
+        // Zeile 39 (Eric 08.10.2026): ein korrigierter Standort (plz/ort) wird sofort lokal geprueft —
+        // ein Befund bleibt als Zeilenfehler am Feld Standort · PLZ, die Zeile geht nicht durch.
+        if (("plz" in patch || "ort" in patch) && neu.plz && !neu[`${FEHLER_PREFIX}plz`]) {
+          const [e] = await pruefePlzOrtStapel(tx, [{ plz: neu.plz, ort: neu.ort ?? "" }]);
+          const befund = standortBefund({ plz: neu.plz, ort: neu.ort ?? "" }, e!);
+          if (befund) {
+            setzen[`${FEHLER_PREFIX}plz`] = befund;
+            neu[`${FEHLER_PREFIX}plz`] = befund;
+          }
+        }
         await tx
           .update(importZeile)
           .set({ felder: felderPatch(setzen, entfernen), ...zustandNachKorrektur(neu, "offen") })

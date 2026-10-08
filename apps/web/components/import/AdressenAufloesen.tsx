@@ -3,21 +3,26 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { importAdressenAufloesen } from "@/lib/import-actions";
+import { importAdressenAufloesen, importPinsErmitteln } from "@/lib/import-actions";
 
 export interface AdressStand {
   /** Neue Akteure, die einen Sitz brauchen. */
   gesamt: number;
   gefunden: number;
   offen: number;
+  /** E68 PR 3: Pins im PLZ-Gebiet (ungefaehr) und davon noch nicht genau gesucht. */
+  ungefaehr: number;
+  genauOffen: number;
   ohneTreffer: { text: string; grund: string; zeilen: number }[];
 }
 
 /**
- * Sitz neuer Akteure per Adresssuche (AP2.7 PR b, E67): der Browser ruft
- * die Action stapelweise, bis nichts mehr offen ist — fortsetzbar, der Stand
- * steht in den Zeilen. Ohne eindeutigen Treffer bleibt die Adresse mit Grund
- * stehen (Nacharbeit).
+ * Sitz neuer Akteure (AP2.7 PR b, E68 PR 3): „Adressen zuordnen" laeuft
+ * sofort lokal fuer alle Zeilen (PLZ/Ort pruefen, Pin im PLZ-Gebiet,
+ * Genauigkeit plz_gebiet) — ein Aufruf, kein Netz. Befunde (unbekannte PLZ,
+ * Ort passt nicht) bleiben mit „Meinten Sie …?" stehen (Nacharbeit).
+ * Optional „genaue Pins ermitteln": je eindeutiger Adresse eine Anfrage an
+ * den Adressdienst, eine je Sekunde, fortsetzbar, mit Fortschritt.
  */
 export function AdressenAufloesen({ laufId, stand }: { laufId: string; stand: AdressStand }) {
   const router = useRouter();
@@ -25,19 +30,33 @@ export function AdressenAufloesen({ laufId, stand }: { laufId: string; stand: Ad
   const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
 
-  async function starten(erneut = false) {
+  async function zuordnen(erneut = false) {
     setLaeuft(true);
     setFehler(null);
-    let erledigt = 0;
     try {
-      for (let erster = true; ; erster = false) {
-        const erg = await importAdressenAufloesen(laufId, erneut && erster);
+      const erg = await importAdressenAufloesen(laufId, erneut);
+      if (!erg.ok) setFehler(erg.fehler ?? "Fehlgeschlagen.");
+    } finally {
+      setLaeuft(false);
+      router.refresh();
+    }
+  }
+
+  async function genauePins() {
+    setLaeuft(true);
+    setFehler(null);
+    let bearbeitet = 0;
+    let verbessert = 0;
+    try {
+      for (;;) {
+        const erg = await importPinsErmitteln(laufId);
         if (!erg.ok) {
           setFehler(erg.fehler ?? "Fehlgeschlagen.");
           break;
         }
-        erledigt += erg.bearbeitet ?? 0;
-        setFortschritt(`${erledigt} Adresse(n) gesucht, ${erg.offen ?? 0} noch offen …`);
+        bearbeitet += erg.bearbeitet ?? 0;
+        verbessert += erg.verbessert ?? 0;
+        setFortschritt(`${bearbeitet} Adresse(n) gesucht, ${verbessert} genauer, ${erg.offen ?? 0} noch offen …`);
         if (!erg.offen || !erg.bearbeitet) break;
       }
     } finally {
@@ -50,25 +69,33 @@ export function AdressenAufloesen({ laufId, stand }: { laufId: string; stand: Ad
   return (
     <section className="imp-akteure">
       <header className="einst-kopf">
-        <h3>adressen auflösen.</h3>
+        <h3>adressen zuordnen.</h3>
         <p className="c">
-          Neue Akteure brauchen PLZ, Ort und einen Pin (E66). Die Adresssuche läuft je eindeutiger Adresse einmal, in
-          kleinen Stapeln; ohne eindeutigen Treffer bleibt die Adresse offen und die Zeilen gehen in die Nacharbeit.
+          Neue Akteure brauchen PLZ, Ort und einen Pin (E66). Die Zuordnung läuft lokal über die PLZ-Gebiete: PLZ und Ort
+          werden geprüft, der Pin liegt im PLZ-Gebiet (Genauigkeit „plz-gebiet"). Passt etwas nicht, bleibt die Adresse mit
+          Vorschlag stehen. „Genaue Pins ermitteln" fragt danach den Adressdienst — eine Anfrage je Sekunde, jederzeit
+          fortsetzbar.
         </p>
       </header>
       <div className="imp-aktionen">
-        <button type="button" className="btn btn--primary btn--sm" onClick={() => starten(false)} disabled={laeuft || stand.offen === 0}>
+        <button type="button" className="btn btn--primary btn--sm" onClick={() => zuordnen(false)} disabled={laeuft || stand.offen === 0}>
           <i className="ph ph-map-pin" aria-hidden />
-          {laeuft ? "Sucht …" : stand.offen === 0 ? "Alle Adressen bearbeitet" : `${stand.offen} Adresse(n) suchen`}
+          {laeuft ? "Läuft …" : stand.offen === 0 ? "Alle Adressen zugeordnet" : `${stand.offen} Adresse(n) zuordnen`}
         </button>
         {stand.ohneTreffer.length > 0 && (
-          <button type="button" className="btn btn--ghost btn--sm" onClick={() => starten(true)} disabled={laeuft}>
+          <button type="button" className="btn btn--ghost btn--sm" onClick={() => zuordnen(true)} disabled={laeuft}>
             <i className="ph ph-arrow-counter-clockwise" aria-hidden />
-            Erneut suchen ({stand.ohneTreffer.length} ohne Treffer)
+            Erneut prüfen ({stand.ohneTreffer.length} mit Befund)
+          </button>
+        )}
+        {stand.genauOffen > 0 && (
+          <button type="button" className="btn btn--sm" onClick={genauePins} disabled={laeuft}>
+            <i className="ph ph-crosshair" aria-hidden />
+            Genaue Pins ermitteln ({stand.genauOffen})
           </button>
         )}
         <span className="c">
-          {stand.gesamt} neue(r) Akteur(e) · {stand.gefunden} mit Pin · {stand.ohneTreffer.length} ohne eindeutigen Treffer
+          {stand.gesamt} neue(r) Akteur(e) · {stand.gefunden} mit Pin · {stand.ungefaehr} im PLZ-Gebiet · {stand.ohneTreffer.length} mit Befund
         </span>
         {fortschritt && <span className="c">{fortschritt}</span>}
         {fehler && <span className="pf-fehler">{fehler}</span>}
