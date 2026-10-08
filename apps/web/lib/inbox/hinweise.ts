@@ -57,6 +57,56 @@ export interface HinweisErgebnis {
  * Stellt die Hinweise fuer den Stichtag (JJJJ-MM-TT, Kalendertag Berlin) zu.
  * Mengenbasiert in zwei Anweisungen, in der uebergebenen Transaktion.
  */
+/**
+ * AP2.8 (E70): Bewertung „wird frei" als wiederverwendbare CTE-Kette (stufen, vg,
+ * enden, heute_vergeben, frei, bewertet) — der Job haengt Zustellen und Abraeumen
+ * an, die Probe misst sie mit EXPLAIN (Eric 08.10.2026: Index nur nach Messung).
+ * Staffel: die vier Parameter, ohne Doppelte, nur Werte >= 0 (Spiegel von
+ * normalisiereStufen; negative Werte weist die Parameter-Pruefung ab).
+ */
+export function wirdFreiBewertungSql(stichtag: string) {
+  return sql`
+    with stufen as (
+      select distinct u.s
+        from unnest(array[parameter_wert('hinweis.wird_frei_stufe_1', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_2', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_3', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_4', ${stichtag}::date)]) as u(s)
+       where u.s >= 0
+    ), vg as (
+      select id, biomassestrom_id, vergeben_von, vergeben_bis, an_bhyo
+        from vergabe_zeitraum where biomassestrom_id is not null
+    ), enden as (
+      select v.biomassestrom_id, v.vergeben_bis as ende, v.an_bhyo
+        from vg v
+       where v.vergeben_bis is not null
+         and not exists (
+           select 1 from vg w
+            where w.biomassestrom_id = v.biomassestrom_id and w.id <> v.id
+              and coalesce(w.vergeben_von, '0001-01-01'::date) <= v.vergeben_bis + 1
+              and (w.vergeben_bis is null or w.vergeben_bis > v.vergeben_bis))
+    ), heute_vergeben as (
+      select distinct biomassestrom_id from vg
+       where coalesce(vergeben_von, '0001-01-01'::date) <= ${stichtag}::date
+         and (vergeben_bis is null or vergeben_bis >= ${stichtag}::date)
+    ), frei as (
+      select e.biomassestrom_id,
+             case when hv.biomassestrom_id is not null
+                  then (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende >= ${stichtag}::date)
+                  else coalesce((select max(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende < ${stichtag}::date),
+                                (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id)) end as frei_ab
+        from (select distinct biomassestrom_id from enden) e
+        left join heute_vergeben hv on hv.biomassestrom_id = e.biomassestrom_id
+    ), bewertet as (
+      select f.biomassestrom_id, f.frei_ab, (f.frei_ab - ${stichtag}::date) as resttage,
+             case when f.frei_ab - ${stichtag}::date <= 0 then 0
+                  else (select min(s) from stufen where s >= f.frei_ab - ${stichtag}::date) end as stufe
+        from frei f
+        join biomassestrom b on b.id = f.biomassestrom_id and b.status::text <> 'verworfen'
+       where f.frei_ab is not null
+    )`;
+}
+
 export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: string): Promise<HinweisErgebnis> {
   // Betrieb 06.10.2026 (Eric): Dauer je Schritt, damit job_lauf.schritte zeigt,
   // wo die Zeit bleibt (57 s am 06.10. bei 0 Stroemen auf Production).
@@ -251,44 +301,7 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
   //  Strom, frei_ab, Stufe) ueber alle Zustaende (Index): verpasste Stufen
   //  werden nicht nachgeholt, Erledigtes nicht wiederbelebt. Empfaenger wie
   //  bei den Ablauf-Hinweisen: letzter Pruefer, sonst alle Pruefer/Admins.
-  const WIRD_FREI = sql`
-    with stufen as (
-      select unnest(array[parameter_wert('hinweis.wird_frei_stufe_1', ${stichtag}::date),
-                          parameter_wert('hinweis.wird_frei_stufe_2', ${stichtag}::date),
-                          parameter_wert('hinweis.wird_frei_stufe_3', ${stichtag}::date),
-                          parameter_wert('hinweis.wird_frei_stufe_4', ${stichtag}::date)]) as s
-    ), vg as (
-      select id, biomassestrom_id, vergeben_von, vergeben_bis, an_bhyo
-        from vergabe_zeitraum where biomassestrom_id is not null
-    ), enden as (
-      select v.biomassestrom_id, v.vergeben_bis as ende, v.an_bhyo
-        from vg v
-       where v.vergeben_bis is not null
-         and not exists (
-           select 1 from vg w
-            where w.biomassestrom_id = v.biomassestrom_id and w.id <> v.id
-              and coalesce(w.vergeben_von, '0001-01-01'::date) <= v.vergeben_bis + 1
-              and (w.vergeben_bis is null or w.vergeben_bis > v.vergeben_bis))
-    ), heute_vergeben as (
-      select distinct biomassestrom_id from vg
-       where coalesce(vergeben_von, '0001-01-01'::date) <= ${stichtag}::date
-         and (vergeben_bis is null or vergeben_bis >= ${stichtag}::date)
-    ), frei as (
-      select e.biomassestrom_id,
-             case when hv.biomassestrom_id is not null
-                  then (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende >= ${stichtag}::date)
-                  else coalesce((select max(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende < ${stichtag}::date),
-                                (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id)) end as frei_ab
-        from (select distinct biomassestrom_id from enden) e
-        left join heute_vergeben hv on hv.biomassestrom_id = e.biomassestrom_id
-    ), bewertet as (
-      select f.biomassestrom_id, f.frei_ab, (f.frei_ab - ${stichtag}::date) as resttage,
-             case when f.frei_ab - ${stichtag}::date <= 0 then 0
-                  else (select min(s) from stufen where s >= f.frei_ab - ${stichtag}::date) end as stufe
-        from frei f
-        join biomassestrom b on b.id = f.biomassestrom_id and b.status::text <> 'verworfen'
-       where f.frei_ab is not null
-    )`;
+  const WIRD_FREI = wirdFreiBewertungSql(stichtag);
   const wirdFrei = (await zeit("wird_frei", () => tx.execute(sql`
     ${WIRD_FREI}, letzter as (
       select distinct on (a.entitaet_id) a.entitaet_id, a.benutzer_id

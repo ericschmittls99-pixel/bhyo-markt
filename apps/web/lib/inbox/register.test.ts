@@ -98,5 +98,10 @@ describe("Register — Kommentare (AP2.6 PR c, E71)", () => {
     expect(INBOX_TYPEN.erwaehnung.reinerHinweis).toBe(true);
     expect(INBOX_TYPEN.kommentar.buendelung).toMatch(/keine/);
   });
+  it("Eric 08.10.2026: ist der Kommentar inzwischen geloescht, sagt die Zeile „Kommentar gelöscht“ statt des Zustelltexts", () => {
+    const z = { ausloeserName: "Bernd", belegNr: "B-000012", bezeichnung: "Papierschlamm", anzahl: 1, kommentarGeloescht: true };
+    expect(INBOX_TYPEN.kommentar.text(z)).toBe("Kommentar gelöscht – Bernd hatte B-000012 Papierschlamm kommentiert");
+    expect(INBOX_TYPEN.erwaehnung.text(z)).toBe("Kommentar gelöscht – Bernd hatte dich zu B-000012 Papierschlamm erwähnt");
+  });
 });
 
