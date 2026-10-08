@@ -276,10 +276,12 @@ async function main() {
     `;
   console.log("AKTEUR_NAMEN " + JSON.stringify(an));
 
+  // E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — keine
+  // Freitexte (Zugriffsanfragen, Aufgaben, Begruendungen) mehr, nur Arten und Zahlen.
   const beispiele = await sql`
-    select entitaet_typ, left(${kern}, 60) as kern, count(*)::int as n
+    select entitaet_typ, art::text as art, count(*)::int as n
       from aenderung group by 1, 2 order by 3 desc limit 15`;
-  console.log("HAEUFIGSTE_TEXTE " + JSON.stringify(beispiele));
+  console.log("HAEUFIGSTE_ARTEN " + JSON.stringify(beispiele));
 
   await sql.end();
 }
