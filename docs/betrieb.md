@@ -304,3 +304,27 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
   Kontakt, eine Anfrage je Klick) gelten für jede Instanz.
 - Migration 0050 (Enum `standort_genauigkeit`, drei Spalten mit Default)
   läuft über das Label; der Altbestand bleibt „unbekannt".
+
+## Öffentliches Repo während der Bauphase (E73, 08.10.2026)
+
+Das Repo ist bis zum Go-live öffentlich (Entscheidung Eric, GitHub-Billing);
+vor dem ersten echten Datensatz in Production wird es wieder privat. Was
+daraus folgt:
+
+- **Logs sind öffentlich.** Workflow-Ausgaben enthalten nur Zählungen, IDs,
+  Arten und Zustände — nie Namen, E-Mails, Kontaktdaten, Quellenangaben
+  oder sonstige Freitexte aus der Datenbank. Jeder Job mit einem DB-Secret
+  maskiert Host und Datenbanknutzer der Verbindungs-URL als ersten Schritt
+  nach der Installation („DB-Host im Log maskieren (E73)"); Skripte dürfen
+  `host=` weiter drucken, die Maskierung ersetzt den Wert.
+- **Keine Secrets an Fork-PRs.** Alle Workflows laufen auf `push` (main),
+  `pull_request` oder `workflow_dispatch`; `pull_request_target` wird nicht
+  verwendet. Die Environments `production`, `production-lesend` und
+  `neon-restore` sind auf den Branch `main` beschränkt.
+- **Befehlsketten, die committen oder pushen** (Erics Regel 08.10.2026):
+  nur mit `set -euo pipefail` bzw. ausschließlich `&&`; nie eine Pipe
+  (`| tail`, `| cut`) vor einem `&&`, das committet; vor jedem Push
+  `scripts/konfliktmarker-check.sh` lokal als eigenes `&&`-Glied. Anlass:
+  ein kurz gepushter Merge-Zwischenstand mit Konfliktmarkern (#201), weil
+  der Pipe-Status den Abbruch des Auflösungs-Schritts verdeckte.
+
