@@ -43,6 +43,9 @@ import {
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
 import { reichereVerfuegbarkeitAn } from "@/lib/verfuegbarkeit";
+import { ladeWirdFreiStufen } from "@/lib/wird-frei-server";
+import { withDb } from "@/lib/db";
+import { heuteBerlin } from "@/lib/datum";
 import { fensterAusJahren, leseZeitbezug } from "@/lib/zeitbezug";
 import { cookies } from "next/headers";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
@@ -98,7 +101,9 @@ export default async function AuswertungPage({
   // stroeme./karte. (dort ist der Bezug der Stichtag), derselbe Filter aus
   // dem Modell. Danach skaliert wendeFensterAn die Mengen monatsscharf; die
   // Status-Auswahl bestimmt dort nur noch, welche Monatskategorien zaehlen.
-  const poolImFenster = reichereVerfuegbarkeitAn(pool, vergabenMap, fensterAusJahren(jahre));
+  // E70: Staffel aus den Parametern (Stichtag heute), damit die Pille ueberall gleich urteilt.
+  const stufen = await withDb((db) => ladeWirdFreiStufen(db, heuteBerlin()));
+  const poolImFenster = reichereVerfuegbarkeitAn(pool, vergabenMap, fensterAusJahren(jahre), stufen);
   const { stroeme: recsHeute, nichtBeruecksichtigt } = filterStroemeMitBericht(
     poolImFenster,
     filter,

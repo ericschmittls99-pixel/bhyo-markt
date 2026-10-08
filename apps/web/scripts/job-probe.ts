@@ -38,6 +38,11 @@ const db = drizzle(verbindung, { schema });
 const ROLLBACK = "__rollback__";
 
 async function main() {
+  // AP2.8 Messung (Eric 08.10.2026): Bestand der Preview als Bezug fuer die synthetische Menge der Wird-frei-Probe.
+  {
+    const [m] = (await db.execute(sql`select (select count(*)::int from biomassestrom) as stroeme, (select count(*)::int from vergabe_zeitraum) as vergaben`)) as unknown as { stroeme: number; vergaben: number }[];
+    console.log(`BESTAND ${JSON.stringify(m)}`);
+  }
   const ziel = new URL(url!);
   console.log(`JOBPROBE host=${ziel.hostname} db=${ziel.pathname.slice(1)}`);
   const fehler: string[] = [];

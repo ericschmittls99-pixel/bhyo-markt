@@ -20,6 +20,19 @@ import { fmtDatum } from "./format";
 import type { VergabeDaten } from "./verfuegbarkeit";
 
 export const WIRD_FREI_STUFEN_STANDARD: readonly number[] = [180, 60, 30, 0];
+/** Die vier Parameterschluessel der Staffel (Migration 0051) — in dieser Reihenfolge gelesen, dann normalisiert. */
+export const WIRD_FREI_STUFEN_SCHLUESSEL = ["hinweis.wird_frei_stufe_1", "hinweis.wird_frei_stufe_2", "hinweis.wird_frei_stufe_3", "hinweis.wird_frei_stufe_4"] as const;
+
+/**
+ * E70 (Eric 08.10.2026): Die Staffel kommt aus vier Parametern — die Logik
+ * sortiert absteigend und fasst gleiche Werte zusammen, die Reihenfolge der
+ * Schluessel ist egal. Negative Werte weist die Parameter-Pruefung ab (min 0,
+ * lib/parameter.ts und Trigger); hier bleibt das fail closed.
+ */
+export function normalisiereStufen(werte: readonly number[]): number[] {
+  if (werte.some((w) => !Number.isInteger(w) || w < 0)) throw new Error("Wird-frei-Staffel: nur ganze Tage >= 0.");
+  return [...new Set(werte)].sort((a, b) => b - a);
+}
 /** Filterwert der Verfuegbarkeits-Facette (E70, Punkt 13). */
 export const WIRD_FREI = "wird_frei";
 export const WIRD_FREI_LABEL = "Wird frei";
@@ -75,8 +88,9 @@ export function freiAbAus(vergaben: readonly VergabeDaten[], heute: string): Fre
 /** Aktive Stufe (Regel 4): kleinste Stufe >= Resttage; Resttage <= 0 → 0; ueber der groessten Stufe → null. */
 export function stufeFuer(resttage: number, stufen: readonly number[] = WIRD_FREI_STUFEN_STANDARD): number | null {
   if (resttage <= 0) return 0;
-  const passend = stufen.filter((s) => resttage <= s);
-  return passend.length ? Math.min(...passend) : null;
+  // absteigend sortiert, ohne Doppelte — die kleinste passende Stufe steht hinten.
+  const passend = normalisiereStufen(stufen).filter((s) => resttage <= s);
+  return passend.length ? passend[passend.length - 1]! : null;
 }
 
 /** frei_ab samt Bewertung zum Stichtag — das, was Liste und Detail tragen (Strom.wirdFrei). */
