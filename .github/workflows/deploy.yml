@@ -82,6 +82,9 @@ jobs:
       # verlieren). Geaenderte Dateien und Muster kommen ueber die API vom
       # PR-Head (kein Checkout); main und Dispatch sind nie „nur Doku"; ist
       # etwas nicht lesbar, gilt der volle Lauf (fail closed).
+      # Folge-PR (Eric 08.10.2026): das MUSTER kommt von der BASIS (main),
+      # nicht vom PR-Head — sonst koennte ein PR seine eigene Einstufung
+      # aendern. Aendert ein PR die Musterdatei selbst, ist er ein Code-PR.
       - name: Reine Doku-Aenderung? (nur Pull Requests)
         id: aenderungen
         env:
@@ -92,12 +95,13 @@ jobs:
         run: |
           nur_doku=false
           if [ "$EVENT" = "pull_request" ] && [ -n "$BASIS" ] && [ -n "$KOPF" ]; then
-            muster=$(gh api "repos/${{ github.repository }}/contents/scripts/nur-doku-muster.txt?ref=$KOPF" --jq .content 2>/dev/null | base64 -d | grep -v '^#' | head -1 || true)
+            muster=$(gh api "repos/${{ github.repository }}/contents/scripts/nur-doku-muster.txt?ref=$BASIS" --jq .content 2>/dev/null | base64 -d | grep -v '^#' | head -1 || true)
             if [ -n "$muster" ] && dateien=$(gh api --paginate "repos/${{ github.repository }}/compare/$BASIS...$KOPF" --jq '.files[].filename' 2>/dev/null); then
               anzahl=$(printf '%s\n' "$dateien" | grep -c . || true)
               doku=$(printf '%s\n' "$dateien" | grep -cE "$muster" || true)
-              if [ "$anzahl" -gt 0 ] && [ "$doku" -eq "$anzahl" ]; then nur_doku=true; fi
-              echo "AENDERUNGEN dateien=$anzahl doku=$doku nur_doku=$nur_doku"
+              musterdatei=$(printf '%s\n' "$dateien" | grep -cx 'scripts/nur-doku-muster.txt' || true)
+              if [ "$anzahl" -gt 0 ] && [ "$doku" -eq "$anzahl" ] && [ "$musterdatei" -eq 0 ]; then nur_doku=true; fi
+              echo "AENDERUNGEN dateien=$anzahl doku=$doku musterdatei=$musterdatei nur_doku=$nur_doku"
             else
               echo "AENDERUNGEN Vergleich oder Muster nicht lesbar — voller Lauf"
             fi
