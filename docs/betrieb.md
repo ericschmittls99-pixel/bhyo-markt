@@ -320,7 +320,10 @@ daraus folgt:
 - **Keine Secrets an Fork-PRs.** Alle Workflows laufen auf `push` (main),
   `pull_request` oder `workflow_dispatch`; `pull_request_target` wird nicht
   verwendet. Die Environments `production`, `production-lesend` und
-  `neon-restore` sind auf den Branch `main` beschränkt.
+  `neon-restore` sind auf den Branch `main` beschränkt. GitHub-Einstellung
+  „Fork pull request workflows" (Eric 08.10.2026): **Require approval for
+  all external contributors** — Läufe aus Fork-PRs starten erst nach
+  ausdrücklicher Freigabe eines Maintainers.
 - **Befehlsketten, die committen oder pushen** (Erics Regel 08.10.2026):
   nur mit `set -euo pipefail` bzw. ausschließlich `&&`; nie eine Pipe
   (`| tail`, `| cut`) vor einem `&&`, das committet; vor jedem Push
