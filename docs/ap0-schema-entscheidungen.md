@@ -2138,3 +2138,84 @@ genannter Belege — beides durch Arten bzw. ja/nein ersetzt. Alle Jobs mit
 DB-Secret maskieren Host und Datenbanknutzer (E73-Schritt). Regeln in
 `docs/betrieb.md` („Öffentliches Repo während der Bauphase").
 
+
+## 47. E72 „PLZ aus Ort" und Ortsteil-Toleranz (AP2.7h), 08.10.2026
+
+Entscheidung Eric 08.10.2026 nach dem Testlauf von E68 PR 3 (Zeilen 18, 21
+und 39 der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`). Eigener
+PR nach #195, Migration 0051.
+
+**a) PLZ aus Ort (Import):** Fehlt die Sitz-PLZ einer Zeile und ist der Ort
+(normalisiert wie `plz_ort`, Kurzform und Ortsteil erlaubt — dieselbe
+Passt-Regel wie die Prüfung) genau **einer** PLZ **einer** Gemeinde
+zugeordnet, wird die PLZ übernommen. Die Zeile trägt den Hinweis „PLZ aus
+Ort ergänzt (Mosbach → 74821)" am Feld Sitz-PLZ, der Sitz bekommt wie jede
+PLZ den Punkt im PLZ-Gebiet (Genauigkeit `plz_gebiet`), die Zeile ist
+importierbar. Der Schritt sitzt **vor** dem Akteur-Abgleich in
+`importAkteureAufloesen`, weil die Gruppe aus Name + PLZ besteht — der
+Matcher sieht die ergänzte PLZ. Alle Orte eines Laufs in **einer** Abfrage
+(`plzFuerOrtStapel` → SQL `plz_fuer_ort`, jsonb-gebunden).
+
+**b) Mehrere PLZ oder mehrere gleichnamige Orte:** Befund am Feld Sitz-PLZ,
+Zeile in die Nacharbeit (Status `fehler`): „Ort „Freiburg" ist ohne PLZ nicht
+eindeutig (mehrere Orte dieses Namens) — Kandidaten: Freiburg (Elbe),
+Landkreis Stade, Niedersachsen: 21729; Freiburg im Breisgau, Stadtkreis
+Freiburg im Breisgau, Baden-Württemberg: 79098, 79100 … — PLZ in der Zeile
+ergänzen." Je Gemeinde Ort mit Kreis und Land (über den ARS aus
+`verwaltungsgebiet`, NULL ohne VG250 — nichts wird erfunden), höchstens
+**zehn PLZ** insgesamt, danach „…". Unbekannter Ort: „Ort „X" ist nicht
+bekannt — PLZ in der Zeile ergänzen." (konservativ wie b, nicht
+entschieden — vorher blieb die Zeile im Adressschritt mit „Ohne PLZ keine
+Zuordnung" offen).
+
+**c) Dubletten-Logik unverändert.** Nach einer PLZ-Ergänzung oder -Wahl
+läuft der Akteur-Abgleich mit dieser PLZ; in der Nacharbeit stößt eine
+Änderung von Name, PLZ **oder** (neu) Ort bei leerer PLZ die Auflösung neu
+an (`AKTEUR_AUFLOESUNG` fällt, der eigene Befund und Hinweis am Feld
+Sitz-PLZ ebenfalls — ein Formatfehler bleibt). Erwartung Zeile 21: nach Wahl
+von 79098 schlägt der Matcher „Test: Kompostwerk Breisgau" stark vor.
+
+**d) Testdatei:** Blatt „Testfälle" Zeilen 18, 21 und 39 tragen die neue
+Erwartung (in der Datei geändert, Zellen D16/D19/D37; Daten unverändert).
+
+**e) Ortsteil-Toleranz (eine Funktion für Formular und Import):** Die
+Passt-Regel steht einmal auf Normalformen — SQL `plz_ort_norm_passt(norm,
+ort_norm)`, `plz_ort_passt` ist die Hülle mit Normalisierung; Spiegel
+`ortNormPasst`/`ortPasst` in `@bhyo/db/plz`, Parität in `plz-check`. Drei
+Fälle: gleich; Kurzform (Eingabe ist Wortpräfix des Orts); **Ortsteil** —
+die Eingabe beginnt mit dem amtlichen Ort und einem Wortende („-" und
+Leerzeichen sind in der Normalform dasselbe). Indexfähige Form (Messung
+Eric 08.10.2026): gleich und Ortsteil als `ort_norm = ANY(Wortpräfixe der
+Eingabe)` (`plz_ort_norm_praefixe`, Spiegel `ortNormPraefixe`), Kurzform
+als Bereich `[n||' ', n||'!')` über die `text_pattern_ops`-Operatoren, dazu
+Index `plz_ort_norm_muster_idx`. Die Funktionen sind **nicht STRICT**, weil
+Postgres eine STRICT-SQL-Funktion mit AND/OR im Körper nicht inlined — ohne
+Inlining blieb der Aufruf je Zeile stehen (Seq Scan). „Mannheim-Neckarau"/68199
+passt, der Ort wird unverändert gespeichert, keine Meldung;
+„Mannheimer Str."/68199 ist ein Befund; „Heidelberg-Rohrbach"/68159 →
+„meinten Sie Mannheim?". Formular (`pruefeAdresse` → `plz_pruefung`) und
+Import (`pruefePlzOrtStapel` → `plz_pruefung`) gehen durch dieselbe
+SQL-Funktion.
+
+**Zähler am Lauf:** `plz_aus_ort` (ergänzt), `plz_aus_ort_offen` (Zeilen in
+der Nacharbeit); Protokolltext „… PLZ aus Ort: 1 ergänzt, 1 Zeile(n) in der
+Nacharbeit".
+
+**Rot gezeigt (Vitest):** Kandidaten-Abfrage nur für Zeilen ohne PLZ, ohne
+Gruppe, ohne eigenen Befund (keine Wiederholung über Stapel); Matcher
+bekommt die ergänzte PLZ, keine für den mehrdeutigen Ort; Befundtext mit
+Kreis und Land, Grenze zehn PLZ; Ortsteil passt, Straßenname nicht, fremder
+Ort nicht. `plz-check` (Wegwerf-DB, Fixture): eindeutiger Ort eine PLZ, Groß
+Köris zwei, Kurzform und Ortsteil finden denselben Ort, unbekannt keine
+Zeile, Kreis/Land null ohne VG250, Parität `plz_fuer_ort` = `plz_ort_passt`
+über `plz_ort`; mit Bestand Messung `PLZMESSUNG_ORT` (200 Orte in einer
+Abfrage) samt Plan `PLZEXPLAIN_ORT`: erste Fassung Seq Scan mit
+Normalisierung je Zeile 6,5 s, mit Index aber STRICT 29 s (kein Inlining),
+indexfähig und nicht STRICT **12 ms** (Bitmap-Index-Scans, Läufe
+37801334789 / 37802875636 / 37803521292).
+
+**Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
+(Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
+beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal
+bekommen — der Drizzle-Migrator wendet nur Migrationen an, deren Zeitstempel
+jünger ist als die letzte angewendete.
