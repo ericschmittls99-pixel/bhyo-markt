@@ -2248,15 +2248,16 @@ wird wie erledigt behandelt. Log-Zeile `JOB inbox-aufbewahrung <env>
 ungelesen bleibt, Wird-frei bleibt, idempotent, Parameter wirkt),
 `parameter-check` 15 Schlüssel.
 
-**OFFEN (PR d):** (h) Zustandsbasierte Hinweise des Jobs
-(`verifikation_laeuft_ab`, `verifikation_abgelaufen`, `akteur_verwaist`,
-`kontaktperson_loeschpruefung`, `biomasse_wird_frei`) sind von der
-Aufbewahrung ganz ausgenommen — auch erledigte: ihre Idempotenz-Indizes
-gelten über alle Zustände („dauerhaft", E63/E70), ein gelöschter Eintrag
-entstünde beim nächsten Lauf als neuer ungelesener Hinweis, solange seine
-Bedingung gilt. Sie bleiben damit, bis Eric eine Regel für sie trifft (z. B.
-löschen, sobald die Bedingung nicht mehr gilt UND die Frist erreicht ist).
-(i) „verworfen" ist in D14 nicht genannt — wie erledigt behandelt. (j) Die
-Leitplanke „Keine Daten löschen" gilt für Datensätze; Inbox-Einträge sind
-Mitteilungen, D14 ist Erics ausdrückliche Entscheidung (wie
-`import.zeilen_aufbewahrung_tage`).
+**Entschieden (PR d, Eric 08.10.2026):** (h) Abweichung angenommen:
+die Aufbewahrung gilt für alle Typen **außer den zustandsbasierten
+Job-Hinweisen** (`verifikation_laeuft_ab`, `verifikation_abgelaufen`,
+`akteur_verwaist`, `kontaktperson_loeschpruefung`, `biomasse_wird_frei`) —
+der Eintrag ist dort das Gedächtnis der Idempotenz (Indizes über alle
+Zustände). (i) „verworfen" wird wie erledigt behandelt (14 Tage). (j)
+„Löschungen auf Production macht ein Mensch" gilt für Eingriffe
+(Migrationen, Handaktionen), nicht für fachlich entschiedene
+Aufbewahrungsregeln im Job (Präzedenz E67, Import-Zwischenstände 30 Tage).
+Bedingung: die Anzahl gelöschter Einträge je Lauf steht in
+`job_lauf.schritte` (`inbox_aufbewahrung_erledigt`,
+`inbox_aufbewahrung_gelesen`, am Lauf des Stichtags) und ist im Leseweg
+sichtbar (Zeile JOB_LAUF `letzte_schritte`). (k) Nummer 0054 wie gebaut.

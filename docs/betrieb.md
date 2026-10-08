@@ -283,8 +283,10 @@ tagesgenau in Europe/Berlin, Fristen aus `parameter_wert` am Stichtag
 (einstellungen. → Parameter, Gruppe „Inbox"). Ungelesene Einträge bleiben.
 Zustandsbasierte Hinweise des Jobs (Verifikation, verwaist, Löschprüfung,
 Wird frei) sind ausgenommen, weil ihre Idempotenz-Indizes über alle Zustände
-gelten (siehe OFFEN in §45). Log-Zeile `JOB inbox-aufbewahrung <env>
-{"erledigt","gelesen"}`. Probe im CI (wegwerf-db):
+gelten (§45, entschieden 08.10.2026). Log-Zeile `JOB inbox-aufbewahrung
+<env> {"erledigt","gelesen"}`; dieselben Zahlen stehen als
+`inbox_aufbewahrung_erledigt` / `inbox_aufbewahrung_gelesen` in
+`job_lauf.schritte` des Tageslaufs (Leseweg JOB_LAUF `letzte_schritte`). Probe im CI (wegwerf-db):
 `scripts/inbox-aufbewahrung-probe.ts`. Backups halten gelöschte Einträge
 wie alles andere 30 Tage.
 
