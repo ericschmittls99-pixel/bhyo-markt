@@ -2,6 +2,7 @@
 // oder Netzwerkzugriff, damit Client-Komponenten Typen, Labels und die
 // Filter-/Sortierlogik importieren koennen. Die Loader liegen in lib/stroeme.ts.
 
+import type { Genauigkeit } from "@/lib/adresse-pruefung";
 import {
   RESERVIERUNG_VERALTET,
   RESERVIERUNG_VERALTET_LABEL,
@@ -123,6 +124,8 @@ export interface Strom {
   regionNamen: string[];
   lng: number | null;
   lat: number | null;
+  /** E68 PR 2: Genauigkeit des Pins (hausnummer · strasse · plz_gebiet · manuell · unbekannt). */
+  standortGenauigkeit: Genauigkeit;
   // Biomasse
   cluster: string | null;
   materialartCode: string | null;

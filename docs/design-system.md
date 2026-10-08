@@ -1035,3 +1035,21 @@ Läufe (vor „zeilen."), `btn--ghost btn--sm` „Lauf verwerfen …" (Icon
 „Abbrechen"); danach Pille „verworfen", keine Nacharbeit, keine
 Doppelzeilen, leere Zeilenliste.
 
+## Adresse — Prüfen-Knopf, Genauigkeit (E68 PR 2, 07.10.2026)
+
+**AdresseBlock:** kein Vorschlag beim Tippen mehr. Reihenfolge: Straße ·
+Hausnummer, PLZ · Ort, dann die Zeile `adr-pruefen`: `btn--primary btn--sm`
+„Adresse prüfen" (Icon `ph-magnifying-glass`, „Prüft …" solange die Anfrage
+läuft), daneben die Genauigkeits-Pille `pill pill--muted` (hausnummer. ·
+straße. · plz-gebiet. · manuell. · unbekannt.) und `btn--ghost btn--sm`
+„freie Suche" (klappt ein Feld mit „Suchen" auf, Treffer als `adr-popover`).
+Kandidaten der Prüfung erscheinen als `adr-popover` unter dem Knopf.
+Hinweise (`adr-hinweis`): „Adresse geprüft — Pin an der Hausnummer." ·
+„Straße gefunden, die Hausnummer nicht — Pin an der Straße, bitte auf der
+Karte feinsetzen." · „Adresse nicht eindeutig gefunden — meinten Sie …?" ·
+„Adresse nicht gefunden — ungefährer Standort im PLZ-Gebiet, bitte auf der
+Karte verschieben." (+ „Die PLZ liegt über einer Kreisgrenze — der Landkreis
+folgt dem Pin.") · „Adressdienst nicht erreichbar — ungefährer Standort …".
+Karten-Caption nennt „manuell" für Klick/Ziehen. **Anzeige:** Pille hinter
+den Koordinaten im Strom-Detail und hinter dem Sitz in den
+Akteur-Stammdaten — abgestuft, keine Ampelfarben.

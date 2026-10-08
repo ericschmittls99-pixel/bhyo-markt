@@ -4628,6 +4628,18 @@ table.st-tabelle tbody tr:focus-visible {
   color: var(--text-muted, #6b7a83);
 }
 .adr-uebernahme { position: relative; }
+/* E68 PR 2: Pruefen-Zeile (Knopf, Genauigkeits-Pille, freie Suche) und Kandidaten-Popover. */
+.adr-pruefen {
+  position: relative;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 8px;
+}
+.adr-genauigkeit { text-transform: lowercase; }
+.adr-frei-zeile { display: flex; gap: 8px; align-items: center; }
+.adr-frei-zeile input { flex: 1; }
 .adr-kurz { max-width: 140px; }
 .adr-karte {
   height: 240px;

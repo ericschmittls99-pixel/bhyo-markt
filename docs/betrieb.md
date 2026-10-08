@@ -295,3 +295,12 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
 - **Neuer Stand der Quelle:** SHA-256 im Workflow, `PLZ_STICHTAG` und
   `SOLL_PLZ` in `packages/db/src/plz-import.ts` bewusst anpassen; den auf
   `wegwerf` gemessenen Gemeindewert als exaktes Soll eintragen.
+
+## Adressdienst als Variable (E68 PR 2, 07.10.2026)
+
+- `GEOCODE_URL` in `wrangler.jsonc` (Production und Preview), Standard
+  `https://photon.komoot.io`. Nur https, ohne Schrägstrich am Ende; ein
+  ungültiger Wert fällt auf Photon zurück. Nutzungsregeln (User-Agent mit
+  Kontakt, eine Anfrage je Klick) gelten für jede Instanz.
+- Migration 0050 (Enum `standort_genauigkeit`, drei Spalten mit Default)
+  läuft über das Label; der Altbestand bleibt „unbekannt".

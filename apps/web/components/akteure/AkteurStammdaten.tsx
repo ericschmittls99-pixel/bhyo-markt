@@ -1,5 +1,6 @@
 "use client";
 
+import { GENAUIGKEIT_LABEL } from "@/lib/adresse-pruefung";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 
@@ -72,7 +73,9 @@ export function AkteurStammdaten({
           <span className="kv-k">Sektor</span>
           <span className="kv-w">{akteur.sektorLabel}</span>
           <span className="kv-k">Sitz</span>
-          <span className="kv-w">{sitzText(akteur)}</span>
+          <span className="kv-w">
+            {sitzText(akteur)} <span className="pill pill--muted">{GENAUIGKEIT_LABEL[akteur.sitzGenauigkeit]}.</span>
+          </span>
           <span className="kv-k">Kreis</span>
           <span className="kv-w">{akteur.kreisName ? `${akteur.kreisName} · ${akteur.kreisArs}` : "– (kein Pin oder außerhalb)"}</span>
         </div>
@@ -151,6 +154,7 @@ export function AkteurStammdaten({
           lat: akteur.sitzLat != null ? String(akteur.sitzLat) : "",
           lng: akteur.sitzLng != null ? String(akteur.sitzLng) : "",
         }}
+        initialGenauigkeit={akteur.sitzGenauigkeit}
         akteurId={akteur.id}
         fehler={fehler ?? undefined}
         hinweisOhnePin="Ohne Pin ist der Kreis des Sitzes nicht bestimmbar — Adresse suchen, vom Standort übernehmen oder Pin in der Karte setzen."

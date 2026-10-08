@@ -1,3 +1,4 @@
+import { getBindings } from "@/lib/db";
 import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } from "@/lib/geocode";
 
 /**
@@ -14,6 +15,20 @@ import { dedupeAdressen, nurAdressenUndOrte, photonZuAdresse, type Adresse } fro
  * Nutzereingaben im Klartext: nur die Laenge der Suche bzw. das Pin-Raster.
  */
 export const PHOTON = "https://photon.komoot.io";
+
+/**
+ * E68 PR 2: Basis-URL des Adressdienstes als Worker-Variable GEOCODE_URL
+ * (wrangler.jsonc, Standard Photon). Ausserhalb des Workers (Tests, Skripte)
+ * gilt der Standard. Nur https, ohne abschliessenden Schraegstrich.
+ */
+async function basisUrl(): Promise<string> {
+  try {
+    const u = (await getBindings()).GEOCODE_URL;
+    return u && /^https:\/\//.test(u) ? u.replace(/\/$/, "") : PHOTON;
+  } catch {
+    return PHOTON;
+  }
+}
 /**
  * Messung 06.10.2026 (Preview-Worker, Diagnose-Stand): /api lief dreimal ins
  * 5-s-Limit, /reverse kam mit ≈5,2 s gesamt knapp durch; vom Rechner aus
@@ -100,7 +115,7 @@ export function photonLetzteDauerMs(): number | null {
 /** Suche (Autocomplete und Import): Adressen, Orte, PLZ — keine Objekte. */
 export async function photonSuche(q: string): Promise<Adresse[]> {
   const text = q.trim().slice(0, 120);
-  const url = `${PHOTON}/api?q=${encodeURIComponent(text)}&limit=5&lang=de&bbox=${BBOX_DE}`;
+  const url = `${await basisUrl()}/api?q=${encodeURIComponent(text)}&limit=5&lang=de&bbox=${BBOX_DE}`;
   // Kennung ohne Klartext: nur die Laenge der Eingabe.
   return dedupeAdressen(nurAdressenUndOrte(await hole(url, `suche laenge=${text.length}`)));
 }

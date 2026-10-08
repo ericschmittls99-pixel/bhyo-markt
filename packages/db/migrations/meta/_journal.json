@@ -351,6 +351,13 @@
       "when": 1791386325577,
       "tag": "0049_e69_preis_bezug_lauf_verwerfen",
       "breakpoints": true
+    },
+    {
+      "idx": 50,
+      "version": "7",
+      "when": 1791405141335,
+      "tag": "0050_e68_genauigkeit",
+      "breakpoints": true
     }
   ]
 }

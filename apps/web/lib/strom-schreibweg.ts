@@ -1,3 +1,4 @@
+import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
 import { biomassestrom, outputBedarf, vergabeZeitraum } from "@bhyo/db/schema";
 import { eq, sql } from "drizzle-orm";
 
@@ -143,6 +144,7 @@ export function stromEingabeAusFormData(art: StromArt, formData: FormData): Stro
     belegErhebungsdatum: s(text(formData, "beleg_erhebungsdatum")),
     lat: s(text(formData, "lat")),
     lng: s(text(formData, "lng")),
+    genauigkeit: s(text(formData, "genauigkeit")),
     saison: saisonAusFormData(formData),
     // Beim Bearbeiten zaehlt eine bereits hinterlegte Datei weiter als Datei.
     belegHatDatei:
@@ -194,6 +196,8 @@ export function stromWerte(e: StromEingabe) {
     standortGeom: koordinate
       ? sql`ST_SetSRID(ST_MakePoint(${koordinate.lng}, ${koordinate.lat}), 4326)`
       : null,
+    // E68 PR 2: Genauigkeit kommt vom AdresseBlock; ohne Pin oder ohne Wert „unbekannt" — nichts wird erfunden.
+    standortGenauigkeit: koordinate ? genauigkeitFuerPin(e.eingaben.genauigkeit) : "unbekannt",
     zeitraumVon: monatZuVon(e.eingaben.vonMonat),
     zeitraumBis: monatZuBis(e.eingaben.bisMonat),
     saisonalitaet: e.eingaben.saison,

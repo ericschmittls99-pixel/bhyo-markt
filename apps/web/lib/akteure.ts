@@ -5,6 +5,7 @@
  * oder akteur_geaendert), fuer Altbestand ohne Anlage-Ereignis aus created_at
  * (namentliche Ausnahme, Entscheidung Eric 01.10.2026).
  */
+import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
 import { sql, desc } from "drizzle-orm";
 
 import type { AppDb } from "./db";
@@ -23,6 +24,7 @@ interface Roh {
   sitz_ort: string | null;
   sitz_lng: number | string | null;
   sitz_lat: number | string | null;
+  sitz_genauigkeit?: string | null;
   kreis_ars: string | null;
   kreis_name: string | null;
   region_ids: unknown;
@@ -46,6 +48,7 @@ function zeileAus(r: Roh): AkteurZeile {
     sitzOrt: r.sitz_ort,
     sitzLng: num(r.sitz_lng),
     sitzLat: num(r.sitz_lat),
+    sitzGenauigkeit: genauigkeitFuerPin(r.sitz_genauigkeit),
     kreisArs: r.kreis_ars,
     kreisName: r.kreis_name,
     regionIds: Array.isArray(r.region_ids) ? r.region_ids.map(String) : typeof r.region_ids === "string" ? (JSON.parse(r.region_ids) as string[]) : [],
@@ -72,7 +75,7 @@ const ABFRAGE = sql`
   select a.id, a.name, a.sektor,
          case when sk.aktiv then sk.label else sk.label || ' (deaktiviert)' end as sektor_label,
          a.sitz_strasse, a.sitz_hausnummer, a.sitz_plz, a.sitz_ort,
-         ST_X(a.sitz_geom::geometry) as sitz_lng, ST_Y(a.sitz_geom::geometry) as sitz_lat,
+         ST_X(a.sitz_geom::geometry) as sitz_lng, ST_Y(a.sitz_geom::geometry) as sitz_lat, a.sitz_genauigkeit,
          v.kreis_ars, v.kreis_name,
          -- „Sitz in Region": dieselbe raeumliche Ableitung wie beim Strom-Standort (lib/stroeme.ts).
          coalesce((select json_agg(r.id::text order by r.name) from region r where a.sitz_geom is not null and ST_Contains(r.gebiet, a.sitz_geom)), '[]'::json) as region_ids,

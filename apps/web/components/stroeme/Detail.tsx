@@ -1,5 +1,6 @@
 "use client";
 
+import { GENAUIGKEIT_LABEL } from "@/lib/adresse-pruefung";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { type ReactNode, useEffect, useRef, useState, useTransition } from "react";
@@ -573,7 +574,9 @@ export function Detail({
                   {s.lng != null && s.lat != null ? (
                     <>
                       <span className="t">Standort {s.ort ?? ""}</span>
-                      <span className="c">{fmtKoordinaten(s.lng, s.lat)}</span>
+                      <span className="c">
+                        {fmtKoordinaten(s.lng, s.lat)} · <span className="pill pill--muted">{GENAUIGKEIT_LABEL[s.standortGenauigkeit]}.</span>
+                      </span>
                     </>
                   ) : (
                     <span className="c">

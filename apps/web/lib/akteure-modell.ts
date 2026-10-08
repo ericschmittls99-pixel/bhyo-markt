@@ -6,6 +6,7 @@
  *   verwaist        = kein Strom verweist auf den Akteur (E48)
  * Filter und Facetten gehen durch das Filtermodell (E32, Ansicht „akteure").
  */
+import type { Genauigkeit } from "@/lib/adresse-pruefung";
 import { OHNE_SEKTOR } from "./hierarchie-baeume";
 
 export type AkteurZustand = "unvollstaendig" | "ohne_beleg" | "verwaist";
@@ -29,6 +30,8 @@ export interface AkteurZeile {
   sitzOrt: string | null;
   sitzLng: number | null;
   sitzLat: number | null;
+  /** E68 PR 2: Genauigkeit des Sitz-Pins. */
+  sitzGenauigkeit: Genauigkeit;
   kreisArs: string | null;
   kreisName: string | null;
   /** Regionen, deren Gebiet den Sitz enthaelt (ST_Contains, wie beim Strom-Standort). */

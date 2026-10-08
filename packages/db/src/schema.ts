@@ -24,6 +24,14 @@ import {
 // Frontend. Reihenfolge ist verbindlich (Postgres-Enums sind nicht umsortierbar).
 
 /** Einheitlicher Datensatz-Status fuer Biomassestrom, Output-Bedarf, Akteur, Interesse. */
+/**
+ * E68 PR 2: Wie genau ein Pin ist. hausnummer/strasse aus der Adresspruefung,
+ * plz_gebiet = Punkt im PLZ-Gebiet (kein Treffer oder Zeitlimit), manuell =
+ * von Hand gesetzt oder verschoben, unbekannt = Altbestand (nichts erfunden).
+ * Neue Werte nur per ADD VALUE (E53), nie umbenennen.
+ */
+export const standortGenauigkeit = pgEnum("standort_genauigkeit", ["hausnummer", "strasse", "plz_gebiet", "manuell", "unbekannt"]);
+
 export const datensatzStatus = pgEnum("datensatz_status", [
   "entwurf",
   "in_pruefung",
@@ -371,6 +379,8 @@ export const akteur = pgTable("akteur", {
   sitzPlz: text("sitz_plz").notNull(),
   sitzOrt: text("sitz_ort").notNull(),
   sitzGeom: geometry("sitz_geom", { type: "point", srid: 4326 }),
+  // E68 PR 2: Genauigkeit des Sitz-Pins (wie standort_genauigkeit).
+  sitzGenauigkeit: standortGenauigkeit("sitz_genauigkeit").notNull().default("unbekannt"),
   // rollen, kontakt_email, kontakt_telefon, ansprechperson: entfallen mit
   // AP2.5 Contract (Migration 0040) — Kontakt lebt in der Tabelle kontaktperson.
   status: datensatzStatus("status").notNull(),
@@ -462,6 +472,8 @@ export const biomassestrom = pgTable("biomassestrom", {
   hausnummer: text("hausnummer"),
   plz: text("plz"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
+  // E68 PR 2: Genauigkeit des Pins; Altbestand bleibt „unbekannt".
+  standortGenauigkeit: standortGenauigkeit("standort_genauigkeit").notNull().default("unbekannt"),
   materialartCode: text("materialart_code")
     .notNull()
     .references(() => materialart.code),
@@ -552,6 +564,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   hausnummer: text("hausnummer"),
   plz: text("plz"),
   standortGeom: geometry("standort_geom", { type: "point", srid: 4326 }),
+  // E68 PR 2: Genauigkeit des Pins; Altbestand bleibt „unbekannt".
+  standortGenauigkeit: standortGenauigkeit("standort_genauigkeit").notNull().default("unbekannt"),
   // Output-Produkt (AP1f-a, ersetzt vektor). FK auf output_produkt.code.
   produktCode: text("produkt_code")
     .notNull()

@@ -37,6 +37,8 @@ interface AppBindings {
   ENVIRONMENT?: string;
   HYPERDRIVE?: { connectionString: string };
   BELEGE?: BelegeBucket;
+  /** E68 PR 2: Basis-URL des Adressdienstes (Standard Photon, lib/photon-server.ts). */
+  GEOCODE_URL?: string;
 }
 
 /** Cloudflare-Bindings/Vars aus dem Worker-Kontext. Wirft ausserhalb des Workers. */

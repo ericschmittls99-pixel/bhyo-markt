@@ -26,6 +26,7 @@ const strom = (patch: Partial<Strom>): Strom => ({
   regionNamen: [],
   lng: null,
   lat: null,
+  standortGenauigkeit: "unbekannt",
   cluster: null,
   materialartCode: null,
   materialartLabel: null,

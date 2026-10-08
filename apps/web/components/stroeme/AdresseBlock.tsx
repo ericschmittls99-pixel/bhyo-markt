@@ -6,6 +6,7 @@ import type { Map as MlMap, Marker as MlMarker } from "maplibre-gl";
 
 import { OSM_STYLE } from "@/components/karte/KarteMap";
 import { uebernimmAusPin, type AdresseWerte, type PinModus } from "@/lib/adresse-aus-pin";
+import { GENAUIGKEIT_LABEL, type Genauigkeit, type PruefErgebnis } from "@/lib/adresse-pruefung";
 import { adresseLabel, type Adresse } from "@/lib/geocode";
 import { adresseLabelMitRegion } from "@/lib/region-label";
 
@@ -20,25 +21,28 @@ interface Standort extends Omit<Adresse, "lng" | "lat" | "art" | "kreis" | "land
 }
 
 /**
- * Formularblock "Ort" (F0a): Adresssuche (Bequemlichkeit, kein Tor),
- * Uebernahme von bestehenden Standorten des Akteurs, manuell editierbare
- * Adressfelder und ein Kartenausschnitt mit setz- und verschiebbarem Pin.
- * Wird der Pin verschoben, ist die KOORDINATE fuehrend: die Adressfelder
- * werden per Rueckwaertssuche aktualisiert und als "aus Pin uebernommen"
- * gekennzeichnet. Sitz-Erfassung a (05.10.2026): Fehlt nach der Uebernahme
- * eines Standorts oder Suchtreffers PLZ oder Ort, ergaenzt die Rueckwaerts-
- * suche aus dem Pin nur das Fehlende; findet sie nichts, bleibt das Feld
- * leer und der Hinweis sagt es. Der Pin bleibt dabei, wo er gesetzt wurde.
- * Der Landkreis erscheint bewusst nicht im Formular
- * (bleibt Attribut am Datensatz; ab F0b raeumlich abgeleitet).
+ * Formularblock "Ort" (F0a, E68 PR 2): Adressfelder, ein Knopf „Adresse
+ * pruefen" (eine Anfrage je Klick — kein Autocomplete mehr), eine freie Suche
+ * als zweite Option ueber denselben Weg, Uebernahme von bestehenden
+ * Standorten des Akteurs und ein Kartenausschnitt mit setz- und
+ * verschiebbarem Pin. Ablauf der Pruefung in lib/adresse-pruefung(-server):
+ * lokal PLZ/Ort -> eine Dienstanfrage -> Treffer / Kandidaten / Punkt im
+ * PLZ-Gebiet. Jeder Pin traegt eine Genauigkeit (Hidden-Input): hausnummer,
+ * strasse, plz_gebiet, manuell (Klick oder Ziehen), unbekannt (Altbestand).
+ * Wird der Pin von Hand gesetzt, holt die Rueckwaertssuche nur PLZ und Ort
+ * (lokal, lib/adresse-aus-pin). Der Landkreis erscheint bewusst nicht im
+ * Formular (bleibt Attribut am Datensatz; raeumlich abgeleitet).
  */
 export function AdresseBlock({
   initial,
+  initialGenauigkeit = "unbekannt",
   akteurId,
   fehler,
   hinweisOhnePin = "Ohne Pin erscheint der Strom nicht auf der Karte — Adresse suchen oder Pin in der Karte oben setzen.",
 }: {
   initial?: Partial<AdresseWerte> | null;
+  /** E68 PR 2: gespeicherte Genauigkeit; ohne Pin-Aenderung geht sie unveraendert zurueck. */
+  initialGenauigkeit?: Genauigkeit;
   akteurId: string | null;
   fehler?: string;
   /** AP2.5: Hinweis ohne Pin — Standort (Strom) oder Sitz (Akteur); derselbe Block, dieselbe Karte. */
@@ -56,6 +60,10 @@ export function AdresseBlock({
   const [vorschlaege, setVorschlaege] = useState<Adresse[]>([]);
   const [suchOffen, setSuchOffen] = useState(false);
   const [hinweis, setHinweis] = useState<string | null>(null);
+  const [genauigkeit, setGenauigkeit] = useState<Genauigkeit>(initialGenauigkeit);
+  const [prueft, setPrueft] = useState(false);
+  const [kandidaten, setKandidaten] = useState<Adresse[]>([]);
+  const [freiOffen, setFreiOffen] = useState(false);
   const [standorte, setStandorte] = useState<Standort[]>([]);
   const [standorteOffen, setStandorteOffen] = useState(false);
 
@@ -83,6 +91,7 @@ export function AdresseBlock({
       m.on("dragend", () => {
         const p = m.getLngLat();
         setW((alt) => ({ ...alt, lat: String(p.lat), lng: String(p.lng) }));
+        setGenauigkeit("manuell");
         void adresseAusPin(p.lng, p.lat);
       });
       markerRef.current = m;
@@ -130,7 +139,9 @@ export function AdresseBlock({
     }
   }
 
-  function uebernehmen(a: Adresse | Standort, zentrieren: boolean) {
+  function uebernehmen(a: Adresse | Standort, zentrieren: boolean, g: Genauigkeit = "unbekannt") {
+    setGenauigkeit(g);
+    setKandidaten([]);
     const neu: AdresseWerte = {
       ...wRef.current,
       strasse: a.strasse ?? "",
@@ -169,6 +180,7 @@ export function AdresseBlock({
       });
       map.on("click", (e) => {
         setzePin(e.lngLat.lng, e.lngLat.lat);
+        setGenauigkeit("manuell");
         void adresseAusPin(e.lngLat.lng, e.lngLat.lat);
       });
       mapRef.current = map;
@@ -183,40 +195,66 @@ export function AdresseBlock({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Adresssuche: debounced, ab 3 Zeichen; Ausfall blockiert nichts.
-  useEffect(() => {
-    const q = suchQ.trim();
-    if (q.length < 3) {
-      setVorschlaege([]);
-      return;
-    }
-    const ac = new AbortController();
-    const t = setTimeout(async () => {
-      try {
-        const res = await fetch(`/api/geocode?q=${encodeURIComponent(q)}`, {
-          signal: ac.signal,
-        });
-        if (!res.ok) {
-          const data = (await res.json().catch(() => null)) as { error?: string } | null;
-          throw new Error(data?.error ?? "Adresssuche nicht erreichbar");
-        }
-        const data = (await res.json()) as { adressen?: Adresse[] };
-        setVorschlaege(data.adressen ?? []);
-        setSuchOffen(true);
-        setHinweis(null);
-      } catch (e) {
-        if ((e as Error).name === "AbortError") return;
-        setVorschlaege([]);
-        // Meldung des Proxys (nennt Zeitlimit, Status oder Netz), sonst der Pauschaltext.
-        const grund = (e as Error).message;
-        setHinweis(/Adresssuche/.test(grund) ? grund : "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.");
+  /**
+   * E68 PR 2: Ein Klick, hoechstens eine Dienstanfrage. Die Antwort traegt
+   * Ergebnis, Kreiszahl und Dauer; die Entscheidung ist serverseitig gefallen.
+   */
+  async function pruefen() {
+    setPrueft(true);
+    setKandidaten([]);
+    setHinweis(null);
+    try {
+      const q = new URLSearchParams({ strasse: w.strasse, hausnummer: w.hausnummer, plz: w.plz, ort: w.ort });
+      const res = await fetch(`/api/adresse?${q}`);
+      const data = (await res.json().catch(() => null)) as { ergebnis?: PruefErgebnis; kreise?: number | null; error?: string } | null;
+      if (!res.ok || !data?.ergebnis) throw new Error(data?.error ?? String(res.status));
+      const e = data.ergebnis;
+      if (e.status === "treffer") {
+        uebernehmen({ ...e.adresse, strasse: e.adresse.strasse ?? w.strasse, hausnummer: e.adresse.hausnummer ?? w.hausnummer }, true, e.genauigkeit);
+        setHinweis(e.text);
+      } else if (e.status === "kandidaten") {
+        setKandidaten(e.kandidaten);
+        setHinweis(e.text);
+      } else if (e.status === "plz_gebiet") {
+        setGenauigkeit("plz_gebiet");
+        setzePin(e.pin.lng, e.pin.lat, true);
+        setHinweis(
+          (data.kreise ?? 0) > 1
+            ? `${e.text} Die PLZ liegt über einer Kreisgrenze — der Landkreis folgt dem Pin.`
+            : e.text,
+        );
+      } else {
+        // ort_fehler („Meinten Sie …?" aus der lokalen Pruefung) und dienst_fehlt: nur der Text.
+        setHinweis(e.text);
       }
-    }, 350);
-    return () => {
-      ac.abort();
-      clearTimeout(t);
-    };
-  }, [suchQ]);
+    } catch (err) {
+      setHinweis(`Adressprüfung nicht möglich: ${(err as Error).message} — Pin bitte von Hand setzen.`);
+    } finally {
+      setPrueft(false);
+    }
+  }
+
+  /** Freie Suche („Kläranlage Mannheim"): eine Anfrage je Klick, bis zu fuenf Treffer zum Uebernehmen. */
+  async function freiSuchen() {
+    const q = suchQ.trim();
+    if (q.length < 3) return;
+    setPrueft(true);
+    setHinweis(null);
+    try {
+      const res = await fetch(`/api/adresse?q=${encodeURIComponent(q)}`);
+      const data = (await res.json().catch(() => null)) as { adressen?: Adresse[]; error?: string } | null;
+      if (!res.ok) throw new Error(data?.error ?? "Adresssuche nicht erreichbar");
+      setVorschlaege(data?.adressen ?? []);
+      setSuchOffen(true);
+      if ((data?.adressen ?? []).length === 0) setHinweis("Freie Suche ohne Treffer — Adresse und Pin lassen sich vollständig von Hand setzen.");
+    } catch (e) {
+      setVorschlaege([]);
+      const grund = (e as Error).message;
+      setHinweis(/Adresssuche/.test(grund) ? grund : "Adresssuche nicht erreichbar — Adresse und Pin lassen sich vollständig von Hand setzen.");
+    } finally {
+      setPrueft(false);
+    }
+  }
 
   // Bestehende Standorte des gewaehlten Akteurs (Uebernahme-Knopf).
   useEffect(() => {
@@ -244,40 +282,7 @@ export function AdresseBlock({
     <fieldset className="adr">
       <legend className="adr-legende">Ort</legend>
 
-      <label className="pf">
-        <span>Adresse suchen</span>
-        <span className="pf-feld">
-          <input
-            type="text"
-            value={suchQ}
-            onChange={(e) => setSuchQ(e.target.value)}
-            onFocus={() => vorschlaege.length > 0 && setSuchOffen(true)}
-            placeholder="Straße, Ort — Auswahl füllt die Felder und setzt den Pin"
-            autoComplete="off"
-          />
-        </span>
-        {suchOffen && vorschlaege.length > 0 && (
-          <span className="adr-popover" role="listbox">
-            {vorschlaege.map((a, i) => (
-              <button
-                key={i}
-                type="button"
-                role="option"
-                aria-selected={false}
-                onClick={() => {
-                  uebernehmen(a, true);
-                  setSuchOffen(false);
-                  setSuchQ("");
-                }}
-              >
-                {adresseLabelMitRegion(a)}
-              </button>
-            ))}
-          </span>
-        )}
-        <span className="adr-caption">Suche: © OpenStreetMap-Mitwirkende</span>
-      </label>
-
+      {/* E68 PR 2: Felder zuerst, dann pruefen — kein Vorschlag beim Tippen. */}
       {standorte.length > 0 && (
         <div className="adr-uebernahme">
           <button type="button" className="btn btn--sm" onClick={() => setStandorteOffen((v) => !v)}>
@@ -333,9 +338,72 @@ export function AdresseBlock({
         </label>
       </div>
 
+      <div className="adr-pruefen">
+        <button type="button" className="btn btn--primary btn--sm" onClick={pruefen} disabled={prueft}>
+          <i className="ph ph-magnifying-glass" aria-hidden />
+          {prueft ? "Prüft …" : "Adresse prüfen"}
+        </button>
+        <span className={`pill pill--muted adr-genauigkeit adr-genauigkeit--${genauigkeit}`}>{GENAUIGKEIT_LABEL[genauigkeit]}.</span>
+        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFreiOffen((v) => !v)} disabled={prueft}>
+          freie Suche
+        </button>
+        {kandidaten.length > 0 && (
+          <span className="adr-popover" role="listbox">
+            {kandidaten.map((a, i) => (
+              <button key={i} type="button" role="option" aria-selected={false} onClick={() => uebernehmen(a, true, a.hausnummer ? "hausnummer" : a.strasse ? "strasse" : "unbekannt")}>
+                {adresseLabelMitRegion(a)}
+              </button>
+            ))}
+          </span>
+        )}
+      </div>
+      {freiOffen && (
+        <label className="pf adr-frei">
+          <span>Freie Suche</span>
+          <span className="pf-feld adr-frei-zeile">
+            <input
+              type="text"
+              value={suchQ}
+              onChange={(e) => setSuchQ(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  void freiSuchen();
+                }
+              }}
+              placeholder="z. B. Kläranlage Mannheim — Treffer füllt die Felder und setzt den Pin"
+              autoComplete="off"
+            />
+            <button type="button" className="btn btn--sm" onClick={freiSuchen} disabled={prueft || suchQ.trim().length < 3}>
+              Suchen
+            </button>
+          </span>
+          {suchOffen && vorschlaege.length > 0 && (
+            <span className="adr-popover" role="listbox">
+              {vorschlaege.map((a, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  role="option"
+                  aria-selected={false}
+                  onClick={() => {
+                    uebernehmen(a, true, a.hausnummer ? "hausnummer" : a.strasse ? "strasse" : "unbekannt");
+                    setSuchOffen(false);
+                    setSuchQ("");
+                  }}
+                >
+                  {adresseLabelMitRegion(a)}
+                </button>
+              ))}
+            </span>
+          )}
+          <span className="adr-caption">Suche: © OpenStreetMap-Mitwirkende · eine Anfrage je Klick</span>
+        </label>
+      )}
+
       <div className="adr-karte" ref={kartenDiv} aria-label="Kartenausschnitt mit Pin" />
       <span className="adr-caption">
-        Klick setzt den Pin, Ziehen verschiebt ihn — dann ist die Koordinate führend.
+        Klick setzt den Pin, Ziehen verschiebt ihn — dann ist die Koordinate führend (Genauigkeit „manuell", PLZ und Ort aus dem PLZ-Gebiet).
       </span>
       {hinweis && <span className="adr-hinweis">{hinweis}</span>}
       {fehler && <span className="pf-fehler">{fehler}</span>}
@@ -351,6 +419,7 @@ export function AdresseBlock({
       )}
       <input type="hidden" name="lat" value={w.lat} />
       <input type="hidden" name="lng" value={w.lng} />
+      <input type="hidden" name="genauigkeit" value={w.lat && w.lng ? genauigkeit : "unbekannt"} />
     </fieldset>
   );
 }

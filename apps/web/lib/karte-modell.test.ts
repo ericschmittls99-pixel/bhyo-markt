@@ -34,6 +34,7 @@ const basis: Strom = {
   regionNamen: ["Südpfalz"],
   lng: 8.4,
   lat: 49.2,
+  standortGenauigkeit: "unbekannt",
   cluster: "guelle_mist",
   materialartCode: "rinderguelle",
   materialartLabel: "Rindergülle",
@@ -84,6 +85,7 @@ const outputStrom: Strom = {
   mengeEinheit: "t/a",
   lng: 8.6,
   lat: 49.3,
+  standortGenauigkeit: "unbekannt",
 };
 
 describe("stromZuPunkt", () => {

@@ -1,3 +1,4 @@
+import { genauigkeitFuerPin, type Genauigkeit } from "@/lib/adresse-pruefung";
 import type { StromArt } from "./stroeme-modell";
 import { kalendertag } from "./datum";
 import { brauchtGueltigBis, istBelegTyp } from "./qualitaet";
@@ -161,6 +162,8 @@ export interface FormularEingaben {
   /** F0a: Pin-Koordinate als Rohstrings der Hidden-Inputs ("" = kein Pin). */
   lat: string;
   lng: string;
+  /** E68 PR 2: Genauigkeit des Pins aus dem AdresseBlock (Hidden-Input); fehlt sie, bleibt „unbekannt". */
+  genauigkeit?: string;
   /** Saison-Index der 12 Monate (Skala bedeutungslos, nur Verhaeltnisse). */
   saison: number[];
 }
@@ -325,6 +328,8 @@ export interface FormularWerte {
   plz: string;
   lat: string;
   lng: string;
+  /** E68 PR 2: gespeicherte Genauigkeit, geht unveraendert zurueck, wenn der Pin nicht angefasst wird. */
+  genauigkeit: Genauigkeit;
   cluster: string;
   materialartCode: string;
   produktCode: string;
@@ -353,6 +358,8 @@ export interface FormularWerte {
 
 /** Zeile der ladeFormularWerte-Query (nur echte Spalten, keine sql-Ausdruecke). */
 export type FormularZeile = {
+  /** E68 PR 2: gespeicherte Genauigkeit (Enum-Text aus der DB). */
+  standortGenauigkeit?: unknown;
   id: string;
   akteurId: string | null;
   akteurName: string | null;
@@ -431,6 +438,7 @@ export function formularZeileZuWerte(
     plz: s(r.plz),
     lat: r.lat == null ? "" : String(r.lat),
     lng: r.lng == null ? "" : String(r.lng),
+    genauigkeit: genauigkeitFuerPin(r.standortGenauigkeit),
     cluster: s(r.cluster),
     materialartCode: s(r.materialartCode),
     produktCode: s(r.produktCode),

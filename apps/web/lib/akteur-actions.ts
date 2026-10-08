@@ -1,5 +1,6 @@
 "use server";
 
+import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
 import { akteur, akteurInteresse, biomassestrom, kontaktperson, outputBedarf } from "@bhyo/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
@@ -40,7 +41,7 @@ export async function akteurBearbeiten(id: string, fd: FormData): Promise<Aktion
         const felder = (Object.keys(neu) as (keyof typeof neu)[]).filter((k) => (alt as Record<string, unknown>)[k] !== neu[k]);
         await tx
           .update(akteur)
-          .set({ ...neu, sitzGeom: sql`ST_SetSRID(ST_MakePoint(${geom.lng}, ${geom.lat}), 4326)`, updatedAt: new Date() })
+          .set({ ...neu, sitzGeom: sql`ST_SetSRID(ST_MakePoint(${geom.lng}, ${geom.lat}), 4326)`, sitzGenauigkeit: genauigkeitFuerPin(w.genauigkeit), updatedAt: new Date() })
           .where(eq(akteur.id, id));
         const ars = await kreisArsDesSitzes(tx, id);
         if (!ars) throw new Error(OHNE_ORT);
