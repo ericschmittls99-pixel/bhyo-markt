@@ -2170,7 +2170,6 @@ UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
 `kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
 Inbox-Aufbewahrung (D14).
 
-<<<<<<< HEAD
 **PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
 (SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
 `lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
@@ -2185,15 +2184,6 @@ Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
 `components/kommentare/Kommentare.test.tsx`, Segmente in
 `lib/kommentar-marker.test.ts`.
 
-**OFFEN:** (a) Reservierte Migrationsnummer: E71 nennt eine Migration 0052
-für AP2.6 — die Inbox-Erweiterung (PR c) und die Aufbewahrungs-Parameter
-(PR d) brauchen je eine eigene additive Migration (0053, 0054), weil sie mit
-ihrem ersten Verbraucher kommen (E21). (b) Textgrenze 2000 Zeichen und die
-Abweisung (statt stummem Überspringen) nicht erwähnbarer Marker sind
-konservative Vorgaben ohne ausdrückliche Entscheidung. (c) Erwähnungen
-eines später gelöschten Kommentars bleiben als Zeilen stehen (kein Text,
-keine Zustellung mehr) — Löschen ist weich.
-=======
 **Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
 gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
 auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
@@ -2204,5 +2194,4 @@ Weiches Löschen entfernt auch die Erwähnungszeilen — sie leiten sich aus dem
 Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
 „Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
 („Erwaehnungszeilen weg"), Probe 6c.
->>>>>>> origin/ap26a-kommentare
 
