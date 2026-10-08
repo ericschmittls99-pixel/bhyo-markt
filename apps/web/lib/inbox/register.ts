@@ -47,6 +47,8 @@ export interface ZeilenDaten {
   anBhyo?: boolean | null;
   /** AP2.6 PR c (E71): Objektbezug Kommentar — der Link springt zum Kommentar im Objekt. */
   kommentarId?: string | null;
+  /** Eric 08.10.2026: der Kommentar ist inzwischen weich geloescht — die Zeile bleibt und sagt es. */
+  kommentarGeloescht?: boolean | null;
 }
 
 export interface TypDefinition {
@@ -83,7 +85,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
-    text: (z) => `${z.ausloeserName} hat dich in einem Kommentar zu ${objektText(z)} erwähnt`,
+    text: (z) => (z.kommentarGeloescht ? `Kommentar gelöscht – ${z.ausloeserName} hatte dich zu ${objektText(z)} erwähnt` : `${z.ausloeserName} hat dich in einem Kommentar zu ${objektText(z)} erwähnt`),
   },
   kommentar: {
     arten: ["kommentar_erstellt"],
@@ -92,7 +94,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
-    text: (z) => `${z.ausloeserName} hat ${objektText(z)} kommentiert`,
+    text: (z) => (z.kommentarGeloescht ? `Kommentar gelöscht – ${z.ausloeserName} hatte ${objektText(z)} kommentiert` : `${z.ausloeserName} hat ${objektText(z)} kommentiert`),
   },
   // AP2.4 PR a (E62)
   pruefauftrag: {

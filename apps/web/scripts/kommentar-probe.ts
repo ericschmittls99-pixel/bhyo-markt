@@ -16,7 +16,7 @@
  *  5. Bearbeiten: fremd (auch admin) abgewiesen; Autor ergaenzt eine
  *     Erwaehnung → nur die neue Zeile kommt dazu, bearbeitet_am gesetzt.
  *  6. Loeschen: bearbeiter fremd nein, admin fremd ja (weich: text NULL,
- *     geloescht_am), erneut nein; Erwaehnungen bleiben.
+ *     geloescht_am), erneut nein; die Erwaehnungszeilen gehen mit (Eric 08.10.2026).
  *  7. Kein Kommentartext im Protokoll: der Sentinel-Text steht in keiner
  *     aenderung-Zeile (Rot-Nachweis: eine gefaelschte Zeile wird gefunden).
  *  8. Loeschverhalten: ein verwaister Akteur wird geloescht → seine
@@ -197,7 +197,9 @@ async function main() {
       const z3 = await x<{ text: string | null; geloescht: boolean; n_erw: number }>(
         sql`select text, (geloescht_am is not null) as geloescht, (select count(*)::int from kommentar_erwaehnung e where e.kommentar_id = k.id) as n_erw from kommentar k where k.id = ${k1.id}`,
       );
-      pruefe("6c admin loescht fremden weich: text NULL, geloescht_am gesetzt, Zeile und Erwaehnungen bleiben", z3[0]?.text === null && z3[0]?.geloescht === true && z3[0]?.n_erw === 2, z3[0]);
+      pruefe("6c admin loescht fremden weich: text NULL, geloescht_am gesetzt, Zeile bleibt, Erwaehnungszeilen weg", z3[0]?.text === null && z3[0]?.geloescht === true && z3[0]?.n_erw === 0, z3[0]);
+      const z3i = await inbox(k1.id);
+      pruefe("6f Inbox-Eintraege zum geloeschten Kommentar bleiben (3), der Kommentar ist als geloescht markiert", z3i.length === 3, z3i);
       const nochmal = await scheitert(tx, (sp) => kommentarLoeschenInTx(sp, admin, k1.id));
       pruefe("6d erneutes Loeschen abgewiesen", nochmal === "Der Kommentar ist bereits gelöscht.", nochmal);
       // Innerhalb EINER Transaktion ist now() konstant — die Reihenfolge ist nicht pruefbar, die Menge schon.

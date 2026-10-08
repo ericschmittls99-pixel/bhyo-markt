@@ -28,6 +28,7 @@ import {
   reichereVerfuegbarkeitAn,
   type VergabeDaten,
 } from "@/lib/verfuegbarkeit";
+import { ladeWirdFreiStufen } from "@/lib/wird-frei-server";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
 import { preisKorridorEinzel } from "@/lib/preiskorridor-einzel";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
@@ -89,9 +90,11 @@ export default async function KartePage({
   // Verfuegbarkeitsstatus EINMAL je Request anreichern (PR 3) — Tooltip,
   // Sidebar und die neue Facette lesen dasselbe Feld.
   const stichtag = heuteBerlin();
+  // E70: Staffel der Wird-frei-Pille aus den Parametern — einmal je Request.
+  const stufen = await withDb((db) => ladeWirdFreiStufen(db, stichtag));
   // E62: der Verifikationszustand kommt aus dem Loader (strom_verifikation).
-  const bioBasis = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag);
-  const outBasis = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag);
+  const bioBasis = reichereVerfuegbarkeitAn(bioRoh, vergabenBio, stichtag, stufen);
+  const outBasis = reichereVerfuegbarkeitAn(outRoh, vergabenOut, stichtag, stufen);
   // E56: das Flag einmal je Request am Pool, kein Nachladen je Zeile.
   const bio = fuerMich && nutzerId ? reichereFuerMichAn(bioBasis, nutzerId, beteiligtBio) : bioBasis;
   const out = fuerMich && nutzerId ? reichereFuerMichAn(outBasis, nutzerId, beteiligtOut) : outBasis;
@@ -202,7 +205,7 @@ export default async function KartePage({
       (await ladeStroeme("output", detailId))[0] ??
       null;
     detailStrom = nachgeladen
-      ? reichereVerfuegbarkeitAn([nachgeladen], nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut, stichtag)[0]!
+      ? reichereVerfuegbarkeitAn([nachgeladen], nachgeladen.art === "biomasse" ? vergabenBio : vergabenOut, stichtag, stufen)[0]!
       : null;
   }
   const detailVergaben = detailStrom

@@ -44,6 +44,7 @@ interface Szenario {
 function fakeTx(sz: Szenario) {
   const inserts: { tabelle: string; werte: Record<string, unknown> | Record<string, unknown>[] }[] = [];
   const updates: { tabelle: string; werte: Record<string, unknown> }[] = [];
+  const deletes: string[] = [];
   const zeilen = (tabelle: string): unknown[] => {
     if (tabelle === "benutzer") return BENUTZER;
     if (tabelle === "kommentar") return sz.kommentar ? [sz.kommentar] : [];
@@ -70,8 +71,12 @@ function fakeTx(sz: Szenario) {
         return kette([]);
       },
     }),
+    delete: (t: unknown) => {
+      deletes.push(getTableName(t as never));
+      return kette([]);
+    },
   };
-  return { tx: tx as never, inserts, updates };
+  return { tx: tx as never, inserts, updates, deletes };
 }
 
 const eigener = (text: string, erwaehnungen: string[] = []): Szenario => ({
@@ -181,10 +186,12 @@ describe("E71 bearbeiten", () => {
 });
 
 describe("E71 loeschen (weich)", () => {
-  it("Autor loescht: text NULL und geloescht_am gesetzt, Ereignis ohne Text, kein echtes DELETE", async () => {
-    const { tx, updates } = fakeTx(eigener("GEHEIM"));
+  it("Autor loescht: text NULL und geloescht_am gesetzt, Erwaehnungszeilen weg, Kommentarzeile bleibt (kein DELETE auf kommentar), Ereignis ohne Text", async () => {
+    const { tx, updates, deletes } = fakeTx(eigener("GEHEIM", [ANDERE]));
     const r = await kommentarLoeschenInTx(tx, handelnd(ICH, "bearbeiter"), KOMMENTAR);
     expect(r).toEqual({ bezug: { art: "biomasse", id: STROM } });
+    // Eric 08.10.2026: Erwaehnungen leiten sich aus dem Text ab — mit dem Text gehen sie.
+    expect(deletes).toEqual(["kommentar_erwaehnung"]);
     expect(updates).toHaveLength(1);
     expect(updates[0]!.werte).toMatchObject({ text: null });
     expect(updates[0]!.werte.geloeschtAm).toBeInstanceOf(Date);

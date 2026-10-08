@@ -40,3 +40,15 @@ describe("Anzeige", () => {
     expect(wertMitEinheit(1, "tage")).toBe("1 Tag");
   });
 });
+
+describe("E70: Staffel-Parameter (min 0) — negative Werte weist die Pruefung ab", () => {
+  it("-1 Tage fuer hinweis.wird_frei_stufe_4 wird mit Grund „wert“ abgewiesen, 0 und 730 nicht", () => {
+    const def = { schluessel: "hinweis.wird_frei_stufe_4", bezeichnung: "Stufe 4", einheit: "tage", min: 0, max: 730, beschreibung: "" };
+    const heute = "2026-10-08";
+    expect(pruefeParameterEingabe(def, { wert: -1, gueltigAb: heute, begruendung: "Test" }, heute)?.grund).toBe("wert");
+    expect(pruefeParameterEingabe(def, { wert: 0, gueltigAb: heute, begruendung: "Test" }, heute)).toBeNull();
+    expect(pruefeParameterEingabe(def, { wert: 730, gueltigAb: heute, begruendung: "Test" }, heute)).toBeNull();
+    expect(pruefeParameterEingabe(def, { wert: 731, gueltigAb: heute, begruendung: "Test" }, heute)?.grund).toBe("wert");
+  });
+});
+

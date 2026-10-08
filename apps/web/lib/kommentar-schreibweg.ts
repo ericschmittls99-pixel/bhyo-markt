@@ -192,10 +192,16 @@ export async function kommentarBearbeitenInTx(tx: Tx, handelnder: Handelnder, id
   return { bezug, neueErwaehnte: neue };
 }
 
-/** Weiches Loeschen: Text NULL, geloescht_am gesetzt — die Zeile bleibt als „Kommentar geloescht" im Verlauf. */
+/**
+ * Weiches Loeschen: Text NULL, geloescht_am gesetzt — die Zeile bleibt als
+ * „Kommentar geloescht" im Verlauf. Die Erwaehnungszeilen gehen mit (Eric
+ * 08.10.2026): sie leiten sich aus dem Text ab, und der ist weg. Inbox-
+ * Eintraege zum Kommentar bleiben und zeigen „Kommentar geloescht" (PR c).
+ */
 export async function kommentarLoeschenInTx(tx: Tx, handelnder: Handelnder, id: string): Promise<{ bezug: KommentarBezug }> {
   const alt = await pruefeKommentarObjekt(tx, handelnder, "kommentar.loeschen", id);
   await tx.update(kommentar).set({ text: null, geloeschtAm: new Date() }).where(eq(kommentar.id, id));
+  await tx.delete(kommentarErwaehnung).where(eq(kommentarErwaehnung.kommentarId, id));
   const bezug = bezugAus(alt);
   const bezugArt = BEZUG_TEXT[bezug.art];
   const bezugId = bezug.id;
