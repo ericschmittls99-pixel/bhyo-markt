@@ -77,7 +77,7 @@ describe("Register — Aufgabe (PR c)", () => {
 });
 
 describe("Register — biomasse_wird_frei (AP2.8, E70): Zeilentext je Stufe", () => {
-  const z = { belegNr: "B-000012", bezeichnung: "Bioabfall Kompostwerk", bezugsdatum: "2027-03-31", anzahl: 1 };
+  const z = { ausloeserName: "", belegNr: "B-000012", bezeichnung: "Bioabfall Kompostwerk", bezugsdatum: "2027-03-31", anzahl: 1 };
   const text = INBOX_TYPEN.biomasse_wird_frei.text;
   it("Stufen 180, 60 und 30 sagen „wird frei ab“ (Folgetag des Kettenendes) und nennen das Vergabeende", () => {
     for (const stufe of [180, 60, 30]) {
@@ -96,7 +96,7 @@ describe("Register — biomasse_wird_frei (AP2.8, E70): Zeilentext je Stufe", ()
     expect(INBOX_TYPEN.biomasse_wird_frei.arten).toEqual([]);
     expect(INBOX_TYPEN.biomasse_wird_frei.aktionen).toContain("inbox.alle_erledigen");
     expect(text({ ...z, bezugsdatum: null, stufe: 30 })).toBe("B-000012 Bioabfall Kompostwerk wird frei");
-    expect(text({ bezeichnung: null, belegNr: null, bezugsdatum: "2027-03-31", stufe: 0, anzahl: 1 })).toBe("einen Eintrag ist frei seit 01.04.2027");
+    expect(text({ ausloeserName: "", bezeichnung: null, belegNr: null, bezugsdatum: "2027-03-31", stufe: 0, anzahl: 1 })).toBe("einen Eintrag ist frei seit 01.04.2027");
   });
 });
 
