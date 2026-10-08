@@ -1,0 +1,4 @@
+# Reine Doku-Aenderung (Eric 08.10.2026): nur *.md, docs/** und Screenshots.
+# Eine Zeile, ein Muster (grep -E); gelesen von deploy.yml (ziel-wache, per API
+# am PR-Head) und scripts/merge-sicher.sh — eine Groesse, ein Ursprung.
+^docs/|\.md$|\.(png|jpe?g|gif|webp)$

@@ -15,10 +15,14 @@
 #   c) main steht auf dem Squash-Commit des PR.
 #   d) Nur wenn der PR eine neue Migration enthaelt: migrate-production.yml
 #      starten, abwarten, Zaehlbeweis (NOTICE-Zeilen) und Stand ausgeben.
-#   e) Den Push-Deploy von main abwarten (sein schema-gate wartet auf d),
-#      Jobs und Leseweg ausgeben, Links drucken. Bricht GitHub den Lauf ab
-#      (Job „cancelled", z. B. kein Runner zugeteilt, 05.10.2026), wird er
-#      EINMAL neu gestartet — wie in (a).
+#   e) Den Deploy von main abwarten: ohne Migration der Push-Lauf; mit
+#      Migration (CI-Diaet, 08.10.2026) der Dispatch-Lauf, den
+#      migrate-production.yml nach seinem Erfolg ausloest — der Push-Lauf
+#      bleibt dann erwartet rot (Gate: Migration ausstehend). Jobs und
+#      Leseweg ausgeben, Links drucken. Bricht GitHub den Lauf ab (Job
+#      „cancelled"), wird er EINMAL neu gestartet — wie in (a). Netzfehler
+#      bei den gh-Abfragen werden bis zu dreimal mit Pause wiederholt
+#      (zwei Abbrueche am 08.10.2026 nach dem Merge).
 #   f) Die in (a) umgehaengten gestapelten PRs angleichen: main (Squash)
 #      hineinmergen, Patch-ID des PR-Diffs vorher (gegen den Basis-Baum =
 #      main-Baum, belegt) und nachher (main...HEAD) vergleichen. Gleich →
@@ -52,8 +56,15 @@ if [[ "$head" != "$SHA"* ]]; then
   echo "ABBRUCH: Head ist ${head:0:7}, freigegeben wurde ${SHA:0:7}. Nichts gemergt, nichts migriert." >&2; exit 1
 fi
 
-# Abgebrochene Deploy-Laeufe am Head: einmal neu starten und abwarten.
+# Abgebrochene Deploy-Laeufe am Head: einmal neu starten und abwarten — ausser
+# ein juengerer Lauf am selben Head ist gruen (CI-Diaet: ueberholte PR-Laeufe
+# werden abgebrochen, der Nachfolger traegt das Ergebnis).
 abgebrochen=$(gh run list --commit "$head" --workflow deploy.yml --json databaseId,conclusion --jq '[.[] | select(.conclusion == "cancelled") | .databaseId] | join(" ")')
+gruen_am_head=$(gh run list --commit "$head" --workflow deploy.yml --json databaseId,conclusion --jq '[.[] | select(.conclusion == "success")] | length')
+if [[ -n "$abgebrochen" && "$gruen_am_head" -gt 0 ]]; then
+  echo "    abgebrochene Laeufe am Head ($abgebrochen) — ueberholt, ein juengerer Lauf ist gruen: kein Neustart"
+  abgebrochen=""
+fi
 if [[ -n "$abgebrochen" ]]; then
   for lauf in $abgebrochen; do
     echo "    abgebrochener Lauf $lauf am Head — einmal neu starten: $URL/actions/runs/$lauf"
@@ -89,13 +100,34 @@ if [[ -z "$squash" || "$main" != "$squash" ]]; then
 fi
 echo "    main = $squash"
 
-# Einen Lauf eines Workflows am Commit finden (wartet bis zu 2 Minuten).
+# Netzfehler (connection reset, i/o timeout) sind kein Urteil ueber den Lauf:
+# bis zu drei Versuche mit Pause, erst dann gilt der Aufruf als gescheitert.
+# Fuer `gh run watch` ist ein Exit 1 auch „Lauf rot" — deshalb wird dort nur
+# wiederholt, wenn die Fehlermeldung nach Netz aussieht.
+GH_PAUSE="${GH_PAUSE:-20}"
+gh_wiederholt() { # <gh-argumente...>
+  local versuch ausgabe rc
+  for versuch in 1 2 3; do
+    # Exit-Status der gh-Zuweisung, nicht des if-Blocks (der waere 0).
+    ausgabe=$(gh "$@" 2>&1) && { printf '%s\n' "$ausgabe"; return 0; }
+    rc=$?
+    if (( versuch < 3 )) && grep -qiE 'connection reset|i/o timeout|dial tcp|EOF|502|503|504|unexpected end' <<<"$ausgabe"; then
+      echo "    Netzfehler bei gh $1 $2 (Versuch $versuch/3) — warte ${GH_PAUSE}s" >&2
+      sleep "$GH_PAUSE"; continue
+    fi
+    printf '%s\n' "$ausgabe" >&2; return "$rc"
+  done
+  return 1
+}
+
+# Einen Lauf eines Workflows am Commit finden (wartet bis zu 2 Minuten;
+# Versuche und Pause nur fuer den Test ueberschreibbar).
 lauf_am_commit() { # <workflow-datei> <sha> [event]
   local wf="$1" sha="$2" ev="${3:-}" id="" i
-  for i in $(seq 1 24); do
-    id=$(gh run list --workflow "$wf" --commit "$sha" --limit 5 --json databaseId,event --jq "[.[] | select(\"$ev\" == \"\" or .event == \"$ev\") | .databaseId] | first // empty")
+  for i in $(seq 1 "${LAUF_SUCHE_VERSUCHE:-24}"); do
+    id=$(gh_wiederholt run list --workflow "$wf" --commit "$sha" --limit 5 --json databaseId,event --jq "[.[] | select(\"$ev\" == \"\" or .event == \"$ev\") | .databaseId] | first // empty")
     [[ -n "$id" ]] && { echo "$id"; return 0; }
-    sleep 5
+    sleep "${LAUF_SUCHE_PAUSE:-5}"
   done
   return 1
 }
@@ -114,24 +146,32 @@ else
   echo "    keine neue Migration im PR — migrate-production entfaellt"
 fi
 
-echo "==> (e) Deploy von main (Push-Lauf) und Leseweg"
-dep=$(lauf_am_commit deploy.yml "$squash" push) || { echo "ABBRUCH: Push-Deploy fuer $squash nicht gefunden." >&2; exit 1; }
+if [[ -n "$migrationen" ]]; then
+  # CI-Diaet: das Gate wartet nicht mehr — der Push-Lauf bleibt erwartet rot,
+  # migrate-production.yml hat den Deploy von main per Dispatch ausgeloest.
+  echo "==> (e) Deploy von main (Dispatch-Lauf nach der Migration) und Leseweg"
+  echo "    Push-Lauf von main bleibt erwartet rot (schema-gate: Migration war ausstehend)"
+  dep=$(lauf_am_commit deploy.yml "$squash" workflow_dispatch) || { echo "ABBRUCH: Dispatch-Deploy fuer $squash nicht gefunden (migrate-production loest ihn aus)." >&2; exit 1; }
+else
+  echo "==> (e) Deploy von main (Push-Lauf) und Leseweg"
+  dep=$(lauf_am_commit deploy.yml "$squash" push) || { echo "ABBRUCH: Push-Deploy fuer $squash nicht gefunden." >&2; exit 1; }
+fi
 echo "    deploy: $URL/actions/runs/$dep"
-if ! gh run watch "$dep" --exit-status >/dev/null; then
+if ! gh_wiederholt run watch "$dep" --exit-status >/dev/null; then
   # Von GitHub abgebrochen (Runner nicht zugeteilt, Actions-Stoerung) ist kein
   # Codefehler: einmal neu starten, dann erst urteilen.
-  abgebrochen=$(gh run view "$dep" --json jobs --jq '[.jobs[] | select(.conclusion == "cancelled")] | length')
+  abgebrochen=$(gh_wiederholt run view "$dep" --json jobs --jq '[.jobs[] | select(.conclusion == "cancelled")] | length')
   if (( abgebrochen > 0 )); then
     echo "    Lauf $dep von GitHub abgebrochen ($abgebrochen Job/s) — einmal neu starten"
     gh run rerun "$dep" --failed
     sleep 20
-    gh run watch "$dep" --exit-status >/dev/null || { echo "ABBRUCH: Deploy nach Neustart rot: $URL/actions/runs/$dep" >&2; exit 1; }
+    gh_wiederholt run watch "$dep" --exit-status >/dev/null || { echo "ABBRUCH: Deploy nach Neustart rot: $URL/actions/runs/$dep" >&2; exit 1; }
     echo "    Lauf $dep nach Neustart gruen"
   else
     echo "ABBRUCH: Deploy rot: $URL/actions/runs/$dep" >&2; exit 1
   fi
 fi
-gh run view "$dep" --json jobs --jq '.jobs[] | "    \(.name): \(.conclusion)"'
+gh_wiederholt run view "$dep" --json jobs --jq '.jobs[] | "    \(.name): \(.conclusion)"'
 # Das Log ist nach dem Ende des Laufs nicht sofort abrufbar — kurz nachfassen.
 for i in $(seq 1 6); do
   # Nur der Job lese-diagnose: seit #183 druckt der Testschritt im Job
