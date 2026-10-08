@@ -53,6 +53,7 @@ jobs:
     environment: production
     permissions:
       contents: read
+      actions: write
     steps:
       - name: Bestaetigung pruefen
         if: inputs.bestaetigung != 'production'
@@ -145,6 +146,12 @@ jobs:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: pnpm --filter @bhyo/db schema-stand
 
-      # Kein Dispatch des Deploys mehr (Betriebs-PR, 05.10.2026): Der Push-Lauf
-      # von deploy.yml wartet im schema-gate auf diese Migration und deployt
-      # danach selbst. Ein zweiter Lauf per Dispatch waere ein Doppel-Deploy.
+      # CI-Diaet (Betriebs-PR 3, Eric 08.10.2026): Das schema-gate wartet nicht
+      # mehr — der Push-Lauf von main bricht bei ausstehender Migration rot ab.
+      # Deshalb loest DIESER Workflow nach erfolgreicher Migration den Deploy
+      # von main aus (workflow_dispatch; ziel-wache und Gate laufen dort erneut).
+      # freigabe.sh wartet im Migrationsfall auf genau diesen Dispatch-Lauf.
+      - name: Deploy von main ausloesen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run deploy.yml --ref main
