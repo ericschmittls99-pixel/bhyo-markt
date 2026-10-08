@@ -405,7 +405,7 @@ den Läufen vom 08.10.2026 vor diesem PR):
 
 | Lauf | vorher | nachher |
 |---|---|---|
-| Entwurf-Push (#199, 37791507663) | 3 Jobs, 2,7 min (typen 1,8 · wegwerf 0,8 · ziel 0,1) | NACHHER_ENTWURF |
-| Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | NACHHER_BEREIT |
-| main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | NACHHER_MAIN |
+| Entwurf-Push (#199, 37791507663) | 3 Jobs, 2,7 min (typen 1,8 · wegwerf 0,8 · ziel 0,1) | 2 Jobs, 1,9 min (typen 1,9 · ziel 0,0; 37794498659, Wegwerf-DB übersprungen trotz Workflow-Änderung, weil Entwurf) |
+| Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | nach „bereit" dieses PRs nachtragen |
+| main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | nach dem Merge nachtragen |
 | main-Merge mit Migration + migrate-production | 6 Jobs ≈ 5,9 min + 2 Jobs 0,9 min; Gate wartete bis zur Migration | nach der nächsten Migrations-Freigabe nachtragen |
