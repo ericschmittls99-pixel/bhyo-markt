@@ -24,10 +24,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
       # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # Per Muster, nicht per URL-Parser: das Leseweg-Secret hielt new URL() nicht stand (Lauf 37765054123).
       - name: DB-Host im Log maskieren (E73)
         env:
-          URLS: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: node -e 'for (const u of process.env.URLS.split(" ").filter(Boolean)) { const x = new URL(u); console.log("::add-mask::" + x.hostname); if (x.username) console.log("::add-mask::" + decodeURIComponent(x.username)); }'
+          URL_1: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: node -e 'for (const [k, v] of Object.entries(process.env)) { if (!k.startsWith("URL_") || !v) continue; const h = v.match(/@([^/?:\s]+)/); if (h) console.log("::add-mask::" + h[1]); const u = v.match(/\/\/([^:@\/]+)[:@]/); if (u) console.log("::add-mask::" + decodeURIComponent(u[1])); }'
       - name: Seed Preview-DB
         env:
           SEED_DATABASE_URL_PREVIEW: ${{ secrets.DATABASE_URL_PREVIEW }}
