@@ -7,6 +7,7 @@ import {
   KonfidenzPill,
   StatusPillV2,
   VerfuegbarkeitsPill,
+  WirdFreiPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtOutputPreis } from "@/lib/energie";
@@ -147,7 +148,10 @@ function spalten(art: "biomasse" | "output"): Spalte[] {
       label: "Verfügbarkeit",
       render: (s) =>
         s.verfuegbarkeit ? (
-          <VerfuegbarkeitsPill art={s.art} ergebnis={s.verfuegbarkeit} />
+          <>
+            <VerfuegbarkeitsPill art={s.art} ergebnis={s.verfuegbarkeit} />
+            {s.art === "biomasse" && <WirdFreiPill wirdFrei={s.wirdFrei} />}
+          </>
         ) : (
           "–"
         ),

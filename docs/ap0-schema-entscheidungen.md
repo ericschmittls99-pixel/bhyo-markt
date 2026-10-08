@@ -2075,6 +2075,52 @@ blieben Marker in zwei Doku-Dateien stehen (siehe Memory 07.10.2026).
 (Testdatei Zeile 37); Zeile 11 ist regelkonform (kein Ortsbezug, Präfix
 senkt die Ähnlichkeit).
 
+## 44. AP2.8 „Biomasse wird frei" (E70), 07.10.2026
+
+**Entscheidungen Eric (E70):** frei_ab = Ende der Vergabekette eines
+Angebots (`vergeben_bis`), wenn keine Anschlussvergabe spätestens am Folgetag
+beginnt; gilt auch bei `an_bhyo` („Unsere Vergabe endet am …"); nur Angebote,
+nicht das Ende des Verfügbarkeitszeitraums; `vergeben_bis` NULL → kein
+Hinweis. Staffel 180/60/30/0 Tage, aktive Stufe = kleinste Stufe ≥ Resttage
+(Europe/Berlin), ≤ 0 → Stufe 0, > 180 → nichts. Je Stufe ein Inbox-Eintrag
+mit Schlüssel (Strom, frei_ab, Stufe); Stufenwechsel räumt die Vorstufe ab,
+höchstens ein offener Eintrag je Strom; verpasste Stufen werden nicht
+nachgeholt; ein erledigter Eintrag entsteht für denselben Schlüssel nie neu.
+Stufe 0 „frei seit" bleibt, bis eine neue Vergabe kommt oder der Strom
+verworfen ist. Ändert sich frei_ab, werden alle Einträge zum alten frei_ab
+abgeräumt und neu bewertet. Reiner Hinweis, Empfänger wie die
+Ablauf-Hinweise (letzter Prüfer, sonst alle Prüfer/Admins). Pille „frei ab /
+frei seit TT.MM.JJJJ" in Liste und Detail, Filterwert „Wird frei" in der
+Verfügbarkeits-Facette, keine Karte.
+
+**Umsetzung (Migration 0052; ursprünglich 0051, umnummeriert am 08.10.2026, weil 0051 an E72 ging — neues Journal-`when`):** Enum-Wert `biomasse_wird_frei`, Spalte
+`inbox_eintrag.stufe` (CHECK: genau bei diesem Typ gesetzt), Index
+`inbox_eintrag_wird_frei_uidx` (Empfänger, Strom, frei_ab, Stufe) über alle
+Zustände, Urheber-CHECK erweitert. Regel in `lib/wird-frei.ts` (freiAbAus,
+stufeFuer, wirdFreiStand, Pille, Hinweistext), gespiegelt in SQL im
+täglichen Job (`lib/inbox/hinweise.ts`, Schritte `wird_frei` und
+`wird_frei_abraeumen`, zustandsbasiert wie E63). Welche Kette zählt: deckt
+der Stichtag eine Vergabe, deren Kettenende; sonst das jüngste Ende vor dem
+Stichtag („frei seit"); sonst das nächste künftige. Anschluss heißt wörtlich
+„Beginn spätestens am Folgetag" — ein freier Tag dazwischen ist keine Kette.
+Tests: `lib/wird-frei.test.ts` (Regel) und `scripts/wird-frei-probe.ts`
+(Job-SQL gegen die Wegwerf-DB im CI, zurückgerollt).
+
+**Entschieden (Eric 08.10.2026):** (a) Die Staffel liegt als vier
+Schlüssel `hinweis.wird_frei_stufe_1…4` (180/60/30/0). Die Logik sortiert
+die Werte absteigend und fasst gleiche zusammen (`normalisiereStufen` in
+`lib/wird-frei.ts`, `distinct … where s >= 0` in der SQL-Spiegelung) — die
+Reihenfolge der Schlüssel ist egal; negative Werte weist die
+Parameter-Prüfung ab (min 0, `pruefeParameterEingabe` und Trigger). Pille
+und Facette lesen dieselben Parameter (`ladeWirdFreiStufen`, einmal je
+Request), nicht die Standardkonstante. Tests: `lib/wird-frei.test.ts` („E70
+Staffel aus vier Parametern"), `lib/parameter.test.ts`. (b) Kein Index ohne
+Messung: `scripts/wird-frei-probe.ts` misst die Bewertungs-CTE mit EXPLAIN
+(ANALYZE, BUFFERS) auf synthetischer Menge (Standard 3000 Angebote mit je
+zwei Vergaben ≈ zehnfache Preview-Menge; `job-probe` druckt den Bestand der
+Preview als BESTAND-Zeile); der Plan steht im CI-Log und bis zur Freigabe im
+PR-Text. (c) Verwerfen des Stroms beendet Stufe 0 wie ein Erledigen.
+
 ## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
 
 **Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo

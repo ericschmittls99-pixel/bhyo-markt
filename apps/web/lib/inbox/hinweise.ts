@@ -46,6 +46,9 @@ export interface HinweisErgebnis {
    * verworfen, geloescht …). Idempotent, im selben Lauf wie das Zustellen.
    */
   abgeraeumt: number;
+  /** AP2.8 (E70): Wird-frei-Hinweise je Stufe (neu zugestellt / abgeraeumt, weil frei_ab oder Stufe nicht mehr passen). */
+  wirdFrei: number;
+  wirdFreiAbgeraeumt: number;
   /** Betrieb 06.10.2026: Millisekunden je Schritt (zustellen, vorab_erledigen, abraeumen, …). */
   schritteMs: Record<string, number>;
 }
@@ -54,6 +57,56 @@ export interface HinweisErgebnis {
  * Stellt die Hinweise fuer den Stichtag (JJJJ-MM-TT, Kalendertag Berlin) zu.
  * Mengenbasiert in zwei Anweisungen, in der uebergebenen Transaktion.
  */
+/**
+ * AP2.8 (E70): Bewertung „wird frei" als wiederverwendbare CTE-Kette (stufen, vg,
+ * enden, heute_vergeben, frei, bewertet) — der Job haengt Zustellen und Abraeumen
+ * an, die Probe misst sie mit EXPLAIN (Eric 08.10.2026: Index nur nach Messung).
+ * Staffel: die vier Parameter, ohne Doppelte, nur Werte >= 0 (Spiegel von
+ * normalisiereStufen; negative Werte weist die Parameter-Pruefung ab).
+ */
+export function wirdFreiBewertungSql(stichtag: string) {
+  return sql`
+    with stufen as (
+      select distinct u.s
+        from unnest(array[parameter_wert('hinweis.wird_frei_stufe_1', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_2', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_3', ${stichtag}::date),
+                          parameter_wert('hinweis.wird_frei_stufe_4', ${stichtag}::date)]) as u(s)
+       where u.s >= 0
+    ), vg as (
+      select id, biomassestrom_id, vergeben_von, vergeben_bis, an_bhyo
+        from vergabe_zeitraum where biomassestrom_id is not null
+    ), enden as (
+      select v.biomassestrom_id, v.vergeben_bis as ende, v.an_bhyo
+        from vg v
+       where v.vergeben_bis is not null
+         and not exists (
+           select 1 from vg w
+            where w.biomassestrom_id = v.biomassestrom_id and w.id <> v.id
+              and coalesce(w.vergeben_von, '0001-01-01'::date) <= v.vergeben_bis + 1
+              and (w.vergeben_bis is null or w.vergeben_bis > v.vergeben_bis))
+    ), heute_vergeben as (
+      select distinct biomassestrom_id from vg
+       where coalesce(vergeben_von, '0001-01-01'::date) <= ${stichtag}::date
+         and (vergeben_bis is null or vergeben_bis >= ${stichtag}::date)
+    ), frei as (
+      select e.biomassestrom_id,
+             case when hv.biomassestrom_id is not null
+                  then (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende >= ${stichtag}::date)
+                  else coalesce((select max(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id and x.ende < ${stichtag}::date),
+                                (select min(x.ende) from enden x where x.biomassestrom_id = e.biomassestrom_id)) end as frei_ab
+        from (select distinct biomassestrom_id from enden) e
+        left join heute_vergeben hv on hv.biomassestrom_id = e.biomassestrom_id
+    ), bewertet as (
+      select f.biomassestrom_id, f.frei_ab, (f.frei_ab - ${stichtag}::date) as resttage,
+             case when f.frei_ab - ${stichtag}::date <= 0 then 0
+                  else (select min(s) from stufen where s >= f.frei_ab - ${stichtag}::date) end as stufe
+        from frei f
+        join biomassestrom b on b.id = f.biomassestrom_id and b.status::text <> 'verworfen'
+       where f.frei_ab is not null
+    )`;
+}
+
 export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: string): Promise<HinweisErgebnis> {
   // Betrieb 06.10.2026 (Eric): Dauer je Schritt, damit job_lauf.schritte zeigt,
   // wo die Zeit bleibt (57 s am 06.10. bei 0 Stroemen auf Production).
@@ -238,6 +291,53 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
     returning h.id
   `))) as unknown as { id: string }[];
 
+  // AP2.8 (E70): „Biomasse wird frei" — Spiegel von lib/wird-frei.ts (freiAbAus,
+  // stufeFuer) in SQL; die Paritaet prueft scripts/wird-frei-probe.ts (wegwerf-db).
+  //  frei_ab je Angebot: Kettenende (Vergabe mit Ende, an die keine andere
+  //  Vergabe spaetestens am Folgetag anschliesst). Deckt heute eine Vergabe,
+  //  das kleinste Kettenende >= heute; sonst das juengste Ende vor heute, sonst
+  //  das naechste kuenftige. Stufe = kleinste Staffelstufe >= Resttage, 0 bei
+  //  Resttage <= 0, nichts ueber der groessten Stufe. Schluessel (Empfaenger,
+  //  Strom, frei_ab, Stufe) ueber alle Zustaende (Index): verpasste Stufen
+  //  werden nicht nachgeholt, Erledigtes nicht wiederbelebt. Empfaenger wie
+  //  bei den Ablauf-Hinweisen: letzter Pruefer, sonst alle Pruefer/Admins.
+  const WIRD_FREI = wirdFreiBewertungSql(stichtag);
+  const wirdFrei = (await zeit("wird_frei", () => tx.execute(sql`
+    ${WIRD_FREI}, letzter as (
+      select distinct on (a.entitaet_id) a.entitaet_id, a.benutzer_id
+        from aenderung a
+       where a.entitaet_typ = 'biomassestrom' and a.art::text in ('geprueft', 'reverifiziert')
+       order by a.entitaet_id, a.zeitpunkt desc
+    ), pruefer as (
+      select id from benutzer where aktiv and rolle in ('pruefer', 'admin')
+    ), ziel as (
+      select w.biomassestrom_id, w.frei_ab, w.stufe, lb.id as einzel
+        from bewertet w
+        left join letzter l on l.entitaet_id = w.biomassestrom_id
+        left join benutzer lb on lb.id = l.benutzer_id and lb.aktiv and lb.rolle in ('pruefer', 'admin')
+       where w.stufe is not null
+    )
+    insert into inbox_eintrag (empfaenger_id, ausloeser_id, typ, biomassestrom_id, ereignis_id, bezugsdatum, stufe,
+                               anzahl, erstellt_am, aktualisiert_am, zustand, zustand_seit)
+    select coalesce(z.einzel, p.id), null, 'biomasse_wird_frei'::inbox_typ, z.biomassestrom_id, null, z.frei_ab, z.stufe,
+           1, now(), now(), 'offen', now()
+      from ziel z left join pruefer p on z.einzel is null
+     where coalesce(z.einzel, p.id) is not null
+    on conflict do nothing
+    returning id
+  `))) as unknown as { id: string }[];
+  // Abraeumen (Regel 6 und 8): ein offener Wird-frei-Hinweis bleibt nur, solange
+  // frei_ab und Stufe des Stroms genau seinem Schluessel entsprechen. Laeuft NACH
+  // dem Zustellen — der Stufenwechsel liefert im selben Lauf den neuen Eintrag.
+  const wirdFreiAbgeraeumt = (await zeit("wird_frei_abraeumen", () => tx.execute(sql`
+    ${WIRD_FREI}
+    update inbox_eintrag h
+       set zustand = 'erledigt', zustand_seit = now()
+     where h.zustand = 'offen' and h.ausloeser_id is null and h.typ::text = 'biomasse_wird_frei'
+       and not exists (select 1 from bewertet w where w.biomassestrom_id = h.biomassestrom_id and w.frei_ab = h.bezugsdatum and w.stufe = h.stufe)
+    returning h.id
+  `))) as unknown as { id: string }[];
+
   return {
     laeuftAb: eingefuegt.filter((z) => z.typ === "verifikation_laeuft_ab").length,
     abgelaufen: eingefuegt.filter((z) => z.typ === "verifikation_abgelaufen").length,
@@ -247,6 +347,8 @@ export async function stelleVerifikationsHinweiseZu(tx: Ausfuehrer, stichtag: st
     verwaistErledigt: verwaistErledigt.length,
     loeschpruefung: loeschpruefung.length,
     loeschpruefungErledigt: loeschpruefungErledigt.length,
+    wirdFrei: wirdFrei.length,
+    wirdFreiAbgeraeumt: wirdFreiAbgeraeumt.length,
     schritteMs,
   };
 }

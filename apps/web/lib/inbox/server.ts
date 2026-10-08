@@ -69,6 +69,9 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       notiz: inboxEintrag.notiz,
       bezugsdatum: inboxEintrag.bezugsdatum,
       aufgabe: inboxEintrag.aufgabe,
+      // AP2.8 (E70): Stufe des Wird-frei-Hinweises; an_bhyo der endenden Vergabe nur zur Anzeige abgeleitet (nie gespeichert).
+      stufe: inboxEintrag.stufe,
+      anBhyo: sql<boolean | null>`(select v.an_bhyo from vergabe_zeitraum v where v.biomassestrom_id = ${inboxEintrag.biomassestromId} and v.vergeben_bis = ${inboxEintrag.bezugsdatum} order by v.an_bhyo desc limit 1)`,
       biomassestromId: inboxEintrag.biomassestromId,
       outputBedarfId: inboxEintrag.outputBedarfId,
       akteurId: inboxEintrag.akteurId,
@@ -130,6 +133,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         aufgabe: z.aufgabe,
         akteurName: z.hinweisAkteurName,
         kontaktpersonName: z.kontaktpersonName,
+        stufe: z.stufe,
+        anBhyo: z.anBhyo,
               importDateiname: z.importDateiname ?? null,
         importZaehler: (z.importZaehler as Record<string, number> | null) ?? null,
       }, z.id),

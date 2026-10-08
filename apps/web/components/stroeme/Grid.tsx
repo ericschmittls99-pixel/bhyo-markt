@@ -7,6 +7,7 @@ import {
   KonfidenzPill,
   StatusPillV2,
   VerfuegbarkeitsPill,
+  WirdFreiPill,
 } from "@/components/stroeme/Pillen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { fmtOutputPreis } from "@/lib/energie";
@@ -118,6 +119,7 @@ export function Grid({ stroeme }: { stroeme: Strom[] }) {
                 {s.verfuegbarkeit && (
                   <VerfuegbarkeitsPill art={s.art} ergebnis={s.verfuegbarkeit} />
                 )}
+                {s.art === "biomasse" && <WirdFreiPill wirdFrei={s.wirdFrei} />}
                 <span>Verfügbar {fmtZeitraum(s.zeitraumVon, s.zeitraumBis)}</span>
               </span>
             </span>

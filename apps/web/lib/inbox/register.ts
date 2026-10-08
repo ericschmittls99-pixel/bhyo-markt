@@ -7,6 +7,7 @@ import type { inboxTyp } from "@bhyo/db/schema";
 
 import { fmtDatum } from "@/lib/format";
 import type { EreignisArt } from "@/lib/protokoll";
+import { wirdFreiText } from "@/lib/wird-frei";
 
 export type InboxTyp = (typeof inboxTyp.enumValues)[number];
 
@@ -41,6 +42,9 @@ export interface ZeilenDaten {
   /** AP2.7 (E67): Dateiname und Zaehler des Import-Laufs beim Typ import_abgeschlossen. */
   importDateiname?: string | null;
   importZaehler?: Record<string, number> | null;
+  /** AP2.8 (E70): Stufe (Tage) des Wird-frei-Hinweises und ob die endende Vergabe an bhyo war. */
+  stufe?: number | null;
+  anBhyo?: boolean | null;
 }
 
 export interface TypDefinition {
@@ -116,6 +120,16 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"],
     reinerHinweis: false,
     text: (z) => `${z.ausloeserName} bittet dich zu ${objektText(z)}: „${z.aufgabe ?? ""}"`,
+  },
+  // AP2.8 (E70): Angebot wird frei — zustandsbasierter Hinweis des Jobs je Stufe
+  // (180/60/30/0 Tage vor frei_ab), Logik in lib/inbox/hinweise.ts, Regel in lib/wird-frei.ts.
+  biomasse_wird_frei: {
+    arten: [],
+    empfaengerregel: "wie verifikation_laeuft_ab: der Pruefer des letzten Ereignisses geprueft/reverifiziert, sonst alle aktiven Pruefer und Admins",
+    buendelung: "je Empfaenger, Strom, frei_ab und Stufe genau ein Eintrag ueber alle Zustaende; der Stufenwechsel raeumt die Vorstufe ab, hoechstens ein offener Eintrag je Strom; aendert sich frei_ab, werden alle alten abgeraeumt",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => (z.bezugsdatum ? wirdFreiText(objektText(z), { freiAb: z.bezugsdatum, anBhyo: z.anBhyo ?? false }, z.stufe ?? 0) : `${objektText(z)} wird frei`),
   },
   verifikation_laeuft_ab: {
     arten: [],

@@ -129,6 +129,7 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
     case "verifikation_abgelaufen":
     case "akteur_verwaist":
     case "kontaktperson_loeschpruefung":
+    case "biomasse_wird_frei":
     case "import_abgeschlossen":
       // PR b / AP2.5: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
       // AP2.7 (E67): import_abgeschlossen stellt der Import selbst zu (PR c), je Lauf gebuendelt.

@@ -7,7 +7,7 @@ import { type ReactNode, useEffect, useRef, useState, useTransition } from "reac
 
 import { ConversionChain } from "@/components/stroeme/ConversionChain";
 import { Orb } from "@/components/stroeme/Orb";
-import { KonfidenzPill, VerfuegbarkeitsPill } from "@/components/stroeme/Pillen";
+import { KonfidenzPill, VerfuegbarkeitsPill, WirdFreiPill } from "@/components/stroeme/Pillen";
 import { SeasonBarsMini } from "@/components/stroeme/SeasonBarsMini";
 import { fmtOutputPreis } from "@/lib/energie";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
@@ -357,6 +357,7 @@ export function Detail({
                   {verfuegbarkeit && (
                     <VerfuegbarkeitsPill art={s.art} ergebnis={verfuegbarkeit} />
                   )}
+                  {s.art === "biomasse" && <WirdFreiPill wirdFrei={s.wirdFrei} />}
                   {s.beleg && (
                     <span className="pill">
                       {(BELEG_LABEL[s.beleg.typ] ?? s.beleg.typ).toLowerCase()}.
