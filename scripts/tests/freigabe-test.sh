@@ -23,6 +23,9 @@
 #   (1b) Pflicht-Checks (ziel-wache, typen-und-tests, wegwerf-db, deploy; bei
 #       reinem Doku-PR nur die ersten beiden): juengster Lauf cancelled,
 #       skipped oder fehlend = kein Merge.
+#   (Folge) Das Doku-Muster kommt von der Basis des PR (API), nicht vom
+#       lokalen Checkout; ein PR, der die Musterdatei aendert, ist ein
+#       Code-PR; Muster nicht lesbar = Code-PR.
 #   (f) Gestapelte PRs: in (a) auf main umgehaengt, danach angeglichen NUR
 #       durch Merge des Squash (zwei Eltern: alter Head, Squash), Patch-ID
 #       gegen den Basis-Baum gleich → Push. Abweichende Patch-ID oder nicht
@@ -59,7 +62,9 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
   local w="$T/work"
   git init -q -b main "$w"
   git -C "$w" config user.email test@example.invalid; git -C "$w" config user.name Test
-  mkdir -p "$w/docs"; echo start > "$w/docs/a.md"
+  mkdir -p "$w/docs" "$w/scripts"; echo start > "$w/docs/a.md"
+  # Das Doku-Muster liegt in der Basis (main) des Wegwerf-Repos — merge-sicher.sh liest es von dort ueber die API.
+  cp "$HIER/../nur-doku-muster.txt" "$w/scripts/nur-doku-muster.txt"
   git -C "$w" add -A; git -C "$w" commit -q -m "start"
   git -C "$w" remote add origin "$REMOTE"; git -C "$w" push -q -u origin main
   MAIN_VORHER=$(git -C "$w" rev-parse HEAD)
@@ -98,6 +103,12 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
 
 # Die Argumente sind jq-Ausdruecke (Schluessel ohne Anfuehrungszeichen), keine JSON-Texte.
 checks_setzen() { jq -n --arg e "$ELTERN" "{(\$e): $1}" > "$D/checks.json"; }
+# Folge-PR: ein anderes Muster in der Basis (main) des Wegwerf-Repos — neuer Commit auf main, PR-Branches bleiben.
+basis_muster_setzen() {
+  printf '%s\n' "$1" > "$T/work/scripts/nur-doku-muster.txt"
+  git -C "$T/work" checkout -q main && git -C "$T/work" commit -q -am "muster" && git -C "$T/work" push -q origin main
+  MAIN_VORHER=$(git -C "$T/work" rev-parse HEAD)
+}
 pr_dateien_setzen() { jq ".\"10\".files = $1" "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"; }
 
 freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE
@@ -283,8 +294,47 @@ checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "su
                 {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "skipped"}]'
 freigabe_laufen
 erwarte "Exit 0" [ "$RC" -eq 0 ]
-erwarte "Doku-PR erkannt (3 Dateien)" grep -q '^    reiner Doku-PR (3 Datei/en): Pflicht-Checks nur ziel-wache typen-und-tests' <<<"$AUSGABE"
+erwarte "Doku-PR erkannt (3 Dateien, Muster von main)" grep -q '^    reiner Doku-PR (3 Datei/en, Muster von main): Pflicht-Checks nur ziel-wache typen-und-tests' <<<"$AUSGABE"
 erwarte "gemergt" grep -q '^pr merge ' "$D/calls.log"
+aufraeumen
+
+# Folge-PR (Eric 08.10.2026): Muster von der Basis, nicht vom lokalen Checkout und nicht vom PR-Head.
+# Lokal (Skriptverzeichnis) gilt das volle Muster mit Bild-Endungen; die Basis kennt nur docs/ und *.md —
+# ein Bild ausserhalb von docs/ ist dann Code. Ein Skript, das die lokale Datei liest, wuerde mergen.
+fall_aufbauen "(Folge) Muster kommt von der Basis: Basis ohne Bild-Endungen, PR nur mit Bild ausserhalb docs/ -> Code-PR, uebersprungene Wegwerf-DB sperrt"
+echo "deploy_main=gruen" > "$D/szenario"
+basis_muster_setzen '^docs/|\.md$'
+pr_dateien_setzen '[{filename: "apps/web/public/bild.png", status: "added"}]'
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "skipped"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "Muster per API von der Basis gelesen" grep -q '^api repos/test/bhyo/contents/scripts/nur-doku-muster.txt?ref=main' "$D/calls.log"
+erwarte "wegwerf-db=skipped genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: wegwerf-db=completed/skipped' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(Folge) PR aendert die Musterdatei selbst: Code-PR, auch wenn das Basis-Muster alles als Doku faesst"
+echo "deploy_main=gruen" > "$D/szenario"
+basis_muster_setzen '.*'
+pr_dateien_setzen '[{filename: "docs/eltern.md", status: "added"}, {filename: "scripts/nur-doku-muster.txt", status: "modified"}]'
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "skipped"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "Musterdatei-Aenderung gemeldet" grep -q '^    PR aendert scripts/nur-doku-muster.txt — zaehlt als Code-PR' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(Folge) Muster in der Basis nicht lesbar: Code-PR (fail closed)"
+echo "deploy_main=gruen" > "$D/szenario"
+git -C "$T/work" checkout -q main && git -C "$T/work" rm -q scripts/nur-doku-muster.txt && git -C "$T/work" commit -q -m "ohne muster" && git -C "$T/work" push -q origin main
+pr_dateien_setzen '[{filename: "docs/eltern.md", status: "added"}]'
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "skipped"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
 aufraeumen
 
 fall_aufbauen "(1b) Rot: Doku-PR mit einer Code-Datei ist kein Doku-PR — uebersprungene Wegwerf-DB sperrt"

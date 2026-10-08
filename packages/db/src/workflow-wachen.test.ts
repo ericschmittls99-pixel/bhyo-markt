@@ -388,8 +388,15 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     const re = new RegExp(muster[0]!);
     for (const d of ["docs/betrieb.md", "README.md", "docs/screenshots/e68/01-light.png", "apps/web/README.md", "docs/x/y.jpg"]) expect(re.test(d), d).toBe(true);
     for (const d of ["apps/web/lib/x.ts", "packages/db/migrations/0051_x.sql", ".github/workflows/deploy.yml", "scripts/freigabe.sh", "docs.ts"]) expect(re.test(d), d).toBe(false);
-    expect(workflow).toContain("contents/scripts/nur-doku-muster.txt?ref=$KOPF");
-    expect(mergeSicher).toContain('"$HIER/nur-doku-muster.txt"');
+    // Folge-PR (Eric 08.10.2026): das Muster kommt von der BASIS — sonst koennte ein PR seine eigene Einstufung aendern.
+    expect(workflow).toContain("contents/scripts/nur-doku-muster.txt?ref=$BASIS");
+    expect(workflow).not.toContain("nur-doku-muster.txt?ref=$KOPF");
+    expect(workflow).toMatch(/musterdatei=\$\(printf '%s\\n' "\$dateien" \| grep -cx 'scripts\/nur-doku-muster\.txt' \|\| true\)/);
+    expect(workflow).toMatch(/\[ "\$doku" -eq "\$anzahl" \] && \[ "\$musterdatei" -eq 0 \]; then nur_doku=true/);
+    expect(mergeSicher).toContain('basis=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)');
+    expect(mergeSicher).toContain('contents/scripts/nur-doku-muster.txt?ref=$basis');
+    expect(mergeSicher).not.toContain('"$HIER/nur-doku-muster.txt"');
+    expect(mergeSicher).toMatch(/doku == anzahl_dateien && musterdatei == 0 \)\)/);
   });
 
   it("ziel-wache: nur_doku nur fuer Pull Requests ueber die Vergleichs-API; main und Dispatch sind nie „nur Doku\"; nicht lesbar = voller Lauf", () => {
@@ -397,7 +404,7 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(workflow).toMatch(/nur_doku: \$\{\{ steps\.aenderungen\.outputs\.nur_doku \}\}/);
     expect(workflow).toMatch(/nur_doku=false\n\s+if \[ "\$EVENT" = "pull_request" \]/);
     expect(workflow).toContain("compare/$BASIS...$KOPF");
-    expect(workflow).toMatch(/if \[ "\$anzahl" -gt 0 \] && \[ "\$doku" -eq "\$anzahl" \]; then nur_doku=true; fi/);
+    expect(workflow).toMatch(/if \[ "\$anzahl" -gt 0 \] && \[ "\$doku" -eq "\$anzahl" \] && \[ "\$musterdatei" -eq 0 \]; then nur_doku=true; fi/);
     // Kein Pfadfilter auf DB-Dateien mehr (Eric 08.10.2026, 1a): „bereit" ist immer ein voller Lauf.
     expect(workflow).not.toMatch(/outputs\.db\b/);
     expect(workflow).not.toMatch(/db_treffer/);
@@ -433,7 +440,7 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(mergeSicher).toContain("group_by(.name) | map(max_by(.id // 0))");
     expect(mergeSicher).toMatch(/ABBRUCH: kein Check-Lauf am Head/);
     expect(mergeSicher).toMatch(/pflicht="ziel-wache typen-und-tests wegwerf-db deploy"/);
-    expect(mergeSicher).toMatch(/doku == anzahl_dateien \)\); then\n\s+pflicht="ziel-wache typen-und-tests"/);
+    expect(mergeSicher).toMatch(/doku == anzahl_dateien && musterdatei == 0 \)\); then\n\s+pflicht="ziel-wache typen-und-tests"/);
     expect(mergeSicher).toMatch(/\[\[ "\$stand" == "completed\/success" \]\] \|\| fehlend=/);
     expect(mergeSicher).toMatch(/ABBRUCH: Pflicht-Checks nicht gruen:/);
     expect(mergeSicher).not.toMatch(/conclusion != "neutral"/);
@@ -460,7 +467,7 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(freigabeTest).toMatch(/netzfehler=2/);
     expect(freigabeTest).toMatch(/\(d\/e\) Migration im PR/);
     expect(freigabeTest).toMatch(/\(a\) abgebrochener Lauf am Head, juengerer gruen/);
-    for (const fall of ["juengster Lauf von deploy cancelled", "wegwerf-db auf einem Code-PR uebersprungen", "Pflicht-Check deploy fehlt am Head", "reiner Doku-PR: Wegwerf-DB und Deploy uebersprungen sind erlaubt"]) {
+    for (const fall of ["juengster Lauf von deploy cancelled", "wegwerf-db auf einem Code-PR uebersprungen", "Pflicht-Check deploy fehlt am Head", "reiner Doku-PR: Wegwerf-DB und Deploy uebersprungen sind erlaubt", "(Folge) Muster kommt von der Basis", "(Folge) PR aendert die Musterdatei selbst", "(Folge) Muster in der Basis nicht lesbar"]) {
       expect(freigabeTest, fall).toContain(fall);
     }
   });

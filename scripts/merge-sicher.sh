@@ -66,14 +66,23 @@ fi
 # reiner Doku-PR (scripts/nur-doku-muster.txt — dasselbe Muster liest
 # deploy.yml) laeuft ohne Wegwerf-DB und Deploy; dort sind nur ziel-wache und
 # typen-und-tests Pflicht. Alle uebrigen Checks: nur success oder skipped.
-muster=$(grep -v '^#' "$HIER/nur-doku-muster.txt" | head -1)
+# Folge-PR (Eric 08.10.2026): das Muster kommt von der BASIS des PR ueber die
+# API — nicht aus dem lokalen Checkout (koennte veraltet sein) und nicht vom
+# PR-Head (koennte sich selbst einstufen). Aendert der PR die Musterdatei
+# selbst, ist er ein Code-PR. Ist das Muster nicht lesbar: Code-PR (fail closed).
+basis=$(gh pr view "$PR" --json baseRefName --jq .baseRefName)
+muster=$(gh api "repos/$REPO/contents/scripts/nur-doku-muster.txt?ref=$basis" --jq .content 2>/dev/null | base64 -d | grep -v '^#' | head -1 || true)
 dateien=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
 anzahl_dateien=$(printf '%s\n' "$dateien" | grep -c . || true)
-doku=$(printf '%s\n' "$dateien" | grep -cE "$muster" || true)
+doku=0
+[[ -n "$muster" ]] && doku=$(printf '%s\n' "$dateien" | grep -cE "$muster" || true)
+musterdatei=$(printf '%s\n' "$dateien" | grep -cx 'scripts/nur-doku-muster.txt' || true)
 pflicht="ziel-wache typen-und-tests wegwerf-db deploy"
-if (( anzahl_dateien > 0 && doku == anzahl_dateien )); then
+if (( anzahl_dateien > 0 && doku == anzahl_dateien && musterdatei == 0 )); then
   pflicht="ziel-wache typen-und-tests"
-  echo "    reiner Doku-PR ($anzahl_dateien Datei/en): Pflicht-Checks nur $pflicht"
+  echo "    reiner Doku-PR ($anzahl_dateien Datei/en, Muster von $basis): Pflicht-Checks nur $pflicht"
+elif (( musterdatei > 0 )); then
+  echo "    PR aendert scripts/nur-doku-muster.txt — zaehlt als Code-PR"
 fi
 fehlend=""
 for name in $pflicht; do

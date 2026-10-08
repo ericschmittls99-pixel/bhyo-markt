@@ -111,6 +111,11 @@ case "${POS[0]:-} ${POS[1]:-}" in
       "PATCH repos/"*/pulls/*)
         nr="${pfad##*/}"; base="${O_F#base=}"
         pr_setzen "$nr" ".baseRefName = \"$base\""; echo '{}' ;;
+      "GET "*/contents/scripts/nur-doku-muster.txt*)
+        # Folge-PR: das Muster von der Basis — Inhalt der Datei im Bare-Repo am Ref (?ref=…), base64 wie die API.
+        ref=$(sed -E 's#.*\?ref=##' <<<"$pfad")
+        inhalt=$(git -C "$REMOTE" show "$ref:scripts/nur-doku-muster.txt" 2>/dev/null) || { echo '{"message":"Not Found"}' >&2; exit 1; }
+        printf '{"content":"%s"}\n' "$(printf '%s\n' "$inhalt" | base64 | tr -d '\n')" | ausgabe ;;
       "GET "*/branches/main)
         printf '{"commit":{"sha":"%s"}}\n' "$(git -C "$REMOTE" rev-parse refs/heads/main)" | ausgabe ;;
       "GET "*/pulls/*/files)
