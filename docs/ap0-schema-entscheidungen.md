@@ -2138,7 +2138,13 @@ ort_norm)`, `plz_ort_passt` ist die Hülle mit Normalisierung; Spiegel
 `ortNormPasst`/`ortPasst` in `@bhyo/db/plz`, Parität in `plz-check`. Drei
 Fälle: gleich; Kurzform (Eingabe ist Wortpräfix des Orts); **Ortsteil** —
 die Eingabe beginnt mit dem amtlichen Ort und einem Wortende („-" und
-Leerzeichen sind in der Normalform dasselbe). „Mannheim-Neckarau"/68199
+Leerzeichen sind in der Normalform dasselbe). Indexfähige Form (Messung
+Eric 08.10.2026): gleich und Ortsteil als `ort_norm = ANY(Wortpräfixe der
+Eingabe)` (`plz_ort_norm_praefixe`, Spiegel `ortNormPraefixe`), Kurzform
+als Bereich `[n||' ', n||'!')` über die `text_pattern_ops`-Operatoren, dazu
+Index `plz_ort_norm_muster_idx`. Die Funktionen sind **nicht STRICT**, weil
+Postgres eine STRICT-SQL-Funktion mit AND/OR im Körper nicht inlined — ohne
+Inlining blieb der Aufruf je Zeile stehen (Seq Scan). „Mannheim-Neckarau"/68199
 passt, der Ort wird unverändert gespeichert, keine Meldung;
 „Mannheimer Str."/68199 ist ein Befund; „Heidelberg-Rohrbach"/68159 →
 „meinten Sie Mannheim?". Formular (`pruefeAdresse` → `plz_pruefung`) und
@@ -2157,7 +2163,10 @@ Ort nicht. `plz-check` (Wegwerf-DB, Fixture): eindeutiger Ort eine PLZ, Groß
 Köris zwei, Kurzform und Ortsteil finden denselben Ort, unbekannt keine
 Zeile, Kreis/Land null ohne VG250, Parität `plz_fuer_ort` = `plz_ort_passt`
 über `plz_ort`; mit Bestand Messung `PLZMESSUNG_ORT` (200 Orte in einer
-Abfrage).
+Abfrage) samt Plan `PLZEXPLAIN_ORT`: erste Fassung Seq Scan mit
+Normalisierung je Zeile 6,5 s, mit Index aber STRICT 29 s (kein Inlining),
+indexfähig und nicht STRICT **12 ms** (Bitmap-Index-Scans, Läufe
+37801334789 / 37802875636 / 37803521292).
 
 **Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
 (Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
