@@ -65,6 +65,41 @@ async function main() {
   const [idxMuster] = await sql`select count(*)::int as n from pg_indexes where tablename = 'plz_ort' and indexname = 'plz_ort_norm_muster_idx'`;
   pruefe("E72: Index plz_ort_norm_muster_idx (text_pattern_ops) vorhanden", idxMuster!.n === 1, idxMuster);
 
+  // E72 (Eric 08.10.2026, 2b): Die Passt-Funktionen sind nicht mehr STRICT.
+  // NULL- und Leerwerte muessen dasselbe liefern wie die STRICT-Fassung aus
+  // 0048 — die steht hier woertlich als Sitzungsfunktion (pg_temp, nichts
+  // bleibt in der DB) und wird ueber die ganze Matrix IS NOT DISTINCT FROM
+  // verglichen; nur der gewollte Unterschied (Ortsteil) darf abweichen.
+  await sql`CREATE FUNCTION pg_temp.plz_ort_passt_0048(p_eingabe text, p_ort_norm text) RETURNS boolean
+    LANGUAGE sql IMMUTABLE STRICT AS $$
+      SELECT plz_ort_norm(p_eingabe) <> ''
+         AND (p_ort_norm = plz_ort_norm(p_eingabe)
+              OR p_ort_norm LIKE replace(replace(plz_ort_norm(p_eingabe), '\\', '\\\\'), '%', '\\%') || ' %')
+    $$`;
+  const eingaben: (string | null)[] = [null, "", "   ", "Mannheim", "Mannheim-Neckarau", "Mannheimer Str.", "Ludwigshafen"];
+  const ortNormen: (string | null)[] = [null, "", "mannheim", "mannheim neckarau", "ludwigshafen am rhein"];
+  const abweichungen: string[] = [];
+  const gewollt: string[] = [];
+  for (const e of eingaben) {
+    for (const o of ortNormen) {
+      const [r] = await sql`select plz_ort_passt(${e}, ${o}) as neu, pg_temp.plz_ort_passt_0048(${e}, ${o}) as alt,
+                                   (plz_ort_passt(${e}, ${o}) is not distinct from pg_temp.plz_ort_passt_0048(${e}, ${o})) as gleich`;
+      if (!r!.gleich) {
+        // Einziger gewollter Unterschied: Ortsteil-Toleranz (Eingabe beginnt mit dem Ort + Wortende), nie bei NULL/Leer.
+        if (e && o && e.trim() && o.trim() && r!.neu === true && r!.alt === false) gewollt.push(`${e}|${o}`);
+        else abweichungen.push(`${JSON.stringify(e)}|${JSON.stringify(o)}: neu=${r!.neu} alt=${r!.alt}`);
+      }
+    }
+  }
+  pruefe("E72 NULL/Leer wie 0048: plz_ort_passt liefert fuer NULL, '' und Leerraum dasselbe wie die STRICT-Fassung (35 Paare)", abweichungen.length === 0, abweichungen);
+  pruefe("E72 gewollte Abweichung nur Ortsteil (Mannheim-Neckarau|mannheim)", JSON.stringify(gewollt) === JSON.stringify(["Mannheim-Neckarau|mannheim"]), gewollt);
+  for (const [plz, ort] of [[null, null], ["", ""], ["00000", null], [null, "Mannheim"], ["", "Mannheim"]] as const) {
+    const [r] = await sql`select plz_bekannt, ort_passt, array_to_json(orte)::text as orte_json from plz_pruefung(${plz}, ${ort})`;
+    pruefe(`E72 NULL/Leer wie 0048: plz_pruefung(${JSON.stringify(plz)}, ${JSON.stringify(ort)}) -> unbekannt, passt nicht, keine Orte`, r!.plz_bekannt === false && r!.ort_passt === false && r!.orte_json === "[]", r);
+  }
+  const [fuerNull] = await sql`select (select count(*)::int from plz_fuer_ort(null)) as a, (select count(*)::int from plz_fuer_ort('')) as b, (select count(*)::int from plz_fuer_ort('  ')) as c`;
+  pruefe("E72 NULL/Leer: plz_fuer_ort(NULL | '' | Leerraum) -> keine Kandidaten", fuerNull!.a === 0 && fuerNull!.b === 0 && fuerNull!.c === 0, fuerNull);
+
   // B) Bestand
   const [{ n }] = await sql`select count(*)::int as n from plz_gebiet`;
   if (n === 0) {

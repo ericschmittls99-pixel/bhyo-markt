@@ -33,11 +33,14 @@ $$;--> statement-breakpoint
 -- dem Leerzeichen). Beide Teile nutzen Indizes auf plz_ort(ort_norm).
 -- NICHT STRICT: Postgres inlined eine STRICT-SQL-Funktion nur, wenn ihr Koerper
 -- selbst strikt ist — AND/OR sind es nicht. Ohne Inlining blieb der Aufruf je
--- Zeile stehen (Seq Scan, Lauf 37802875636: 200 Orte 29 s). NULL-Argumente
--- ergeben NULL (= nicht passend), so wie vorher.
+-- Zeile stehen (Seq Scan, Lauf 37802875636: 200 Orte 29 s). NULL und Leer
+-- verhalten sich wie die STRICT-Fassung aus 0048: ein NULL-Argument ergibt
+-- NULL, ein leerer Text false — dafuer die beiden „OR … IS NULL"-Glieder
+-- (sonst wuerde NULL AND false zu false). Nachweis: plz-check, Fall
+-- „E72 NULL/Leer wie 0048".
 CREATE FUNCTION plz_ort_norm_passt(p_norm text, p_ort_norm text) RETURNS boolean
 LANGUAGE sql IMMUTABLE PARALLEL SAFE AS $$
-  SELECT p_norm <> '' AND p_ort_norm <> ''
+  SELECT (p_norm <> '' OR p_ort_norm IS NULL) AND (p_ort_norm <> '' OR p_norm IS NULL)
      AND (p_ort_norm = ANY (plz_ort_norm_praefixe(p_norm))
           OR (p_ort_norm ~>=~ (p_norm || ' ') AND p_ort_norm ~<~ (p_norm || '!')))
 $$;--> statement-breakpoint

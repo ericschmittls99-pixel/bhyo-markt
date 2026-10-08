@@ -361,6 +361,27 @@ jobs:
       # Label laufen die DB-Checks trotzdem; traegt der PR eine neue Migration,
       # melden sie „Journal voraus" (rot), bis das Label gesetzt ist. Der Runner
       # (src/migrieren.ts) gibt Statement, Code und Meldung eines Fehlers aus.
+      # TEMPORAER (E72, Eric 08.10.2026, 2c): Welche Objekte haengen laut
+      # pg_depend an plz_ort_passt, bevor 0051 sie per DROP + CREATE ersetzt?
+      # Nur lesen, nur Objektnamen; Schritt wird vor der Freigabe entfernt.
+      - name: pg_depend plz_ort_passt (Preview, nur lesen, temporaer)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: |
+          pnpm --filter @bhyo/db exec tsx -e "
+            const postgres = require('postgres');
+            const sql = postgres(process.env.DATABASE_URL, { max: 1, fetch_types: false });
+            (async () => {
+              const f = await sql\`select p.oid, p.proisstrict from pg_proc p where p.proname = 'plz_ort_passt'\`;
+              console.log('PGDEPEND funktion plz_ort_passt vorhanden=' + f.length + ' strict=' + (f[0]?.proisstrict ?? 'n/a'));
+              const d = f.length ? await sql\`select d.deptype, pg_describe_object(d.classid, d.objid, d.objsubid) as objekt
+                                            from pg_depend d where d.refobjid = \${f[0].oid} and d.refclassid = 'pg_proc'::regclass\` : [];
+              console.log('PGDEPEND abhaengige_objekte=' + d.length);
+              for (const z of d) console.log('PGDEPEND ' + z.deptype + ' ' + z.objekt);
+              await sql.end();
+            })();
+          "
       - name: Migrate Preview-DB (nur mit Label preview-migrieren)
         if: github.event_name == 'pull_request' && contains(github.event.pull_request.labels.*.name, 'preview-migrieren')
         working-directory: packages/db
