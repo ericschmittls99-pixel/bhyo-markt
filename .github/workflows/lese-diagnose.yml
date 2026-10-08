@@ -32,10 +32,11 @@ jobs:
         run: pnpm install --frozen-lockfile
       # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
       # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
       - name: DB-Host im Log maskieren (E73)
         env:
-          URLS: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
-        run: node -e 'for (const u of process.env.URLS.split(" ").filter(Boolean)) { const x = new URL(u); console.log("::add-mask::" + x.hostname); if (x.username) console.log("::add-mask::" + decodeURIComponent(x.username)); }'
+          URL_1: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
       - name: Zielnachweis + Schreibversuch (muss scheitern)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
