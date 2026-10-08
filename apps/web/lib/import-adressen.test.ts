@@ -5,7 +5,7 @@
 import { describe, expect, it } from "vitest";
 
 import type { Adresse } from "./geocode";
-import { adressGruppen, adressText, brauchtSitz, sitzAusLokal, sitzPatch, waehleSitz } from "./import-adressen";
+import { adressGruppen, adressText, brauchtSitz, istStandortBefund, sitzAusLokal, sitzPatch, standortBefund, standortGruppen, waehleSitz } from "./import-adressen";
 
 const adresse = (teil: Partial<Adresse>): Adresse => ({ art: "adresse", strasse: "Dorfstraße", hausnummer: "3", plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32, ...teil });
 
@@ -76,3 +76,34 @@ describe("sitzAusLokal (E68 PR 3: lokale Zuordnung, Befunde als Satz)", () => {
     expect(sitzAusLokal({ plz: "", ort: "Speyer" }, { plzBekannt: false, ortPasst: false, orte: [], pin: null })).toEqual({ offen: "Ohne PLZ keine Zuordnung — PLZ in der Zeile ergänzen." });
   });
 });
+
+describe("Standort-Spalten (Zeile 39, Eric 08.10.2026): PLZ/Ort-Pruefung auch bei vorhandenem Akteur", () => {
+  const z = (id: string, felder: Record<string, string>) => ({ id, felder });
+  it("gruppiert Zeilen mit Standort · PLZ je (PLZ, Ort) — unabhaengig vom Akteur; ohne PLZ nichts", () => {
+    const g = standortGruppen([
+      z("a", { akteur_id: "x", plz: "68199", ort: "Mannheim-Neckarau" }),
+      z("b", { akteur_neu: "1", plz: "68199", ort: "mannheim neckarau" }),
+      z("c", { plz: "99999", ort: "Landau" }),
+      z("d", { ort: "Mosbach" }),
+      z("e", { akteur_sitz_plz: "68159", akteur_sitz_ort: "Heidelberg" }),
+    ]);
+    expect(g.map((x) => [x.plz, x.zeilenIds])).toEqual([
+      ["68199", ["a", "b"]],
+      ["99999", ["c"]],
+    ]);
+  });
+  it("Befund: unbekannte PLZ, Ort passt nicht (mit „Meinten Sie“), sonst null; Ortsteil-Toleranz kommt aus der Pruefung selbst", () => {
+    const pin = { lng: 8.5, lat: 49.5 };
+    expect(standortBefund({ plz: "99999", ort: "Landau" }, { plzBekannt: false, ortPasst: false, orte: [], pin: null })).toBe("PLZ 99999 ist unbekannt — bitte prüfen.");
+    expect(standortBefund({ plz: "68159", ort: "Heidelberg" }, { plzBekannt: true, ortPasst: false, orte: ["Mannheim"], pin })).toBe("Ort passt nicht zur PLZ 68159 — meinten Sie Mannheim?");
+    expect(standortBefund({ plz: "68199", ort: "Mannheim-Neckarau" }, { plzBekannt: true, ortPasst: true, orte: ["Mannheim"], pin })).toBeNull();
+    expect(standortBefund({ plz: "68199", ort: "" }, { plzBekannt: true, ortPasst: false, orte: ["Mannheim"], pin })).toBeNull();
+  });
+  it("istStandortBefund erkennt nur eigene Befunde — ein Formatfehler von feldWert wird nicht geraeumt", () => {
+    expect(istStandortBefund("PLZ 99999 ist unbekannt — bitte prüfen.")).toBe(true);
+    expect(istStandortBefund("Ort passt nicht zur PLZ 68159 — meinten Sie Mannheim?")).toBe(true);
+    expect(istStandortBefund("muss fünfstellig sein")).toBe(false);
+    expect(istStandortBefund(undefined)).toBe(false);
+  });
+});
+

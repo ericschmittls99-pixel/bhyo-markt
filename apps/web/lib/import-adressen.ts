@@ -172,3 +172,47 @@ export function adressStand(zeilen: readonly ZeileFuerAdresse[]): AdressStandAnz
     ohneTreffer: alle.filter((a) => a.grund).map((a) => ({ text: a.text, grund: a.grund!, zeilen: a.zeilen })),
   };
 }
+
+/**
+ * E68 PR 3, Befund Eric 08.10.2026 (Zeile 39): Spalten der Gruppe „Standort"
+ * (plz/ort) gehen unveraendert in den Strom — auch bei vorhandenem Akteur.
+ * Deshalb laeuft die lokale PLZ/Ort-Pruefung auch fuer sie, je eindeutigem
+ * Paar einmal; ein Befund steht als Zeilenfehler am Feld Standort · PLZ
+ * (fehler_plz) und fuehrt in die Nacharbeit. Ohne PLZ gibt es nichts zu
+ * pruefen (ein Standort darf nur einen Ort tragen, F0a).
+ */
+export interface StandortGruppe {
+  plz: string;
+  ort: string;
+  zeilenIds: string[];
+}
+
+export function standortGruppen(zeilen: readonly ZeileFuerAdresse[]): StandortGruppe[] {
+  const gruppen = new Map<string, StandortGruppe>();
+  for (const z of zeilen) {
+    const plz = (z.felder.plz ?? "").trim();
+    if (!plz) continue;
+    const ort = (z.felder.ort ?? "").trim();
+    const schluessel = `${plz}|${normName(ort)}`;
+    const g = gruppen.get(schluessel);
+    if (g) g.zeilenIds.push(z.id);
+    else gruppen.set(schluessel, { plz, ort, zeilenIds: [z.id] });
+  }
+  return [...gruppen.values()];
+}
+
+/** Befund des Standorts einer Zeile — null, wenn PLZ bekannt ist und der Ort (falls angegeben) passt. */
+export function standortBefund(g: Pick<StandortGruppe, "plz" | "ort">, e: PlzStapelErgebnis): string | null {
+  if (!e.plzBekannt) return `PLZ ${g.plz} ist unbekannt — bitte prüfen.`;
+  if (g.ort && !e.ortPasst) {
+    const liste = e.orte.slice(0, 3).join(", ") + (e.orte.length > 3 ? " …" : "");
+    return e.orte.length ? `Ort passt nicht zur PLZ ${g.plz} — meinten Sie ${liste}?` : `Zur PLZ ${g.plz} ist kein Ort hinterlegt.`;
+  }
+  return null;
+}
+
+/** Erkennt einen von standortBefund gesetzten Fehler (damit ein Feldformat-Fehler von feldWert nicht ueberschrieben wird). */
+export function istStandortBefund(text: string | undefined): boolean {
+  return !!text && (text.startsWith("PLZ ") || text.startsWith("Ort passt nicht zur PLZ ") || text.startsWith("Zur PLZ "));
+}
+

@@ -1991,6 +1991,16 @@ hebt die Genauigkeit, kein Treffer markiert nur „versucht".
 nicht zuordenbar; Option: genaue Suche auch für sie zulassen. Die Testdatei
 `import-testdatei-ap27.xlsx` (Prüfstein) lag in der Nacht nicht vor.
 
+**Nachtrag 08.10.2026 (Zeile 39 der Testdatei, Eric):** Bei vorhandenem
+Akteur wird die Zeilen-Sitzadresse verworfen; in den Strom gehen nur die
+Spalten der Gruppe „Standort" (`plz`, `ort`, Straße, Hausnummer) — und die
+waren ungeprüft. Jetzt prüft der Adressschritt auch sie lokal
+(`standortGruppen`, `standortBefund`), je eindeutigem (PLZ, Ort) einmal,
+unabhängig vom Akteur; ein Befund steht als Zeilenfehler am Feld Standort ·
+PLZ und führt in die Nacharbeit, eine Korrektur dort wird sofort erneut
+geprüft. Zähler `standort_befunde` am Lauf. Tests in
+`lib/import-adressen.test.ts` („Standort-Spalten").
+
 ## 43. E69 Preis-Bezug, liegengebliebene Läufe, Konfliktmarker-Wächter (AP2.7 PR g), 07.10.2026
 
 **Anlass (Testlauf 07.10.2026):** `biomassestrom.preis_min/mittel/max` waren
@@ -2110,4 +2120,21 @@ Messung: `scripts/wird-frei-probe.ts` misst die Bewertungs-CTE mit EXPLAIN
 zwei Vergaben ≈ zehnfache Preview-Menge; `job-probe` druckt den Bestand der
 Preview als BESTAND-Zeile); der Plan steht im CI-Log und bis zur Freigabe im
 PR-Text. (c) Verwerfen des Stroms beendet Stufe 0 wie ein Erledigen.
+
+## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
+
+**Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo
+während der Bauphase öffentlich; vor dem ersten echten Datensatz in
+Production wird es wieder privat (Go-live-Kriterium). Den Wechsel macht Eric
+nach dem Prüfbericht; die App ändert keine Repo-Einstellungen.
+
+**Prüfbericht (nur lesend):** Secret-Scan der gesamten Historie aller
+Branches ohne Fund (nur Platzhalter-URLs und die beiden Neon-Hostnamen im
+Seed-Wächter, keine Tokens, Schlüssel oder Passwörter); kein Workflow nutzt
+`pull_request_target`; Environments nur `main`. Personendaten in Logs:
+`protokoll-messung` druckte die häufigsten Protokoll-Freitexte
+(Zugriffsanfragen, Aufgaben), `beleg-abweichung` die Quellenangabe
+genannter Belege — beides durch Arten bzw. ja/nein ersetzt. Alle Jobs mit
+DB-Secret maskieren Host und Datenbanknutzer (E73-Schritt). Regeln in
+`docs/betrieb.md` („Öffentliches Repo während der Bauphase").
 

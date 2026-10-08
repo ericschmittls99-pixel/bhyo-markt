@@ -227,6 +227,13 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
+        env:
+          URL_1: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
       # Der Notausgang greift nur hier: Bei einem Push existiert der Input
       # nicht (leer), das Gate laeuft also IMMER. Nur ein manueller
       # workflow_dispatch mit woertlich "ja" ueberspringt die Pruefung.
@@ -312,6 +319,13 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
+        env:
+          URL_1: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
 
       # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
       # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
@@ -590,6 +604,13 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
+        env:
+          URL_1: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
       - name: Zielnachweis + Schreibversuch (muss scheitern)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
