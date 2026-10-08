@@ -338,11 +338,10 @@ describe("Betriebs-PR 2 (05.10.2026): Laeufe-Wache, krumme Minuten, Label previe
     expect(restore).toContain('cron: "41 3 * * 1"');
   });
 
-  it("die Preview wird nur mit dem Label preview-migrieren migriert; das Label loest den Lauf aus; DB-Checks haengen nicht am Label (nur an der Aenderungserkennung, CI-Diaet)", () => {
+  it("die Preview wird nur mit dem Label preview-migrieren migriert; das Label loest den Lauf aus; DB-Checks laufen ohne Label", () => {
     expect(workflow).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'preview-migrieren'\)\n/);
     expect(workflow).toMatch(/types: \[opened, synchronize, reopened, ready_for_review, labeled\]/);
-    expect(workflow).toMatch(/- name: Inbox-Check \(Inbox\)\n\s+if: github\.event_name == 'pull_request' && needs\.ziel-wache\.outputs\.db == 'true'\n/);
-    expect(workflow).not.toMatch(/Inbox-Check \(Inbox\)\n\s+if:[^\n]*preview-migrieren/);
+    expect(workflow).toMatch(/- name: Inbox-Check \(Inbox\)\n\s+if: github\.event_name == 'pull_request'\n/);
   });
 
   it("Migration laeuft ueberall ueber den Runner (pnpm run migrate / @bhyo/db migrate)", () => {
@@ -382,14 +381,26 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     }
   });
 
-  it("ziel-wache bestimmt die geaenderten Dateien ueber die Vergleichs-API und faellt ohne Basis auf „alles geaendert\" zurueck", () => {
+  const muster = readFileSync(new URL("../../../scripts/nur-doku-muster.txt", import.meta.url), "utf8").split("\n").filter((z) => z && !z.startsWith("#"));
+
+  it("ein Muster fuer „reine Doku\" (scripts/nur-doku-muster.txt): *.md, docs/**, Screenshots — deploy.yml liest es per API, merge-sicher.sh von der Platte", () => {
+    expect(muster).toHaveLength(1);
+    const re = new RegExp(muster[0]!);
+    for (const d of ["docs/betrieb.md", "README.md", "docs/screenshots/e68/01-light.png", "apps/web/README.md", "docs/x/y.jpg"]) expect(re.test(d), d).toBe(true);
+    for (const d of ["apps/web/lib/x.ts", "packages/db/migrations/0051_x.sql", ".github/workflows/deploy.yml", "scripts/freigabe.sh", "docs.ts"]) expect(re.test(d), d).toBe(false);
+    expect(workflow).toContain("contents/scripts/nur-doku-muster.txt?ref=$KOPF");
+    expect(mergeSicher).toContain('"$HIER/nur-doku-muster.txt"');
+  });
+
+  it("ziel-wache: nur_doku nur fuer Pull Requests ueber die Vergleichs-API; main und Dispatch sind nie „nur Doku\"; nicht lesbar = voller Lauf", () => {
     expect(workflow).toMatch(/id: aenderungen\n/);
-    expect(workflow).toMatch(/db: \$\{\{ steps\.aenderungen\.outputs\.db \}\}\n\s+nur_doku: \$\{\{ steps\.aenderungen\.outputs\.nur_doku \}\}/);
-    expect(workflow).toMatch(/db=true; nur_doku=false\n/);
+    expect(workflow).toMatch(/nur_doku: \$\{\{ steps\.aenderungen\.outputs\.nur_doku \}\}/);
+    expect(workflow).toMatch(/nur_doku=false\n\s+if \[ "\$EVENT" = "pull_request" \]/);
     expect(workflow).toContain("compare/$BASIS...$KOPF");
-    // Was als DB-Aenderung gilt: packages/db, SQL, Probe-Skripte, der Job-SQL-Spiegel, die Workflows selbst.
-    expect(workflow).toContain("grep -cE '^packages/db/|\\.sql$|^apps/web/scripts/.*probe|^apps/web/lib/inbox/hinweise\\.ts$|^\\.github/workflows/'");
-    expect(workflow).toContain("grep -cE '^docs/|\\.md$'");
+    expect(workflow).toMatch(/if \[ "\$anzahl" -gt 0 \] && \[ "\$doku" -eq "\$anzahl" \]; then nur_doku=true; fi/);
+    // Kein Pfadfilter auf DB-Dateien mehr (Eric 08.10.2026, 1a): „bereit" ist immer ein voller Lauf.
+    expect(workflow).not.toMatch(/outputs\.db\b/);
+    expect(workflow).not.toMatch(/db_treffer/);
   });
 
   it("typen-und-tests: bei reiner Doku-Aenderung laeuft nur der Konfliktmarker-Check (jeder andere Schritt an VOLL gebunden)", () => {
@@ -400,48 +411,38 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(ungebunden).toEqual(["uses: actions/checkout@v7", "name: konfliktmarker-check (versionierte Dateien)"]);
   });
 
-  it("wegwerf-db laeuft nur bei DB-Aenderungen und nie fuer Entwuerfe; der Deploy verlangt sie gruen oder uebersprungen", () => {
-    expect(workflow).toMatch(/\n  wegwerf-db:\n\s+needs: \[ziel-wache\]\n(?:\s+#[^\n]*\n)*\s+if: >-\n\s+needs\.ziel-wache\.outputs\.db == 'true' &&\n\s+\(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\)/);
-    expect(workflow).toMatch(/\(needs\.wegwerf-db\.result == 'success' \|\| needs\.wegwerf-db\.result == 'skipped'\)/);
+  it("wegwerf-db laeuft fuer jeden Nicht-Entwurf und auf main, nur nicht fuer reine Doku-PRs; der Deploy verlangt sie gruen (skipped nur, wo ohnehin nicht deployt wird)", () => {
+    expect(workflow).toMatch(/\n  wegwerf-db:\n\s+needs: \[ziel-wache\]\n(?:\s+#[^\n]*\n)*\s+if: >-\n\s+needs\.ziel-wache\.outputs\.nur_doku != 'true' &&\n\s+\(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\)/);
+    const deploy = workflow.slice(workflow.indexOf("\n  deploy:"), workflow.indexOf("\n  lese-diagnose:"));
+    expect(deploy).toMatch(/needs\.ziel-wache\.outputs\.nur_doku != 'true' &&/);
+    expect(deploy).toMatch(/\(needs\.wegwerf-db\.result == 'success' \|\| needs\.wegwerf-db\.result == 'skipped'\)/);
+    expect(deploy).toMatch(/github\.event\.pull_request\.draft == false/);
   });
 
-  it("jeder DB-Check-Schritt im Deploy-Job ist an die Aenderungserkennung gebunden; Preview-Migration und Preview-Deploy nicht", () => {
+  it("die DB-Checks im Deploy-Job haengen an keinem Pfadfilter (jeder Nicht-Entwurf-PR prueft die Preview-DB)", () => {
     const job = workflow.slice(workflow.indexOf("\n  deploy:"), workflow.indexOf("\n  lese-diagnose:"));
-    // Jeder Schritt, der mit der Preview-DB spricht (Checks, Proben, Vorpruefung,
-    // Abweichungsliste), haengt an der Aenderungserkennung — namentlich, damit
-    // ein neuer DB-Schritt ohne Bindung hier auffaellt.
-    const gebunden = [...job.matchAll(/- name: ([^\n]*)\n\s+if: ([^\n]*outputs\.db == 'true'[^\n]*)/g)].map((m) => m[1]);
-    expect(gebunden).toEqual([
-      "Fristen-Vorpruefung (gueltig_bis, E33)",
-      "Qualitaets-Paritaet (DB vs. TS)",
-      "Verwaltungs-Check (strom_verwaltung)",
-      "Belegnummer-Check (beleg_nr)",
-      "Benutzer-Check (benutzer)",
-      "Sperre-Check (Sperren, Zuweisungen)",
-      "Protokoll-Check (Ereignisprotokoll)",
-      "Inbox-Check (Inbox)",
-      "Parameter-Check (Parameter mit Verlauf)",
-      "Sektor-Check (sektor)",
-      "Verifikation-Check (strom_verifikation)",
-      "Kontaktperson-Check (kontaktperson)",
-      "import-check (Import-Datenmodell, E67)",
-      "probelauf-rollback-check (Rollback und Savepoint, E67)",
-      "Dubletten-Check (akteur_name_norm, keine Dublette, Trigger)",
-      "Job-Probe (Verifikations-Hinweise)",
-      "Beleg-Check (beleg)",
-      "Abweichungsliste Belege (Preview, nur lesen)",
-    ]);
-    const alleChecks = [...job.matchAll(/- name: ([^\n]*(?:[Cc]heck|Probe|Vorpruefung|Paritaet|Abweichungsliste)[^\n]*)\n/g)]
-      .map((m) => m[1])
-      .filter((n) => !/^Health-Check/.test(n));
-    expect(alleChecks).toEqual(gebunden);
-    expect(job).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\([^\n]*\n/);
-    expect(job).not.toMatch(/Deploy Preview[^\n]*\n\s+if:[^\n]*outputs\.db/);
+    const checks = [...job.matchAll(/- name: ([^\n]*(?:[Cc]heck|Probe|Vorpruefung|Paritaet|Abweichungsliste)[^\n]*)\n\s+if: ([^\n]*)/g)].filter((m) => !/^Health-Check/.test(m[1]!));
+    expect(checks.length).toBeGreaterThanOrEqual(18);
+    for (const [, name, bedingung] of checks) {
+      expect(bedingung, name).toMatch(/^github\.event_name == 'pull_request'/);
+      expect(bedingung, name).not.toContain("outputs.");
+    }
   });
 
-  it("merge-sicher.sh wertet je Check-Namen nur den juengsten Lauf (ueberholte „cancelled\"-Checks sperren nicht)", () => {
+  it("merge-sicher.sh wertet je Check-Namen nur den juengsten Lauf; Pflicht-Checks muessen success sein (cancelled, skipped, fehlend = nicht gruen); Doku-PR nur ziel-wache und typen-und-tests", () => {
     expect(mergeSicher).toContain("group_by(.name) | map(max_by(.id // 0))");
     expect(mergeSicher).toMatch(/ABBRUCH: kein Check-Lauf am Head/);
+    expect(mergeSicher).toMatch(/pflicht="ziel-wache typen-und-tests wegwerf-db deploy"/);
+    expect(mergeSicher).toMatch(/doku == anzahl_dateien \)\); then\n\s+pflicht="ziel-wache typen-und-tests"/);
+    expect(mergeSicher).toMatch(/\[\[ "\$stand" == "completed\/success" \]\] \|\| fehlend=/);
+    expect(mergeSicher).toMatch(/ABBRUCH: Pflicht-Checks nicht gruen:/);
+    expect(mergeSicher).not.toMatch(/conclusion != "neutral"/);
+  });
+
+  it("Journal-Waechter: idx lueckenlos, when strikt steigend, Datei je Eintrag — laeuft als Test in typen-und-tests", () => {
+    const wache = readFileSync(new URL("./journal-wache.ts", import.meta.url), "utf8");
+    expect(wache).toMatch(/export function pruefeJournal/);
+    expect(workflow).toMatch(/- name: Tests — packages\/db/);
   });
 
   it("freigabe.sh wiederholt Netzfehler bei gh bis zu dreimal mit Pause und wartet nach einer Migration auf den Dispatch-Lauf", () => {
@@ -459,5 +460,8 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(freigabeTest).toMatch(/netzfehler=2/);
     expect(freigabeTest).toMatch(/\(d\/e\) Migration im PR/);
     expect(freigabeTest).toMatch(/\(a\) abgebrochener Lauf am Head, juengerer gruen/);
+    for (const fall of ["juengster Lauf von deploy cancelled", "wegwerf-db auf einem Code-PR uebersprungen", "Pflicht-Check deploy fehlt am Head", "reiner Doku-PR: Wegwerf-DB und Deploy uebersprungen sind erlaubt"]) {
+      expect(freigabeTest, fall).toContain(fall);
+    }
   });
 });

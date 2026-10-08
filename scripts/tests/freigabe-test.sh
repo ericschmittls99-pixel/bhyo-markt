@@ -20,6 +20,9 @@
 #       bleibt erwartet rot); ein abgebrochener Lauf am Head wird nicht neu
 #       gestartet, wenn ein juengerer gruen ist; merge-sicher.sh wertet je
 #       Check-Namen nur den juengsten Lauf.
+#   (1b) Pflicht-Checks (ziel-wache, typen-und-tests, wegwerf-db, deploy; bei
+#       reinem Doku-PR nur die ersten beiden): juengster Lauf cancelled,
+#       skipped oder fehlend = kein Merge.
 #   (f) Gestapelte PRs: in (a) auf main umgehaengt, danach angeglichen NUR
 #       durch Merge des Squash (zwei Eltern: alter Head, Squash), Patch-ID
 #       gegen den Basis-Baum gleich → Push. Abweichende Patch-ID oder nicht
@@ -81,14 +84,21 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
   jq -n --arg e "$ELTERN" --arg k "$KIND" '{
     "10": {number: 10, state: "OPEN", isDraft: false, headRefOid: $e, headRefName: "eltern", baseRefName: "main",
            mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", mergeCommit: null,
-           files: [{filename: "docs/eltern.md", status: "added"}]},
+           files: [{filename: "apps/web/lib/eltern.ts", status: "added"}, {filename: "docs/eltern.md", status: "added"}]},
     "11": {number: 11, state: "OPEN", isDraft: false, headRefOid: $k, headRefName: "kind", baseRefName: "eltern",
            mergeable: "MERGEABLE", mergeStateStatus: "CLEAN", mergeCommit: null,
            files: [{filename: "docs/kind.md", status: "added"}]}}' > "$D/prs.json"
   jq -n --arg e "$ELTERN" '[{databaseId: 100, workflow: "deploy.yml", commit: $e, event: "pull_request", conclusion: "success", jobs: []}]' > "$D/runs.json"
-  jq -n --arg e "$ELTERN" '{($e): [{name: "typen-und-tests", status: "completed", conclusion: "success"}]}' > "$D/checks.json"
+  # Pflicht-Checks eines Code-PRs (1b, Eric 08.10.2026): alle vier gruen; schema-gate und lese-diagnose sind auf PRs uebersprungen.
+  checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                  {id: 3, name: "wegwerf-db", status: "completed", conclusion: "success"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"},
+                  {id: 5, name: "schema-gate", status: "completed", conclusion: "skipped"}, {id: 6, name: "lese-diagnose", status: "completed", conclusion: "skipped"}]' 
   echo "==> Fall: $1"
 }
+
+# Die Argumente sind jq-Ausdruecke (Schluessel ohne Anfuehrungszeichen), keine JSON-Texte.
+checks_setzen() { jq -n --arg e "$ELTERN" "{(\$e): $1}" > "$D/checks.json"; }
+pr_dateien_setzen() { jq ".\"10\".files = $1" "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"; }
 
 freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE
   set +e
@@ -149,7 +159,7 @@ erwarte "Exit 1" [ "$RC" -eq 1 ]
 erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "main unveraendert" [ "$(remote_ref main)" = "$MAIN_VORHER" ]
-erwarte "rote Checks genannt" grep -q '^ABBRUCH: rote Checks am Head' <<<"$AUSGABE"
+erwarte "roter Pflicht-Check genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: ziel-wache=completed/failure' <<<"$AUSGABE"
 aufraeumen
 
 fall_aufbauen "(a) PR ist Entwurf: Abbruch vor dem Umhaengen, nichts gemergt"
@@ -212,22 +222,80 @@ aufraeumen
 fall_aufbauen "(a) abgebrochener Lauf am Head, juengerer gruen: kein Neustart, Checks je Name nur der juengste, Merge"
 echo "deploy_main=gruen" > "$D/szenario"
 jq --arg e "$ELTERN" '. + [{databaseId: 99, workflow: "deploy.yml", commit: $e, event: "pull_request", conclusion: "cancelled", jobs: []}]' "$D/runs.json" > "$D/runs.neu" && mv "$D/runs.neu" "$D/runs.json"
-jq --arg e "$ELTERN" '.[$e] = [{id: 1, name: "typen-und-tests", status: "completed", conclusion: "cancelled"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"}]' "$D/checks.json" > "$D/checks.neu" && mv "$D/checks.neu" "$D/checks.json"
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "cancelled"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "success"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"},
+                {id: 7, name: "typen-und-tests", status: "completed", conclusion: "success"}]'
 freigabe_laufen
 erwarte "Exit 0" [ "$RC" -eq 0 ]
 erwarte "ueberholter Lauf gemeldet, kein Neustart" grep -q '^    abgebrochene Laeufe am Head (99) — ueberholt' <<<"$AUSGABE"
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "gemergt" grep -q '^pr merge ' "$D/calls.log"
-erwarte "nur ein Check je Name gewertet" grep -q '^    1 Lauf/Laeufe (je Name der juengste): typen-und-tests=completed/success' <<<"$AUSGABE"
+erwarte "je Name nur der juengste Check gewertet (4 Namen, typen-und-tests gruen)" bash -c "grep -q '^    4 Lauf/Laeufe (je Name der juengste): ' <<<\"\$1\" && grep -q 'typen-und-tests=completed/success' <<<\"\$1\" && ! grep -q 'typen-und-tests=completed/cancelled' <<<\"\$1\"" _ "$AUSGABE"
 aufraeumen
 
 fall_aufbauen "(a/b) Rot-Nachweis: juengster Check rot, aelterer gruen: kein Merge"
 echo "deploy_main=gruen" > "$D/szenario"
-jq --arg e "$ELTERN" '.[$e] = [{id: 1, name: "typen-und-tests", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "failure"}]' "$D/checks.json" > "$D/checks.neu" && mv "$D/checks.neu" "$D/checks.json"
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "success"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"},
+                {id: 7, name: "typen-und-tests", status: "completed", conclusion: "failure"}]'
 freigabe_laufen
 erwarte "Exit 1" [ "$RC" -eq 1 ]
 erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
-erwarte "rote Checks genannt" grep -q '^ABBRUCH: rote Checks am Head' <<<"$AUSGABE"
+erwarte "roter Pflicht-Check genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: typen-und-tests=completed/failure' <<<"$AUSGABE"
+aufraeumen
+
+# 1b (Eric 08.10.2026): Pflicht-Checks — juengster Lauf cancelled, skipped oder fehlend = nicht gruen.
+fall_aufbauen "(1b) juengster Lauf von deploy cancelled: kein Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "success"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"},
+                {id: 8, name: "deploy", status: "completed", conclusion: "cancelled"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "deploy=cancelled genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: deploy=completed/cancelled' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(1b) wegwerf-db auf einem Code-PR uebersprungen: kein Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "wegwerf-db=skipped genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: wegwerf-db=completed/skipped' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(1b) Pflicht-Check deploy fehlt am Head: kein Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "success"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "deploy=fehlt genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: deploy=fehlt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(1b) reiner Doku-PR: Wegwerf-DB und Deploy uebersprungen sind erlaubt, Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+pr_dateien_setzen '[{filename: "docs/eltern.md", status: "added"}, {filename: "docs/screenshots/x/01-light.png", status: "added"}, {filename: "README.md", status: "modified"}]'
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "skipped"}]'
+freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "Doku-PR erkannt (3 Dateien)" grep -q '^    reiner Doku-PR (3 Datei/en): Pflicht-Checks nur ziel-wache typen-und-tests' <<<"$AUSGABE"
+erwarte "gemergt" grep -q '^pr merge ' "$D/calls.log"
+aufraeumen
+
+fall_aufbauen "(1b) Rot: Doku-PR mit einer Code-Datei ist kein Doku-PR — uebersprungene Wegwerf-DB sperrt"
+echo "deploy_main=gruen" > "$D/szenario"
+pr_dateien_setzen '[{filename: "docs/eltern.md", status: "added"}, {filename: "apps/web/lib/x.ts", status: "modified"}]'
+checks_setzen '[{id: 1, name: "ziel-wache", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"},
+                {id: 3, name: "wegwerf-db", status: "completed", conclusion: "skipped"}, {id: 4, name: "deploy", status: "completed", conclusion: "success"}]'
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "wegwerf-db=skipped genannt" grep -q '^ABBRUCH: Pflicht-Checks nicht gruen: wegwerf-db=completed/skipped' <<<"$AUSGABE"
 aufraeumen
 
 # ---------------------------------------------------------------- (f)

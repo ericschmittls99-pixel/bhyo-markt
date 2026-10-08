@@ -338,23 +338,42 @@ Anlass: Mit dem öffentlichen Repo (E73) zählt jede Actions-Minute, und die
 Läufe liefen für jeden Push gleich voll — Entwurf oder bereit, Doku oder
 Migration. Entscheidung Eric 08.10.2026: weniger Jobs ohne Schutzverlust.
 
-**Was wann läuft** (alles in `deploy.yml`, gesteuert vom Job `ziel-wache`,
-der die geänderten Dateien über die Vergleichs-API `compare/<basis>...<kopf>`
-bestimmt, ohne Checkout; ohne Vergleichsbasis gilt „alles geändert",
-fail closed):
+**Was wann läuft** (alles in `deploy.yml`, gesteuert vom Job `ziel-wache`;
+Korrektur Eric 08.10.2026: „bereit" ist immer ein voller Lauf, der Filter
+gilt nur für reine Doku-PRs — SQL steckt auch in `apps/web/lib`, ein
+Pfadfilter auf `packages/db` würde Schutz verlieren):
 
 | Push | Jobs | Inhalt |
 |---|---|---|
 | Entwurf-PR | ziel-wache, typen-und-tests | Typen, Unit-Tests, Skript-Wächter, Konfliktmarker. Keine Wegwerf-DB, kein Preview-Deploy, keine DB-Proben. |
-| Entwurf-PR, nur Doku (`docs/`, `*.md`) | ziel-wache, typen-und-tests | nur der Konfliktmarker-Check (kein Install, keine Typen, keine Tests) |
-| PR „bereit" | + wegwerf-db (nur bei DB-Änderung), deploy | Preview-Deploy; die 18 DB-Checks und -Proben im Deploy-Job nur bei DB-Änderung |
-| main | + schema-gate, lese-diagnose | unverändert, Wegwerf-DB und DB-Checks nur bei DB-Änderung |
+| reiner Doku-PR (Entwurf oder bereit) | ziel-wache, typen-und-tests | nur der Konfliktmarker-Check (kein Install, keine Typen, keine Tests, kein Deploy) |
+| PR „bereit" (ready_for_review, synchronize, Label) | + wegwerf-db, deploy | voller Lauf: Wegwerf-DB, Preview-Deploy, alle DB-Checks und -Proben |
+| main | + schema-gate, lese-diagnose | voller Lauf, unverändert |
 
-„DB-Änderung" = Dateien unter `packages/db/`, `*.sql`, Probe-Skripte
-(`apps/web/scripts/*probe*`), der Job-SQL-Spiegel
-`apps/web/lib/inbox/hinweise.ts` oder die Workflows selbst. Der Deploy-Job
-verlangt die Wegwerf-DB ausdrücklich „grün oder übersprungen" (`skipped`) —
-ein Fehlschlag sperrt weiter.
+„Reine Doku" heißt: jede geänderte Datei passt auf das Muster in
+`scripts/nur-doku-muster.txt` (`*.md`, `docs/**`, Screenshots) — eine
+Datei, gelesen von `ziel-wache` (per API am PR-Head, ohne Checkout) und
+von `merge-sicher.sh`. `ziel-wache` wertet nur Pull Requests; main und
+Dispatch sind nie „nur Doku"; ist Vergleich oder Muster nicht lesbar, gilt
+der volle Lauf (fail closed). Der Deploy-Job verlangt die Wegwerf-DB
+ausdrücklich „grün oder übersprungen" — übersprungen ist sie nur bei
+Entwürfen und Doku-PRs, und beide deployen ohnehin nicht.
+
+**Pflicht-Checks beim Merge** (`merge-sicher.sh`, Eric 08.10.2026): je
+Check-Name zählt der jüngste Lauf am Head; ist er `cancelled`, `skipped`
+oder fehlt er, ist der Check nicht grün. Pflicht sind `ziel-wache`,
+`typen-und-tests`, `wegwerf-db`, `deploy`; bei einem reinen Doku-PR (gleiches
+Muster, Dateien aus `pulls/<nr>/files`) nur die ersten beiden. Alle übrigen
+Checks (auf PRs `schema-gate`, `lese-diagnose` übersprungen) dürfen nur
+`success` oder `skipped` sein; `neutral` zählt nicht mehr als grün.
+
+**Journal-Wächter** (`packages/db/src/journal-wache.ts`, Test in
+typen-und-tests): `idx` lückenlos ab 0, `tag` beginnt mit der vierstelligen
+`idx`, `when` strikt größer als das vorige, zu jedem Eintrag die SQL-Datei
+und keine Datei ohne Eintrag. Grund: der Drizzle-Migrator wendet nur
+Migrationen an, deren `when` jünger ist als die letzte angewendete — eine
+umnummerierte Migration mit altem `when` würde still übersprungen.
+Rot-Nachweis im Test mit vertauschten `when`.
 
 **Überholte Läufe:** `cancel-in-progress` gilt für alle PR-Ereignisse
 desselben Branches (ein zweiter Push bricht den ersten Lauf ab); main,
@@ -364,7 +383,10 @@ Head; ein älterer „cancelled"-Check sperrt den Merge nicht mehr, ein jüngere
 roter weiterhin. `freigabe.sh` startet einen abgebrochenen Lauf am Head nur
 neu, wenn kein jüngerer Lauf grün ist.
 
-**Gate und Migration:** Das `schema-gate` wartet nicht mehr. Liegt Production
+**Gate und Migration (Nebenwirkung, akzeptiert Eric 08.10.2026):** Das
+`schema-gate` wartet nicht mehr — ein Merge mit Migration erzeugt deshalb
+einen roten Push-Lauf von main, bis die Migration gelaufen ist; der
+Dispatch-Lauf danach trägt das Ergebnis. Liegt Production
 hinter dem Journal, endet der Push-Lauf von main sofort rot mit der Meldung,
 `migrate-production.yml` zu starten. `migrate-production.yml` (weiterhin
 Warteschlange, nie abgebrochen) löst nach erfolgreicher Migration selbst den
@@ -379,14 +401,17 @@ bisher auf den Push-Lauf.
 Jetzt wiederholt `gh_wiederholt` jede Abfrage bis zu dreimal mit 20 s Pause
 (nur bei Netzfehlermustern; ein roter Lauf wird nicht wiederholt).
 
-**Wächter-Tests:** `scripts/tests/freigabe-test.sh` hat fünf neue Fälle
+**Wächter-Tests:** `scripts/tests/freigabe-test.sh` hat zehn neue Fälle
 (Netzfehler zweimal wiederholt → FERTIG; Migration im PR → migrate-production
 ausgelöst, Push-Lauf rot ist erwartet, Dispatch-Lauf abgewartet, kein
 Neustart; ohne Dispatch-Lauf → Abbruch; abgebrochener Lauf am Head mit
 jüngerem grünen → kein Neustart, Checks je Name nur der jüngste, Merge;
-jüngster Check rot → kein Merge). Rot-Nachweis 08.10.2026: gegen die Skripte
-von main vor diesem PR 11 von 70 Prüfungen rot, genau die neuen Verhalten;
-gegen die neuen Skripte 70 grün. `packages/db/src/workflow-wachen.test.ts`
+jüngster Check rot → kein Merge; jüngster `deploy` cancelled → kein Merge;
+`wegwerf-db` auf einem Code-PR übersprungen → kein Merge; `deploy` fehlt →
+kein Merge; reiner Doku-PR mit übersprungener Wegwerf-DB und Deploy →
+Merge; Doku-PR mit einer Code-Datei → kein Merge). Rot-Nachweis
+08.10.2026: gegen die Skripte von main vor diesem PR 24 von 85 Prüfungen
+rot, genau die neuen Verhalten; gegen die neuen Skripte 85 grün. `packages/db/src/workflow-wachen.test.ts`
 prüft die Workflow-Regeln namentlich (gebundene DB-Schritte als feste Liste,
 damit ein neuer DB-Schritt ohne Bindung auffällt).
 

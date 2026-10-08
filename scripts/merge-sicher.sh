@@ -21,6 +21,7 @@ if [[ -z "$PR" || -z "$SHA" || -z "$BETREFF" ]]; then
   exit 2
 fi
 REPO=$(gh repo view --json nameWithOwner --jq .nameWithOwner)
+HIER="$(cd "$(dirname "$0")" && pwd)"
 
 echo "==> PR #$PR: warte auf MERGEABLE/CLEAN (alle 10 s, max. 5 min)"
 deadline=$((SECONDS + 300))
@@ -60,8 +61,30 @@ echo "    $anzahl Lauf/Laeufe (je Name der juengste): $laeufe"
 if (( anzahl == 0 )); then
   echo "ABBRUCH: kein Check-Lauf am Head — kein Ergebnis ist kein Ergebnis. Nicht gemergt." >&2; exit 1
 fi
+# Pflicht-Checks (Eric 08.10.2026, 1b): ist der juengste Lauf eines
+# Pflicht-Checks cancelled, skipped oder fehlt er, ist er nicht gruen. Ein
+# reiner Doku-PR (scripts/nur-doku-muster.txt — dasselbe Muster liest
+# deploy.yml) laeuft ohne Wegwerf-DB und Deploy; dort sind nur ziel-wache und
+# typen-und-tests Pflicht. Alle uebrigen Checks: nur success oder skipped.
+muster=$(grep -v '^#' "$HIER/nur-doku-muster.txt" | head -1)
+dateien=$(gh api --paginate "repos/$REPO/pulls/$PR/files" --jq '.[].filename')
+anzahl_dateien=$(printf '%s\n' "$dateien" | grep -c . || true)
+doku=$(printf '%s\n' "$dateien" | grep -cE "$muster" || true)
+pflicht="ziel-wache typen-und-tests wegwerf-db deploy"
+if (( anzahl_dateien > 0 && doku == anzahl_dateien )); then
+  pflicht="ziel-wache typen-und-tests"
+  echo "    reiner Doku-PR ($anzahl_dateien Datei/en): Pflicht-Checks nur $pflicht"
+fi
+fehlend=""
+for name in $pflicht; do
+  stand=$(jq -r --arg n "$name" '[.[] | select(.name == $n)] | first | if . == null then "fehlt" else "\(.status)/\(.conclusion)" end' <<<"$checks")
+  [[ "$stand" == "completed/success" ]] || fehlend="$fehlend $name=$stand"
+done
+if [[ -n "$fehlend" ]]; then
+  echo "ABBRUCH: Pflicht-Checks nicht gruen:$fehlend. Nicht gemergt." >&2; exit 1
+fi
 offen=$(jq -r '[.[] | select(.status != "completed")] | length' <<<"$checks")
-rot=$(jq -r '[.[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | map(.name) | join(", ")' <<<"$checks")
+rot=$(jq -r '[.[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped"))] | map(.name) | join(", ")' <<<"$checks")
 if (( offen > 0 )); then
   echo "ABBRUCH: $offen Lauf/Laeufe noch nicht abgeschlossen. Nicht gemergt." >&2; exit 1
 fi
