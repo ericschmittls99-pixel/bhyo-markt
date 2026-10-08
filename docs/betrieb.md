@@ -352,18 +352,22 @@ Pfadfilter auf `packages/db` würde Schutz verlieren):
 
 „Reine Doku" heißt: jede geänderte Datei passt auf das Muster in
 `scripts/nur-doku-muster.txt` (`*.md`, `docs/**`, Screenshots) — eine
-Datei, gelesen von `ziel-wache` (per API am PR-Head, ohne Checkout) und
-von `merge-sicher.sh`. `ziel-wache` wertet nur Pull Requests; main und
-Dispatch sind nie „nur Doku"; ist Vergleich oder Muster nicht lesbar, gilt
-der volle Lauf (fail closed). Der Deploy-Job verlangt die Wegwerf-DB
+Datei, gelesen von `ziel-wache` und von `merge-sicher.sh` jeweils **von der
+Basis des PR (main) über die API**, nie vom PR-Head und nie aus dem lokalen
+Checkout (Folge-PR, Eric 08.10.2026: sonst könnte ein PR seine eigene
+Einstufung ändern bzw. ein veralteter Checkout entscheiden). Ändert ein PR
+die Musterdatei selbst, ist er ein Code-PR. `ziel-wache` wertet nur Pull
+Requests; main und Dispatch sind nie „nur Doku"; ist Vergleich oder Muster
+nicht lesbar, gilt der volle Lauf (fail closed). Der Deploy-Job verlangt die Wegwerf-DB
 ausdrücklich „grün oder übersprungen" — übersprungen ist sie nur bei
 Entwürfen und Doku-PRs, und beide deployen ohnehin nicht.
 
 **Pflicht-Checks beim Merge** (`merge-sicher.sh`, Eric 08.10.2026): je
 Check-Name zählt der jüngste Lauf am Head; ist er `cancelled`, `skipped`
 oder fehlt er, ist der Check nicht grün. Pflicht sind `ziel-wache`,
-`typen-und-tests`, `wegwerf-db`, `deploy`; bei einem reinen Doku-PR (gleiches
-Muster, Dateien aus `pulls/<nr>/files`) nur die ersten beiden. Alle übrigen
+`typen-und-tests`, `wegwerf-db`, `deploy`; bei einem reinen Doku-PR (Muster
+von der Basis per API, Dateien aus `pulls/<nr>/files`, Musterdatei selbst
+nicht geändert) nur die ersten beiden. Alle übrigen
 Checks (auf PRs `schema-gate`, `lese-diagnose` übersprungen) dürfen nur
 `success` oder `skipped` sein; `neutral` zählt nicht mehr als grün.
 
@@ -435,6 +439,6 @@ den Läufen vom 08.10.2026 vor diesem PR):
 | Lauf | vorher | nachher |
 |---|---|---|
 | Entwurf-Push (#199, 37791507663) | 3 Jobs, 2,7 min (typen 1,8 · wegwerf 0,8 · ziel 0,1) | 2 Jobs, 1,9 min (typen 1,9 · ziel 0,0; 37794498659, Wegwerf-DB übersprungen trotz Workflow-Änderung, weil Entwurf) |
-| Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | nach „bereit" dieses PRs nachtragen |
-| main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | nach dem Merge nachtragen |
+| Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | 4 Jobs, 7,4 min (deploy 4,3 · typen 2,2 · wegwerf 0,8 · ziel 0,1; #206 bereit, 37809538530) — unverändert voller Lauf, Unterschied ist Laufzeitrauschen |
+| main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | 6 Jobs, 5,8 min (#206 gemergt, 37810547915) — main unverändert voller Lauf |
 | main-Merge mit Migration + migrate-production | 6 Jobs ≈ 5,9 min + 2 Jobs 0,9 min; Gate wartete bis zur Migration | nach der nächsten Migrations-Freigabe nachtragen |
