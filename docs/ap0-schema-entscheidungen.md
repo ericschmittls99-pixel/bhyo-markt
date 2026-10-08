@@ -2093,7 +2093,7 @@ Ablauf-Hinweise (letzter Prüfer, sonst alle Prüfer/Admins). Pille „frei ab /
 frei seit TT.MM.JJJJ" in Liste und Detail, Filterwert „Wird frei" in der
 Verfügbarkeits-Facette, keine Karte.
 
-**Umsetzung (Migration 0051):** Enum-Wert `biomasse_wird_frei`, Spalte
+**Umsetzung (Migration 0052; ursprünglich 0051, umnummeriert am 08.10.2026, weil 0051 an E72 ging — neues Journal-`when`):** Enum-Wert `biomasse_wird_frei`, Spalte
 `inbox_eintrag.stufe` (CHECK: genau bei diesem Typ gesetzt), Index
 `inbox_eintrag_wird_frei_uidx` (Empfänger, Strom, frei_ab, Stufe) über alle
 Zustände, Urheber-CHECK erweitert. Regel in `lib/wird-frei.ts` (freiAbAus,
