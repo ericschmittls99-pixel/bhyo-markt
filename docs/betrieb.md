@@ -199,11 +199,10 @@ Patch-ID oder Squash-Baum ≠ Basis-Baum → kein Push, Head bleibt. Rot-Nachwei
 Verhalten; gegen die neuen Skripte 47 grün. Läuft mit bash 3.2 (macOS) und 5
 (CI), braucht `jq` und git ≥ 2.38 (`merge-tree --write-tree`).
 
-**Warteschlange:** `deploy.yml` bricht nur noch überholte PR-Läufe ab
-(`cancel-in-progress` nur bei `synchronize`); main-Deploys laufen nacheinander.
-Das `schema-gate` wartet bis zu 20 Minuten auf die Production-Migration (alle
-30 s), statt rot zu enden; nur „DB nicht erreichbar" bleibt sofort rot.
-`migrate-production.yml` löst deshalb keinen zweiten Deploy mehr aus.
+**Warteschlange** (überholt durch die CI-Diät vom 08.10.2026, siehe unten):
+`deploy.yml` brach nur überholte PR-Läufe ab (`cancel-in-progress` nur bei
+`synchronize`); das `schema-gate` wartete bis zu 20 Minuten auf die
+Production-Migration; `migrate-production.yml` löste keinen zweiten Deploy aus.
 
 ## Läufe-Wache, krumme Minuten, Label preview-migrieren, Migrations-Runner (Betriebs-PR 2, 05.10.2026)
 
@@ -331,3 +330,82 @@ daraus folgt:
   ein kurz gepushter Merge-Zwischenstand mit Konfliktmarkern (#201), weil
   der Pipe-Status den Abbruch des Auflösungs-Schritts verdeckte.
 
+---
+
+## CI-Diät (Betriebs-PR 3, 08.10.2026)
+
+Anlass: Mit dem öffentlichen Repo (E73) zählt jede Actions-Minute, und die
+Läufe liefen für jeden Push gleich voll — Entwurf oder bereit, Doku oder
+Migration. Entscheidung Eric 08.10.2026: weniger Jobs ohne Schutzverlust.
+
+**Was wann läuft** (alles in `deploy.yml`, gesteuert vom Job `ziel-wache`,
+der die geänderten Dateien über die Vergleichs-API `compare/<basis>...<kopf>`
+bestimmt, ohne Checkout; ohne Vergleichsbasis gilt „alles geändert",
+fail closed):
+
+| Push | Jobs | Inhalt |
+|---|---|---|
+| Entwurf-PR | ziel-wache, typen-und-tests | Typen, Unit-Tests, Skript-Wächter, Konfliktmarker. Keine Wegwerf-DB, kein Preview-Deploy, keine DB-Proben. |
+| Entwurf-PR, nur Doku (`docs/`, `*.md`) | ziel-wache, typen-und-tests | nur der Konfliktmarker-Check (kein Install, keine Typen, keine Tests) |
+| PR „bereit" | + wegwerf-db (nur bei DB-Änderung), deploy | Preview-Deploy; die 18 DB-Checks und -Proben im Deploy-Job nur bei DB-Änderung |
+| main | + schema-gate, lese-diagnose | unverändert, Wegwerf-DB und DB-Checks nur bei DB-Änderung |
+
+„DB-Änderung" = Dateien unter `packages/db/`, `*.sql`, Probe-Skripte
+(`apps/web/scripts/*probe*`), der Job-SQL-Spiegel
+`apps/web/lib/inbox/hinweise.ts` oder die Workflows selbst. Der Deploy-Job
+verlangt die Wegwerf-DB ausdrücklich „grün oder übersprungen" (`skipped`) —
+ein Fehlschlag sperrt weiter.
+
+**Überholte Läufe:** `cancel-in-progress` gilt für alle PR-Ereignisse
+desselben Branches (ein zweiter Push bricht den ersten Lauf ab); main,
+migrate-production, Backup, Restore und job-wache werden nie abgebrochen.
+`merge-sicher.sh` wertet deshalb je Check-Namen nur den jüngsten Lauf am
+Head; ein älterer „cancelled"-Check sperrt den Merge nicht mehr, ein jüngerer
+roter weiterhin. `freigabe.sh` startet einen abgebrochenen Lauf am Head nur
+neu, wenn kein jüngerer Lauf grün ist.
+
+**Gate und Migration:** Das `schema-gate` wartet nicht mehr. Liegt Production
+hinter dem Journal, endet der Push-Lauf von main sofort rot mit der Meldung,
+`migrate-production.yml` zu starten. `migrate-production.yml` (weiterhin
+Warteschlange, nie abgebrochen) löst nach erfolgreicher Migration selbst den
+Deploy von main aus (`gh workflow run deploy.yml --ref main`, dafür
+`actions: write`). Ein roter Push-Lauf von main ist im Migrationsfall also
+erwartet; der Dispatch-Lauf trägt das Ergebnis. `freigabe.sh` e) wartet bei
+neuer Migration im PR auf diesen Dispatch-Lauf am Squash-Commit, sonst wie
+bisher auf den Push-Lauf.
+
+**Netzfehler in freigabe.sh:** Am 08.10.2026 brach Schritt e) zweimal an
+„connection reset" bzw. „i/o timeout" ab, nachdem der Merge längst durch war.
+Jetzt wiederholt `gh_wiederholt` jede Abfrage bis zu dreimal mit 20 s Pause
+(nur bei Netzfehlermustern; ein roter Lauf wird nicht wiederholt).
+
+**Wächter-Tests:** `scripts/tests/freigabe-test.sh` hat fünf neue Fälle
+(Netzfehler zweimal wiederholt → FERTIG; Migration im PR → migrate-production
+ausgelöst, Push-Lauf rot ist erwartet, Dispatch-Lauf abgewartet, kein
+Neustart; ohne Dispatch-Lauf → Abbruch; abgebrochener Lauf am Head mit
+jüngerem grünen → kein Neustart, Checks je Name nur der jüngste, Merge;
+jüngster Check rot → kein Merge). Rot-Nachweis 08.10.2026: gegen die Skripte
+von main vor diesem PR 11 von 70 Prüfungen rot, genau die neuen Verhalten;
+gegen die neuen Skripte 70 grün. `packages/db/src/workflow-wachen.test.ts`
+prüft die Workflow-Regeln namentlich (gebundene DB-Schritte als feste Liste,
+damit ein neuer DB-Schritt ohne Bindung auffällt).
+
+**Leitregel Probelauf (Eric 08.10.2026):** Workflow-Schritte, die nur auf
+main oder in geschützten Environments laufen (Maskierung, Secret-Prüfungen,
+Gate, Migration), bekommen im PR einen Probelauf mit Platzhalterwerten im
+gleichen Format wie die echten Werte — der Schritt selbst, nicht eine Kopie
+seiner Logik. Ein Fehler in einem Maskierungs- oder Secret-Schritt darf nie
+Eingabewerte ausgeben (Anlass: der URL-Parser im ersten Maskierungsschritt
+druckte am 08.10.2026 seine Eingabe in die Fehlermeldung, #205). Umgesetzt für
+die Maskierung: `log-maske.ts` läuft in den Unit-Tests mit Platzhalter-URLs
+und wirft nie.
+
+**Messung** (Jobs und Minuten je Lauf, Summe der Job-Laufzeiten; vorher aus
+den Läufen vom 08.10.2026 vor diesem PR):
+
+| Lauf | vorher | nachher |
+|---|---|---|
+| Entwurf-Push (#199, 37791507663) | 3 Jobs, 2,7 min (typen 1,8 · wegwerf 0,8 · ziel 0,1) | NACHHER_ENTWURF |
+| Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | NACHHER_BEREIT |
+| main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | NACHHER_MAIN |
+| main-Merge mit Migration + migrate-production | 6 Jobs ≈ 5,9 min + 2 Jobs 0,9 min; Gate wartete bis zur Migration | nach der nächsten Migrations-Freigabe nachtragen |

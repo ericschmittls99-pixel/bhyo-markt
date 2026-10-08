@@ -29,15 +29,16 @@ on:
         required: false
         default: ""
 
-# Pro Ziel-Ref nur ein Deploy gleichzeitig. Abgebrochen wird NUR ein ueberholter
-# PR-Lauf (neuer Push = synchronize); alles andere wartet in der Schlange:
-# main-Deploys laufen nacheinander (Betriebs-PR, Eric 05.10.2026), und
-# ready_for_review bricht den Push-Lauf desselben Heads nicht mehr ab — der
-# hinterliess einen „cancelled"-Check am Head, an dem das Merge-Skript scheiterte
-# (dreimal am 05.10.2026).
+# Pro Ziel-Ref nur ein Deploy gleichzeitig. CI-Diaet (Betriebs-PR 3, Eric
+# 08.10.2026): JEDER ueberholte PR-Lauf desselben Branches wird abgebrochen
+# (neuer Push, „bereit", Label) — keine aktive Wartezeit auf ueberholte Laeufe.
+# main-Deploys laufen weiter nacheinander (nie abgebrochen). Der „cancelled"-
+# Check, den ein abgebrochener Lauf am Head hinterlaesst, stoert den Merge nicht
+# mehr: merge-sicher.sh wertet je Check-Namen nur den juengsten Lauf (Test in
+# scripts/tests/freigabe-test.sh).
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Review Eric (24.09.2026): Das Deploy-Ziel hing allein am EVENT —
@@ -53,6 +54,11 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      # CI-Diaet: was hat sich gegenueber der Basis geaendert? Steuert, welche
+      # Jobs und Schritte laufen (siehe aenderungen-Schritt unten).
+      db: ${{ steps.aenderungen.outputs.db }}
+      nur_doku: ${{ steps.aenderungen.outputs.nur_doku }}
     steps:
       - name: Deploy-Ziel gegen den Ref pruefen
         env:
@@ -68,6 +74,37 @@ jobs:
             exit 1
           fi
           echo "ZIELWACHE event=$EVENT ref=$REF -> Production (zulaessig)"
+      # CI-Diaet (Betriebs-PR 3, Eric 08.10.2026): Geaenderte Dateien ueber die
+      # Vergleichs-API (kein Checkout). db=true, wenn packages/db, Migrationen,
+      # SQL, Probe-Skripte, der Job-SQL-Spiegel oder die Workflows selbst
+      # betroffen sind — dann laufen Wegwerf-DB und DB-Proben. nur_doku=true,
+      # wenn ausschliesslich docs/ und Markdown betroffen sind — dann laeuft nur
+      # der Konfliktmarker-Check. Ohne Vergleichsbasis (Dispatch, erster Push)
+      # gilt: alles aendert sich (fail closed).
+      - name: Geaenderte Dateien bestimmen
+        id: aenderungen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASIS: ${{ github.event.pull_request.base.sha || github.event.before }}
+          KOPF: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          db=true; nur_doku=false
+          if [ -n "$BASIS" ] && [ "$BASIS" != "0000000000000000000000000000000000000000" ]; then
+            if dateien=$(gh api --paginate "repos/${{ github.repository }}/compare/$BASIS...$KOPF" --jq '.files[].filename' 2>/dev/null); then
+              anzahl=$(printf '%s\n' "$dateien" | grep -c . || true)
+              db_treffer=$(printf '%s\n' "$dateien" | grep -cE '^packages/db/|\.sql$|^apps/web/scripts/.*probe|^apps/web/lib/inbox/hinweise\.ts$|^\.github/workflows/' || true)
+              doku_treffer=$(printf '%s\n' "$dateien" | grep -cE '^docs/|\.md$' || true)
+              [ "$db_treffer" -gt 0 ] || db=false
+              if [ "$anzahl" -gt 0 ] && [ "$doku_treffer" -eq "$anzahl" ]; then nur_doku=true; fi
+              echo "AENDERUNGEN dateien=$anzahl db=$db nur_doku=$nur_doku"
+            else
+              echo "AENDERUNGEN Vergleich nicht lesbar — alles gilt als geaendert"
+            fi
+          else
+            echo "AENDERUNGEN keine Vergleichsbasis — alles gilt als geaendert"
+          fi
+          echo "db=$db" >> "$GITHUB_OUTPUT"
+          echo "nur_doku=$nur_doku" >> "$GITHUB_OUTPUT"
 
   # E21 (22.09.2026): Vorab-Check statt Auto-Migration — dieser Workflow
   # migriert Production NIE selbst. Migrationen laufen ausschliesslich ueber
@@ -89,38 +126,52 @@ jobs:
   # WEDER Preview NOCH Production. Bewusst eng: nur Typen und Tests, kein
   # Lint, keine Formatierung, keine Coverage.
   typen-und-tests:
+    needs: [ziel-wache]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    # CI-Diaet: reine Doku-Aenderungen (nur docs/ und Markdown) laufen nur durch
+    # den Konfliktmarker-Check — kein Install, keine Typen, keine Tests.
+    env:
+      VOLL: ${{ needs.ziel-wache.outputs.nur_doku != 'true' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
+        if: env.VOLL == 'true'
       - uses: actions/setup-node@v7
+        if: env.VOLL == 'true'
         with:
           node-version: 22
           cache: pnpm
       - name: Install
+        if: env.VOLL == 'true'
         run: pnpm install --frozen-lockfile
       # Getrennte Schritte, damit im Log sofort sichtbar ist, was bricht.
       - name: Typen — apps/web
+        if: env.VOLL == 'true'
         run: pnpm --filter web exec tsc --noEmit
       - name: Typen — packages/db
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db exec tsc --noEmit
       - name: Tests — apps/web
+        if: env.VOLL == 'true'
         run: pnpm --filter web test -- --run
       - name: Tests — packages/db
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db test
       # F8/E30, E42: rechte-check — meldet jede Server-Action und jede
       # schreibende Route, die die Wache nicht mit einer Aktion der Matrix
       # aufruft. Laeuft zusaetzlich als Vitest-Fall; hier eigens, damit die
       # Luecke im Log als eigene Zeile mit Dateibezug erscheint.
       - name: rechte-check (Schreibpfade)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/rechte-check.ts
 
       # AP2.2 PR a: eine Schreibstelle fuer das Ereignisprotokoll, jeder
       # Schreibpfad protokolliert mit einer Art (scripts/protokoll-check.ts).
       - name: protokoll-check (Ereignisprotokoll)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/protokoll-check.ts
 
@@ -128,11 +179,13 @@ jobs:
       # eingestuft (fachlich / redaktionell / technisch) — eine neue Spalte
       # ohne Einstufung ist rot (scripts/feld-check.ts).
       - name: feld-check (Feldeinstufung)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/feld-check.ts
 
       # AP2.2 PR b: inbox_eintrag wird nur in lib/inbox geschrieben.
       - name: inbox-check (Inbox-Schreibstelle)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/inbox-check.ts
 
@@ -140,6 +193,7 @@ jobs:
       # inbox_typ (und der Typ selbst) werden nie umbenannt, sonst waeren
       # Index-Praedikat und ON CONFLICT still falsch. Liste im Skript.
       - name: enum-rename-check (IMMUTABLE-Enums)
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db enum-rename-check
 
       # Waechter fuer das Freigabe-Skript (Eric 06.10.2026: bash -n reicht
@@ -147,6 +201,7 @@ jobs:
       # Bare-Repo, Faelle fuer (e) Neustart und (f) Angleichen, siehe
       # docs/betrieb.md. Dauert ~1 min (das Skript wartet nach dem Neustart).
       - name: freigabe-test (Waechter freigabe.sh)
+        if: env.VOLL == 'true'
         run: scripts/tests/freigabe-test.sh
 
       # AP2.7 PR g (Eric 07.10.2026): Konfliktmarker (<<<<<<<, =======, >>>>>>>
@@ -154,6 +209,7 @@ jobs:
       # Angleichen von E68 PR 1 blieben welche in zwei Doku-Dateien stehen.
       # Rot-Nachweis: scripts/tests/konfliktmarker-test.sh (Wegwerf-Repo).
       - name: konfliktmarker-test (Rot-Nachweis des Waechters)
+        if: env.VOLL == 'true'
         run: scripts/tests/konfliktmarker-test.sh
       - name: konfliktmarker-check (versionierte Dateien)
         run: scripts/konfliktmarker-check.sh
@@ -164,6 +220,13 @@ jobs:
   # Import-Schritt (ohne Sollwerte) und der Funktions-Check (Paritaet SQL/TS,
   # Rot-Faelle). Braucht keine Secrets; nichts bleibt liegen.
   wegwerf-db:
+    needs: [ziel-wache]
+    # CI-Diaet: nur bei DB-Aenderungen (packages/db, Migrationen, SQL, Proben,
+    # Workflows) und nie fuer Entwuerfe — die laufen nur durch Typen, Tests und
+    # Konfliktmarker; der volle Lauf kommt mit „bereit".
+    if: >-
+      needs.ziel-wache.outputs.db == 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -230,26 +293,21 @@ jobs:
       # Der Notausgang greift nur hier: Bei einem Push existiert der Input
       # nicht (leer), das Gate laeuft also IMMER. Nur ein manueller
       # workflow_dispatch mit woertlich "ja" ueberspringt die Pruefung.
-      # Warteschlange statt Rot (Betriebs-PR, 05.10.2026): Nach dem Merge eines
-      # Migrations-PR startet scripts/freigabe.sh sofort migrate-production.yml.
-      # Das Gate wartet bis zu 20 Minuten darauf, dass Production den Stand des
-      # Journals erreicht (Exit 1 = DB zurueck -> erneut pruefen), statt den
-      # Push-Lauf rot zu beenden und einen zweiten Deploy per Dispatch zu
-      # brauchen. Exit 2 (DB nicht erreichbar) bleibt sofort rot — andere
-      # Fehlerklasse.
-      - name: Schema-Stand pruefen (read-only, wartet auf die Production-Migration)
+      # CI-Diaet (Betriebs-PR 3, Eric 08.10.2026): kein aktives Warten mehr.
+      # Liegt Production hinter dem Journal, bricht das Gate sofort mit klarer
+      # Meldung ab (nicht gruen, kein Deploy). migrate-production.yml startet
+      # nach seinem Erfolg den Deploy von main selbst (Dispatch); freigabe.sh
+      # wartet in diesem Fall auf den Dispatch-Lauf. Exit 2 (DB nicht
+      # erreichbar) bleibt eine andere Fehlerklasse.
+      - name: Schema-Stand pruefen (read-only)
         if: inputs.gate_umgehen != 'ja'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: |
-          for versuch in $(seq 1 40); do
-            if pnpm --filter @bhyo/db schema-gate; then exit 0; fi
-            rc=$?
-            if [ "$rc" = "2" ]; then echo "::error::Production-DB nicht erreichbar — kein Schema-Befund."; exit 2; fi
-            echo "GATE wartet (Versuch $versuch/40): Production liegt hinter dem Journal — migrate-production.yml ausstehend."
-            sleep 30
-          done
-          echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal. migrate-production.yml (bestaetigung=production) starten, dann diesen Lauf erneut starten."
+          if pnpm --filter @bhyo/db schema-gate; then exit 0; fi
+          rc=$?
+          if [ "$rc" = "2" ]; then echo "::error::Production-DB nicht erreichbar — kein Schema-Befund."; exit 2; fi
+          echo "::error::schema-gate: Production liegt hinter dem Journal — Migration ausstehend. migrate-production.yml (bestaetigung=production) starten; es loest den Deploy von main danach selbst aus. Dieser Lauf bleibt rot (kein Deploy)."
           exit 1
       - name: "NOTAUSGANG aktiv: Gate uebersprungen"
         if: inputs.gate_umgehen == 'ja'
@@ -266,10 +324,14 @@ jobs:
     # schema-gate gruen ist.
     # Entwuerfe (draft) deployen NICHT auf die Preview und migrieren sie nicht
     # (Regel Eric 01.10.2026) — sie laufen nur durch typen-und-tests.
+    # CI-Diaet: die Wegwerf-DB zaehlt ausdruecklich (gruen oder wegen fehlender
+    # DB-Aenderung uebersprungen) — vorher hing sie nur in `needs`, und mit
+    # always() haette ein roter Wegwerf-Lauf den Deploy nicht aufgehalten.
     if: >-
       always() && !cancelled() &&
       needs.typen-und-tests.result == 'success' &&
       needs.ziel-wache.result == 'success' &&
+      (needs.wegwerf-db.result == 'success' || needs.wegwerf-db.result == 'skipped') &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
@@ -320,30 +382,8 @@ jobs:
           URL_1: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
 
-      # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
-      # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
-      # werden muessen. Production migriert dieser Workflow NIE — nur der
-      # manuell ausgeloeste Workflow migrate-production.yml (E21). Der direkte
-      # Neon-Connection-String kommt aus dem Repo-Secret, nie aus dem Repo.
-      # F0b PR D: Archiv-Waechter — sichert die befuellten E7-Altfelder als
-      # Workflow-Artefakt, BEVOR 0017 sie droppt (auf der Preview sind das
-      # die "Test:"-Zeilen; gewollt und als Artefakt nachvollziehbar).
-      # Defensiv: nach dem DROP entfaellt er mit Hinweis.
-      - name: Altfelder archivieren (Waechter 0017)
-        if: github.event_name == 'pull_request'
-        working-directory: packages/db
-        env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: |
-          pnpm run archiv-altfelder
-          test -f altfelder-archiv.json || { echo '::error::Archivdatei fehlt — kein DROP.'; exit 1; }
-
-      - name: Altfelder-Archiv hochladen
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: altfelder-archiv-preview
-          path: packages/db/altfelder-archiv.json
+      # CI-Diaet: der Archiv-Waechter 0017 (Altfelder) entfaellt hier — die
+      # Spalten sind seit 0017 weg, der Schritt lud ein leeres Artefakt hoch.
 
       # E33 Schritt 3: Vorpruefung VOR der Migration — ein Beleg der oberen
       # vier Typen ohne gueltig_bis bricht hier mit Belegnummern ab, statt
@@ -351,7 +391,7 @@ jobs:
       # schreibt keinen Fachwert). Nach 0022 weist derselbe Schritt nach,
       # dass der CHECK greift.
       - name: Fristen-Vorpruefung (gueltig_bis, E33)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db beleg-frist-check
@@ -372,7 +412,7 @@ jobs:
       # gegen deriveQualitaet ueber alle Ankerfaelle, gegen die echte
       # Preview-DB (kein Mock). Abweichung bricht den Deploy ab.
       - name: Qualitaets-Paritaet (DB vs. TS)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web exec tsx scripts/qualitaet-paritaet.ts
@@ -381,7 +421,7 @@ jobs:
       # Grenzpunkt (ST_Covers + DISTINCT ON), Rheingrenze RP/BW,
       # Eindeutigkeit der View. Gegen die echte Preview-DB.
       - name: Verwaltungs-Check (strom_verwaltung)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db verwaltung-check
@@ -390,7 +430,7 @@ jobs:
       # Unveraenderlichkeits-Trigger in beide Richtungen (gleicher Wert geht
       # durch, echte Aenderung scheitert). Gegen die echte Preview-DB.
       - name: Belegnummer-Check (beleg_nr)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db beleg-nr-check
@@ -399,7 +439,7 @@ jobs:
       # ohne Admin heisst: zugesperrt), Kleinschreibung der E-Mails, und der
       # CHECK muss wirklich greifen. Gegen die echte Preview-DB.
       - name: Benutzer-Check (benutzer)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db benutzer-check
@@ -408,7 +448,7 @@ jobs:
       # "beide NULL oder beide gesetzt" (muss greifen), strom_zuweisung mit
       # CHECK "genau ein Strom" (muss greifen) und partiellen Unique-Indizes.
       - name: Sperre-Check (Sperren, Zuweisungen)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db sperre-check
@@ -416,7 +456,7 @@ jobs:
       # AP2.2 PR a: Ereignisprotokoll — Enum/Spalten/CHECK stehen, der CHECK
       # greift (Zeile ohne Urheber abgewiesen), Rollback hinterlaesst nichts.
       - name: Protokoll-Check (Ereignisprotokoll)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db protokoll-check
@@ -424,7 +464,7 @@ jobs:
       # AP2.2 PR b: Inbox — Strukturen stehen, Unique-Index und CHECK greifen,
       # Buendelung per Upsert (anzahl + 1, ungelesen; nach erledigt neuer Eintrag).
       - name: Inbox-Check (Inbox)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db inbox-check
@@ -433,7 +473,7 @@ jobs:
       # greifen (nie rueckwirkend, unveraenderlich, Ruecknahme nur kuenftig),
       # Wirksamkeit ab Datum, kein Standardwert.
       - name: Parameter-Check (Parameter mit Verlauf)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db parameter-check
@@ -444,7 +484,7 @@ jobs:
       # unbekannten Sektor, der Fremdschluessel greift, Akteur-Anlage mit/ohne
       # Sektor geht durch, ein Akteur an einem deaktivierten Sektor bleibt gueltig.
       - name: Sektor-Check (sektor)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db sektor-check
@@ -455,7 +495,7 @@ jobs:
       # Typ-Frist zaehlt ab dem Prueftag, gueltig_bis gilt fuer die oberen
       # vier Typen, die Markierung wertet die Qualitaet ab (D3).
       - name: Verifikation-Check (strom_verifikation)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db verifikation-check
@@ -464,7 +504,7 @@ jobs:
       # Laengengrenzen, Hinweis-Index und die DSGVO-Probe (Name nach dem
       # Loeschen in keiner Spalte mehr auffindbar). Zurueckgerollt.
       - name: Kontaktperson-Check (kontaktperson)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db kontaktperson-check
@@ -473,7 +513,7 @@ jobs:
       # Personen-Spalte in den Import-Tabellen, CHECK gegen Personen-Schluessel
       # in import_zeile.felder (Rot-Nachweis im Check selbst, zurueckgerollt).
       - name: import-check (Import-Datenmodell, E67)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db import-check
@@ -482,7 +522,7 @@ jobs:
       # veraendert nichts (Zaehler vorher = nachher nach absichtlichem Rollback)
       # und ein gescheiterter Savepoint laesst die uebrigen Zeilen durch.
       - name: probelauf-rollback-check (Rollback und Savepoint, E67)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db probelauf-rollback-check
@@ -492,7 +532,7 @@ jobs:
       # Fixtures, Trigger-Ausnahme nur mit Zusammenfuehrungs-Ereignis, Loeschen
       # eines Akteurs mit Strom per FK abgewiesen. Zurueckgerollt.
       - name: Dubletten-Check (akteur_name_norm, keine Dublette, Trigger)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db dubletten-check
@@ -502,7 +542,7 @@ jobs:
       # Stichtag, Empfaenger-Fallback, D3/ohne Beleg ohne Hinweis. Eine
       # zurueckgerollte Transaktion, nichts bleibt liegen.
       - name: Job-Probe (Verifikations-Hinweise)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web exec tsx scripts/job-probe.ts
@@ -512,7 +552,7 @@ jobs:
       # Seed-Insert) geht fuer alle Typen durch, mit der Stufe der Matrix.
       # Zurueckgerollt, nichts bleibt liegen.
       - name: Beleg-Check (beleg)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db beleg-check
@@ -521,7 +561,7 @@ jobs:
       # 0 sein (gespeicherte Stufe folgt der Matrix); GUELTIG_BIS_FEHLT zeigt
       # den Rueckstand fuer Schritt 3. Nur lesen, informativ.
       - name: Abweichungsliste Belege (Preview, nur lesen)
-        if: github.event_name == 'pull_request'
+        if: github.event_name == 'pull_request' && needs.ziel-wache.outputs.db == 'true'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter @bhyo/db beleg-abweichung

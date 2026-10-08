@@ -13,6 +13,13 @@
 #
 #   (e) Push-Deploy von main: genau EIN Neustart, nur bei von GitHub
 #       abgebrochenem Lauf (Job cancelled); ein roter Check startet nichts neu.
+#   CI-Diaet (Betriebs-PR 3, 08.10.2026):
+#       Netzfehler bei gh nach dem Merge werden bis zu dreimal wiederholt
+#       (GH_PAUSE=0 im Test); eine Migration im PR laesst (e) auf den
+#       Dispatch-Lauf warten, den migrate-production ausloest (der Push-Lauf
+#       bleibt erwartet rot); ein abgebrochener Lauf am Head wird nicht neu
+#       gestartet, wenn ein juengerer gruen ist; merge-sicher.sh wertet je
+#       Check-Namen nur den juengsten Lauf.
 #   (f) Gestapelte PRs: in (a) auf main umgehaengt, danach angeglichen NUR
 #       durch Merge des Squash (zwei Eltern: alter Head, Squash), Patch-ID
 #       gegen den Basis-Baum gleich → Push. Abweichende Patch-ID oder nicht
@@ -86,7 +93,7 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
 freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE
   set +e
   mkdir -p "$T/bin" && ln -sf "$HIER/fake-gh.sh" "$T/bin/gh"
-  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" "$SKRIPTE/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
+  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE=0 "$SKRIPTE/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
   RC=$?
   set -e
   sed 's/^/      | /' <<<"$AUSGABE"
@@ -155,6 +162,72 @@ erwarte "Kind NICHT umgehaengt (kein PATCH)" bash -c "! grep -q '^api -X PATCH '
 erwarte "Kind-Base noch eltern" [ "$(jq -r '."11".baseRefName' "$D/prs.json")" = "eltern" ]
 erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
 erwarte "main unveraendert" [ "$(remote_ref main)" = "$MAIN_VORHER" ]
+aufraeumen
+
+# ---------------------------------------------------------------- CI-Diaet
+fall_aufbauen "(e) Netzfehler bei gh nach dem Merge: zweimal wiederholt, dann FERTIG"
+printf 'deploy_main=gruen\nnetzfehler=2\n' > "$D/szenario"
+freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "zwei Wiederholungen gemeldet" [ "$(grep -c 'Netzfehler bei gh run list' <<<"$AUSGABE")" -eq 2 ]
+erwarte "Attrappe hat genau zweimal gescheitert" [ "$(cat "$D/netz.zaehler")" -eq 2 ]
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(d/e) Migration im PR: migrate-production ausgeloest, Push-Lauf rot ist erwartet, Dispatch-Lauf traegt (e)"
+# Der Push-Lauf von main bleibt im Gate rot (Migration ausstehend) — das darf
+# die Freigabe nicht abbrechen; sie wartet auf den Dispatch-Lauf (9101).
+echo "deploy_main=rot" > "$D/szenario"
+jq '."10".files += [{filename: "packages/db/migrations/0099_test.sql", status: "added"}]' "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"
+freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "migrate-production ausgeloest" grep -qx 'workflow run migrate-production.yml --ref main -f bestaetigung=production' "$D/calls.log"
+erwarte "Push-Lauf als erwartet rot gemeldet" grep -q '^    Push-Lauf von main bleibt erwartet rot' <<<"$AUSGABE"
+erwarte "Dispatch-Lauf abgewartet (9101), nicht der Push-Lauf (9001)" bash -c "grep -qx 'run watch 9101 --exit-status' '$D/calls.log' && ! grep -q '^run watch 9001 ' '$D/calls.log'"
+erwarte "kein Neustart des roten Push-Laufs" [ "$(neustarts)" -eq 0 ]
+erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(d/e) Migration im PR ohne Dispatch-Lauf: Abbruch, kein Neustart"
+echo "deploy_main=rot" > "$D/szenario"
+jq '."10".files += [{filename: "packages/db/migrations/0099_test.sql", status: "added"}]' "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"
+# Die Attrappe legt den Dispatch-Lauf nur auf `workflow run` an; hier wird er
+# danach entfernt — wie ein Dispatch, der nie ankam. lauf_am_commit sucht bis
+# zu 2 Minuten (24 x 5 s), deshalb hier nur zwei Versuche ohne Pause.
+freigabe_laufen_ohne_dispatch() {
+  set +e
+  mkdir -p "$T/bin" && ln -sf "$HIER/fake-gh.sh" "$T/bin/gh"
+  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE=0 LAUF_SUCHE_VERSUCHE=2 LAUF_SUCHE_PAUSE=0 FAKE_GH_KEIN_DISPATCH=1 "$SKRIPTE/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
+  RC=$?
+  set -e
+  sed 's/^/      | /' <<<"$AUSGABE"
+}
+freigabe_laufen_ohne_dispatch
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "ABBRUCH Dispatch-Deploy nicht gefunden" grep -q '^ABBRUCH: Dispatch-Deploy fuer .* nicht gefunden' <<<"$AUSGABE"
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+aufraeumen
+
+fall_aufbauen "(a) abgebrochener Lauf am Head, juengerer gruen: kein Neustart, Checks je Name nur der juengste, Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+jq --arg e "$ELTERN" '. + [{databaseId: 99, workflow: "deploy.yml", commit: $e, event: "pull_request", conclusion: "cancelled", jobs: []}]' "$D/runs.json" > "$D/runs.neu" && mv "$D/runs.neu" "$D/runs.json"
+jq --arg e "$ELTERN" '.[$e] = [{id: 1, name: "typen-und-tests", status: "completed", conclusion: "cancelled"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "success"}]' "$D/checks.json" > "$D/checks.neu" && mv "$D/checks.neu" "$D/checks.json"
+freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "ueberholter Lauf gemeldet, kein Neustart" grep -q '^    abgebrochene Laeufe am Head (99) — ueberholt' <<<"$AUSGABE"
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+erwarte "gemergt" grep -q '^pr merge ' "$D/calls.log"
+erwarte "nur ein Check je Name gewertet" grep -q '^    1 Lauf/Laeufe (je Name der juengste): typen-und-tests=completed/success' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(a/b) Rot-Nachweis: juengster Check rot, aelterer gruen: kein Merge"
+echo "deploy_main=gruen" > "$D/szenario"
+jq --arg e "$ELTERN" '.[$e] = [{id: 1, name: "typen-und-tests", status: "completed", conclusion: "success"}, {id: 2, name: "typen-und-tests", status: "completed", conclusion: "failure"}]' "$D/checks.json" > "$D/checks.neu" && mv "$D/checks.neu" "$D/checks.json"
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "kein Merge" bash -c "! grep -q '^pr merge ' '$D/calls.log'"
+erwarte "rote Checks genannt" grep -q '^ABBRUCH: rote Checks am Head' <<<"$AUSGABE"
 aufraeumen
 
 # ---------------------------------------------------------------- (f)

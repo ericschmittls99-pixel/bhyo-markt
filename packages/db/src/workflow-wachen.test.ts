@@ -245,26 +245,25 @@ describe("Betriebs-PR (05.10.2026): Warteschlange statt Abbruch, Freigabe als ei
   const freigabe = readFileSync(new URL("../../../scripts/freigabe.sh", import.meta.url), "utf8");
   const mergeSicher = readFileSync(new URL("../../../scripts/merge-sicher.sh", import.meta.url), "utf8");
 
-  it("deploy.yml bricht nur ueberholte PR-Laeufe ab (synchronize); main und ready_for_review warten", () => {
-    expect(workflow).toMatch(/cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' && github\.event\.action == 'synchronize' \}\}/);
+  // CI-Diaet (Betriebs-PR 3, 08.10.2026): Die drei folgenden Pruefungen kehren
+  // den Stand vom 05.10. bewusst um — PR-Laeufe werden immer abgebrochen,
+  // migrate-production loest den Deploy aus, das Gate wartet nicht mehr.
+  it("deploy.yml bricht ueberholte PR-Laeufe desselben Branches ab (alle PR-Ereignisse); main wartet (CI-Diaet)", () => {
+    expect(workflow).toMatch(/group: deploy-\$\{\{ github\.ref \}\}\n\s+cancel-in-progress: \$\{\{ github\.event_name == 'pull_request' \}\}/);
     expect(workflow).not.toMatch(/cancel-in-progress: true/);
   });
 
-  it("migrate-production.yml ist eine Warteschlange und loest keinen zweiten Deploy mehr aus", () => {
+  it("migrate-production.yml bleibt Warteschlange und loest nach Erfolg den Deploy von main aus (CI-Diaet)", () => {
     expect(migrateWf).toMatch(/group: migrate-production\n\s+cancel-in-progress: false/);
-    expect(migrateWf).not.toContain("gh workflow run deploy.yml");
-    expect(migrateWf).not.toMatch(/actions: write/);
+    expect(migrateWf).toMatch(/- name: Deploy von main ausloesen\n(?:[^\n]*\n){0,4}\s+run: gh workflow run deploy\.yml --ref main/);
+    expect(migrateWf).toMatch(/actions: write/);
   });
 
-  it("das schema-gate wartet auf die Production-Migration, statt den Push-Lauf rot zu beenden; DB nicht erreichbar bleibt sofort rot", () => {
-    expect(workflow).toMatch(/for versuch in \$\(seq 1 40\); do\n\s+if pnpm --filter @bhyo\/db schema-gate; then exit 0; fi/);
-    expect(workflow).toMatch(/if \[ "\$rc" = "2" \]; then[^\n]*exit 2/);
-    expect(workflow).toMatch(/sleep 30/);
-  });
-
-  it("nach 20 Minuten (40 x 30 s) ohne Migration endet das Gate ROT mit klarer Meldung (Bedingung Eric 05.10.2026)", () => {
-    // Hinter der Schleife: Fehlermeldung mit Handlungsanweisung, dann exit 1 — kein stilles Weiterlaufen.
-    expect(workflow).toMatch(/done\n\s+echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal\. migrate-production\.yml \(bestaetigung=production\) starten, dann diesen Lauf erneut starten\."\n\s+exit 1\n/);
+  it("das schema-gate prueft genau einmal und endet bei Rueckstand sofort ROT mit Handlungsanweisung; DB nicht erreichbar bleibt Exit 2 (CI-Diaet)", () => {
+    expect(workflow).toMatch(/if pnpm --filter @bhyo\/db schema-gate; then exit 0; fi\n\s+rc=\$\?\n\s+if \[ "\$rc" = "2" \]; then[^\n]*exit 2/);
+    expect(workflow).toMatch(/echo "::error::schema-gate: Production liegt hinter dem Journal — Migration ausstehend\. migrate-production\.yml \(bestaetigung=production\) starten; es loest den Deploy von main danach selbst aus\. Dieser Lauf bleibt rot \(kein Deploy\)\."\n\s+exit 1/);
+    expect(workflow).not.toMatch(/seq 1 40/);
+    expect(workflow).not.toMatch(/sleep 30/);
     // Der Deploy-Job haengt weiterhin am Gate-Ergebnis: rot = kein Deploy.
     expect(workflow).toMatch(/needs\.schema-gate\.result == 'success'/);
   });
@@ -339,10 +338,11 @@ describe("Betriebs-PR 2 (05.10.2026): Laeufe-Wache, krumme Minuten, Label previe
     expect(restore).toContain('cron: "41 3 * * 1"');
   });
 
-  it("die Preview wird nur mit dem Label preview-migrieren migriert; das Label loest den Lauf aus; DB-Checks laufen ohne Label", () => {
-    expect(workflow).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'preview-migrieren'\)/);
+  it("die Preview wird nur mit dem Label preview-migrieren migriert; das Label loest den Lauf aus; DB-Checks haengen nicht am Label (nur an der Aenderungserkennung, CI-Diaet)", () => {
+    expect(workflow).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\(github\.event\.pull_request\.labels\.\*\.name, 'preview-migrieren'\)\n/);
     expect(workflow).toMatch(/types: \[opened, synchronize, reopened, ready_for_review, labeled\]/);
-    expect(workflow).toMatch(/- name: Inbox-Check \(Inbox\)\n\s+if: github\.event_name == 'pull_request'\n/);
+    expect(workflow).toMatch(/- name: Inbox-Check \(Inbox\)\n\s+if: github\.event_name == 'pull_request' && needs\.ziel-wache\.outputs\.db == 'true'\n/);
+    expect(workflow).not.toMatch(/Inbox-Check \(Inbox\)\n\s+if:[^\n]*preview-migrieren/);
   });
 
   it("Migration laeuft ueberall ueber den Runner (pnpm run migrate / @bhyo/db migrate)", () => {
@@ -362,5 +362,102 @@ describe("Betriebs-Nachtrag (05.10.2026)", () => {
   it("freigabe.sh fasst beim Deploy-Log nach, statt ein noch nicht verfuegbares Log leer zu lassen", () => {
     // Kommentarzeilen zwischen „do" und dem Aufruf sind erlaubt (seit dem Leseweg-Filter, #188).
     expect(freigabe).toMatch(/for i in \$\(seq 1 6\); do\n(\s*#.*\n)*\s+if leseweg=\$\(gh run view "\$dep" --log/);
+  });
+});
+
+describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
+  const migrateWf = readFileSync(new URL("../../../.github/workflows/migrate-production.yml", import.meta.url), "utf8");
+  const freigabe = readFileSync(new URL("../../../scripts/freigabe.sh", import.meta.url), "utf8");
+  const mergeSicher = readFileSync(new URL("../../../scripts/merge-sicher.sh", import.meta.url), "utf8");
+  const fakeGh = readFileSync(new URL("../../../scripts/tests/fake-gh.sh", import.meta.url), "utf8");
+  const freigabeTest = readFileSync(new URL("../../../scripts/tests/freigabe-test.sh", import.meta.url), "utf8");
+  const andere: Array<[string, string]> = ["migrate-production.yml", "backup.yml", "restore-woechentlich.yml", "job-wache.yml"].map((n) => [
+    n,
+    readFileSync(new URL(`../../../.github/workflows/${n}`, import.meta.url), "utf8"),
+  ]);
+
+  it("nur deploy.yml bricht Laeufe ab — Migration, Backup, Restore und Wache nie", () => {
+    for (const [name, wf] of andere) {
+      expect(wf, name).not.toMatch(/cancel-in-progress: (true|\$\{\{)/);
+    }
+  });
+
+  it("ziel-wache bestimmt die geaenderten Dateien ueber die Vergleichs-API und faellt ohne Basis auf „alles geaendert\" zurueck", () => {
+    expect(workflow).toMatch(/id: aenderungen\n/);
+    expect(workflow).toMatch(/db: \$\{\{ steps\.aenderungen\.outputs\.db \}\}\n\s+nur_doku: \$\{\{ steps\.aenderungen\.outputs\.nur_doku \}\}/);
+    expect(workflow).toMatch(/db=true; nur_doku=false\n/);
+    expect(workflow).toContain("compare/$BASIS...$KOPF");
+    // Was als DB-Aenderung gilt: packages/db, SQL, Probe-Skripte, der Job-SQL-Spiegel, die Workflows selbst.
+    expect(workflow).toContain("grep -cE '^packages/db/|\\.sql$|^apps/web/scripts/.*probe|^apps/web/lib/inbox/hinweise\\.ts$|^\\.github/workflows/'");
+    expect(workflow).toContain("grep -cE '^docs/|\\.md$'");
+  });
+
+  it("typen-und-tests: bei reiner Doku-Aenderung laeuft nur der Konfliktmarker-Check (jeder andere Schritt an VOLL gebunden)", () => {
+    const job = workflow.slice(workflow.indexOf("\n  typen-und-tests:"), workflow.indexOf("\n  wegwerf-db:"));
+    expect(job).toMatch(/VOLL: \$\{\{ needs\.ziel-wache\.outputs\.nur_doku != 'true' \}\}/);
+    const schritte = job.split(/\n      - (?=name:|uses:)/).slice(1);
+    const ungebunden = schritte.filter((st) => !/^\s*if: env\.VOLL == 'true'/m.test(st)).map((st) => st.split("\n")[0]);
+    expect(ungebunden).toEqual(["uses: actions/checkout@v7", "name: konfliktmarker-check (versionierte Dateien)"]);
+  });
+
+  it("wegwerf-db laeuft nur bei DB-Aenderungen und nie fuer Entwuerfe; der Deploy verlangt sie gruen oder uebersprungen", () => {
+    expect(workflow).toMatch(/\n  wegwerf-db:\n\s+needs: \[ziel-wache\]\n(?:\s+#[^\n]*\n)*\s+if: >-\n\s+needs\.ziel-wache\.outputs\.db == 'true' &&\n\s+\(github\.event_name != 'pull_request' \|\| github\.event\.pull_request\.draft == false\)/);
+    expect(workflow).toMatch(/\(needs\.wegwerf-db\.result == 'success' \|\| needs\.wegwerf-db\.result == 'skipped'\)/);
+  });
+
+  it("jeder DB-Check-Schritt im Deploy-Job ist an die Aenderungserkennung gebunden; Preview-Migration und Preview-Deploy nicht", () => {
+    const job = workflow.slice(workflow.indexOf("\n  deploy:"), workflow.indexOf("\n  lese-diagnose:"));
+    // Jeder Schritt, der mit der Preview-DB spricht (Checks, Proben, Vorpruefung,
+    // Abweichungsliste), haengt an der Aenderungserkennung — namentlich, damit
+    // ein neuer DB-Schritt ohne Bindung hier auffaellt.
+    const gebunden = [...job.matchAll(/- name: ([^\n]*)\n\s+if: ([^\n]*outputs\.db == 'true'[^\n]*)/g)].map((m) => m[1]);
+    expect(gebunden).toEqual([
+      "Fristen-Vorpruefung (gueltig_bis, E33)",
+      "Qualitaets-Paritaet (DB vs. TS)",
+      "Verwaltungs-Check (strom_verwaltung)",
+      "Belegnummer-Check (beleg_nr)",
+      "Benutzer-Check (benutzer)",
+      "Sperre-Check (Sperren, Zuweisungen)",
+      "Protokoll-Check (Ereignisprotokoll)",
+      "Inbox-Check (Inbox)",
+      "Parameter-Check (Parameter mit Verlauf)",
+      "Sektor-Check (sektor)",
+      "Verifikation-Check (strom_verifikation)",
+      "Kontaktperson-Check (kontaktperson)",
+      "import-check (Import-Datenmodell, E67)",
+      "probelauf-rollback-check (Rollback und Savepoint, E67)",
+      "Dubletten-Check (akteur_name_norm, keine Dublette, Trigger)",
+      "Job-Probe (Verifikations-Hinweise)",
+      "Beleg-Check (beleg)",
+      "Abweichungsliste Belege (Preview, nur lesen)",
+    ]);
+    const alleChecks = [...job.matchAll(/- name: ([^\n]*(?:[Cc]heck|Probe|Vorpruefung|Paritaet|Abweichungsliste)[^\n]*)\n/g)]
+      .map((m) => m[1])
+      .filter((n) => !/^Health-Check/.test(n));
+    expect(alleChecks).toEqual(gebunden);
+    expect(job).toMatch(/- name: Migrate Preview-DB \(nur mit Label preview-migrieren\)\n\s+if: github\.event_name == 'pull_request' && contains\([^\n]*\n/);
+    expect(job).not.toMatch(/Deploy Preview[^\n]*\n\s+if:[^\n]*outputs\.db/);
+  });
+
+  it("merge-sicher.sh wertet je Check-Namen nur den juengsten Lauf (ueberholte „cancelled\"-Checks sperren nicht)", () => {
+    expect(mergeSicher).toContain("group_by(.name) | map(max_by(.id // 0))");
+    expect(mergeSicher).toMatch(/ABBRUCH: kein Check-Lauf am Head/);
+  });
+
+  it("freigabe.sh wiederholt Netzfehler bei gh bis zu dreimal mit Pause und wartet nach einer Migration auf den Dispatch-Lauf", () => {
+    expect(freigabe).toMatch(/gh_wiederholt\(\) \{[\s\S]*for versuch in 1 2 3; do/);
+    expect(freigabe).toMatch(/connection reset\|i\/o timeout/);
+    expect(freigabe).toMatch(/if \[\[ -n "\$migrationen" \]\]; then\n(?:\s+#[^\n]*\n)*\s+echo "==> \(e\) Deploy von main \(Dispatch-Lauf nach der Migration\) und Leseweg"[\s\S]*lauf_am_commit deploy\.yml "\$squash" workflow_dispatch/);
+    expect(freigabe).toMatch(/gh_wiederholt run watch "\$dep" --exit-status/);
+    // Ein ueberholter, abgebrochener Lauf am Head wird nicht neu gestartet, wenn ein juengerer gruen ist.
+    expect(freigabe).toMatch(/gruen_am_head=\$\(gh run list --commit "\$head"/);
+  });
+
+  it("die Freigabe-Tests decken Netzfehler, Migration mit Dispatch-Lauf und ueberholte Laeufe ab", () => {
+    expect(fakeGh).toMatch(/netz_scheitert\(\)/);
+    expect(fakeGh).toMatch(/migrate-production\.yml\)\n[\s\S]*event: \\"workflow_dispatch\\"/);
+    expect(freigabeTest).toMatch(/netzfehler=2/);
+    expect(freigabeTest).toMatch(/\(d\/e\) Migration im PR/);
+    expect(freigabeTest).toMatch(/\(a\) abgebrochener Lauf am Head, juengerer gruen/);
   });
 });

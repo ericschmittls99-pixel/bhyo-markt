@@ -48,14 +48,20 @@ if [[ "$head" != "$SHA"* ]]; then
 fi
 
 echo "==> Check-Laeufe am Head $head"
-laeufe=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '.check_runs | map("\(.name)=\(.status)/\(.conclusion)") | join(" ")')
-anzahl=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '.check_runs | length')
-echo "    $anzahl Lauf/Laeufe: $laeufe"
+# CI-Diaet (Betriebs-PR 3, 08.10.2026): je Check-Namen zaehlt nur der JUENGSTE
+# Lauf (hoechste id). Ein ueberholter PR-Lauf wird jetzt abgebrochen und
+# hinterlaesst „cancelled"-Checks am selben Head — die duerfen den Merge
+# nicht sperren, solange der juengere Lauf desselben Checks gruen ist.
+# „Kein Ergebnis ist kein Ergebnis" bleibt: ohne Check-Lauf kein Merge.
+checks=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '.check_runs | group_by(.name) | map(max_by(.id // 0))')
+laeufe=$(jq -r 'map("\(.name)=\(.status)/\(.conclusion)") | join(" ")' <<<"$checks")
+anzahl=$(jq -r 'length' <<<"$checks")
+echo "    $anzahl Lauf/Laeufe (je Name der juengste): $laeufe"
 if (( anzahl == 0 )); then
   echo "ABBRUCH: kein Check-Lauf am Head — kein Ergebnis ist kein Ergebnis. Nicht gemergt." >&2; exit 1
 fi
-offen=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '[.check_runs[] | select(.status != "completed")] | length')
-rot=$(gh api "repos/$REPO/commits/$head/check-runs" --jq '[.check_runs[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | map(.name) | join(", ")')
+offen=$(jq -r '[.[] | select(.status != "completed")] | length' <<<"$checks")
+rot=$(jq -r '[.[] | select(.status == "completed" and (.conclusion != "success" and .conclusion != "skipped" and .conclusion != "neutral"))] | map(.name) | join(", ")' <<<"$checks")
 if (( offen > 0 )); then
   echo "ABBRUCH: $offen Lauf/Laeufe noch nicht abgeschlossen. Nicht gemergt." >&2; exit 1
 fi

@@ -19,6 +19,9 @@
 #                     Ausgang des Push-Deploys, den der Squash ausloest
 #       squash_baum = head | abweichend
 #                     abweichend: Squash-Baum ≠ Baum des PR-Heads (Basis-Beleg)
+#       netzfehler  = N   die ersten N Aufrufe von `run list`/`run view` nach
+#                     dem Merge scheitern mit „connection reset by peer"
+#                     (CI-Diaet: freigabe.sh wiederholt bis zu dreimal)
 #   $FAKE_GH_DIR/calls.log   jeder Aufruf, eine Zeile — die Tests zaehlen darin
 #                             z. B. die Neustarts.
 set -euo pipefail
@@ -27,6 +30,16 @@ printf '%s\n' "$*" >> "$D/calls.log"
 REMOTE=$(cat "$D/remote")
 
 szenario() { grep "^$1=" "$D/szenario" 2>/dev/null | cut -d= -f2- || true; }
+# Netzfehler simulieren: Zaehler in $D/netz.zaehler, nur nach dem Merge (main bewegt).
+netz_scheitert() {
+  local soll; soll=$(szenario netzfehler); [[ -z "$soll" ]] && return 1
+  [[ -f "$D/gemergt" ]] || return 1
+  local n; n=$(cat "$D/netz.zaehler" 2>/dev/null || echo 0)
+  (( n < soll )) || return 1
+  echo $((n + 1)) > "$D/netz.zaehler"
+  echo "failed to get run: Get \"https://api.github.com/\": read tcp 127.0.0.1:1->127.0.0.1:2: read: connection reset by peer" >&2
+  return 0
+}
 
 # Optionen mit Wert, Flags ohne Wert, Rest positional. Keine assoziativen
 # Arrays: macOS liefert bash 3.2, die Tests sollen auch dort laufen.
@@ -81,6 +94,7 @@ case "${POS[0]:-} ${POS[1]:-}" in
     squash=$(git -C "$REMOTE" commit-tree "$tree" -p "$main" -m "${O_SUBJECT:-squash}")
     git -C "$REMOTE" update-ref refs/heads/main "$squash"
     pr_setzen "$nr" ".state = \"MERGED\" | .mergeCommit = {oid: \"$squash\"}"
+    : > "$D/gemergt"
     case "$(szenario deploy_main)" in
       cancelled_dann_gruen|cancelled_bleibt) c=cancelled ;;
       rot) c=failure ;;
@@ -108,6 +122,7 @@ case "${POS[0]:-} ${POS[1]:-}" in
     esac ;;
 
   "run list")
+    netz_scheitert && exit 1
     jq --arg wf "$O_WORKFLOW" --arg c "$O_COMMIT" \
       '[.[] | select(($wf == "" or .workflow == $wf) and ($c == "" or .commit == $c))]' "$D/runs.json" | ausgabe ;;
 
@@ -122,6 +137,7 @@ case "${POS[0]:-} ${POS[1]:-}" in
     fi ;;
 
   "run view")
+    if [[ -z "$F_LOG" ]]; then netz_scheitert && exit 1; fi
     if [[ -n "$F_LOG" ]]; then
       # Wie im echten Deploy-Log seit #183: der Testschritt im Job typen-und-tests
       # druckt die Ausgabe der Attrappe mit, darunter „Leseweg OK (Attrappe)".
@@ -131,7 +147,24 @@ case "${POS[0]:-} ${POS[1]:-}" in
       jq ".[] | select(.databaseId == ${POS[2]})" "$D/runs.json" | ausgabe
     fi ;;
 
-  "workflow run") exit 0 ;;
+  "workflow run")
+    # CI-Diaet: migrate-production.yml legt einen gruenen Migrationslauf am
+    # main-Commit an UND loest (wie der echte Workflow) den Deploy von main per
+    # Dispatch aus; deploy.yml per Dispatch legt den Dispatch-Deploy an.
+    main=$(git -C "$REMOTE" rev-parse refs/heads/main)
+    case "${POS[2]:-}" in
+      migrate-production.yml)
+        neu=$(jq ". + [{databaseId: 9100, workflow: \"migrate-production.yml\", commit: \"$main\", event: \"workflow_dispatch\", conclusion: \"success\", jobs: [{name: \"migrate\", conclusion: \"success\"}]}]" "$D/runs.json")
+        # FAKE_GH_KEIN_DISPATCH=1: der Dispatch des Deploys kommt nie an (Rot-Nachweis).
+        if [[ -z "${FAKE_GH_KEIN_DISPATCH:-}" ]]; then
+          neu=$(jq ". + [{databaseId: 9101, workflow: \"deploy.yml\", commit: \"$main\", event: \"workflow_dispatch\", conclusion: \"success\", jobs: [{name: \"deploy\", conclusion: \"success\"}]}]" <<<"$neu")
+        fi
+        printf '%s\n' "$neu" > "$D/runs.json" ;;
+      deploy.yml)
+        neu=$(jq ". + [{databaseId: 9101, workflow: \"deploy.yml\", commit: \"$main\", event: \"workflow_dispatch\", conclusion: \"success\", jobs: [{name: \"deploy\", conclusion: \"success\"}]}]" "$D/runs.json")
+        printf '%s\n' "$neu" > "$D/runs.json" ;;
+    esac
+    exit 0 ;;
 
   *) echo "fake-gh: unbekannter Aufruf: $*" >&2; exit 1 ;;
 esac
