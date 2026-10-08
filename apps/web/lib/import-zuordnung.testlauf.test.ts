@@ -10,6 +10,9 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
+import { ortPasst } from "@bhyo/db/plz";
+
+import { brauchtPlzAusOrt, ortGruppen } from "./import-adressen";
 import { parseImportDatei } from "./import-datei";
 import { FEHLER_PREFIX, HINWEIS_PREFIX, IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, einheitOutput, enthaeltKontaktdaten, findeDoppelzeilen, hinweise, monatAusText, preisBezugVorschlag, vorschlagZuordnung, zahlAusText, zeileZuFelder, zuordnungsFehler, type Zuordnung } from "./import-zuordnung";
 
@@ -237,6 +240,28 @@ describe("B5: Kontaktdaten in der Testdatei", () => {
     expect(csv).not.toMatch(/musterfrau|example\.com|Erika|07251|Ansprechpartner|E-Mail/i);
     expect(csv).toContain("[Kontaktdaten entfernt]");
     expect(csv).toContain("Hans Beispielmann");
+  });
+});
+
+describe("E72 (2.7h): Zeilen 18, 21 und 39 der Testdatei", () => {
+  const f = (nr: number) => zeileZuFelder(biomasse.spalten, zeile(biomasse, nr), zBiomasse);
+  it("Zeile 18 (Mosbach ohne PLZ) und 21 (Freiburg ohne PLZ) gehen in „PLZ aus Ort“; mit PLZ nicht", () => {
+    expect(f(18).felder).toMatchObject({ akteur_name: "Hofgut Kirchberg", akteur_sitz_ort: "Mosbach" });
+    expect(f(18).felder.akteur_sitz_plz).toBe("");
+    expect(brauchtPlzAusOrt(f(18).felder)).toBe(true);
+    expect(f(21).felder).toMatchObject({ akteur_name: "Kompostwerk Breisgau", akteur_sitz_ort: "Freiburg" });
+    expect(brauchtPlzAusOrt(f(21).felder)).toBe(true);
+    expect(brauchtPlzAusOrt(f(19).felder)).toBe(false);
+    expect(ortGruppen([{ id: "18", felder: f(18).felder }, { id: "21", felder: f(21).felder }, { id: "19", felder: f(19).felder }]).map((g) => [g.ort, g.zeilenIds])).toEqual([
+      ["Mosbach", ["18"]],
+      ["Freiburg", ["21"]],
+    ]);
+  });
+  it("Zeile 39: „Mannheim-Neckarau“ passt zu 68199 (Mannheim) — Ortsteil-Toleranz, Ort unveraendert; Zeile 19 „Heidelberg“ zu 68159 nicht", () => {
+    expect(f(39).felder).toMatchObject({ akteur_sitz_plz: "68199", akteur_sitz_ort: "Mannheim-Neckarau" });
+    expect(ortPasst(f(39).felder.akteur_sitz_ort!, "mannheim")).toBe(true);
+    expect(f(19).felder).toMatchObject({ akteur_sitz_plz: "68159", akteur_sitz_ort: "Heidelberg" });
+    expect(ortPasst(f(19).felder.akteur_sitz_ort!, "mannheim")).toBe(false);
   });
 });
 
