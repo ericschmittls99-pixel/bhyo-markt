@@ -2168,6 +2168,11 @@ Normalisierung je Zeile 6,5 s, mit Index aber STRICT 29 s (kein Inlining),
 indexfähig und nicht STRICT **12 ms** (Bitmap-Index-Scans, Läufe
 37801334789 / 37802875636 / 37803521292).
 
+**Vormerkung AP6 (Eric 08.10.2026):** Formular-Adressprüfung bei
+Ortsteil-Form („Mannheim-Neckarau"): nach bestandener lokaler Prüfung an den
+Adressdienst den amtlichen Ort plus Ortsteil als Zusatz senden — mit Straße
+lieferte der Dienst bisher keinen Treffer (Preview-Test 08.10.2026).
+
 **Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
 (Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
 beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal

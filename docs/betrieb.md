@@ -395,10 +395,14 @@ hinter dem Journal, endet der Push-Lauf von main sofort rot mit der Meldung,
 `migrate-production.yml` zu starten. `migrate-production.yml` (weiterhin
 Warteschlange, nie abgebrochen) löst nach erfolgreicher Migration selbst den
 Deploy von main aus (`gh workflow run deploy.yml --ref main`, dafür
-`actions: write`). Ein roter Push-Lauf von main ist im Migrationsfall also
-erwartet; der Dispatch-Lauf trägt das Ergebnis. `freigabe.sh` e) wartet bei
-neuer Migration im PR auf diesen Dispatch-Lauf am Squash-Commit, sonst wie
-bisher auf den Push-Lauf.
+`actions: write`). Zwei Normalfälle im Migrationsfall (Eric 08.10.2026):
+**(1)** die Migration dauert länger als Typen und Tests — das Gate des
+Push-Laufs endet rot, der Dispatch-Lauf trägt das Ergebnis; **(2)** die
+Migration ist vor dem Gate fertig (erste Freigabe nach der CI-Diät, #207:
+Migration 58 s, Gate 2 Minuten später) — Push-Lauf und Dispatch-Lauf sind
+beide grün, Production wird zweimal mit demselben Stand deployt. In beiden
+Fällen wartet `freigabe.sh` e) bei neuer Migration im PR auf den
+Dispatch-Lauf, sonst wie bisher auf den Push-Lauf.
 
 **Netzfehler in freigabe.sh:** Am 08.10.2026 brach Schritt e) zweimal an
 „connection reset" bzw. „i/o timeout" ab, nachdem der Merge längst durch war.
