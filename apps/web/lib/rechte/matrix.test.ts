@@ -71,6 +71,10 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "import.ausfuehren": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
   "import.zuruecknehmen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   "import.verwerfen": { betrachter: false, bearbeiter: false, pruefer: true, admin: true },
+  // AP2.6 PR a (E71): Kommentare ab bearbeiter; Betrachter lesen nur. Objektregel Autor darunter.
+  "kommentar.erstellen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
+  "kommentar.bearbeiten": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
+  "kommentar.loeschen": { betrachter: false, bearbeiter: true, pruefer: true, admin: true },
 };
 
 const ICH = "00000000-0000-4000-8000-000000000001";
@@ -82,6 +86,8 @@ const passendesObjekt = (aktion: Aktion): Objekt | undefined => {
   if (!brauchtObjekt(aktion)) return undefined;
   // AP2.2: Inbox-Regeln entscheiden am eigenen Eintrag.
   if (aktion.startsWith("inbox.")) return { empfaengerId: ICH };
+  // AP2.6 PR a (E71): Kommentar-Regeln entscheiden am eigenen Kommentar.
+  if (aktion.startsWith("kommentar.")) return { autorId: ICH };
   // PR c: anfragen kann nur, wer am gesperrten Strom fremd ist.
   if (aktion === "strom.zugriff_anfragen") return { gesperrtVon: ANDERE, zugewiesene: [DRITTE] };
   return aktion === "strom.entsperren" || aktion === "strom.zuweisen" || aktion === "strom.zuweisung_entfernen"
@@ -270,5 +276,37 @@ describe("PR c strom.zugriff_anfragen", () => {
     }
     expect(darf({ rolle: "betrachter", id: ICH }, "strom.zugriff_anfragen", objektFuer(true, "fremd"))).toBe(false);
     expect(darf({ rolle: "bearbeiter", id: ICH }, "strom.zugriff_anfragen")).toBe(false);
+  });
+});
+
+// --- AP2.6 PR a (E71): Kommentare ---------------------------------------------
+describe("E71 Kommentare: Objektregel Autor", () => {
+  it("bearbeiten darf nur der Autor — auch admin keinen fremden; Betrachter nie; ohne Objekt nie", () => {
+    for (const rolle of ["bearbeiter", "pruefer", "admin"] as const) {
+      expect(darf({ rolle, id: ICH }, "kommentar.bearbeiten", { autorId: ICH })).toBe(true);
+      expect(darf({ rolle, id: ICH }, "kommentar.bearbeiten", { autorId: ANDERE })).toBe(false);
+    }
+    expect(darf({ rolle: "betrachter", id: ICH }, "kommentar.bearbeiten", { autorId: ICH })).toBe(false);
+    expect(darf({ rolle: "admin", id: ICH }, "kommentar.bearbeiten")).toBe(false);
+  });
+  it("loeschen darf der Autor oder admin; bearbeiter und pruefer keinen fremden; Betrachter nie", () => {
+    for (const rolle of ["bearbeiter", "pruefer", "admin"] as const) {
+      expect(darf({ rolle, id: ICH }, "kommentar.loeschen", { autorId: ICH })).toBe(true);
+    }
+    expect(darf({ rolle: "bearbeiter", id: ICH }, "kommentar.loeschen", { autorId: ANDERE })).toBe(false);
+    expect(darf({ rolle: "pruefer", id: ICH }, "kommentar.loeschen", { autorId: ANDERE })).toBe(false);
+    expect(darf({ rolle: "admin", id: ICH }, "kommentar.loeschen", { autorId: ANDERE })).toBe(true);
+    expect(darf({ rolle: "betrachter", id: ICH }, "kommentar.loeschen", { autorId: ICH })).toBe(false);
+    expect(darf({ rolle: "admin", id: ICH }, "kommentar.loeschen")).toBe(false);
+  });
+  it("erstellen hat keine Objektregel (die Sperre des Stroms zaehlt nicht, E44 nennt nur fachliche Aenderungen)", () => {
+    expect(brauchtObjekt("kommentar.erstellen")).toBe(false);
+    expect(darf({ rolle: "bearbeiter", id: ICH }, "kommentar.erstellen")).toBe(true);
+    expect(darf({ rolle: "betrachter", id: ICH }, "kommentar.erstellen")).toBe(false);
+  });
+  it("ein Sperr- oder Inbox-Objekt entscheidet keine Kommentar-Regel (falsches Objekt = fail closed)", () => {
+    expect(darf({ rolle: "admin", id: ICH }, "kommentar.bearbeiten", FREI)).toBe(false);
+    expect(darf({ rolle: "admin", id: ICH }, "kommentar.loeschen", { empfaengerId: ICH })).toBe(false);
+    expect(darf({ rolle: "admin", id: ICH }, "inbox.gelesen", { autorId: ICH })).toBe(false);
   });
 });

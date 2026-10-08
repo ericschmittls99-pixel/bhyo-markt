@@ -85,6 +85,11 @@ export const AKTIONEN = [
   // AP2.7 PR g (Eric 07.10.2026): einen nie ausgefuehrten Lauf verwerfen — Ersteller,
   // Pruefer, Admin; Ersteller sind immer Pruefer oder Admin (import.ausfuehren).
   "import.verwerfen",
+  // AP2.6 PR a (E71): Kommentare — ab bearbeiter; bearbeiten nur der Autor,
+  // loeschen Autor oder admin (Objektregel). Betrachter lesen nur.
+  "kommentar.erstellen",
+  "kommentar.bearbeiten",
+  "kommentar.loeschen",
 ] as const;
 export type Aktion = (typeof AKTIONEN)[number];
 
@@ -140,6 +145,9 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "import.ausfuehren": SPERREN,
   "import.zuruecknehmen": VERWALTEN,
   "import.verwerfen": SPERREN,
+  "kommentar.erstellen": ERFASSEN,
+  "kommentar.bearbeiten": ERFASSEN,
+  "kommentar.loeschen": ERFASSEN,
 };
 
 /** Nutzer aus Sicht der Matrix: ein Zugang oder Rolle (+ ID fuer Objektregeln). */
@@ -160,9 +168,16 @@ export interface InboxObjekt {
   empfaengerId: string;
 }
 
+/** AP2.6 PR a (E71): Objekt der Kommentar-Regeln — der Autor (benutzer.id). */
+export interface KommentarObjekt {
+  autorId: string;
+}
+
 /** Alles, woran eine Objektregel entscheidet. */
-export type Objekt = StromSperre | InboxObjekt;
+export type Objekt = StromSperre | InboxObjekt | KommentarObjekt;
 const istSperre = (o: Objekt): o is StromSperre => "gesperrtVon" in o;
+const istInbox = (o: Objekt): o is InboxObjekt => "empfaengerId" in o;
+const istKommentar = (o: Objekt): o is KommentarObjekt => "autorId" in o;
 
 export function istAktion(wert: string): wert is Aktion {
   return (AKTIONEN as readonly string[]).includes(wert);
@@ -185,7 +200,15 @@ const inhaberOderAdmin: Objektregel = (n, o) =>
 const zugriffAnfragen: Objektregel = (n, o) =>
   istSperre(o) && o.gesperrtVon != null && !!n.id && n.id !== o.gesperrtVon && !o.zugewiesene.includes(n.id);
 /** AP2.2: Inbox-Eintraege liest und aendert nur der Empfaenger — auch admin nicht fremde. */
-const nurEmpfaenger: Objektregel = (n, o) => !istSperre(o) && !!n.id && n.id === o.empfaengerId;
+const nurEmpfaenger: Objektregel = (n, o) => istInbox(o) && !!n.id && n.id === o.empfaengerId;
+/**
+ * AP2.6 PR a (E71): eigene Kommentare bearbeitet nur der Autor — auch admin
+ * nicht fremde; loeschen (weich) darf der Autor oder admin. Die Sperre des
+ * Stroms spielt keine Rolle: ein Kommentar aendert keine Stromdaten (E44
+ * nennt nur die fachlichen Schreibpfade).
+ */
+const nurAutor: Objektregel = (n, o) => istKommentar(o) && !!n.id && n.id === o.autorId;
+const autorOderAdmin: Objektregel = (n, o) => istKommentar(o) && (n.rolle === "admin" || (!!n.id && n.id === o.autorId));
 
 /**
  * Objektbezogene Regeln (E44) — gelten ZUSAETZLICH zur Rollenstufe. Wo eine
@@ -212,6 +235,8 @@ const OBJEKT_REGELN: Partial<Record<Aktion, Objektregel>> = {
   "inbox.verwerfen": nurEmpfaenger,
   "inbox.ablehnen": nurEmpfaenger,
   "inbox.weitergeben": nurEmpfaenger,
+  "kommentar.bearbeiten": nurAutor,
+  "kommentar.loeschen": autorOderAdmin,
 };
 
 /** Aktionen, die ein Objekt verlangen (fuer Aufrufer, Wächter und Tests). */

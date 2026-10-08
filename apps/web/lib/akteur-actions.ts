@@ -1,7 +1,7 @@
 "use server";
 
 import { genauigkeitFuerPin } from "@/lib/adresse-pruefung";
-import { akteur, akteurInteresse, biomassestrom, kontaktperson, outputBedarf } from "@bhyo/db/schema";
+import { akteur, akteurInteresse, biomassestrom, kommentar, kontaktperson, outputBedarf } from "@bhyo/db/schema";
 import { eq, sql } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
@@ -94,13 +94,16 @@ export async function akteurLoeschen(id: string): Promise<AktionErgebnis> {
             text: `Akteur ${id} gelöscht`,
           });
         }
+        // AP2.6 PR a (E71): Kommentare des verwaisten Akteurs gehen mit (FK ON DELETE CASCADE) —
+        // hier ausdruecklich und gezaehlt, damit das Protokoll die Zahl traegt, nie den Text.
+        const kommentare = await tx.delete(kommentar).where(eq(kommentar.akteurId, id)).returning({ id: kommentar.id });
         await protokolliere(tx, {
           art: "akteur_geloescht",
           entitaet: "akteur",
           id,
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
-          text: `Verwaist gelöscht; ${interessen.length} Interesse(n), ${personen.length} Kontaktperson(en) mitgelöscht`,
+          text: `Verwaist gelöscht; ${interessen.length} Interesse(n), ${personen.length} Kontaktperson(en), ${kommentare.length} Kommentar(e) mitgelöscht`,
         });
         await tx.delete(akteur).where(eq(akteur.id, id));
       }),

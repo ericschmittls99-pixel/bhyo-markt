@@ -80,6 +80,9 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
   //     Aufrufs mit entitaet "kontaktperson" muss ein Bezeichner sein, der auf
   //     „Id"/„id" endet, oder die Feldliste. Alles andere (z. B. ${alt.name})
   //     ist ein moeglicher Name und wird gemeldet. Quellentextbasiert.
+  //     AP2.6 PR a (E71): dieselbe Regel fuer entitaet "kommentar" — der
+  //     Kommentartext gehoert nie ins Protokoll; erlaubt sind dort zusaetzlich
+  //     die Bezugsart (Bezeichner auf „Art") und Zaehler (`.length`).
   for (const datei of dateien(wurzel)) {
     const rel = datei.slice(wurzel.length + 1);
     if (rel.startsWith(`scripts${sep}`) || /\.test\.tsx?$/.test(rel)) continue;
@@ -87,13 +90,23 @@ export function findeLuecken(wurzel = WURZEL): Lücke[] {
     // Der Block endet mit einer Zeile „}" + „)" — die ${…}-Klammern im Text sind einzeilig.
     for (const m of quelle.matchAll(/protokolliere\s*\(\s*tx\s*,\s*\{([\s\S]*?)\n\s*\}\s*\)/g)) {
       const block = m[1]!;
-      if (!/entitaet:\s*"kontaktperson"/.test(block)) continue;
+      const entitaet = block.match(/entitaet:\s*"(kontaktperson|kommentar)"/)?.[1];
+      if (!entitaet) continue;
       const text = block.match(/text:\s*`([^`]*)`/);
       if (!text) continue;
       for (const i of text[1]!.matchAll(/\$\{([^}]*)\}/g)) {
         const ausdruck = i[1]!.trim();
-        const erlaubt = /^(id|[A-Za-z_][\w.]*[iI]d)$/.test(ausdruck) || /^felder\.join\(/.test(ausdruck);
-        if (!erlaubt) luecken.push({ datei: rel, pfad: "protokolliere(kontaktperson)", grund: `E57: Freitext interpoliert „${ausdruck}" — moeglicher Name; erlaubt sind nur IDs und die Feldliste` });
+        const erlaubt =
+          /^(id|[A-Za-z_][\w.]*[iI]d)$/.test(ausdruck) ||
+          /^felder\.join\(/.test(ausdruck) ||
+          (entitaet === "kommentar" && /^[A-Za-z_][\w.]*(Art|\.length)$/.test(ausdruck));
+        if (!erlaubt) {
+          const was =
+            entitaet === "kommentar"
+              ? "E71: moeglicher Kommentartext; erlaubt sind nur IDs (…Id), die Bezugsart (…Art) und Zaehler (.length)"
+              : "E57: moeglicher Name; erlaubt sind nur IDs und die Feldliste";
+          luecken.push({ datei: rel, pfad: `protokolliere(${entitaet})`, grund: `Freitext interpoliert „${ausdruck}" — ${was}` });
+        }
       }
     }
   }
