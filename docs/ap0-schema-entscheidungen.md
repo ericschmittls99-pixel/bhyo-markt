@@ -2152,6 +2152,7 @@ CASCADE zum Kommentar. Enum `ereignis_art` + `kommentar_erstellt`,
 `lib/kommentar-marker.ts`, Actions in `lib/kommentar-actions.ts`. Ein Marker
 auf einen nicht erwähnbaren Nutzer (unbekannt, deaktiviert, Betrachter)
 weist den Kommentar ab (fail closed) statt ihn stumm zu verschlucken.
+Weiches Löschen entfernt die Erwähnungszeilen mit dem Text.
 `akteurLoeschen` zählt die mitgelöschten Kommentare im Ereignistext,
 `akteurZusammenfuehren` hängt sie an das Ziel um. Wächter: rechte-check
 erkennt `pruefeKommentarObjekt(` als Objektstufe und sieht dafür auch den
@@ -2169,12 +2170,14 @@ UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
 `kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
 Inbox-Aufbewahrung (D14).
 
-**OFFEN:** (a) Reservierte Migrationsnummer: E71 nennt eine Migration 0052
-für AP2.6 — die Inbox-Erweiterung (PR c) und die Aufbewahrungs-Parameter
-(PR d) brauchen je eine eigene additive Migration (0053, 0054), weil sie mit
-ihrem ersten Verbraucher kommen (E21). (b) Textgrenze 2000 Zeichen und die
-Abweisung (statt stummem Überspringen) nicht erwähnbarer Marker sind
-konservative Vorgaben ohne ausdrückliche Entscheidung. (c) Erwähnungen
-eines später gelöschten Kommentars bleiben als Zeilen stehen (kein Text,
-keine Zustellung mehr) — Löschen ist weich.
+**Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
+gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
+auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
+weist den ganzen Kommentar mit Meldung ab, nichts wird gespeichert. (c)
+Zwei Strom-Spalten (`biomassestrom_id`, `output_bedarf_id`) neben
+`akteur_id`, CHECK „genau ein Bezug" über alle drei (Probe 1a–1d). (d)
+Weiches Löschen entfernt auch die Erwähnungszeilen — sie leiten sich aus dem
+Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
+„Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
+(„Erwaehnungszeilen weg"), Probe 6c.
 
