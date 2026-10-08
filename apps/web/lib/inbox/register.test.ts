@@ -76,6 +76,30 @@ describe("Register — Aufgabe (PR c)", () => {
   });
 });
 
+describe("Register — biomasse_wird_frei (AP2.8, E70): Zeilentext je Stufe", () => {
+  const z = { belegNr: "B-000012", bezeichnung: "Bioabfall Kompostwerk", bezugsdatum: "2027-03-31", anzahl: 1 };
+  const text = INBOX_TYPEN.biomasse_wird_frei.text;
+  it("Stufen 180, 60 und 30 sagen „wird frei ab“ (Folgetag des Kettenendes) und nennen das Vergabeende", () => {
+    for (const stufe of [180, 60, 30]) {
+      expect(text({ ...z, stufe, anBhyo: false })).toBe("B-000012 Bioabfall Kompostwerk wird frei ab 01.04.2027 (Vergabe endet 31.03.2027)");
+    }
+  });
+  it("Stufe 0 sagt „ist frei seit“ — unabhaengig von an_bhyo", () => {
+    expect(text({ ...z, stufe: 0, anBhyo: false })).toBe("B-000012 Bioabfall Kompostwerk ist frei seit 01.04.2027");
+    expect(text({ ...z, stufe: 0, anBhyo: true })).toBe("B-000012 Bioabfall Kompostwerk ist frei seit 01.04.2027");
+  });
+  it("an_bhyo: „Unsere Vergabe … endet am … — frei ab …“ fuer die Stufen vor dem Ende", () => {
+    expect(text({ ...z, stufe: 60, anBhyo: true })).toBe("Unsere Vergabe von B-000012 Bioabfall Kompostwerk endet am 31.03.2027 — frei ab 01.04.2027");
+  });
+  it("reiner Hinweis mit „Alle erledigt“, kein Ereignis als Ausloeser; ohne Bezugsdatum ein benannter Platzhalter", () => {
+    expect(INBOX_TYPEN.biomasse_wird_frei.reinerHinweis).toBe(true);
+    expect(INBOX_TYPEN.biomasse_wird_frei.arten).toEqual([]);
+    expect(INBOX_TYPEN.biomasse_wird_frei.aktionen).toContain("inbox.alle_erledigen");
+    expect(text({ ...z, bezugsdatum: null, stufe: 30 })).toBe("B-000012 Bioabfall Kompostwerk wird frei");
+    expect(text({ bezeichnung: null, belegNr: null, bezugsdatum: "2027-03-31", stufe: 0, anzahl: 1 })).toBe("einen Eintrag ist frei seit 01.04.2027");
+  });
+});
+
 describe("zeilenText: unbekannter Typ eines spaeteren Stands", () => {
   it("liefert einen benannten Platzhalter statt zu werfen", () => {
     const z = { ausloeserName: "", belegNr: null, bezeichnung: "Strom A", anzahl: 1 };
