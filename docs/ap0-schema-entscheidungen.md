@@ -2075,3 +2075,20 @@ blieben Marker in zwei Doku-Dateien stehen (siehe Memory 07.10.2026).
 (Testdatei Zeile 37); Zeile 11 ist regelkonform (kein Ortsbezug, Präfix
 senkt die Ähnlichkeit).
 
+## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
+
+**Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo
+während der Bauphase öffentlich; vor dem ersten echten Datensatz in
+Production wird es wieder privat (Go-live-Kriterium). Den Wechsel macht Eric
+nach dem Prüfbericht; die App ändert keine Repo-Einstellungen.
+
+**Prüfbericht (nur lesend):** Secret-Scan der gesamten Historie aller
+Branches ohne Fund (nur Platzhalter-URLs und die beiden Neon-Hostnamen im
+Seed-Wächter, keine Tokens, Schlüssel oder Passwörter); kein Workflow nutzt
+`pull_request_target`; Environments nur `main`. Personendaten in Logs:
+`protokoll-messung` druckte die häufigsten Protokoll-Freitexte
+(Zugriffsanfragen, Aufgaben), `beleg-abweichung` die Quellenangabe
+genannter Belege — beides durch Arten bzw. ja/nein ersetzt. Alle Jobs mit
+DB-Secret maskieren Host und Datenbanknutzer (E73-Schritt). Regeln in
+`docs/betrieb.md` („Öffentliches Repo während der Bauphase").
+
