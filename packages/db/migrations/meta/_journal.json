@@ -358,6 +358,13 @@
       "when": 1791405141335,
       "tag": "0050_e68_genauigkeit",
       "breakpoints": true
+    },
+    {
+      "idx": 51,
+      "version": "7",
+      "when": 1791471083678,
+      "tag": "0051_e72_plz_aus_ort",
+      "breakpoints": true
     }
   ]
 }

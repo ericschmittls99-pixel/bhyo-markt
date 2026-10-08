@@ -15,6 +15,11 @@
  *     - punkt_in_plz: innen true, aussen false, unbekannte PLZ null
  *     - Fixture: 75378 ist EINE Zeile (Union), Splitter-Gemeinde fehlt,
  *       Groß Köris steht an zwei PLZ.
+ *     - plz_fuer_ort (E72, Migration 0051): eindeutiger Ort -> genau eine
+ *       PLZ, Ort an zwei PLZ -> zwei Kandidaten, Kurzform und Ortsteil
+ *       finden denselben Ort, unbekannter Ort -> keine Zeile; Paritaet zur
+ *       Passt-Regel (dieselben Zeilen wie plz_ort_passt ueber plz_ort).
+ *       Mit Bestand: Messung PLZMESSUNG_ORT (200 Orte in einer Abfrage).
  */
 import postgres from "postgres";
 
@@ -97,6 +102,25 @@ async function main() {
       pruefe("Fixture: Punkt im zweiten Teil von 75378 -> PLZ 75378 mit Ort Pforzheim", pforzheim?.plz === "75378" && (JSON.parse(pforzheim!.orte_json as string) as string[]).includes("Pforzheim"), pforzheim);
       const [tabelle] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'plz_ort' and column_name = 'geom'`;
       pruefe("Fixture: plz_ort traegt keine Geometrie", tabelle!.n === 0, tabelle);
+
+      // E72: PLZ aus Ort — Kandidaten je Eingabe.
+      const fuerOrt = async (ort: string) => (await sql`select plz, ort, ars, kreis, land from plz_fuer_ort(${ort})`) as unknown as { plz: string; ort: string; ars: string; kreis: string | null; land: string | null }[];
+      const eindeutig = await fuerOrt("Altstadt");
+      pruefe("E72: eindeutiger Ort „Altstadt“ -> genau eine PLZ 11111", eindeutig.length === 1 && eindeutig[0]!.plz === "11111", eindeutig);
+      const zwei = await fuerOrt("Groß Köris");
+      pruefe("Rot: „Groß Köris“ liegt an zwei PLZ -> zwei Kandidaten, deterministisch sortiert", zwei.map((k) => k.plz).join(",") === "11111,22222", zwei);
+      const kurzOrt = await fuerOrt("Gross");
+      pruefe("E72: Kurzform „Gross“ findet Groß Köris (dieselbe Regel wie plz_ort_passt)", kurzOrt.length === 2 && kurzOrt.every((k) => k.ort === "Groß Köris"), kurzOrt);
+      const ortsteil = await fuerOrt("Altstadt-Mitte");
+      pruefe("E72 e: Ortsteil „Altstadt-Mitte“ findet Altstadt", ortsteil.length === 1 && ortsteil[0]!.ort === "Altstadt", ortsteil);
+      const nichts = await fuerOrt("Xyzzy");
+      pruefe("Rot: unbekannter Ort -> keine Zeile", nichts.length === 0, nichts);
+      const ohneVg = eindeutig[0]!;
+      pruefe("E72: ohne VG250-Ebenen sind Kreis und Land null (kein erfundener Kreis)", ohneVg.kreis === null && ohneVg.land === null, ohneVg);
+      for (const ort of ["Altstadt", "Gross", "Altstadt-Mitte", "Xyzzy", "Pforzheim"]) {
+        const [p] = await sql`select (select count(*)::int from plz_fuer_ort(${ort})) as a, (select count(*)::int from plz_ort o where plz_ort_passt(${ort}, o.ort_norm)) as b`;
+        pruefe(`E72 Paritaet plz_fuer_ort = plz_ort_passt ueber plz_ort („${ort}“)`, p!.a === p!.b, p);
+      }
     }
   }
 
@@ -118,6 +142,23 @@ async function main() {
     const passt = rows.filter((r) => r.ort_passt).length;
     console.log(`PLZMESSUNG ${JSON.stringify({ zeilen: rows.length, dauer_ms: dauer, ort_passt: passt, ort_falsch: rows.length - passt })}`);
     pruefe("Messung: 5.000 Zeilen lokal in einer Abfrage, jede zehnte mit falschem Ort", rows.length === eintraege.length && passt === rows.length - Math.ceil(eintraege.length / 10), { dauer });
+
+    // E72: PLZ aus Ort — 200 verschiedene Orte in EINER Abfrage (dieselbe Form
+    // wie plzFuerOrtStapel in der App). Jeder Ort scannt plz_ort einmal mit
+    // der Passt-Regel auf Normalformen; die Dauer sagt, ob das fuer einen
+    // Import ohne PLZ-Spalte reicht.
+    const orte = (await sql`select distinct ort from plz_ort order by ort limit 200`) as unknown as { ort: string }[];
+    const ortEintraege = orte.map((o, i) => ({ i, ort: o.ort }));
+    const t1 = Date.now();
+    const kandidaten = await sql`
+      with e as (select t.i, t.ort from jsonb_to_recordset(${sql.json(ortEintraege)}) as t(i int, ort text))
+      select e.i, count(k.plz)::int as n
+      from e left join lateral plz_fuer_ort(e.ort) k on true
+      group by e.i order by e.i`;
+    const dauerOrt = Date.now() - t1;
+    const mitTreffer = kandidaten.filter((r) => Number(r.n) > 0).length;
+    console.log(`PLZMESSUNG_ORT ${JSON.stringify({ orte: ortEintraege.length, dauer_ms: dauerOrt, mit_treffer: mitTreffer })}`);
+    pruefe("E72 Messung: 200 Orte in einer Abfrage, jeder findet mindestens seine eigene PLZ", kandidaten.length === ortEintraege.length && mitTreffer === ortEintraege.length, { dauerOrt });
   }
 
   await sql.end();
