@@ -149,6 +149,27 @@ describe("leiteVerfuegbarkeitAb", () => {
   });
 });
 
+describe("E75: zeitraumBis = null heisst unbefristet", () => {
+  const offen = { zeitraumVon: "2026-01-01", zeitraumBis: null, reserviertBhyo: false };
+  it("Rot-Nachweis: laufende Vergabe ohne Ende auf unbefristetem Strom -> vergeben, nicht verfuegbar", () => {
+    // Vor E75 wurde der Fallback `vergebenBis ?? zeitraumBis` null und die
+    // Ueberlappungspruefung (`null >= fenster.von` -> false) blendete die
+    // Vergabe aus: Status „verfuegbar" trotz Vergabe.
+    expect(leiteVerfuegbarkeitAb("2027-06-15", offen, [v({ vergebenVon: "2026-03-01" })]).status).toBe("vergeben_extern");
+  });
+  it("unbefristet ist nie abgelaufen, auch weit in der Zukunft", () => {
+    expect(leiteVerfuegbarkeitAb("2099-12-31", offen, []).status).toBe("verfuegbar");
+  });
+  it("vor dem Beginn bleibt noch_nicht_verfuegbar", () => {
+    expect(leiteVerfuegbarkeitAb("2025-12-31", offen, []).status).toBe("noch_nicht_verfuegbar");
+  });
+  it("befristete Vergabe auf unbefristetem Strom endet -> danach verfuegbar", () => {
+    const vg = [v({ vergebenVon: "2026-03-01", vergebenBis: "2027-02-28" })];
+    expect(leiteVerfuegbarkeitAb("2027-02-28", offen, vg).status).toBe("vergeben_extern");
+    expect(leiteVerfuegbarkeitAb("2027-03-01", offen, vg).status).toBe("verfuegbar");
+  });
+});
+
 describe("reichereVerfuegbarkeitAn", () => {
   type S = {
     id: string;
@@ -176,6 +197,14 @@ describe("reichereVerfuegbarkeitAn", () => {
     );
     expect(a!.verfuegbarkeit?.status).toBe("vergeben_extern");
     expect(c!.verfuegbarkeit?.status).toBe("reserviert_bhyo");
+  });
+  it("E75: Strom mit Beginn und offenem Ende wird angereichert (unbefristet)", () => {
+    const r = reichereVerfuegbarkeitAn(
+      [{ id: "u", zeitraumVon: "2026-01-01", zeitraumBis: null, reserviertBhyo: false } as { id: string; zeitraumVon: string | null; zeitraumBis: string | null; reserviertBhyo: boolean; verfuegbarkeit?: VerfuegbarkeitsErgebnis }],
+      new Map([["u", [v({ vergebenVon: "2026-02-01" })]]]),
+      "2030-01-01",
+    );
+    expect(r[0]!.verfuegbarkeit?.status).toBe("vergeben_extern");
   });
   it("laesst Stroeme ohne Zeitraum unangereichert (kein Raten)", () => {
     const s: S = { ...b, id: "o", zeitraumVon: null };

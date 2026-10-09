@@ -47,9 +47,9 @@ function clusterFilter(clusterCode: string): SQL {
   return sql`${biomassestrom.materialartCode} in (select code from materialart where cluster = ${clusterCode})`;
 }
 
-/** Zeitraum [von,bis] ueberlappt das gegebene Jahr. */
+/** Zeitraum [von,bis] ueberlappt das gegebene Jahr; E75: bis NULL = unbefristet, zaehlt in jedem Jahr ab Beginn. */
 function jahrFilter(vonCol: Column, bisCol: Column, jahr: string): SQL {
-  return sql`${vonCol} <= ${`${jahr}-12-31`} and ${bisCol} >= ${`${jahr}-01-01`}`;
+  return sql`${vonCol} <= ${`${jahr}-12-31`} and (${bisCol} is null or ${bisCol} >= ${`${jahr}-01-01`})`;
 }
 
 /**

@@ -147,7 +147,9 @@ function bezugFenster(b: VerfuegbarkeitsBezug): { von: string; bis: string } {
  */
 export function leiteVerfuegbarkeitAb(
   bezug: VerfuegbarkeitsBezug,
-  strom: { zeitraumVon: string; zeitraumBis: string; reserviertBhyo: boolean; reserviertSeit?: string | null; reservierungMonate?: number | null },
+  // E75: zeitraumBis null = unbefristet — nie abgelaufen, ein offenes
+  // Vergabeende reicht unbegrenzt.
+  strom: { zeitraumVon: string; zeitraumBis: string | null; reserviertBhyo: boolean; reserviertSeit?: string | null; reservierungMonate?: number | null },
   vergaben: VergabeDaten[],
 ): VerfuegbarkeitsErgebnis {
   const fenster = bezugFenster(bezug);
@@ -170,14 +172,13 @@ export function leiteVerfuegbarkeitAb(
     reservierungVeraltet: veraltet,
   });
 
-  if (fenster.von > strom.zeitraumBis) return mit("abgelaufen");
+  if (strom.zeitraumBis != null && fenster.von > strom.zeitraumBis) return mit("abgelaufen");
   if (fenster.bis < strom.zeitraumVon) return mit("noch_nicht_verfuegbar");
 
-  const aktiv = vergaben.find(
-    (v) =>
-      (v.vergebenVon ?? strom.zeitraumVon) <= fenster.bis &&
-      (v.vergebenBis ?? strom.zeitraumBis) >= fenster.von,
-  );
+  const aktiv = vergaben.find((v) => {
+    const ende = v.vergebenBis ?? strom.zeitraumBis;
+    return (v.vergebenVon ?? strom.zeitraumVon) <= fenster.bis && (ende == null || ende >= fenster.von);
+  });
   if (aktiv) return mit(aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern");
   if (strom.reserviertBhyo) return mit("reserviert_bhyo");
   return mit("verfuegbar");
@@ -214,7 +215,8 @@ export function reichereVerfuegbarkeitAn<
     const vergaben = vergabenJeStrom.get(s.id) ?? [];
     // E70: frei_ab aus denselben Vergaben; Bezug ist der Stichtag (bei einem Fenster dessen Anfang).
     const mitVergaben = { ...s, vergaben, wirdFrei: wirdFreiStand(vergaben, bezugFenster(bezug).von, stufen) };
-    return s.zeitraumVon && s.zeitraumBis
+    // E75: ein Beginn reicht — ohne Ende ist der Strom unbefristet.
+    return s.zeitraumVon
       ? {
           ...mitVergaben,
           verfuegbarkeit: leiteVerfuegbarkeitAb(
