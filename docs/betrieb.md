@@ -496,7 +496,8 @@ synchroner Export in `lib/import-actions.ts` → Deploy rot, #214).
 
 `apps/web/scripts/use-server-check.ts` prüft statisch auf dem
 TypeScript-Syntaxbaum (Ordner `app`, `lib`, `components`, ohne Tests) und
-läuft in jedem `typen-und-tests`-Lauf, auch für Entwürfe und Doku-PRs.
+läuft in `typen-und-tests` bei jedem vollen Lauf (auch für Entwürfe; reine
+Doku-PRs sind ausgenommen, sie ändern keine `.ts`-Datei — CI-Diät).
 Rot-Nachweis: `apps/web/scripts/use-server-check.test.ts` (Wegwerf-Ordner
 mit Testdateien: Konstante, synchrone Funktion, Re-Export, Default ohne
 async; der Fall aus #214; Typ-Re-Export erlaubt; der echte Baum ist grün).

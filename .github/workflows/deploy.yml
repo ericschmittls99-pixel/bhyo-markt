@@ -222,8 +222,11 @@ jobs:
       # async-Funktionen — Next.js prueft das erst im Build (Turbopack), zwei
       # Faelle fielen deshalb erst auf der Preview auf (use-server-Konstante →
       # POST 500; sync-Export → Deploy rot, #214). Statisch auf dem Syntaxbaum,
-      # Rot-Nachweis in scripts/use-server-check.test.ts. Laeuft immer.
+      # Rot-Nachweis in scripts/use-server-check.test.ts. Wie die anderen
+      # Waechter an VOLL gebunden (CI-Diaet): eine reine Doku-Aenderung kann
+      # keine "use server"-Datei anfassen.
       - name: use-server-check (nur async-Exporte)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/use-server-check.ts
 
