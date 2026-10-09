@@ -463,8 +463,10 @@ export function FormularPanel({
                 </span>
                 <span className="pf-feld">
                   <MonatFeld
+                    // E75: beim Ankreuzen neu aufbauen, damit das gesperrte Feld leer ist statt den alten Monat zu zeigen.
+                    key={unbefristet ? "bis-unbefristet" : "bis-monat"}
                     name="zeitraum_bis"
-                    wert={bisMonat}
+                    wert={unbefristet ? "" : bisMonat}
                     onWert={setBisMonat}
                     ungueltig={!!f.zeitraum_bis}
                     deaktiviert={unbefristet}
