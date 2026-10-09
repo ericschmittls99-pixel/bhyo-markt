@@ -483,3 +483,22 @@ ab dem 19.10. einzelne Läufe auf 26.04 gelandet — mit anderen
 Paketversionen (Node, pnpm, PostgreSQL-Client) und damit möglichen Rot-Läufen
 ohne Codeänderung. Umstieg auf `ubuntu-26.04` als eigener Betriebs-PR, wenn
 GitHub 24.04 abkündigt; dann zuerst ein Entwurf mit vollem Lauf.
+
+## use-server-check (Betriebs-PR, 09.10.2026)
+
+Dateien mit der Direktive `"use server"` dürfen ausschließlich
+async-Funktionen exportieren — keine Konstanten, keine synchronen Funktionen,
+keine Re-Exports von Werten (reine Typ-Exporte sind erlaubt, sie fallen beim
+Übersetzen weg). Next.js prüft das erst im Build (Turbopack: „Server Actions
+must be async functions"), nicht bei `tsc` und nicht in vitest; zwei Fälle
+fielen deshalb erst auf der Preview auf (use-server-Konstante → POST 500;
+synchroner Export in `lib/import-actions.ts` → Deploy rot, #214).
+
+`apps/web/scripts/use-server-check.ts` prüft statisch auf dem
+TypeScript-Syntaxbaum (Ordner `app`, `lib`, `components`, ohne Tests) und
+läuft in jedem `typen-und-tests`-Lauf, auch für Entwürfe und Doku-PRs.
+Rot-Nachweis: `apps/web/scripts/use-server-check.test.ts` (Wegwerf-Ordner
+mit Testdateien: Konstante, synchrone Funktion, Re-Export, Default ohne
+async; der Fall aus #214; Typ-Re-Export erlaubt; der echte Baum ist grün).
+Erster Fund beim Einbau: `export { Gesperrt }` in `lib/sperre-actions.ts`
+(Wert-Re-Export einer Fehlerklasse, ohne Verbraucher) — entfernt.
