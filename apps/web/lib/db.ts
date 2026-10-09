@@ -39,6 +39,13 @@ interface AppBindings {
   BELEGE?: BelegeBucket;
   /** E68 PR 2: Basis-URL des Adressdienstes (Standard Photon, lib/photon-server.ts). */
   GEOCODE_URL?: string;
+  /** AP2.9 (E74): Mail — Modus protokoll (Standard, nur loggen) | graph (senden); Absenderpostfach. */
+  MAIL_MODUS?: string;
+  MAIL_ABSENDER?: string;
+  /** AP2.9 (E74): Entra-App (Worker-Secrets, traegt Eric ein). */
+  M365_TENANT_ID?: string;
+  M365_CLIENT_ID?: string;
+  M365_CLIENT_SECRET?: string;
 }
 
 /** Cloudflare-Bindings/Vars aus dem Worker-Kontext. Wirft ausserhalb des Workers. */

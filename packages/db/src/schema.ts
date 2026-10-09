@@ -861,6 +861,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "kommentar_erstellt",
   "kommentar_bearbeitet",
   "kommentar_geloescht",
+  // AP2.9 (E74): ausgehende Mail am Empfaenger protokolliert — Art und Laengen, nie Inhalt.
+  "mail_gesendet",
 ]);
 
 export const aenderung = pgTable(

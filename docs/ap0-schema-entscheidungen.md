@@ -2422,6 +2422,20 @@ bei Neuem", Abmeldung, Link-Ziel, Verhalten bei Graph-Fehlern, Erkennen des
 Secret-Ablaufs) mit Empfehlung je Punkt, und `docs/betrieb/m365-mail.md` als
 Anleitung für die IT samt Namen der Worker-Secrets.
 
+**Umgesetzt (Entwurf, 09.10.2026):** `apps/web/lib/mail/graph.ts`
+(Token per client_credentials, `sendMail` mit `saveToSentItems=false`,
+Ursachen als Codes: secret_abgelaufen AADSTS7000222, secret_ungueltig,
+app_unbekannt, zugriff_verweigert, postfach_unbekannt, gedrosselt mit
+Retry-After, netz) und `apps/web/lib/mail/index.ts` als einzige Schreibstelle
+`sendeMail` (Modus `protokoll` Standard: loggt und protokolliert, sendet
+nicht; `graph` sendet). Ereignisart `mail_gesendet` am Empfänger (Migration
+`ap29_mail_gesendet`), Text nur Art, Modus und Längen. Variablen
+`MAIL_MODUS`, `MAIL_ABSENDER` in `wrangler.jsonc`; Secrets `M365_TENANT_ID`,
+`M365_CLIENT_ID`, `M365_CLIENT_SECRET`. Anleitung `docs/betrieb/m365-mail.md`,
+Weggabelungen `docs/vorbereitung/ap29-roundup-weggabelungen.md`. Ein
+Fehlschlag hinterlässt kein Ereignis; der Aufrufer entscheidet über die
+Wiederholung.
+
 ## 49. E75 Unbefristete Angebote und Bedarfe (`zeitraum_bis` NULL), 09.10.2026
 
 **Entschieden (Eric 09.10.2026):** `zeitraum_bis NULL` bedeutet unbefristet,

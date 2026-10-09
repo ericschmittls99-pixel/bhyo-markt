@@ -59,7 +59,11 @@
     "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
     // AUD-Tag der Access-App "bhyo-markt" (Production). Kein Secret, aber pro App
     // verschieden.
-    "ACCESS_AUD": "e41cb1bf78c4a982bd0aff5a40997c3c7b5a3a8f77f06b6c9df121b6cb9b03cd"
+    "ACCESS_AUD": "e41cb1bf78c4a982bd0aff5a40997c3c7b5a3a8f77f06b6c9df121b6cb9b03cd",
+    // AP2.9 (E74): Mail-Versand ueber M365 Graph; Probemodus bis die Entra-App steht.
+    // Secrets M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET als Wrangler-Secrets.
+    "MAIL_MODUS": "protokoll",
+    "MAIL_ABSENDER": "news@bhyo.de"
   },
   // Zweite Umgebung für Preview-Deployments (Pull Requests).
   "env": {
@@ -87,7 +91,9 @@
         "GEOCODE_URL": "https://photon.komoot.io",
         "ACCESS_TEAM_DOMAIN": "bhyo.cloudflareaccess.com",
         // AUD-Tag der Access-App "bhyo-markt-preview".
-        "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd"
+        "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd",
+        "MAIL_MODUS": "protokoll",
+        "MAIL_ABSENDER": "news@bhyo.de"
       }
     }
   }
