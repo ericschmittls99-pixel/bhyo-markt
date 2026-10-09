@@ -144,7 +144,8 @@ export async function zuweisungEntfernen(art: StromArt, id: string, nutzerId: st
   return { ok: true };
 }
 
-export { Gesperrt };
+// Betrieb 09.10.2026 (use-server-check): kein Re-Export aus einer "use server"-Datei —
+// Gesperrt kommt aus @/lib/rechte/sperre-server, wo es alle Verbraucher importieren.
 
 /**
  * PR c: Zugriff auf einen gesperrten Strom anfragen — Rolle >= bearbeiter,
