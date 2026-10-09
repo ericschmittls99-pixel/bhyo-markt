@@ -8,8 +8,8 @@
  * Reihenfolge: Aufgabe/Rueckmeldung vor Hinweis). Wer fuer dasselbe Ereignis
  * schon bedient wurde, bekommt keinen zweiten Eintrag (D6).
  */
-import { benutzer, biomassestrom, inboxEintrag, outputBedarf } from "@bhyo/db/schema";
-import { and, eq, inArray, sql } from "drizzle-orm";
+import { benutzer, biomassestrom, inboxEintrag, kommentar, outputBedarf, stromZuweisung } from "@bhyo/db/schema";
+import { and, eq, inArray, ne, sql } from "drizzle-orm";
 
 import type { AppDb } from "@/lib/db";
 import { beteiligteAus, type ProtokollZeile } from "@/lib/protokoll/ableitung";
@@ -33,6 +33,8 @@ export interface ZustellEreignis {
   text?: string | null;
   /** PR c: Aufgabentext bei weitergegeben (inbox_eintrag.aufgabe). */
   aufgabe?: string | null;
+  /** AP2.6 PR c (E71): neu erwaehnte Nutzer eines Kommentars (Typ erwaehnung). */
+  erwaehnteIds?: readonly string[] | null;
 }
 
 type StromSpalte = "biomassestromId" | "outputBedarfId";
@@ -134,6 +136,10 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
       // PR b / AP2.5: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
       // AP2.7 (E67): import_abgeschlossen stellt der Import selbst zu (PR c), je Lauf gebuendelt.
       return [];
+    case "kommentar":
+    case "erwaehnung":
+      // AP2.6 PR c (E71): Objektbezug Kommentar — eigener Weg (zustelleKommentar), nicht ueber die Strom-Spalte.
+      return [];
     case "pruefung_erledigt": {
       // E62: die Person, die den Auftrag ausgeloest hat — nie der Pruefer selbst, nie Deaktivierte.
       const auftraggeber = auftraggeberAus(await protokollZeilen(tx, e.entitaet, e.entitaetId));
@@ -182,6 +188,8 @@ export function raeumeAnfragenAb(tx: Schreiber, spalte: StromSpalte, stromId: st
 }
 
 export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<number> {
+  // AP2.6 PR c (E71): Kommentar-Ereignisse haben den Objektbezug kommentar_id.
+  if (e.entitaet === "kommentar") return zustelleKommentar(tx, e);
   const spalte = stromSpalte(e.entitaet);
   if (!spalte) return 0;
 
@@ -243,6 +251,114 @@ export async function zustellen(tx: Schreiber, e: ZustellEreignis): Promise<numb
           gelesenAm: null,
           ...(typ === "zugriffsanfrage" ? { notiz: e.text ?? null } : {}),
         },
+      });
+    }
+  }
+  return gesamt;
+}
+
+/**
+ * AP2.6 PR c (E71): Wer ist fuer das Objekt eines Kommentars verantwortlich?
+ * Strom: Beteiligte laut Protokoll (E23, BETEILIGUNGS_ARTEN) plus Sperrinhaber
+ * und Zugewiesene (E44); Akteur: die Urheber seiner Protokollereignisse. Ohne
+ * Doppelte, ungefiltert — Rolle, Zustand und Autor filtert der Aufrufer.
+ */
+export async function verantwortlicheDesObjekts(
+  tx: Schreiber,
+  k: { biomassestromId: string | null; outputBedarfId: string | null; akteurId: string | null },
+): Promise<string[]> {
+  const ids: string[] = [];
+  const merke = (id: string | null | undefined) => {
+    if (id && !ids.includes(id)) ids.push(id);
+  };
+  if (k.biomassestromId || k.outputBedarfId) {
+    const art: Entitaet = k.biomassestromId ? "biomassestrom" : "output_bedarf";
+    const stromId = (k.biomassestromId ?? k.outputBedarfId)!;
+    for (const id of beteiligteAus(await protokollZeilen(tx, art, stromId))) merke(id);
+    const t = k.biomassestromId ? biomassestrom : outputBedarf;
+    const [strom] = await tx.select({ gesperrtVon: t.gesperrtVon }).from(t).where(eq(t.id, stromId));
+    merke(strom?.gesperrtVon);
+    const zuweisungen = await tx
+      .select({ nutzerId: stromZuweisung.nutzerId })
+      .from(stromZuweisung)
+      .where(eq(k.biomassestromId ? stromZuweisung.biomassestromId : stromZuweisung.outputBedarfId, stromId));
+    for (const z of zuweisungen) merke(z.nutzerId);
+  } else if (k.akteurId) {
+    for (const z of await protokollZeilen(tx, "akteur", k.akteurId)) merke(z.benutzerId);
+  }
+  return ids;
+}
+
+/** Empfaenger eines Kommentar-Ereignisses je Typ (Register: erwaehnung vor kommentar). */
+export async function kommentarEmpfaenger(
+  tx: Schreiber,
+  e: ZustellEreignis,
+  k: { biomassestromId: string | null; outputBedarfId: string | null; akteurId: string | null },
+  typ: InboxTyp,
+): Promise<string[]> {
+  let kandidatenIds: string[];
+  if (typ === "erwaehnung") {
+    kandidatenIds = [...new Set(e.erwaehnteIds ?? [])];
+  } else if (typ === "kommentar") {
+    // Verantwortliche des Objekts plus bisherige Kommentatoren des Verlaufs (ohne diesen Kommentar).
+    const bezug = k.biomassestromId
+      ? eq(kommentar.biomassestromId, k.biomassestromId)
+      : k.outputBedarfId
+        ? eq(kommentar.outputBedarfId, k.outputBedarfId)
+        : eq(kommentar.akteurId, k.akteurId!);
+    const kommentatoren = await tx
+      .select({ autorId: kommentar.autorId })
+      .from(kommentar)
+      .where(and(bezug, ne(kommentar.id, e.entitaetId)));
+    kandidatenIds = [...new Set([...(await verantwortlicheDesObjekts(tx, k)), ...kommentatoren.map((z) => z.autorId)])];
+  } else {
+    return [];
+  }
+  if (kandidatenIds.length === 0) return [];
+  const kandidaten = await tx
+    .select({ id: benutzer.id, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
+    .from(benutzer)
+    .where(inArray(benutzer.id, kandidatenIds));
+  // Dieselbe Regel wie „Aenderung an meinem Eintrag": nie der Ausloeser (Autor), nie Deaktivierte, nie Betrachter.
+  return filtereEmpfaenger(kandidatenIds, kandidaten, e.ausloeserId);
+}
+
+/**
+ * AP2.6 PR c (E71): Zustellung eines Kommentar-Ereignisses — je Kommentar und
+ * Empfaenger ein Eintrag (keine Buendelung, kein Upsert), Objektbezug
+ * kommentar_id. Register-Reihenfolge: erwaehnung vor kommentar — wer erwaehnt
+ * ist, bekommt nur die Erwaehnung (D6). Beim Bearbeiten entsteht nur
+ * erwaehnung fuer die neu Erwaehnten (Register: kommentar nur bei erstellt).
+ */
+export async function zustelleKommentar(tx: Schreiber, e: ZustellEreignis): Promise<number> {
+  const typen = typenFuerArt(e.art);
+  if (!typen.length) return 0;
+  const [k] = await tx
+    .select({ biomassestromId: kommentar.biomassestromId, outputBedarfId: kommentar.outputBedarfId, akteurId: kommentar.akteurId })
+    .from(kommentar)
+    .where(eq(kommentar.id, e.entitaetId));
+  if (!k) return 0;
+  const jetzt = new Date();
+  const bedient = new Set<string>();
+  let gesamt = 0;
+  for (const typ of typen) {
+    const empfaenger = (await kommentarEmpfaenger(tx, e, k, typ)).filter((id) => !bedient.has(id));
+    for (const empfaengerId of empfaenger) {
+      bedient.add(empfaengerId);
+      gesamt += 1;
+      await tx.insert(inboxEintrag).values({
+        empfaengerId,
+        ausloeserId: e.ausloeserId,
+        typ,
+        kommentarId: e.entitaetId,
+        ereignisId: e.id,
+        anzahl: 1,
+        erstelltAm: jetzt,
+        aktualisiertAm: jetzt,
+        zustand: "offen" as const,
+        zustandSeit: jetzt,
+        notiz: null,
+        aufgabe: null,
       });
     }
   }

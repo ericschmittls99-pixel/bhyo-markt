@@ -22,6 +22,16 @@ export function erwaehnungsMarker(nutzerId: string): string {
  * in der Reihenfolge des ersten Auftretens. Was kein vollstaendiger Marker
  * ist (ein nacktes @, eine fremde Form), bleibt Fliesstext und zaehlt nicht.
  */
+/**
+ * Text ohne Marker — fuer Pruefungen, die nur die Worte des Nutzers meinen.
+ * Befund Preview 09.10.2026: die UUID eines Markers sah fuer die
+ * Kontaktdaten-Heuristik wie eine Telefonnummer aus, jede Erwaehnung loeste
+ * die Warnung „E-Mail-Adresse oder Telefonnummer" aus.
+ */
+export function ohneMarker(text: string): string {
+  return text.replace(MARKER, "");
+}
+
 export function erwaehnungenAus(text: string): string[] {
   const gesehen = new Set<string>();
   const ids: string[] = [];

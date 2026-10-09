@@ -68,7 +68,7 @@ async function main() {
                       'inbox_eintrag_biomasse_pruefauftrag_uidx', 'inbox_eintrag_output_pruefauftrag_uidx',
                       'inbox_eintrag_biomasse_hinweis_uidx', 'inbox_eintrag_output_hinweis_uidx',
                       'inbox_eintrag_akteur_hinweis_uidx', 'inbox_eintrag_kontaktperson_hinweis_uidx',
-                      'inbox_eintrag_import_uidx', 'inbox_eintrag_wird_frei_uidx')`;
+                      'inbox_eintrag_import_uidx', 'inbox_eintrag_wird_frei_uidx', 'inbox_eintrag_kommentar_id_idx')`;
   const typen = await sql`select enumlabel from pg_enum where enumtypid = 'inbox_typ'::regtype`;
   // PR b (0033): Hinweise ohne Urheber/Ereignis, Bezugsdatum, Urheber-CHECK.
   const [nullbar] = await sql`select count(*)::int as n from information_schema.columns
@@ -93,13 +93,17 @@ async function main() {
   }
   const modus = journal.modus;
   console.log(
-    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/13 typen=${typen.length}/13 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n} (${modus})`,
+    `STRUKTUR tabelle=${t!.n} enums=${e!.n}/2 indizes=${idx.length}/14 typen=${typen.length}/15 nullbar=${nullbar!.n}/2 bezugsdatum=${bz!.n} urheber_check=${uc!.n} aufgabe_spalte=${as!.n} aufgabe_check=${ac!.n} akteur_id=${ak!.n} kontaktperson_id=${kp!.n} (${modus})`,
   );
   // AP2.8 (0051): Typ biomasse_wird_frei, Index inbox_eintrag_wird_frei_uidx, Spalte stufe mit CHECK.
   const [st] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'stufe'`;
   const [sc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_stufe_check'`;
   if (st!.n !== 1 || sc!.n !== 1) fehler.push(`AP2.8: Spalte stufe=${st!.n} CHECK stufe=${sc!.n} (Migration 0052)`);
-  const zaehler = [zaehlerPasst("indizes", idx.length, 13, modus), zaehlerPasst("typen", typen.length, 13, modus)].filter(Boolean);
+  // AP2.6 PR c (0054): Objektbezug Kommentar — Spalte kommentar_id (CASCADE), Index, Typen kommentar/erwaehnung, genau-ein-CHECK erweitert.
+  const [ko] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'kommentar_id'`;
+  const [kc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_genau_ein_strom_check' and pg_get_constraintdef(oid) like '%kommentar_id%'`;
+  if (ko!.n !== 1 || kc!.n !== 1) fehler.push(`AP2.6 PR c: Spalte kommentar_id=${ko!.n} CHECK mit kommentar_id=${kc!.n} (Migration 0054)`);
+  const zaehler = [zaehlerPasst("indizes", idx.length, 14, modus), zaehlerPasst("typen", typen.length, 15, modus)].filter(Boolean);
   if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
     console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036/0043 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson / Import) ${zaehler.join(" · ")}`);
     await sql.end();

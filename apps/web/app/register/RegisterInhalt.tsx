@@ -295,6 +295,7 @@ export async function RegisterInhalt({
             kommentare={detail.kommentare}
             kommentarZugang={detail.kommentarZugang}
             darfKommentieren={detail.darfKommentieren}
+            erwaehnbare={detail.erwaehnbare}
           />
         )
       )}

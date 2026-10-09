@@ -87,6 +87,7 @@ export function Detail({
   kommentare = null,
   kommentarZugang = null,
   darfKommentieren = false,
+  erwaehnbare = [],
 }: {
   strom: Strom;
   historie: { zeitpunkt: string; text: string }[];
@@ -126,6 +127,8 @@ export function Detail({
   kommentare?: Kommentar[] | null;
   kommentarZugang?: { id: string; rolle: Rolle } | null;
   darfKommentieren?: boolean;
+  /** AP2.6 PR c (E71): erwaehnbare Nutzer fuer die @-Auswahl (wie zuweisbare). */
+  erwaehnbare?: SperrNutzer[];
 }) {
   const s = strom;
   const [zuweisenOffen, setZuweisenOffen] = useState(false);
@@ -825,7 +828,7 @@ export function Detail({
 
             {kommentare && (
               <section className="ov-sec">
-                <Kommentare bezug={{ art: s.art, id: s.id }} kommentare={kommentare} zugang={kommentarZugang} darfErstellen={darfKommentieren} />
+                <Kommentare bezug={{ art: s.art, id: s.id }} kommentare={kommentare} zugang={kommentarZugang} darfErstellen={darfKommentieren} erwaehnbare={erwaehnbare} />
               </section>
             )}
 

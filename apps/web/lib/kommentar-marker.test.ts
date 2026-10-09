@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { EHEMALIGER_NUTZER, KOMMENTAR_TEXT_MAX, erwaehnungenAus, erwaehnungsMarker, kommentarSegmente, pruefeKommentarText } from "./kommentar-marker";
+import { enthaeltKontaktdaten } from "./import-zuordnung";
+import { EHEMALIGER_NUTZER, KOMMENTAR_TEXT_MAX, erwaehnungenAus, erwaehnungsMarker, kommentarSegmente, ohneMarker, pruefeKommentarText } from "./kommentar-marker";
 
 const A = "00000000-0000-4000-8000-0000000000a1";
 const B = "00000000-0000-4000-8000-0000000000b2";
@@ -58,5 +59,18 @@ describe("E71 Anzeige-Segmente (Marker → aktueller Name)", () => {
   it("ohne Marker ein einziges Textsegment; leerer Text keines", () => {
     expect(kommentarSegmente("nur Text", nutzer)).toEqual([{ art: "text", text: "nur Text" }]);
     expect(kommentarSegmente("", nutzer)).toEqual([]);
+  });
+});
+
+describe("ohneMarker — Kontaktdaten-Heuristik sieht keine Marker-UUIDs (Befund Preview 09.10.2026)", () => {
+  const id = "3f2a9c10-7b4d-4e8f-9a1b-2c3d4e5f6a7b";
+  it("entfernt Marker und laesst den uebrigen Text stehen", () => {
+    expect(ohneMarker(`Nachfrage an ${erwaehnungsMarker(id)} bitte`)).toBe("Nachfrage an  bitte");
+  });
+  it("Erwaehnung allein loest keine Kontaktdaten-Warnung aus, eine Telefonnummer daneben weiterhin", () => {
+    const text = `Nachfrage zur Menge an ${erwaehnungsMarker("00000000-0000-4000-8000-0000000000b2")}`;
+    expect(enthaeltKontaktdaten(text)).toBe(true); // ohne Bereinigung: Fehlalarm
+    expect(enthaeltKontaktdaten(ohneMarker(text))).toBe(false);
+    expect(enthaeltKontaktdaten(ohneMarker(`${text} Tel. 0721 123456`))).toBe(true);
   });
 });
