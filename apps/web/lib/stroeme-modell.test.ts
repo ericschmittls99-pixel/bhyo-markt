@@ -610,3 +610,13 @@ describe("Vollständigkeit als Min/Max in Prozent", () => {
     ).toEqual(["h"]);
   });
 });
+
+describe("E75: Sortierung nach „bis“", () => {
+  it("unbefristet sortiert hinter jedes Ende, ohne Zeitraum ganz nach vorn", () => {
+    const a = strom({ id: "a", zeitraumVon: "2026-01-01", zeitraumBis: "2030-12-31" });
+    const u = strom({ id: "u", zeitraumVon: "2026-01-01", zeitraumBis: null });
+    const o = strom({ id: "o", zeitraumVon: null, zeitraumBis: null });
+    expect(sortiereStroeme([u, a, o], "bis", "auf").map((s) => s.id)).toEqual(["o", "a", "u"]);
+    expect(sortiereStroeme([u, a, o], "bis", "ab").map((s) => s.id)).toEqual(["u", "a", "o"]);
+  });
+});

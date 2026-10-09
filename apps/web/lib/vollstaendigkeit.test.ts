@@ -112,3 +112,12 @@ describe("vollstaendigkeit — Koordinate statt Landkreis (F0b)", () => {
     expect(mit).toBeGreaterThan(ohne);
   });
 });
+
+describe("E75: unbefristet ist vollstaendig", () => {
+  it("Beginn ohne Ende senkt den Erfassungsgrad nicht", () => {
+    expect(vollstaendigkeit({ ...vollerFeed, zeitraumBis: null })).toBe(100);
+  });
+  it("ohne Beginn fehlt der Zeitraum weiterhin", () => {
+    expect(vollstaendigkeit({ ...vollerFeed, zeitraumVon: null, zeitraumBis: null })).toBeLessThan(100);
+  });
+});

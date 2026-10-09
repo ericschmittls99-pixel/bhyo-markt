@@ -88,6 +88,26 @@ describe("jahresAnteil (Handoff: Rate × Σ Saisonanteile)", () => {
   });
 });
 
+describe("E75: zeitraumBis = null heisst unbefristet (Monatsraster)", () => {
+  const offen = { ...basis, zeitraumBis: null } as Strom;
+  it("Rot-Nachweis: unbefristeter Strom zaehlt in jedem Jahr ab Beginn voll", () => {
+    expect(jahresAnteil(2026, offen, [], null)).toBeCloseTo(1, 10);
+    expect(jahresAnteil(2040, offen, [], null)).toBeCloseTo(1, 10);
+    expect(jahresAnteil(2025, offen, [], null)).toBe(0);
+  });
+  it("Vergabe ohne Ende auf unbefristetem Strom: alle Monate ab Vergabebeginn vergeben", () => {
+    const vg = [v({ vergebenVon: "2026-07-01" })];
+    expect(jahresAnteil(2026, offen, vg, new Set(["vergeben_extern"]))).toBeCloseTo(6 / 12, 10);
+    expect(jahresAnteil(2035, offen, vg, new Set(["vergeben_extern"]))).toBeCloseTo(1, 10);
+    expect(jahresAnteil(2035, offen, vg, new Set(["verfuegbar"]))).toBe(0);
+  });
+  it("unbefristet ist nie abgelaufen; vor dem Beginn noch_nicht_verfuegbar", () => {
+    expect(fensterKategorien([2090], offen, []).has("abgelaufen")).toBe(false);
+    expect(fensterKategorien([2090], offen, []).has("verfuegbar")).toBe(true);
+    expect(fensterKategorien([2020], offen, []).has("noch_nicht_verfuegbar")).toBe(true);
+  });
+});
+
 describe("fensterKategorien", () => {
   it("uebergreifendes Fenster: anteilig in beiden Kategorien", () => {
     const vergaben = [v({ vergebenBis: "2028-06-30" })];

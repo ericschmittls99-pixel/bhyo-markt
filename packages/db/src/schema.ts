@@ -489,7 +489,8 @@ export const biomassestrom = pgTable("biomassestrom", {
     sql`menge_roh_fm * ts_anteil_pct / 100 * (1 - aschegehalt_pct / 100)`,
   ),
   zeitraumVon: date("zeitraum_von").notNull(),
-  zeitraumBis: date("zeitraum_bis").notNull(),
+  // E75 (09.10.2026): NULL = unbefristet; CHECK bis >= von in den Constraints.
+  zeitraumBis: date("zeitraum_bis"),
   // Saison-INDEX (23.09.2026): 12 Zahlen, Referenzmarke 100 (kein
   // "Durchschnitt" — ohne Normierung ist das Mittel beliebig). Die
   // Skala ist BEDEUTUNGSLOS — nur die Verhaeltnisse zaehlen (anteil_m =
@@ -536,6 +537,8 @@ export const biomassestrom = pgTable("biomassestrom", {
       "biomassestrom_sperre_check",
       sql`(${t.gesperrtVon} is null) = (${t.gesperrtAm} is null)`,
     ),
+    // E75: unbefristet (NULL) oder Ende nicht vor dem Beginn.
+    check("biomassestrom_zeitraum_check", sql`${t.zeitraumBis} is null or ${t.zeitraumBis} >= ${t.zeitraumVon}`),
   ],
 );
 
@@ -582,7 +585,8 @@ export const outputBedarf = pgTable("output_bedarf", {
   preisEinheit: text("preis_einheit"),
   preisHerkunft: preisHerkunft("preis_herkunft"),
   zeitraumVon: date("zeitraum_von").notNull(),
-  zeitraumBis: date("zeitraum_bis").notNull(),
+  // E75 (09.10.2026): NULL = unbefristet; CHECK bis >= von in den Constraints.
+  zeitraumBis: date("zeitraum_bis"),
   // Saison-INDEX (23.09.2026): 12 Zahlen, Referenzmarke 100 (kein
   // "Durchschnitt" — ohne Normierung ist das Mittel beliebig). Die
   // Skala ist BEDEUTUNGSLOS — nur die Verhaeltnisse zaehlen (anteil_m =
@@ -615,6 +619,8 @@ export const outputBedarf = pgTable("output_bedarf", {
       "output_bedarf_sperre_check",
       sql`(${t.gesperrtVon} is null) = (${t.gesperrtAm} is null)`,
     ),
+    // E75: unbefristet (NULL) oder Ende nicht vor dem Beginn.
+    check("output_bedarf_zeitraum_check", sql`${t.zeitraumBis} is null or ${t.zeitraumBis} >= ${t.zeitraumVon}`),
   ],
 );
 
@@ -1403,6 +1409,8 @@ export const importLauf = pgTable(
     // AP2.7 PR e: Zeitraum des Laufs fuer Zeilen ohne eigenen Wert (Pflicht am Lauf, keine Vorbelegung).
     zeitraumVon: date("zeitraum_von"),
     zeitraumBis: date("zeitraum_bis"),
+    // E75b: Lauf-Standard „unbefristet" fuer Zeilen ohne eigenes Ende (ausdruecklich, nie aus einer leeren Zelle).
+    zeitraumUnbefristet: boolean("zeitraum_unbefristet").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),

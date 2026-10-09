@@ -151,6 +151,8 @@ export interface FormularEingaben {
   preisBezug: string;
   vonMonat: string;
   bisMonat: string;
+  /** E75: offenes Ende — zeitraum_bis wird NULL, bisMonat bleibt leer. */
+  unbefristet: boolean;
   begruendung: string;
   belegTyp: string;
   belegQuellenangabe: string;
@@ -205,7 +207,8 @@ export function validiereFormular(
 
   pflicht("akteur_id", e.akteurId);
   pflicht("zeitraum_von", e.vonMonat);
-  pflicht("zeitraum_bis", e.bisMonat);
+  // E75: unbefristet ersetzt den Bis-Monat.
+  if (!e.unbefristet) pflicht("zeitraum_bis", e.bisMonat);
   // Begruendung ist die Je-Aenderungs-Begruendung der Historie: beim
   // Bearbeiten Pflicht ("warum korrigiert"), beim Anlegen entfallen
   // (Review 23.09.2026). Auf die Qualitaets-Ableitung hat sie keinerlei
@@ -253,6 +256,7 @@ export function validiereFormular(
   if (
     !f.zeitraum_von &&
     !f.zeitraum_bis &&
+    !e.unbefristet &&
     e.vonMonat &&
     e.bisMonat &&
     e.bisMonat < e.vonMonat
@@ -335,6 +339,8 @@ export interface FormularWerte {
   produktCode: string;
   vonMonat: string;
   bisMonat: string;
+  /** E75: offenes Ende — zeitraum_bis wird NULL, bisMonat bleibt leer. */
+  unbefristet: boolean;
   mengeRohFm: string;
   tsAnteilPct: string;
   aschegehaltPct: string;
@@ -444,6 +450,8 @@ export function formularZeileZuWerte(
     produktCode: s(r.produktCode),
     vonMonat: datumZuMonat(r.zeitraumVon),
     bisMonat: datumZuMonat(r.zeitraumBis),
+    // E75: NULL-Ende bei gesetztem Beginn heisst unbefristet (vor E75 unmoeglich).
+    unbefristet: r.zeitraumVon != null && r.zeitraumBis == null,
     mengeRohFm: s(r.mengeRohFm),
     tsAnteilPct: s(r.tsAnteilPct),
     aschegehaltPct: s(r.aschegehaltPct),

@@ -759,7 +759,8 @@ function sortWert(s: Strom, key: string): string | number {
     case "von":
       return s.zeitraumVon ?? "";
     case "bis":
-      return s.zeitraumBis ?? "";
+      // E75: unbefristet sortiert hinter jedem Ende.
+      return s.zeitraumBis ?? (s.zeitraumVon ? "9999-12-31" : "");
     default:
       return s.erstelltAm;
   }
