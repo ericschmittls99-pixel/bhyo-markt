@@ -29,15 +29,16 @@ on:
         required: false
         default: ""
 
-# Pro Ziel-Ref nur ein Deploy gleichzeitig. Abgebrochen wird NUR ein ueberholter
-# PR-Lauf (neuer Push = synchronize); alles andere wartet in der Schlange:
-# main-Deploys laufen nacheinander (Betriebs-PR, Eric 05.10.2026), und
-# ready_for_review bricht den Push-Lauf desselben Heads nicht mehr ab — der
-# hinterliess einen „cancelled"-Check am Head, an dem das Merge-Skript scheiterte
-# (dreimal am 05.10.2026).
+# Pro Ziel-Ref nur ein Deploy gleichzeitig. CI-Diaet (Betriebs-PR 3, Eric
+# 08.10.2026): JEDER ueberholte PR-Lauf desselben Branches wird abgebrochen
+# (neuer Push, „bereit", Label) — keine aktive Wartezeit auf ueberholte Laeufe.
+# main-Deploys laufen weiter nacheinander (nie abgebrochen). Der „cancelled"-
+# Check, den ein abgebrochener Lauf am Head hinterlaesst, stoert den Merge nicht
+# mehr: merge-sicher.sh wertet je Check-Namen nur den juengsten Lauf (Test in
+# scripts/tests/freigabe-test.sh).
 concurrency:
   group: deploy-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' && github.event.action == 'synchronize' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   # Review Eric (24.09.2026): Das Deploy-Ziel hing allein am EVENT —
@@ -53,6 +54,10 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    outputs:
+      # CI-Diaet: ist der PR eine reine Doku-Aenderung? Dann laeuft nur der
+      # Konfliktmarker-Check (siehe aenderungen-Schritt unten).
+      nur_doku: ${{ steps.aenderungen.outputs.nur_doku }}
     steps:
       - name: Deploy-Ziel gegen den Ref pruefen
         env:
@@ -68,6 +73,42 @@ jobs:
             exit 1
           fi
           echo "ZIELWACHE event=$EVENT ref=$REF -> Production (zulaessig)"
+      # CI-Diaet (Betriebs-PR 3, Eric 08.10.2026): Ein PR, der NUR Doku
+      # aendert (Muster in scripts/nur-doku-muster.txt: *.md, docs/**,
+      # Screenshots — dasselbe Muster liest merge-sicher.sh), laeuft nur durch
+      # den Konfliktmarker-Check, ohne Wegwerf-DB und ohne Deploy. Alles andere
+      # ist ein voller Lauf: „bereit" heisst immer Wegwerf-DB und DB-Checks
+      # (SQL steckt auch in apps/web/lib — ein Pfadfilter wuerde Schutz
+      # verlieren). Geaenderte Dateien und Muster kommen ueber die API vom
+      # PR-Head (kein Checkout); main und Dispatch sind nie „nur Doku"; ist
+      # etwas nicht lesbar, gilt der volle Lauf (fail closed).
+      # Folge-PR (Eric 08.10.2026): das MUSTER kommt von der BASIS (main),
+      # nicht vom PR-Head — sonst koennte ein PR seine eigene Einstufung
+      # aendern. Aendert ein PR die Musterdatei selbst, ist er ein Code-PR.
+      - name: Reine Doku-Aenderung? (nur Pull Requests)
+        id: aenderungen
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT: ${{ github.event_name }}
+          BASIS: ${{ github.event.pull_request.base.sha }}
+          KOPF: ${{ github.event.pull_request.head.sha }}
+        run: |
+          nur_doku=false
+          if [ "$EVENT" = "pull_request" ] && [ -n "$BASIS" ] && [ -n "$KOPF" ]; then
+            muster=$(gh api "repos/${{ github.repository }}/contents/scripts/nur-doku-muster.txt?ref=$BASIS" --jq .content 2>/dev/null | base64 -d | grep -v '^#' | head -1 || true)
+            if [ -n "$muster" ] && dateien=$(gh api --paginate "repos/${{ github.repository }}/compare/$BASIS...$KOPF" --jq '.files[].filename' 2>/dev/null); then
+              anzahl=$(printf '%s\n' "$dateien" | grep -c . || true)
+              doku=$(printf '%s\n' "$dateien" | grep -cE "$muster" || true)
+              musterdatei=$(printf '%s\n' "$dateien" | grep -cx 'scripts/nur-doku-muster.txt' || true)
+              if [ "$anzahl" -gt 0 ] && [ "$doku" -eq "$anzahl" ] && [ "$musterdatei" -eq 0 ]; then nur_doku=true; fi
+              echo "AENDERUNGEN dateien=$anzahl doku=$doku musterdatei=$musterdatei nur_doku=$nur_doku"
+            else
+              echo "AENDERUNGEN Vergleich oder Muster nicht lesbar — voller Lauf"
+            fi
+          else
+            echo "AENDERUNGEN event=$EVENT — voller Lauf"
+          fi
+          echo "nur_doku=$nur_doku" >> "$GITHUB_OUTPUT"
 
   # E21 (22.09.2026): Vorab-Check statt Auto-Migration — dieser Workflow
   # migriert Production NIE selbst. Migrationen laufen ausschliesslich ueber
@@ -89,38 +130,52 @@ jobs:
   # WEDER Preview NOCH Production. Bewusst eng: nur Typen und Tests, kein
   # Lint, keine Formatierung, keine Coverage.
   typen-und-tests:
+    needs: [ziel-wache]
     runs-on: ubuntu-24.04
     permissions:
       contents: read
+    # CI-Diaet: reine Doku-Aenderungen (nur docs/ und Markdown) laufen nur durch
+    # den Konfliktmarker-Check — kein Install, keine Typen, keine Tests.
+    env:
+      VOLL: ${{ needs.ziel-wache.outputs.nur_doku != 'true' }}
     steps:
       - uses: actions/checkout@v7
       - uses: pnpm/action-setup@v6
+        if: env.VOLL == 'true'
       - uses: actions/setup-node@v7
+        if: env.VOLL == 'true'
         with:
           node-version: 22
           cache: pnpm
       - name: Install
+        if: env.VOLL == 'true'
         run: pnpm install --frozen-lockfile
       # Getrennte Schritte, damit im Log sofort sichtbar ist, was bricht.
       - name: Typen — apps/web
+        if: env.VOLL == 'true'
         run: pnpm --filter web exec tsc --noEmit
       - name: Typen — packages/db
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db exec tsc --noEmit
       - name: Tests — apps/web
+        if: env.VOLL == 'true'
         run: pnpm --filter web test -- --run
       - name: Tests — packages/db
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db test
       # F8/E30, E42: rechte-check — meldet jede Server-Action und jede
       # schreibende Route, die die Wache nicht mit einer Aktion der Matrix
       # aufruft. Laeuft zusaetzlich als Vitest-Fall; hier eigens, damit die
       # Luecke im Log als eigene Zeile mit Dateibezug erscheint.
       - name: rechte-check (Schreibpfade)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/rechte-check.ts
 
       # AP2.2 PR a: eine Schreibstelle fuer das Ereignisprotokoll, jeder
       # Schreibpfad protokolliert mit einer Art (scripts/protokoll-check.ts).
       - name: protokoll-check (Ereignisprotokoll)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/protokoll-check.ts
 
@@ -128,11 +183,13 @@ jobs:
       # eingestuft (fachlich / redaktionell / technisch) — eine neue Spalte
       # ohne Einstufung ist rot (scripts/feld-check.ts).
       - name: feld-check (Feldeinstufung)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/feld-check.ts
 
       # AP2.2 PR b: inbox_eintrag wird nur in lib/inbox geschrieben.
       - name: inbox-check (Inbox-Schreibstelle)
+        if: env.VOLL == 'true'
         working-directory: apps/web
         run: pnpm exec tsx scripts/inbox-check.ts
 
@@ -140,6 +197,7 @@ jobs:
       # inbox_typ (und der Typ selbst) werden nie umbenannt, sonst waeren
       # Index-Praedikat und ON CONFLICT still falsch. Liste im Skript.
       - name: enum-rename-check (IMMUTABLE-Enums)
+        if: env.VOLL == 'true'
         run: pnpm --filter @bhyo/db enum-rename-check
 
       # Waechter fuer das Freigabe-Skript (Eric 06.10.2026: bash -n reicht
@@ -147,6 +205,7 @@ jobs:
       # Bare-Repo, Faelle fuer (e) Neustart und (f) Angleichen, siehe
       # docs/betrieb.md. Dauert ~1 min (das Skript wartet nach dem Neustart).
       - name: freigabe-test (Waechter freigabe.sh)
+        if: env.VOLL == 'true'
         run: scripts/tests/freigabe-test.sh
 
       # AP2.7 PR g (Eric 07.10.2026): Konfliktmarker (<<<<<<<, =======, >>>>>>>
@@ -154,6 +213,7 @@ jobs:
       # Angleichen von E68 PR 1 blieben welche in zwei Doku-Dateien stehen.
       # Rot-Nachweis: scripts/tests/konfliktmarker-test.sh (Wegwerf-Repo).
       - name: konfliktmarker-test (Rot-Nachweis des Waechters)
+        if: env.VOLL == 'true'
         run: scripts/tests/konfliktmarker-test.sh
       - name: konfliktmarker-check (versionierte Dateien)
         run: scripts/konfliktmarker-check.sh
@@ -164,6 +224,13 @@ jobs:
   # Import-Schritt (ohne Sollwerte) und der Funktions-Check (Paritaet SQL/TS,
   # Rot-Faelle). Braucht keine Secrets; nichts bleibt liegen.
   wegwerf-db:
+    needs: [ziel-wache]
+    # CI-Diaet: nie fuer Entwuerfe (die laufen nur durch Typen, Tests und
+    # Konfliktmarker) und nicht fuer reine Doku-PRs; sonst IMMER — „bereit"
+    # und main heissen voller Lauf (Eric 08.10.2026).
+    if: >-
+      needs.ziel-wache.outputs.nur_doku != 'true' &&
+      (github.event_name != 'pull_request' || github.event.pull_request.draft == false)
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -208,7 +275,7 @@ jobs:
       # Anschlussvergabe, NULL, an_bhyo, frei_ab aendert sich, Idempotenz).
       - name: Wird-frei-Probe (Job-SQL, Rot-Faelle)
         run: pnpm --filter web exec tsx scripts/wird-frei-probe.ts
-      # AP2.6 PR a (E71): Kommentar-Modell (Migration 0052) und -Schreibweg gegen
+      # AP2.6 PR a (E71): Kommentar-Modell (Migration 0053) und -Schreibweg gegen
       # die Wegwerf-DB — CHECK genau ein Bezug, Text-CHECK, Erwaehnungs-PK/FK,
       # Rechte je Rolle am echten Baustein, weiches Loeschen, kein Kommentartext
       # im Protokoll (mit Rot-Nachweis), CASCADE beim geloeschten Akteur.
@@ -238,29 +305,31 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
+        env:
+          URL_1: ${{ secrets.DATABASE_URL_PRODUCTION }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
       # Der Notausgang greift nur hier: Bei einem Push existiert der Input
       # nicht (leer), das Gate laeuft also IMMER. Nur ein manueller
       # workflow_dispatch mit woertlich "ja" ueberspringt die Pruefung.
-      # Warteschlange statt Rot (Betriebs-PR, 05.10.2026): Nach dem Merge eines
-      # Migrations-PR startet scripts/freigabe.sh sofort migrate-production.yml.
-      # Das Gate wartet bis zu 20 Minuten darauf, dass Production den Stand des
-      # Journals erreicht (Exit 1 = DB zurueck -> erneut pruefen), statt den
-      # Push-Lauf rot zu beenden und einen zweiten Deploy per Dispatch zu
-      # brauchen. Exit 2 (DB nicht erreichbar) bleibt sofort rot — andere
-      # Fehlerklasse.
-      - name: Schema-Stand pruefen (read-only, wartet auf die Production-Migration)
+      # CI-Diaet (Betriebs-PR 3, Eric 08.10.2026): kein aktives Warten mehr.
+      # Liegt Production hinter dem Journal, bricht das Gate sofort mit klarer
+      # Meldung ab (nicht gruen, kein Deploy). migrate-production.yml startet
+      # nach seinem Erfolg den Deploy von main selbst (Dispatch); freigabe.sh
+      # wartet in diesem Fall auf den Dispatch-Lauf. Exit 2 (DB nicht
+      # erreichbar) bleibt eine andere Fehlerklasse.
+      - name: Schema-Stand pruefen (read-only)
         if: inputs.gate_umgehen != 'ja'
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION }}
         run: |
-          for versuch in $(seq 1 40); do
-            if pnpm --filter @bhyo/db schema-gate; then exit 0; fi
-            rc=$?
-            if [ "$rc" = "2" ]; then echo "::error::Production-DB nicht erreichbar — kein Schema-Befund."; exit 2; fi
-            echo "GATE wartet (Versuch $versuch/40): Production liegt hinter dem Journal — migrate-production.yml ausstehend."
-            sleep 30
-          done
-          echo "::error::schema-gate: Production liegt nach 20 Minuten noch hinter dem Journal. migrate-production.yml (bestaetigung=production) starten, dann diesen Lauf erneut starten."
+          if pnpm --filter @bhyo/db schema-gate; then exit 0; fi
+          rc=$?
+          if [ "$rc" = "2" ]; then echo "::error::Production-DB nicht erreichbar — kein Schema-Befund."; exit 2; fi
+          echo "::error::schema-gate: Production liegt hinter dem Journal — Migration ausstehend. migrate-production.yml (bestaetigung=production) starten; es loest den Deploy von main danach selbst aus. Dieser Lauf bleibt rot (kein Deploy)."
           exit 1
       - name: "NOTAUSGANG aktiv: Gate uebersprungen"
         if: inputs.gate_umgehen == 'ja'
@@ -277,10 +346,17 @@ jobs:
     # schema-gate gruen ist.
     # Entwuerfe (draft) deployen NICHT auf die Preview und migrieren sie nicht
     # (Regel Eric 01.10.2026) — sie laufen nur durch typen-und-tests.
+    # CI-Diaet: die Wegwerf-DB zaehlt ausdruecklich — vorher hing sie nur in
+    # `needs`, und mit always() haette ein roter Wegwerf-Lauf den Deploy nicht
+    # aufgehalten. „skipped" ist nur fuer Entwuerfe und reine Doku-PRs
+    # zulaessig, und beide deployen ohnehin nicht (Entwurf: Regel unten;
+    # Doku-PR: nur_doku).
     if: >-
       always() && !cancelled() &&
       needs.typen-und-tests.result == 'success' &&
       needs.ziel-wache.result == 'success' &&
+      needs.ziel-wache.outputs.nur_doku != 'true' &&
+      (needs.wegwerf-db.result == 'success' || needs.wegwerf-db.result == 'skipped') &&
       (github.event_name != 'pull_request' || github.event.pull_request.draft == false) &&
       (github.event_name == 'pull_request' ||
        needs.schema-gate.result == 'success')
@@ -323,31 +399,16 @@ jobs:
 
       - name: Install
         run: pnpm install --frozen-lockfile
-
-      # Nur Preview: Schema-Migrationen automatisch gegen den Preview-Neon-Branch
-      # anwenden, damit PRs mit Schemaaenderungen nicht mehr manuell nachgezogen
-      # werden muessen. Production migriert dieser Workflow NIE — nur der
-      # manuell ausgeloeste Workflow migrate-production.yml (E21). Der direkte
-      # Neon-Connection-String kommt aus dem Repo-Secret, nie aus dem Repo.
-      # F0b PR D: Archiv-Waechter — sichert die befuellten E7-Altfelder als
-      # Workflow-Artefakt, BEVOR 0017 sie droppt (auf der Preview sind das
-      # die "Test:"-Zeilen; gewollt und als Artefakt nachvollziehbar).
-      # Defensiv: nach dem DROP entfaellt er mit Hinweis.
-      - name: Altfelder archivieren (Waechter 0017)
-        if: github.event_name == 'pull_request'
-        working-directory: packages/db
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
         env:
-          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
-        run: |
-          pnpm run archiv-altfelder
-          test -f altfelder-archiv.json || { echo '::error::Archivdatei fehlt — kein DROP.'; exit 1; }
+          URL_1: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
 
-      - name: Altfelder-Archiv hochladen
-        if: github.event_name == 'pull_request'
-        uses: actions/upload-artifact@v7
-        with:
-          name: altfelder-archiv-preview
-          path: packages/db/altfelder-archiv.json
+      # CI-Diaet: der Archiv-Waechter 0017 (Altfelder) entfaellt hier — die
+      # Spalten sind seit 0017 weg, der Schritt lud ein leeres Artefakt hoch.
 
       # E33 Schritt 3: Vorpruefung VOR der Migration — ein Beleg der oberen
       # vier Typen ohne gueltig_bis bricht hier mit Belegnummern ab, statt
@@ -601,6 +662,13 @@ jobs:
           cache: pnpm
       - name: Install
         run: pnpm install --frozen-lockfile
+      # E73 (08.10.2026): Logs eines oeffentlichen Repos sind oeffentlich — Host und
+      # Datenbanknutzer der Verbindungs-URL werden maskiert, bevor ein Skript sie nennt.
+      # packages/db/src/log-maske.ts: per Muster, nie werfend, kein Fehlerpfad gibt Eingaben aus (Test log-maske.test.ts).
+      - name: DB-Host im Log maskieren (E73)
+        env:
+          URL_1: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}
+        run: pnpm --filter @bhyo/db exec tsx src/log-maske.ts
       - name: Zielnachweis + Schreibversuch (muss scheitern)
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PRODUCTION_LESEND }}

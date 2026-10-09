@@ -1991,6 +1991,16 @@ hebt die Genauigkeit, kein Treffer markiert nur „versucht".
 nicht zuordenbar; Option: genaue Suche auch für sie zulassen. Die Testdatei
 `import-testdatei-ap27.xlsx` (Prüfstein) lag in der Nacht nicht vor.
 
+**Nachtrag 08.10.2026 (Zeile 39 der Testdatei, Eric):** Bei vorhandenem
+Akteur wird die Zeilen-Sitzadresse verworfen; in den Strom gehen nur die
+Spalten der Gruppe „Standort" (`plz`, `ort`, Straße, Hausnummer) — und die
+waren ungeprüft. Jetzt prüft der Adressschritt auch sie lokal
+(`standortGruppen`, `standortBefund`), je eindeutigem (PLZ, Ort) einmal,
+unabhängig vom Akteur; ein Befund steht als Zeilenfehler am Feld Standort ·
+PLZ und führt in die Nacharbeit, eine Korrektur dort wird sofort erneut
+geprüft. Zähler `standort_befunde` am Lauf. Tests in
+`lib/import-adressen.test.ts` („Standort-Spalten").
+
 ## 43. E69 Preis-Bezug, liegengebliebene Läufe, Konfliktmarker-Wächter (AP2.7 PR g), 07.10.2026
 
 **Anlass (Testlauf 07.10.2026):** `biomassestrom.preis_min/mittel/max` waren
@@ -2083,7 +2093,7 @@ Ablauf-Hinweise (letzter Prüfer, sonst alle Prüfer/Admins). Pille „frei ab /
 frei seit TT.MM.JJJJ" in Liste und Detail, Filterwert „Wird frei" in der
 Verfügbarkeits-Facette, keine Karte.
 
-**Umsetzung (Migration 0051):** Enum-Wert `biomasse_wird_frei`, Spalte
+**Umsetzung (Migration 0052; ursprünglich 0051, umnummeriert am 08.10.2026, weil 0051 an E72 ging — neues Journal-`when`):** Enum-Wert `biomasse_wird_frei`, Spalte
 `inbox_eintrag.stufe` (CHECK: genau bei diesem Typ gesetzt), Index
 `inbox_eintrag_wird_frei_uidx` (Empfänger, Strom, frei_ab, Stufe) über alle
 Zustände, Urheber-CHECK erweitert. Regel in `lib/wird-frei.ts` (freiAbAus,
@@ -2133,7 +2143,7 @@ entfernte nicht zurückgenommen. Kommentieren am gesperrten Strom ist
 erlaubt (E44 nennt nur fachliche Änderungen am Strom — kein Widerspruch im
 Bestand). Feldeinstufung intern; nicht im Export, nicht im Import.
 
-**Umsetzung (Migration 0052):** `kommentar` (biomassestrom_id,
+**Umsetzung (Migration 0053; ursprünglich 0052, umnummeriert am 08.10.2026 nach dem Merge von #199, neues Journal-`when`):** `kommentar` (biomassestrom_id,
 output_bedarf_id, akteur_id — „Strom" heißt im Bestand Angebot oder Bedarf,
 deshalb zwei Strom-Spalten wie in `inbox_eintrag`; autor_id, text,
 erstellt_am, bearbeitet_am, geloescht_am), CHECKs
@@ -2165,11 +2175,13 @@ Kontaktpersonen (nur IDs, Bezugsart, Zähler). Tests:
 CHECKs, PK/FK, Rechte am echten Baustein, weiches Löschen, kein Text im
 Protokoll mit Rot-Nachweis, CASCADE).
 
-**Schnitt:** PR a Datenmodell + Schreibweg + Rechte + Tests; PR b
+**Schnitt:** PR a (dieser) Datenmodell + Schreibweg + Rechte + Tests; PR b
 UI Kommentarverlauf ohne @; PR c Erwähnungen + Inbox-Zustellung (Enum-Werte
 `kommentar`/`erwaehnung`, `inbox_eintrag.kommentar_id`); PR d
 Inbox-Aufbewahrung (D14).
 
+**Entschieden (Eric 08.10.2026):** (a) Migrationen so wie
+gebaut (AP2.8 jetzt 0052, PR a 0053, PR c 0054, PR d 0055 — Umnummerierung 08.10.2026, weil 0051 an E72 ging). (b) Textgrenze 2000 Zeichen; ein Marker
 **PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
 (SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
 `lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
@@ -2184,7 +2196,7 @@ Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
 `components/kommentare/Kommentare.test.tsx`, Segmente in
 `lib/kommentar-marker.test.ts`.
 
-**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0053):** Enum
+**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0054; ursprünglich 0053, umnummeriert am 09.10.2026, neues Journal-`when`):** Enum
 `inbox_typ` + `kommentar`, `erwaehnung` (nur erweitert, E53); Spalte
 `inbox_eintrag.kommentar_id` (FK, CASCADE — greift nur, wenn ein verwaister
 Akteur mitsamt Kommentaren gelöscht wird) im genau-ein-CHECK, Index. Keine
@@ -2232,7 +2244,7 @@ Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
 „Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
 („Erwaehnungszeilen weg"), Probe 6c.
 
-**PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0054):** Parameter
+**PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0055; ursprünglich 0054, umnummeriert am 09.10.2026, neues Journal-`when`):** Parameter
 `inbox.aufbewahrung_erledigt_tage` = 14 und `inbox.aufbewahrung_gelesen_tage`
 = 60 (Startwerte, Verlauf E60, Gruppe „Inbox" in einstellungen.). Der
 tägliche Job (`worker.ts`, nach dem Verifikations-Job) löscht in
@@ -2260,4 +2272,107 @@ Aufbewahrungsregeln im Job (Präzedenz E67, Import-Zwischenstände 30 Tage).
 Bedingung: die Anzahl gelöschter Einträge je Lauf steht in
 `job_lauf.schritte` (`inbox_aufbewahrung_erledigt`,
 `inbox_aufbewahrung_gelesen`, am Lauf des Stichtags) und ist im Leseweg
-sichtbar (Zeile JOB_LAUF `letzte_schritte`). (k) Nummer 0054 wie gebaut.
+sichtbar (Zeile JOB_LAUF `letzte_schritte`). (k) Nummer wie gebaut — nach der Umnummerierung 0055.
+## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
+
+**Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo
+während der Bauphase öffentlich; vor dem ersten echten Datensatz in
+Production wird es wieder privat (Go-live-Kriterium). Den Wechsel macht Eric
+nach dem Prüfbericht; die App ändert keine Repo-Einstellungen.
+
+**Prüfbericht (nur lesend):** Secret-Scan der gesamten Historie aller
+Branches ohne Fund (nur Platzhalter-URLs und die beiden Neon-Hostnamen im
+Seed-Wächter, keine Tokens, Schlüssel oder Passwörter); kein Workflow nutzt
+`pull_request_target`; Environments nur `main`. Personendaten in Logs:
+`protokoll-messung` druckte die häufigsten Protokoll-Freitexte
+(Zugriffsanfragen, Aufgaben), `beleg-abweichung` die Quellenangabe
+genannter Belege — beides durch Arten bzw. ja/nein ersetzt. Alle Jobs mit
+DB-Secret maskieren Host und Datenbanknutzer (E73-Schritt). Regeln in
+`docs/betrieb.md` („Öffentliches Repo während der Bauphase").
+
+
+## 47. E72 „PLZ aus Ort" und Ortsteil-Toleranz (AP2.7h), 08.10.2026
+
+Entscheidung Eric 08.10.2026 nach dem Testlauf von E68 PR 3 (Zeilen 18, 21
+und 39 der Testdatei `docs/beispiele/import-testdatei-ap27.xlsx`). Eigener
+PR nach #195, Migration 0051.
+
+**a) PLZ aus Ort (Import):** Fehlt die Sitz-PLZ einer Zeile und ist der Ort
+(normalisiert wie `plz_ort`, Kurzform und Ortsteil erlaubt — dieselbe
+Passt-Regel wie die Prüfung) genau **einer** PLZ **einer** Gemeinde
+zugeordnet, wird die PLZ übernommen. Die Zeile trägt den Hinweis „PLZ aus
+Ort ergänzt (Mosbach → 74821)" am Feld Sitz-PLZ, der Sitz bekommt wie jede
+PLZ den Punkt im PLZ-Gebiet (Genauigkeit `plz_gebiet`), die Zeile ist
+importierbar. Der Schritt sitzt **vor** dem Akteur-Abgleich in
+`importAkteureAufloesen`, weil die Gruppe aus Name + PLZ besteht — der
+Matcher sieht die ergänzte PLZ. Alle Orte eines Laufs in **einer** Abfrage
+(`plzFuerOrtStapel` → SQL `plz_fuer_ort`, jsonb-gebunden).
+
+**b) Mehrere PLZ oder mehrere gleichnamige Orte:** Befund am Feld Sitz-PLZ,
+Zeile in die Nacharbeit (Status `fehler`): „Ort „Freiburg" ist ohne PLZ nicht
+eindeutig (mehrere Orte dieses Namens) — Kandidaten: Freiburg (Elbe),
+Landkreis Stade, Niedersachsen: 21729; Freiburg im Breisgau, Stadtkreis
+Freiburg im Breisgau, Baden-Württemberg: 79098, 79100 … — PLZ in der Zeile
+ergänzen." Je Gemeinde Ort mit Kreis und Land (über den ARS aus
+`verwaltungsgebiet`, NULL ohne VG250 — nichts wird erfunden), höchstens
+**zehn PLZ** insgesamt, danach „…". Unbekannter Ort: „Ort „X" ist nicht
+bekannt — PLZ in der Zeile ergänzen." (konservativ wie b, nicht
+entschieden — vorher blieb die Zeile im Adressschritt mit „Ohne PLZ keine
+Zuordnung" offen).
+
+**c) Dubletten-Logik unverändert.** Nach einer PLZ-Ergänzung oder -Wahl
+läuft der Akteur-Abgleich mit dieser PLZ; in der Nacharbeit stößt eine
+Änderung von Name, PLZ **oder** (neu) Ort bei leerer PLZ die Auflösung neu
+an (`AKTEUR_AUFLOESUNG` fällt, der eigene Befund und Hinweis am Feld
+Sitz-PLZ ebenfalls — ein Formatfehler bleibt). Erwartung Zeile 21: nach Wahl
+von 79098 schlägt der Matcher „Test: Kompostwerk Breisgau" stark vor.
+
+**d) Testdatei:** Blatt „Testfälle" Zeilen 18, 21 und 39 tragen die neue
+Erwartung (in der Datei geändert, Zellen D16/D19/D37; Daten unverändert).
+
+**e) Ortsteil-Toleranz (eine Funktion für Formular und Import):** Die
+Passt-Regel steht einmal auf Normalformen — SQL `plz_ort_norm_passt(norm,
+ort_norm)`, `plz_ort_passt` ist die Hülle mit Normalisierung; Spiegel
+`ortNormPasst`/`ortPasst` in `@bhyo/db/plz`, Parität in `plz-check`. Drei
+Fälle: gleich; Kurzform (Eingabe ist Wortpräfix des Orts); **Ortsteil** —
+die Eingabe beginnt mit dem amtlichen Ort und einem Wortende („-" und
+Leerzeichen sind in der Normalform dasselbe). Indexfähige Form (Messung
+Eric 08.10.2026): gleich und Ortsteil als `ort_norm = ANY(Wortpräfixe der
+Eingabe)` (`plz_ort_norm_praefixe`, Spiegel `ortNormPraefixe`), Kurzform
+als Bereich `[n||' ', n||'!')` über die `text_pattern_ops`-Operatoren, dazu
+Index `plz_ort_norm_muster_idx`. Die Funktionen sind **nicht STRICT**, weil
+Postgres eine STRICT-SQL-Funktion mit AND/OR im Körper nicht inlined — ohne
+Inlining blieb der Aufruf je Zeile stehen (Seq Scan). „Mannheim-Neckarau"/68199
+passt, der Ort wird unverändert gespeichert, keine Meldung;
+„Mannheimer Str."/68199 ist ein Befund; „Heidelberg-Rohrbach"/68159 →
+„meinten Sie Mannheim?". Formular (`pruefeAdresse` → `plz_pruefung`) und
+Import (`pruefePlzOrtStapel` → `plz_pruefung`) gehen durch dieselbe
+SQL-Funktion.
+
+**Zähler am Lauf:** `plz_aus_ort` (ergänzt), `plz_aus_ort_offen` (Zeilen in
+der Nacharbeit); Protokolltext „… PLZ aus Ort: 1 ergänzt, 1 Zeile(n) in der
+Nacharbeit".
+
+**Rot gezeigt (Vitest):** Kandidaten-Abfrage nur für Zeilen ohne PLZ, ohne
+Gruppe, ohne eigenen Befund (keine Wiederholung über Stapel); Matcher
+bekommt die ergänzte PLZ, keine für den mehrdeutigen Ort; Befundtext mit
+Kreis und Land, Grenze zehn PLZ; Ortsteil passt, Straßenname nicht, fremder
+Ort nicht. `plz-check` (Wegwerf-DB, Fixture): eindeutiger Ort eine PLZ, Groß
+Köris zwei, Kurzform und Ortsteil finden denselben Ort, unbekannt keine
+Zeile, Kreis/Land null ohne VG250, Parität `plz_fuer_ort` = `plz_ort_passt`
+über `plz_ort`; mit Bestand Messung `PLZMESSUNG_ORT` (200 Orte in einer
+Abfrage) samt Plan `PLZEXPLAIN_ORT`: erste Fassung Seq Scan mit
+Normalisierung je Zeile 6,5 s, mit Index aber STRICT 29 s (kein Inlining),
+indexfähig und nicht STRICT **12 ms** (Bitmap-Index-Scans, Läufe
+37801334789 / 37802875636 / 37803521292).
+
+**Vormerkung AP6 (Eric 08.10.2026):** Formular-Adressprüfung bei
+Ortsteil-Form („Mannheim-Neckarau"): nach bestandener lokaler Prüfung an den
+Adressdienst den amtlichen Ort plus Ortsteil als Zusatz senden — mit Straße
+lieferte der Dienst bisher keinen Treffer (Preview-Test 08.10.2026).
+
+**Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
+(Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
+beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal
+bekommen — der Drizzle-Migrator wendet nur Migrationen an, deren Zeitstempel
+jünger ist als die letzte angewendete.

@@ -73,3 +73,36 @@ export async function pruefePlzOrtStapel(db: AppDb, eintraege: readonly { plz: s
     pin: r.lng == null || r.lat == null ? null : { lng: Number(r.lng), lat: Number(r.lat) },
   }));
 }
+
+/** Ein PLZ-Kandidat zu einem Ort ohne PLZ (E72): Gemeinde mit Kreis und Land, soweit VG250 importiert ist. */
+export interface PlzKandidat {
+  plz: string;
+  ort: string;
+  ars: string;
+  kreis: string | null;
+  land: string | null;
+}
+
+/**
+ * E72 (2.7h): PLZ-Kandidaten fuer viele Orte in EINER Abfrage — fuer Zeilen
+ * ohne PLZ im Import. Ergebnis in Eingabereihenfolge, je Eingabe die
+ * Kandidaten von plz_fuer_ort (Migration 0051; leer = Ort unbekannt).
+ * jsonb-gebunden wie pruefePlzOrtStapel; json_agg statt array_agg, weil
+ * der Worker-Treiber Arrays als Text liefert.
+ */
+export async function plzFuerOrtStapel(db: AppDb, orte: readonly string[]): Promise<PlzKandidat[][]> {
+  if (orte.length === 0) return [];
+  const rows = (await db.execute(sql`
+    with e as (
+      select t.i, t.ort
+      from jsonb_to_recordset(${JSON.stringify(orte.map((ort, i) => ({ i, ort })))}::jsonb) as t(i int, ort text)
+    )
+    select e.i,
+           coalesce((select json_agg(json_build_object('plz', k.plz, 'ort', k.ort, 'ars', k.ars, 'kreis', k.kreis, 'land', k.land) order by k.ort, k.ars, k.plz)
+                     from plz_fuer_ort(e.ort) k), '[]'::json)::text as kandidaten_json
+    from e
+    order by e.i`)) as unknown as { i: number; kandidaten_json: string }[];
+  const ergebnis: PlzKandidat[][] = orte.map(() => []);
+  for (const r of rows) ergebnis[Number(r.i)] = JSON.parse(r.kandidaten_json) as PlzKandidat[];
+  return ergebnis;
+}

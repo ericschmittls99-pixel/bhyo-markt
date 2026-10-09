@@ -9,14 +9,14 @@ import { getBelegeBucket, getEnvironment, withDb, type AppDb } from "@/lib/db";
 import { sucheAehnlicheMenge } from "@/lib/dubletten";
 import { dateiErlaubt, IMPORT_MAX_BYTES, ImportDateiFehler, parseImportDatei, sha256Hex, type ImportTabelle } from "@/lib/import-datei";
 import { IMPORT_LAUF_VERWERFBAR, type ImportLaufEingabe, type ImportLaufFehler, istPersonenSchluessel, pruefeImportLaufEingabe } from "@/lib/import-modell";
-import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, gruppenFuerGenauePins, sitzAusLokal, sitzPatch, waehleSitz } from "@/lib/import-adressen";
+import { ADRESSEN_JE_STAPEL, adressGruppen, adressText, gruppenFuerGenauePins, istPlzAusOrtBefund, istStandortBefund, ortGruppen, plzAusOrt, sitzAusLokal, sitzPatch, standortBefund, standortGruppen, waehleSitz } from "@/lib/import-adressen";
 import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchluessel, offeneAkteurGruppen, sektorKonflikte } from "@/lib/import-akteure";
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { verwirfLauf } from "@/lib/jobs/import-aufraeumen";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
 import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung, zuordnungsFehler } from "@/lib/import-zuordnung";
 import { pruefeAdresse } from "@/lib/adresse-pruefung-server";
-import { pruefePlzOrtStapel } from "@/lib/plz-server";
+import { plzFuerOrtStapel, pruefePlzOrtStapel } from "@/lib/plz-server";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
 import { stelleImportAbschlussZu } from "@/lib/inbox/zustellung";
 import { protokolliere } from "@/lib/protokoll";
@@ -372,6 +372,35 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
     return await withDb((db) =>
       db.transaction(async (tx) => {
         const zeilen = await ladeImportZeilen(tx, lauf.id);
+        // E72 (2.7h): PLZ aus Ort VOR dem Abgleich — die Gruppe ist Name + PLZ,
+        // der Matcher sieht die ergaenzte PLZ. Eindeutig -> PLZ und Hinweis an
+        // die Zeile; sonst Befund am Feld Sitz-PLZ, Zeile in die Nacharbeit.
+        // Alle Orte in EINER Abfrage; nur Zeilen ohne Gruppe und ohne Befund.
+        const orte = ortGruppen(zeilen);
+        let plzErgaenzt = 0;
+        let plzOffen = 0;
+        if (orte.length > 0) {
+          const kandidaten = await plzFuerOrtStapel(tx, orte.map((g) => g.ort));
+          const jeZeile = new Map(zeilen.map((z) => [z.id, z]));
+          for (let i = 0; i < orte.length; i++) {
+            const e = plzAusOrt(orte[i]!.ort, kandidaten[i]!);
+            for (const zeileId of orte[i]!.zeilenIds) {
+              const z = jeZeile.get(zeileId)!;
+              if ("plz" in e) {
+                plzErgaenzt += 1;
+                z.felder = { ...z.felder, akteur_sitz_plz: e.plz, [`${HINWEIS_PREFIX}akteur_sitz_plz`]: e.hinweis };
+                await tx.update(importZeile).set({ felder: felderPatch({ akteur_sitz_plz: e.plz, [`${HINWEIS_PREFIX}akteur_sitz_plz`]: e.hinweis }) }).where(eq(importZeile.id, zeileId));
+              } else {
+                plzOffen += 1;
+                z.felder = { ...z.felder, [`${FEHLER_PREFIX}akteur_sitz_plz`]: e.befund };
+                await tx
+                  .update(importZeile)
+                  .set({ felder: felderPatch({ [`${FEHLER_PREFIX}akteur_sitz_plz`]: e.befund }), ...zustandNachKorrektur(z.felder, z.status) })
+                  .where(eq(importZeile.id, zeileId));
+              }
+            }
+          }
+        }
         const alleGruppen = akteurGruppen(zeilen);
         const offene = offeneAkteurGruppen(zeilen);
         const stapel = offene.slice(0, AKTEURE_JE_STAPEL);
@@ -381,7 +410,11 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
           zaehler.akteure_identisch = 0;
           zaehler.akteure_vorschlag = 0;
           zaehler.akteure_neu = 0;
+          zaehler.plz_aus_ort = 0;
+          zaehler.plz_aus_ort_offen = 0;
         }
+        zaehler.plz_aus_ort = (zaehler.plz_aus_ort ?? 0) + plzErgaenzt;
+        zaehler.plz_aus_ort_offen = (zaehler.plz_aus_ort_offen ?? 0) + plzOffen;
         // EINE Abfrage fuer den ganzen Stapel.
         const treffer = await sucheAehnlicheMenge(tx as unknown as AppDb, stapel.map((g) => ({ schluessel: g.schluessel, name: g.name, plz: g.plz || null })));
         for (const g of stapel) {
@@ -423,7 +456,7 @@ export async function importAkteureAufloesen(laufId: string): Promise<AufloesenE
           benutzerId: wache.zugang.id,
           benutzerEmail: wache.email,
           text: fertig
-            ? `Akteure aufgelöst: ${alleGruppen.length} Gruppen — ${zaehler.akteure_identisch} identisch, ${zaehler.akteure_vorschlag} Vorschlag, ${zaehler.akteure_neu} neu; ${ohneName} Zeile(n) ohne Akteur-Name`
+            ? `Akteure aufgelöst: ${alleGruppen.length} Gruppen — ${zaehler.akteure_identisch} identisch, ${zaehler.akteure_vorschlag} Vorschlag, ${zaehler.akteure_neu} neu; ${ohneName} Zeile(n) ohne Akteur-Name${zaehler.plz_aus_ort || zaehler.plz_aus_ort_offen ? `; PLZ aus Ort: ${zaehler.plz_aus_ort} ergänzt, ${zaehler.plz_aus_ort_offen} Zeile(n) in der Nacharbeit` : ""}`
             : `Akteure auflösen: Stapel mit ${stapel.length} Gruppen, ${offen} noch offen`,
           importLaufId: lauf.id,
         });
@@ -644,7 +677,9 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
   // E68 PR 3: lokal, ohne Netz, alle Adressen in EINER Abfrage (5.000 Zeilen in einem Aufruf).
   const zeilen = await withDb((db) => ladeImportZeilen(db, lauf.id));
   const gruppen = adressGruppen(zeilen);
-  if (gruppen.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
+  // Zeile 39 (Eric 08.10.2026): Standort-Spalten (plz/ort) werden ebenfalls geprueft — auch bei vorhandenem Akteur.
+  const standorte = standortGruppen(zeilen);
+  if (gruppen.length === 0 && standorte.length === 0) return { ok: true, bearbeitet: 0, offen: 0, ohneTreffer: 0 };
   const start = Date.now();
   try {
     return await withDb((db) =>
@@ -657,11 +692,35 @@ export async function importAdressenAufloesen(laufId: string, erneut = false): P
         for (const r of ergebnisse) {
           await tx.update(importZeile).set({ felder: felderPatch(r.patch) }).where(inArray(importZeile.id, r.gruppe.zeilenIds));
         }
+        let standortBefunde = 0;
+        if (standorte.length > 0) {
+          const sp = await pruefePlzOrtStapel(tx, standorte.map((g) => ({ plz: g.plz, ort: g.ort })));
+          const jeZeile = new Map(zeilen.map((z) => [z.id, z]));
+          for (let i = 0; i < standorte.length; i++) {
+            const befund = standortBefund(standorte[i]!, sp[i]!);
+            if (befund) standortBefunde += standorte[i]!.zeilenIds.length;
+            for (const zeileId of standorte[i]!.zeilenIds) {
+              const z = jeZeile.get(zeileId)!;
+              const alter = z.felder[`${FEHLER_PREFIX}plz`];
+              // Ein Formatfehler von feldWert bleibt stehen; nur eigene Befunde werden gesetzt oder geraeumt.
+              if (!befund && !istStandortBefund(alter)) continue;
+              if (befund && alter === befund) continue;
+              const neu = { ...z.felder };
+              if (befund) neu[`${FEHLER_PREFIX}plz`] = befund;
+              else delete neu[`${FEHLER_PREFIX}plz`];
+              await tx
+                .update(importZeile)
+                .set({ felder: befund ? felderPatch({ [`${FEHLER_PREFIX}plz`]: befund }) : felderPatch({}, [`${FEHLER_PREFIX}plz`]), ...zustandNachKorrektur(neu, z.status) })
+                .where(eq(importZeile.id, zeileId));
+            }
+          }
+        }
         const ohneTreffer = ergebnisse.filter((r) => r.offen).length;
         const dauerMs = Date.now() - start;
         const zaehler: Record<string, number> = { ...(lauf.zaehler ?? {}) };
         zaehler.adressen_gefunden = (zaehler.adressen_gefunden ?? 0) + (gruppen.length - ohneTreffer);
         zaehler.adressen_offen = (zaehler.adressen_offen ?? 0) + ohneTreffer;
+        zaehler.standort_befunde = standortBefunde;
         zaehler.adressen_lokal_ms = dauerMs;
         await tx.update(importLauf).set({ zaehler, updatedAt: new Date() }).where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
@@ -1324,18 +1383,34 @@ export async function importZeileBearbeiten(laufId: string, zeileId: string, ein
         if (!zeile) return { fehler: "Zeile nicht gefunden." };
         if (zeile.status !== "fehler" && zeile.status !== "offen") return { fehler: `Zeile ${zeile.zeilennummer} ist „${zeile.status}" — nur offene und fehlerhafte Zeilen lassen sich bearbeiten.` };
         const alt = zeile.felder as Record<string, string>;
-        const akteurGeaendert = ("akteur_name" in patch && patch.akteur_name !== (alt.akteur_name ?? "")) || ("akteur_sitz_plz" in patch && patch.akteur_sitz_plz !== (alt.akteur_sitz_plz ?? ""));
+        // E72: aendert sich der Ort einer Zeile ohne PLZ, wird „PLZ aus Ort" mit dem Abgleich neu angestossen.
+        const plzLeer = !("akteur_sitz_plz" in patch ? patch.akteur_sitz_plz : (alt.akteur_sitz_plz ?? "")).trim();
+        const ortGeaendert = "akteur_sitz_ort" in patch && patch.akteur_sitz_ort !== (alt.akteur_sitz_ort ?? "");
+        const akteurGeaendert =
+          ("akteur_name" in patch && patch.akteur_name !== (alt.akteur_name ?? "")) || ("akteur_sitz_plz" in patch && patch.akteur_sitz_plz !== (alt.akteur_sitz_plz ?? "")) || (ortGeaendert && plzLeer);
         // PR f (B3): Fehler und Hinweise der korrigierten Felder fallen weg; bleiben andere Fehler, bleibt die Zeile im Fehler.
         const entfernen: string[] = [
           ...Object.keys(patch).filter((k) => patch[k] === ""),
           ...Object.keys(patch).flatMap((k) => [`${FEHLER_PREFIX}${k}`, `${HINWEIS_PREFIX}${k}`]),
           "probelauf",
           ...(akteurGeaendert ? AKTEUR_AUFLOESUNG : []),
+          // E72: nur der eigene Befund „Ort … nicht eindeutig/bekannt" raeumt sich mit dem Ort; ein Formatfehler bleibt.
+          ...(ortGeaendert && plzLeer && istPlzAusOrtBefund(alt[`${FEHLER_PREFIX}akteur_sitz_plz`]) ? [`${FEHLER_PREFIX}akteur_sitz_plz`, `${HINWEIS_PREFIX}akteur_sitz_plz`] : []),
         ];
         const setzen = { ...Object.fromEntries(Object.entries(patch).filter(([, v]) => v !== "")), ...hinweisePatch };
         const neu: Record<string, string> = { ...alt };
         for (const k of entfernen) delete neu[k];
         Object.assign(neu, setzen);
+        // Zeile 39 (Eric 08.10.2026): ein korrigierter Standort (plz/ort) wird sofort lokal geprueft —
+        // ein Befund bleibt als Zeilenfehler am Feld Standort · PLZ, die Zeile geht nicht durch.
+        if (("plz" in patch || "ort" in patch) && neu.plz && !neu[`${FEHLER_PREFIX}plz`]) {
+          const [e] = await pruefePlzOrtStapel(tx, [{ plz: neu.plz, ort: neu.ort ?? "" }]);
+          const befund = standortBefund({ plz: neu.plz, ort: neu.ort ?? "" }, e!);
+          if (befund) {
+            setzen[`${FEHLER_PREFIX}plz`] = befund;
+            neu[`${FEHLER_PREFIX}plz`] = befund;
+          }
+        }
         await tx
           .update(importZeile)
           .set({ felder: felderPatch(setzen, entfernen), ...zustandNachKorrektur(neu, "offen") })

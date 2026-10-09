@@ -94,12 +94,12 @@ async function main() {
   // AP2.7 PR c (E67): Import-Zeilen 30 Tage nach Abschluss des Laufs.
   const aufbewahrung = heute.find((z) => z.schluessel === "import.zeilen_aufbewahrung_tage");
   if (!aufbewahrung || Number(aufbewahrung.heute) !== 30) fehler.push(`import.zeilen_aufbewahrung_tage heute ${aufbewahrung?.heute} statt 30 (Startwert E67)`);
-  // AP2.6 PR d (Migration 0054): Aufbewahrung erledigt 14 Tage, gelesen 60 Tage (D14).
+  // AP2.6 PR d (Migration 0055): Aufbewahrung erledigt 14 Tage, gelesen 60 Tage (D14).
   for (const [k, soll] of [["inbox.aufbewahrung_erledigt_tage", 14], ["inbox.aufbewahrung_gelesen_tage", 60]] as const) {
     const z = heute.find((x) => x.schluessel === k);
     if (!z || Number(z.heute) !== soll) fehler.push(`${k} heute ${z?.heute} statt ${soll} (Startwert D14)`);
   }
-  // AP2.8 (Migration 0051): Staffel der Wird-frei-Hinweise, Startwerte 180/60/30/0.
+  // AP2.8 (Migration 0052): Staffel der Wird-frei-Hinweise, Startwerte 180/60/30/0.
   for (const [k, soll] of [["hinweis.wird_frei_stufe_1", 180], ["hinweis.wird_frei_stufe_2", 60], ["hinweis.wird_frei_stufe_3", 30], ["hinweis.wird_frei_stufe_4", 0]] as const) {
     const z = heute.find((x) => x.schluessel === k);
     if (!z || Number(z.heute) !== soll) fehler.push(`${k} heute ${z?.heute} statt ${soll} (Startwert E70)`);

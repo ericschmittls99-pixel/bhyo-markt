@@ -1,7 +1,7 @@
 import type { Genauigkeit } from "@/lib/adresse-pruefung";
 import type { Adresse } from "@/lib/geocode";
-import type { PlzStapelErgebnis } from "@/lib/plz-server";
-import { normName } from "@/lib/import-zuordnung";
+import type { PlzKandidat, PlzStapelErgebnis } from "@/lib/plz-server";
+import { FEHLER_PREFIX, normName } from "@/lib/import-zuordnung";
 
 /**
  * AP2.7 PR b (E67): Sitz neuer Akteure per Adresssuche — je eindeutiger
@@ -171,4 +171,126 @@ export function adressStand(zeilen: readonly ZeileFuerAdresse[]): AdressStandAnz
     genauOffen: alle.filter((a) => a.genauOffen).length,
     ohneTreffer: alle.filter((a) => a.grund).map((a) => ({ text: a.text, grund: a.grund!, zeilen: a.zeilen })),
   };
+}
+
+/**
+ * E68 PR 3, Befund Eric 08.10.2026 (Zeile 39): Spalten der Gruppe „Standort"
+ * (plz/ort) gehen unveraendert in den Strom — auch bei vorhandenem Akteur.
+ * Deshalb laeuft die lokale PLZ/Ort-Pruefung auch fuer sie, je eindeutigem
+ * Paar einmal; ein Befund steht als Zeilenfehler am Feld Standort · PLZ
+ * (fehler_plz) und fuehrt in die Nacharbeit. Ohne PLZ gibt es nichts zu
+ * pruefen (ein Standort darf nur einen Ort tragen, F0a).
+ */
+export interface StandortGruppe {
+  plz: string;
+  ort: string;
+  zeilenIds: string[];
+}
+
+export function standortGruppen(zeilen: readonly ZeileFuerAdresse[]): StandortGruppe[] {
+  const gruppen = new Map<string, StandortGruppe>();
+  for (const z of zeilen) {
+    const plz = (z.felder.plz ?? "").trim();
+    if (!plz) continue;
+    const ort = (z.felder.ort ?? "").trim();
+    const schluessel = `${plz}|${normName(ort)}`;
+    const g = gruppen.get(schluessel);
+    if (g) g.zeilenIds.push(z.id);
+    else gruppen.set(schluessel, { plz, ort, zeilenIds: [z.id] });
+  }
+  return [...gruppen.values()];
+}
+
+/** Befund des Standorts einer Zeile — null, wenn PLZ bekannt ist und der Ort (falls angegeben) passt. */
+export function standortBefund(g: Pick<StandortGruppe, "plz" | "ort">, e: PlzStapelErgebnis): string | null {
+  if (!e.plzBekannt) return `PLZ ${g.plz} ist unbekannt — bitte prüfen.`;
+  if (g.ort && !e.ortPasst) {
+    const liste = e.orte.slice(0, 3).join(", ") + (e.orte.length > 3 ? " …" : "");
+    return e.orte.length ? `Ort passt nicht zur PLZ ${g.plz} — meinten Sie ${liste}?` : `Zur PLZ ${g.plz} ist kein Ort hinterlegt.`;
+  }
+  return null;
+}
+
+/** Erkennt einen von standortBefund gesetzten Fehler (damit ein Feldformat-Fehler von feldWert nicht ueberschrieben wird). */
+export function istStandortBefund(text: string | undefined): boolean {
+  return !!text && (text.startsWith("PLZ ") || text.startsWith("Ort passt nicht zur PLZ ") || text.startsWith("Zur PLZ "));
+}
+
+/**
+ * E72 (2.7h „PLZ aus Ort", Eric 08.10.2026): Zeilen ohne Sitz-PLZ, aber mit
+ * Ort, bekommen die PLZ aus dem Ort — wenn der Ort (normalisiert wie
+ * plz_ort, Kurzform und Ortsteil erlaubt) genau EINER PLZ zugeordnet ist.
+ * Dann steht der Hinweis „PLZ aus Ort ergaenzt" an der Zeile, der Sitz
+ * bekommt spaeter wie jede PLZ den Punkt im PLZ-Gebiet (Genauigkeit
+ * plz_gebiet), und der Akteur-Abgleich laeuft mit dieser PLZ. Mehrere PLZ
+ * oder mehrere gleichnamige Orte -> Nacharbeit mit den Kandidaten (Ort mit
+ * Kreis und Land, PLZ-Liste, hoechstens zehn PLZ); unbekannter Ort ebenso.
+ * Der Schritt sitzt VOR dem Akteur-Abgleich (Gruppen bilden sich aus Name +
+ * PLZ) und laeuft nur fuer Zeilen, die noch keine Gruppe und keinen eigenen
+ * Befund tragen — die Nacharbeit loescht beides und stoesst ihn neu an.
+ */
+export const PLZ_AUS_ORT_MAX = 10;
+export const PLZ_AUS_ORT_HINWEIS = "PLZ aus Ort ergänzt";
+
+export function brauchtPlzAusOrt(f: Record<string, string>): boolean {
+  return !!(f.akteur_name ?? "").trim() && !(f.akteur_sitz_plz ?? "").trim() && !!(f.akteur_sitz_ort ?? "").trim() && !f.akteur_gruppe && !f[`${FEHLER_PREFIX}akteur_sitz_plz`];
+}
+
+export interface OrtGruppe {
+  ort: string;
+  zeilenIds: string[];
+}
+
+/** Zeilen ohne Sitz-PLZ je Ort (Normalform), Reihenfolge des ersten Auftretens. */
+export function ortGruppen(zeilen: readonly ZeileFuerAdresse[]): OrtGruppe[] {
+  const gruppen = new Map<string, OrtGruppe>();
+  for (const z of zeilen) {
+    if (!brauchtPlzAusOrt(z.felder)) continue;
+    const ort = z.felder.akteur_sitz_ort!.trim();
+    const k = normName(ort);
+    const g = gruppen.get(k);
+    if (g) g.zeilenIds.push(z.id);
+    else gruppen.set(k, { ort, zeilenIds: [z.id] });
+  }
+  return [...gruppen.values()];
+}
+
+export type PlzAusOrtErgebnis = { plz: string; hinweis: string } | { befund: string };
+
+/** Kandidaten als Satzteil: „Freiburg (Elbe), Landkreis Stade, Niedersachsen: 21729; …" — hoechstens PLZ_AUS_ORT_MAX PLZ, danach „…". */
+export function kandidatenText(kandidaten: readonly PlzKandidat[]): string {
+  const gemeinden = new Map<string, { kopf: string; plz: string[] }>();
+  for (const k of kandidaten) {
+    const g = gemeinden.get(k.ars) ?? { kopf: [k.ort, k.kreis, k.land].filter(Boolean).join(", "), plz: [] };
+    if (!g.plz.includes(k.plz)) g.plz.push(k.plz);
+    gemeinden.set(k.ars, g);
+  }
+  const teile: string[] = [];
+  let rest = PLZ_AUS_ORT_MAX;
+  let abgeschnitten = false;
+  for (const g of gemeinden.values()) {
+    if (rest === 0) {
+      abgeschnitten = true;
+      break;
+    }
+    const liste = g.plz.slice(0, rest);
+    rest -= liste.length;
+    if (liste.length < g.plz.length) abgeschnitten = true;
+    teile.push(`${g.kopf}: ${liste.join(", ")}`);
+  }
+  return teile.join("; ") + (abgeschnitten ? " …" : "");
+}
+
+export function plzAusOrt(ort: string, kandidaten: readonly PlzKandidat[]): PlzAusOrtErgebnis {
+  if (kandidaten.length === 0) return { befund: `Ort „${ort}" ist nicht bekannt — PLZ in der Zeile ergänzen.` };
+  const plzs = [...new Set(kandidaten.map((k) => k.plz))];
+  const gemeinden = new Set(kandidaten.map((k) => k.ars));
+  if (plzs.length === 1 && gemeinden.size === 1) return { plz: plzs[0]!, hinweis: `${PLZ_AUS_ORT_HINWEIS} (${kandidaten[0]!.ort} → ${plzs[0]})` };
+  const grund = gemeinden.size > 1 ? "mehrere Orte dieses Namens" : "mehrere PLZ";
+  return { befund: `Ort „${ort}" ist ohne PLZ nicht eindeutig (${grund}) — Kandidaten: ${kandidatenText(kandidaten)} — PLZ in der Zeile ergänzen.` };
+}
+
+/** Erkennt einen von plzAusOrt gesetzten Befund (die Nacharbeit raeumt nur eigene Befunde). */
+export function istPlzAusOrtBefund(text: string | undefined): boolean {
+  return !!text && text.startsWith("Ort „") && text.endsWith("PLZ in der Zeile ergänzen.");
 }
