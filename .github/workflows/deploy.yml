@@ -281,6 +281,11 @@ jobs:
       # im Protokoll (mit Rot-Nachweis), CASCADE beim geloeschten Akteur.
       - name: Kommentar-Probe (Modell, Schreibweg, Rot-Faelle)
         run: pnpm --filter web exec tsx scripts/kommentar-probe.ts
+      # AP2.6 PR d (E71, D14): Inbox-Aufbewahrung gegen die Wegwerf-DB — Grenzen
+      # 14/60 Tage tagesgenau, ungelesene bleiben, Wird-frei-Hinweise bleiben,
+      # idempotent, Parameter wirkt (Migration 0055).
+      - name: Inbox-Aufbewahrungs-Probe (D14, Rot-Faelle)
+        run: pnpm --filter web exec tsx scripts/inbox-aufbewahrung-probe.ts
       # E75: zeitraum_bis NULL = unbefristet gegen die Wegwerf-DB — NULL wird
       # angenommen, Ende vor Beginn weist der CHECK ab (Rot-Fall), der
       # Jahresfilter findet den unbefristeten Strom ab Beginn in jedem Jahr.

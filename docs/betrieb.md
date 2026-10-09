@@ -271,6 +271,24 @@ Verifikations-Job (`lib/jobs/import-aufraeumen.ts`).
   `JOB import-verwerfen <env> {"laeufe","zeilen"}`. Von Hand: Abschnitt
   „verwerfen." am Lauf (Ersteller, Prüfer, Admin).
 
+## Inbox-Aufbewahrung (AP2.6 PR d, E71 D14, 08.10.2026)
+
+Der 05:00-Berlin-Lauf löscht nach dem Verifikations-Job Inbox-Einträge, die
+ihre Aufbewahrung erreicht haben (`lib/inbox/aufbewahrung.ts`, ein
+Statement): erledigt oder verworfen nach `inbox.aufbewahrung_erledigt_tage`
+Tagen ab `zustand_seit` (Startwert 14), offen und gelesen nach
+`inbox.aufbewahrung_gelesen_tage` Tagen ab `gelesen_am` (Startwert 60) —
+tagesgenau in Europe/Berlin, Fristen aus `parameter_wert` am Stichtag
+(einstellungen. → Parameter, Gruppe „Inbox"). Ungelesene Einträge bleiben.
+Zustandsbasierte Hinweise des Jobs (Verifikation, verwaist, Löschprüfung,
+Wird frei) sind ausgenommen, weil ihre Idempotenz-Indizes über alle Zustände
+gelten (§45, entschieden 08.10.2026). Log-Zeile `JOB inbox-aufbewahrung
+<env> {"erledigt","gelesen"}`; dieselben Zahlen stehen als
+`inbox_aufbewahrung_erledigt` / `inbox_aufbewahrung_gelesen` in
+`job_lauf.schritte` des Tageslaufs (Leseweg JOB_LAUF `letzte_schritte`). Probe im CI (wegwerf-db):
+`scripts/inbox-aufbewahrung-probe.ts`. Backups halten gelöschte Einträge
+wie alles andere 30 Tage.
+
 ## PLZ-Gebiete lokal: Import-Workflow und Wegwerf-Postgres (E68 PR 1, 07.10.2026)
 
 - **`import-plz.yml`** befüllt `plz_gebiet` und `plz_ort` (Migration 0048) aus

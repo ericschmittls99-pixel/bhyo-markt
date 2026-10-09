@@ -2255,6 +2255,35 @@ Komponententests sind statische Renders (`react-dom/server`) und können
 weder das Leeren des Feldes noch die Sperre während des Speicherns prüfen;
 Nachweis bis dahin nur auf der Preview.
 
+**PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0055; ursprünglich 0054, umnummeriert am 09.10.2026, neues Journal-`when`):** Parameter
+`inbox.aufbewahrung_erledigt_tage` = 14 und `inbox.aufbewahrung_gelesen_tage`
+= 60 (Startwerte, Verlauf E60, Gruppe „Inbox" in einstellungen.). Der
+tägliche Job (`worker.ts`, nach dem Verifikations-Job) löscht in
+`lib/inbox/aufbewahrung.ts` (einzige Löschstelle, ein Statement, Stichtag
+hereingereicht): Einträge im Zustand erledigt oder verworfen, deren
+`zustand_seit` plus Frist den Stichtag erreicht (tagesgenau Europe/Berlin),
+und offene gelesene Einträge, deren `gelesen_am` plus Frist den Stichtag
+erreicht. Ungelesene bleiben. Bestand gewinnt: der Zustand „erledigt"
+existiert (Enum `inbox_zustand`), „verworfen" (vom Empfänger weggeklickt)
+wird wie erledigt behandelt. Log-Zeile `JOB inbox-aufbewahrung <env>
+{"erledigt","gelesen"}`. Tests: `lib/inbox/aufbewahrung.test.ts`,
+`scripts/inbox-aufbewahrung-probe.ts` (Wegwerf-DB: 13/14 und 59/60 Tage,
+ungelesen bleibt, Wird-frei bleibt, idempotent, Parameter wirkt),
+`parameter-check` 15 Schlüssel.
+
+**Entschieden (PR d, Eric 08.10.2026):** (h) Abweichung angenommen:
+die Aufbewahrung gilt für alle Typen **außer den zustandsbasierten
+Job-Hinweisen** (`verifikation_laeuft_ab`, `verifikation_abgelaufen`,
+`akteur_verwaist`, `kontaktperson_loeschpruefung`, `biomasse_wird_frei`) —
+der Eintrag ist dort das Gedächtnis der Idempotenz (Indizes über alle
+Zustände). (i) „verworfen" wird wie erledigt behandelt (14 Tage). (j)
+„Löschungen auf Production macht ein Mensch" gilt für Eingriffe
+(Migrationen, Handaktionen), nicht für fachlich entschiedene
+Aufbewahrungsregeln im Job (Präzedenz E67, Import-Zwischenstände 30 Tage).
+Bedingung: die Anzahl gelöschter Einträge je Lauf steht in
+`job_lauf.schritte` (`inbox_aufbewahrung_erledigt`,
+`inbox_aufbewahrung_gelesen`, am Lauf des Stichtags) und ist im Leseweg
+sichtbar (Zeile JOB_LAUF `letzte_schritte`). (k) Nummer wie gebaut — nach der Umnummerierung 0055.
 ## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
 
 **Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo
