@@ -68,7 +68,8 @@ export function vollstaendigkeit(e: VollstaendigkeitEingabe): number {
     // mehr — der Pruefpunkt ist jetzt die Koordinate (aus ihr folgt beides).
     e.koordinate,
     e.zeitraumVon,
-    e.zeitraumBis,
+    // E75: ohne Ende ist der Zeitraum unbefristet, also vollstaendig — sobald ein Beginn da ist.
+    e.zeitraumVon != null || e.zeitraumBis,
     e.menge,
     feed ? e.tsAnteil : e.mengeEinheit,
     feed ? e.aschegehalt : e.preisEinheit,

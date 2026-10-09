@@ -134,3 +134,18 @@ describe("stromAnlegenInTx", () => {
     expect(inserts).toEqual([]);
   });
 });
+
+describe("E75: unbefristet im Schreibweg", () => {
+  it("Kaestchen → zeitraumBis null, Pflichtpruefung und Vergaben nur gegen den Beginn", () => {
+    const e = stromEingabeAusFormData("biomasse", formular({ ...gueltigBiomasse, zeitraum_bis: "", unbefristet: "on", vergabe_0_bis: "" }));
+    expect(e.eingaben.unbefristet).toBe(true);
+    expect(pruefeStromEingabe(e, { neu: true })).toEqual({});
+    // Vergabe vor dem Beginn bleibt ein Fehler — das Ende ist offen, der Beginn nicht.
+    const vor = stromEingabeAusFormData("biomasse", formular({ ...gueltigBiomasse, zeitraum_bis: "", unbefristet: "on", vergabe_0_von: "12/2025" }));
+    expect(pruefeStromEingabe(vor, { neu: true }).vergabe_0_von).toBeTruthy();
+  });
+  it("ohne Kaestchen bleibt zeitraum_bis Pflicht", () => {
+    const e = stromEingabeAusFormData("biomasse", formular({ ...gueltigBiomasse, zeitraum_bis: "" }));
+    expect(pruefeStromEingabe(e, { neu: true }).zeitraum_bis).toBeTruthy();
+  });
+});

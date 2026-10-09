@@ -212,6 +212,7 @@ export default async function ImportLaufPage({ params, searchParams }: { params:
             gueltigBis={lauf.belegGueltigBis}
             zeitraumVon={lauf.zeitraumVon ? monatAusDatum(lauf.zeitraumVon) : null}
             zeitraumBis={lauf.zeitraumBis ? monatAusDatum(lauf.zeitraumBis) : null}
+            zeitraumUnbefristet={lauf.zeitraumUnbefristet}
             zeilenOhneZeitraum={zeilenOhneZeitraum(alleZeilen)}
             gueltigBisPflicht={istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)}
             ersteZeile={alleZeilen.find((z) => z.status !== "uebersprungen")?.zeilennummer ?? null}

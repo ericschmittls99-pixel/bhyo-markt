@@ -1409,6 +1409,8 @@ export const importLauf = pgTable(
     // AP2.7 PR e: Zeitraum des Laufs fuer Zeilen ohne eigenen Wert (Pflicht am Lauf, keine Vorbelegung).
     zeitraumVon: date("zeitraum_von"),
     zeitraumBis: date("zeitraum_bis"),
+    // E75b: Lauf-Standard „unbefristet" fuer Zeilen ohne eigenes Ende (ausdruecklich, nie aus einer leeren Zelle).
+    zeitraumUnbefristet: boolean("zeitraum_unbefristet").notNull().default(false),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     abgeschlossenAm: timestamp("abgeschlossen_am", { withTimezone: true }),

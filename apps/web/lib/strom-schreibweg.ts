@@ -84,7 +84,8 @@ export class FeldFehlerAusnahme extends Error {
 export function pruefeStromEingabe(e: StromEingabe, kontext: { neu: boolean }): FeldFehler {
   return {
     ...validiereFormular(e.art, e.eingaben, kontext),
-    ...validiereVergaben(e.eingaben.vonMonat, e.eingaben.bisMonat, e.vergaben),
+    // E75: bei offenem Ende prueft validiereVergaben nur gegen den Beginn (leeres bis).
+    ...validiereVergaben(e.eingaben.vonMonat, e.eingaben.unbefristet ? "" : e.eingaben.bisMonat, e.vergaben),
   };
 }
 
@@ -138,6 +139,7 @@ export function stromEingabeAusFormData(art: StromArt, formData: FormData): Stro
     preisBezug: s(text(formData, "preis_bezug")),
     vonMonat: monatKanonisch(s(text(formData, "zeitraum_von"))),
     bisMonat: monatKanonisch(s(text(formData, "zeitraum_bis"))),
+    unbefristet: formData.get("unbefristet") === "on",
     begruendung: s(text(formData, "begruendung")),
     belegTyp: s(text(formData, "beleg_typ")),
     belegQuellenangabe: s(text(formData, "beleg_quellenangabe")),
@@ -199,7 +201,8 @@ export function stromWerte(e: StromEingabe) {
     // E68 PR 2: Genauigkeit kommt vom AdresseBlock; ohne Pin oder ohne Wert „unbekannt" — nichts wird erfunden.
     standortGenauigkeit: koordinate ? genauigkeitFuerPin(e.eingaben.genauigkeit) : "unbekannt",
     zeitraumVon: monatZuVon(e.eingaben.vonMonat),
-    zeitraumBis: monatZuBis(e.eingaben.bisMonat),
+    // E75: unbefristet = NULL; ein noch eingetragener Bis-Monat zaehlt dann nicht.
+    zeitraumBis: e.eingaben.unbefristet ? null : monatZuBis(e.eingaben.bisMonat),
     saisonalitaet: e.eingaben.saison,
     reserviertBhyo: e.reserviertBhyo,
   };
