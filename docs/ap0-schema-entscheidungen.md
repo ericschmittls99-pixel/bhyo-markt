@@ -2289,6 +2289,16 @@ Ortsteil-Form („Mannheim-Neckarau"): nach bestandener lokaler Prüfung an den
 Adressdienst den amtlichen Ort plus Ortsteil als Zusatz senden — mit Straße
 lieferte der Dienst bisher keinen Treffer (Preview-Test 08.10.2026).
 
+**Vormerkung geschlossen (Nachtauftrag 09.10.2026, B3): „Mehrdeutige
+Ortsnamen nur mit Kreis/Land auswählbar"** — durch E68 und E72 abgedeckt:
+Im Formular ist die PLZ Pflicht und löst gleichnamige Orte auf; passt der
+Ort nicht, nennt „Meinten Sie …?" die amtlichen Orte der PLZ (E68 PR 2).
+Im Import nennt der Befund bei einem Ort ohne PLZ jeden Kandidaten mit Kreis
+und Land und der PLZ-Liste (E72 b, `kandidatenText`, Test „Rot b) mehrere
+gleichnamige Orte -> Befund mit Kandidaten je Ort mit Kreis und Land",
+Screenshot `e72/02`); gewählt wird durch Eintragen der PLZ, nie durch
+Anklicken eines bloßen Ortsnamens. Kein weiterer PR nötig.
+
 **Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
 (Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
 beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal
