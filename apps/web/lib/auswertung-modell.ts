@@ -677,8 +677,10 @@ function jahresAchse(
       .filter((iso): iso is string => iso != null)
       .map((iso) => Number(iso.slice(0, 4))),
   );
-  // Offene Zeitraeume (E17) starten ab dem aktuellen Jahr — das gehoert
-  // dann auch auf die Achse, selbst wenn kein Beleg es explizit nennt.
+  // Offene Zeitraeume starten ab dem aktuellen Jahr — das gehoert dann
+  // auch auf die Achse, selbst wenn kein Beleg es explizit nennt. E75: ein
+  // unbefristeter Strom (bis NULL) verlaengert die Achse nicht ueber das
+  // aktuelle Jahr hinaus, zaehlt aber in jedem Achsenjahr ab seinem Beginn.
   if (recs.some((s) => s.zeitraumVon == null || s.zeitraumBis == null))
     jahre.push(aktuellesJahr);
   const lo = jahre.length ? Math.min(...jahre) : aktuellesJahr;
