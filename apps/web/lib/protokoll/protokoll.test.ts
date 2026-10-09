@@ -84,6 +84,8 @@ describe("protokolliere", () => {
       betrifftId: null,
       text: null,
       aufgabe: null,
+      // AP2.6 PR c (E71): neu erwaehnte Nutzer eines Kommentars — ohne Kommentar null.
+      erwaehnteIds: null,
     });
   });
 

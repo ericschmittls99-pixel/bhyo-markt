@@ -2182,6 +2182,59 @@ Inbox-Aufbewahrung (D14).
 
 **Entschieden (Eric 08.10.2026):** (a) Migrationen so wie
 gebaut (AP2.8 jetzt 0052, PR a 0053, PR c 0054, PR d 0055 — Umnummerierung 08.10.2026, weil 0051 an E72 ging). (b) Textgrenze 2000 Zeichen; ein Marker
+**PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
+(SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
+`lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
+im Strom-Detail (über `lib/detail-daten.ts`, damit ströme. und inbox.
+dasselbe Panel zeigen) und im Akteur-Detail. Marker → aktueller Name
+(`kommentarSegmente`), deaktiviert/unbekannt → „ehemaliger Nutzer".
+Rechte zum Ausblenden aus derselben Matrix (`darf`), durchgesetzt bleibt
+serverseitig. Hinweis unter dem Feld und Kontaktdaten-Warnung (Muster aus
+dem Import, warnt, blockiert nicht) sind hier schon enthalten, weil sie am
+Eingabefeld hängen; die @-Auswahl und die Zustellung kommen mit PR c.
+Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
+`components/kommentare/Kommentare.test.tsx`, Segmente in
+`lib/kommentar-marker.test.ts`.
+
+**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0054; ursprünglich 0053, umnummeriert am 09.10.2026, neues Journal-`when`):** Enum
+`inbox_typ` + `kommentar`, `erwaehnung` (nur erweitert, E53); Spalte
+`inbox_eintrag.kommentar_id` (FK, CASCADE — greift nur, wenn ein verwaister
+Akteur mitsamt Kommentaren gelöscht wird) im genau-ein-CHECK, Index. Keine
+Bündelung: je Kommentar und Empfänger ein Eintrag (kein Upsert, kein
+Unique-Index). Zustellung in `lib/inbox/zustellung.ts`
+(`zustelleKommentar`, Register-Reihenfolge erwaehnung vor kommentar, D6):
+Erwähnte bekommen nur `erwaehnung`; `kommentar` geht an die
+**Verantwortlichen des Objekts** — Strom: Beteiligte laut Protokoll (E23),
+Sperrinhaber und Zugewiesene (E44); Akteur: Urheber seiner
+Protokollereignisse — plus bisherige Kommentatoren des Verlaufs; ohne Autor,
+Betrachter, Deaktivierte. Beim Bearbeiten nur `erwaehnung` für die neu
+Erwähnten (Register: `kommentar` nur bei `kommentar_erstellt`); Löschen
+stellt nichts zu. Der Schreibweg gibt die Erwähnten über
+`protokolliere({ erwaehnteIds })` mit — dieselbe Transaktion. Inbox-Zeile
+löst Strom bzw. Akteur aus dem Kommentar auf (`coalesce` in
+`lib/inbox/server.ts`), der Link springt zum Kommentar (`#kommentar-<id>`,
+hervorgehoben). @-Auswahl in der Komponente per Tastatur
+(`lib/kommentar-eingabe.ts`: im Feld „@Name", gespeichert der Marker; nur
+Tokens aus der Auswahl werden Marker, ein getippter „@Name" bleibt Text;
+gleicher Name → E-Mail im Token). Erwähnbare = `ladeZuweisbare`. Tests:
+`lib/inbox/zustellung.kommentar.test.ts`, `lib/inbox/register.test.ts`,
+`lib/kommentar-eingabe.test.ts`, Probe Fälle 9a–9d und 8 (Inbox-CASCADE),
+DB-Check `packages/db/src/inbox-check.ts` (14 Indizes, 15 Typen,
+Spalte/CHECK).
+
+**Entschieden (PR c, Eric 08.10.2026):** (e) Verantwortliche = Beteiligte
+im Sinne von E56 — Strom: Beteiligte laut Protokoll, Sperrinhaber und
+Zugewiesene; Akteur: Urheber seiner Protokollereignisse. Deaktivierte Nutzer
+erhalten nichts (Test „Deaktivierte nichts" in
+`lib/inbox/zustellung.kommentar.test.ts`). (f) Nummer 0053 wie gebaut. (g)
+Marker deaktivierter Nutzer bleiben gespeichert, die Anzeige zeigt
+„ehemaliger Nutzer" (Tests in `lib/kommentar-marker.test.ts` und
+`components/kommentare/Kommentare.test.tsx`). Inbox-Einträge zu einem
+gelöschten Kommentar bleiben und zeigen „Kommentar gelöscht" statt des
+Zustelltexts (`kommentarGeloescht` in der Zeile, Probe 6f).
+
+**Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
+gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
 auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
 weist den ganzen Kommentar mit Meldung ab, nichts wird gespeichert. (c)
 Zwei Strom-Spalten (`biomassestrom_id`, `output_bedarf_id`) neben
@@ -2191,6 +2244,46 @@ Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
 „Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
 („Erwaehnungszeilen weg"), Probe 6c.
 
+**Doppeltes Absenden (Eric 09.10.2026, Befund Preview #201):** Das
+unkontrollierte Textfeld aus PR b behielt den Text nach dem Speichern, ein
+zweiter Klick hätte den Kommentar doppelt angelegt (in PR b per
+`form.reset()` behoben). PR c führt den Text als React-Zustand und leert ihn
+nach Erfolg (`setText("")`); der Speichern-Knopf ist während des Speicherns
+gesperrt (`disabled={pending}`, `useTransition`). **Vormerkung AP6:**
+jsdom/Testing Library für Komponententests mit Interaktion — die heutigen
+Komponententests sind statische Renders (`react-dom/server`) und können
+weder das Leeren des Feldes noch die Sperre während des Speicherns prüfen;
+Nachweis bis dahin nur auf der Preview.
+
+**PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0055; ursprünglich 0054, umnummeriert am 09.10.2026, neues Journal-`when`):** Parameter
+`inbox.aufbewahrung_erledigt_tage` = 14 und `inbox.aufbewahrung_gelesen_tage`
+= 60 (Startwerte, Verlauf E60, Gruppe „Inbox" in einstellungen.). Der
+tägliche Job (`worker.ts`, nach dem Verifikations-Job) löscht in
+`lib/inbox/aufbewahrung.ts` (einzige Löschstelle, ein Statement, Stichtag
+hereingereicht): Einträge im Zustand erledigt oder verworfen, deren
+`zustand_seit` plus Frist den Stichtag erreicht (tagesgenau Europe/Berlin),
+und offene gelesene Einträge, deren `gelesen_am` plus Frist den Stichtag
+erreicht. Ungelesene bleiben. Bestand gewinnt: der Zustand „erledigt"
+existiert (Enum `inbox_zustand`), „verworfen" (vom Empfänger weggeklickt)
+wird wie erledigt behandelt. Log-Zeile `JOB inbox-aufbewahrung <env>
+{"erledigt","gelesen"}`. Tests: `lib/inbox/aufbewahrung.test.ts`,
+`scripts/inbox-aufbewahrung-probe.ts` (Wegwerf-DB: 13/14 und 59/60 Tage,
+ungelesen bleibt, Wird-frei bleibt, idempotent, Parameter wirkt),
+`parameter-check` 15 Schlüssel.
+
+**Entschieden (PR d, Eric 08.10.2026):** (h) Abweichung angenommen:
+die Aufbewahrung gilt für alle Typen **außer den zustandsbasierten
+Job-Hinweisen** (`verifikation_laeuft_ab`, `verifikation_abgelaufen`,
+`akteur_verwaist`, `kontaktperson_loeschpruefung`, `biomasse_wird_frei`) —
+der Eintrag ist dort das Gedächtnis der Idempotenz (Indizes über alle
+Zustände). (i) „verworfen" wird wie erledigt behandelt (14 Tage). (j)
+„Löschungen auf Production macht ein Mensch" gilt für Eingriffe
+(Migrationen, Handaktionen), nicht für fachlich entschiedene
+Aufbewahrungsregeln im Job (Präzedenz E67, Import-Zwischenstände 30 Tage).
+Bedingung: die Anzahl gelöschter Einträge je Lauf steht in
+`job_lauf.schritte` (`inbox_aufbewahrung_erledigt`,
+`inbox_aufbewahrung_gelesen`, am Lauf des Stichtags) und ist im Leseweg
+sichtbar (Zeile JOB_LAUF `letzte_schritte`). (k) Nummer wie gebaut — nach der Umnummerierung 0055.
 ## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
 
 **Entscheidung Eric (E73):** Wegen der GitHub-Abrechnungssperre wird das Repo
@@ -2289,8 +2382,67 @@ Ortsteil-Form („Mannheim-Neckarau"): nach bestandener lokaler Prüfung an den
 Adressdienst den amtlichen Ort plus Ortsteil als Zusatz senden — mit Straße
 lieferte der Dienst bisher keinen Treffer (Preview-Test 08.10.2026).
 
+**Vormerkung geschlossen (Nachtauftrag 09.10.2026, B3): „Mehrdeutige
+Ortsnamen nur mit Kreis/Land auswählbar"** — durch E68 und E72 abgedeckt:
+Im Formular ist die PLZ Pflicht und löst gleichnamige Orte auf; passt der
+Ort nicht, nennt „Meinten Sie …?" die amtlichen Orte der PLZ (E68 PR 2).
+Im Import nennt der Befund bei einem Ort ohne PLZ jeden Kandidaten mit Kreis
+und Land und der PLZ-Liste (E72 b, `kandidatenText`, Test „Rot b) mehrere
+gleichnamige Orte -> Befund mit Kandidaten je Ort mit Kreis und Land",
+Screenshot `e72/02`); gewählt wird durch Eintragen der PLZ, nie durch
+Anklicken eines bloßen Ortsnamens. Kein weiterer PR nötig.
+
 **Migrationsnummer:** 0051 geht an E72, weil der PR vor #199 gemergt wird
 (Reihenfolge Eric). #199 (bisher 0051) und #200–#203 (0052–0054) müssen
 beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal
 bekommen — der Drizzle-Migrator wendet nur Migrationen an, deren Zeitstempel
 jünger ist als die letzte angewendete.
+
+## 48. E74 Mail-Versand über Microsoft 365 (AP2.9), 09.10.2026
+
+**Entschieden (Eric 09.10.2026):** Versand über das bestehende Microsoft 365
+per Graph `sendMail`. Absender ist das bestehende Postfach `news@bhyo.de`
+(Konto in Entra vorhanden). Entra-App mit Anwendungsberechtigung `Mail.Send`,
+per `ApplicationAccessPolicy` (oder RBAC for Applications) auf `news@`
+beschränkt. Client-Credentials mit Secret, keine Redirect-URI. Tenant-ID,
+Client-ID und Secret trägt Eric als Worker-Secrets ein. Die Einrichtung in
+M365 übernimmt die bhyo-IT; Eric meldet, wenn sie fertig ist. Kein neuer
+Anbieter, keine DNS-Änderung. **Begründung:** Empfänger sind ausschließlich
+`@bhyo.de`-Postfächer. Der Nebenbefund „M365-DKIM fehlt" ist an die IT
+gegangen. Grundlage und Anbietervergleich: `docs/vorbereitung/ap29-mail.md`.
+
+**Folgen für den Bau (AP2.9, Entwurf parallel, ohne Secrets):** `lib/mail/`
+mit Graph-Adapter (Token per client_credentials, `sendMail` mit
+`saveToSentItems=false`), Absender als Konfiguration `MAIL_ABSENDER`
+(news@bhyo.de), eine Schreibstelle, Protokoll-Ereignis ohne Inhalt,
+Probemodus `MAIL_MODUS=protokoll` als Standard (nur loggen, nicht senden),
+Tests mit Mock, Logs ohne Token oder Secret (E73). Dazu ein Bericht zu den
+Roundup-Weggabelungen (Uhrzeit, Wochenende, welche Zähler, Definition „nur
+bei Neuem", Abmeldung, Link-Ziel, Verhalten bei Graph-Fehlern, Erkennen des
+Secret-Ablaufs) mit Empfehlung je Punkt, und `docs/betrieb/m365-mail.md` als
+Anleitung für die IT samt Namen der Worker-Secrets.
+
+## 49. E75 Unbefristete Angebote und Bedarfe (`zeitraum_bis` NULL), 09.10.2026
+
+**Entschieden (Eric 09.10.2026):** `zeitraum_bis NULL` bedeutet unbefristet,
+für `biomassestrom` und `output_bedarf` gleichermaßen; CHECK
+`zeitraum_bis IS NULL OR zeitraum_bis >= zeitraum_von`. Ein unbefristeter
+Datensatz zählt in jedem Jahr ab seinem Beginn (Jahresfilter im Register,
+Auswertung). Anzeige „ab MM/JJJJ, unbefristet". Export-Zelle „unbefristet"
+(E24: keine leere Zelle, die etwas anderes bedeuten könnte). Import nur
+ausdrücklich: die Werte „unbefristet", „offen" oder „unbegrenzt" in
+„Zeitraum bis" oder der Lauf-Standard „unbefristet"; eine leere Zelle bleibt
+Lauf-Zeitraum, keine stille Unbefristung. `validiereVergaben` prüft bei
+offenem Ende nur gegen den Beginn. Alles Weitere wie in
+`docs/vorbereitung/zeitraum-bis.md` Abschnitt 3 empfohlen.
+
+**Umsetzung in zwei PRs:**
+- **E75a Modell + Verfügbarkeit:** Migration (NOT NULL fallen lassen, CHECK
+  ergänzen, additiv mit erstem Verbraucher, E21). Zuerst `verfuegbarkeit.ts`,
+  `fenster.ts`, `vergabe-fenster.ts` mit Rot-Nachweis „verfügbar trotz
+  Vergabe" bei `bis = NULL` (der Fallback `vergebenBis ?? zeitraumBis` wird
+  NULL und blendet laufende Vergaben aus); dann Jahresfilter (`register.ts`)
+  und Auswertung. Wegwerf-DB-Probe für CHECK und Jahresfilter mit NULL.
+- **E75b Formular, Import, Anzeige:** Kästchen „unbefristet" im Formular,
+  Import (Werte + Lauf-Standard), Anzeige Grid/Tabelle/Detail, Export,
+  Vollständigkeit; Screenshots hell/dunkel.

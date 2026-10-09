@@ -72,6 +72,8 @@ export const PARAMETER_GRUPPEN: Record<string, string> = {
   // AP2.5: Verwaist-Hinweis (akteur), Loeschpruefung (kontaktperson).
   akteur: "Akteure",
   kontaktperson: "Kontaktpersonen",
+  // AP2.6 PR d (E71, D14): Aufbewahrung der Inbox-Eintraege.
+  inbox: "Inbox",
 };
 
 export function gruppeVon(schluessel: string): string {

@@ -112,12 +112,14 @@ export function InboxListe({
       p.set("detail", z.strom.id);
       p.set("sicht", z.strom.art === "output" ? "outputs" : "feedstock");
     }
+    // AP2.6 PR c (E71): Kommentar und Erwaehnung springen zum Kommentar im Objekt (Anker #kommentar-<id>).
+    const anker = z.kommentar ? `#kommentar-${z.kommentar.id}` : "";
     const ziel = z.strom
-      ? `/inbox?${p.toString()}`
+      ? `/inbox?${p.toString()}${anker}`
       : z.kontaktperson
         ? `/akteure/${z.kontaktperson.akteurId}?reiter=kontaktpersonen`
         : z.akteur
-          ? `/akteure/${z.akteur.id}`
+          ? `/akteure/${z.akteur.id}${anker}`
           : z.importLauf
             ? `/import/${z.importLauf.id}`
             : "/inbox";

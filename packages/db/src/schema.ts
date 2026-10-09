@@ -929,6 +929,10 @@ export const inboxTyp = pgEnum("inbox_typ", [
   "import_abgeschlossen",
   /** AP2.8 (E70): Angebot wird frei — Hinweis des taeglichen Jobs je Stufe (180/60/30/0 Tage), Schluessel (Strom, frei_ab, Stufe). */
   "biomasse_wird_frei",
+  // AP2.6 PR c (E71): Kommentar am Objekt (Verantwortliche + bisherige Kommentatoren) und
+  // Erwaehnung (@-Marker) — ereignisgetrieben, je Kommentar und Empfaenger ein Eintrag, keine Buendelung.
+  "kommentar",
+  "erwaehnung",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -1086,6 +1090,8 @@ export const inboxEintrag = pgTable(
     kontaktpersonId: uuid("kontaktperson_id").references(() => kontaktperson.id, { onDelete: "cascade" }),
     /** AP2.7 PR a (E67): Lauf-Bezug des Typs import_abgeschlossen (Migration 0043). */
     importLaufId: uuid("import_lauf_id").references(() => importLauf.id),
+    /** AP2.6 PR c (E71): Objektbezug Kommentar (kommentar/erwaehnung); geht mit dem Kommentar (CASCADE — nur beim geloeschten Akteur). */
+    kommentarId: uuid("kommentar_id").references(() => kommentar.id, { onDelete: "cascade" }),
     /** Letztes Ereignis des Buendels (Protokoll); NULL nur bei den Hinweisen des Jobs (PR b). */
     ereignisId: uuid("ereignis_id").references(() => aenderung.id),
     /**
@@ -1118,8 +1124,9 @@ export const inboxEintrag = pgTable(
     // erweitert; der erste echte Abschluss eines Laufs scheiterte daran (Befund 06.10.2026).
     check(
       "inbox_eintrag_genau_ein_strom_check",
-      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}) = 1`,
+      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}, ${t.kommentarId}) = 1`,
     ),
+    index("inbox_eintrag_kommentar_id_idx").on(t.kommentarId),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
     // AP2.4 PR c: Aufgabentext nur beim Typ aufgabe, dort Pflicht (1–500 Zeichen ohne Rand).
     check(
