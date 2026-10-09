@@ -27,6 +27,31 @@ describe("akteurGruppen", () => {
   });
 });
 
+describe("AP6-Nachweis (Nachtauftrag 09.10.2026, B2): aehnliche NEUE Akteure im selben Lauf", () => {
+  // E67 „auch innerhalb des Laufs" ist heute die Klasse „identisch" (Normname + PLZ);
+  // der Normname streift Rechtsformen, deshalb fallen „… GmbH"-Varianten zusammen.
+  // Ein STARKER Treffer (Wort-Teilmenge mit gleicher PLZ, Aehnlichkeit) wird nur gegen
+  // den Bestand (akteur) gesucht, nie zwischen zwei neuen Akteuren derselben Datei —
+  // dieser Test haelt den Ist-Zustand fest (Testfall 37 der Testdatei).
+  it("Rechtsform-Variante („Hofgut Kirchberg GmbH“) ist identisch -> eine Gruppe", () => {
+    const g = akteurGruppen([
+      { id: "a", status: "offen", felder: { akteur_name: "Hofgut Kirchberg", akteur_sitz_plz: "74821" } },
+      { id: "b", status: "offen", felder: { akteur_name: "Hofgut Kirchberg GmbH", akteur_sitz_plz: "74821" } },
+    ]);
+    expect(g.map((x) => x.zeilenIds)).toEqual([["a", "b"]]);
+  });
+  it("Wort-Teilmenge („Hofgut Kirchberg Süd“) mit gleicher PLZ bleibt eine eigene Gruppe, beide „neu“, kein Vorschlag aufeinander", () => {
+    const z: ZeileFuerAkteur[] = [
+      { id: "a", status: "offen", felder: { akteur_name: "Hofgut Kirchberg", akteur_sitz_plz: "74821" } },
+      { id: "b", status: "offen", felder: { akteur_name: "Hofgut Kirchberg Süd", akteur_sitz_plz: "74821" } },
+    ];
+    const g = akteurGruppen(z);
+    expect(g).toHaveLength(2);
+    for (const x of g) expect(entscheidungAusTreffer(x.schluessel, []).ergebnis).toBe("neu");
+    expect(akteurGruppenAnzeige(z.map((r, i) => ({ ...r, felder: { ...r.felder, akteur_gruppe: g[i]!.schluessel, akteur_neu: "1" } }))).map((x) => x.vorschlagId)).toEqual([null, null]);
+  });
+});
+
 describe("entscheidungAusTreffer", () => {
   it("identisch → Akteur uebernommen, Zeilen bleiben offen", () => {
     expect(entscheidungAusTreffer("k", [{ id: "a1", name: "Hof Mustermann", grad: "identisch" }, { id: "a2", name: "Hof Musterfrau", grad: "stark" }])).toEqual({
