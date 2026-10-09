@@ -144,3 +144,20 @@ export function ortsteilAufteilen(ort: string, amtlicheOrte: readonly string[]):
   const zusatz = woerter.slice(anzahl).join(" ");
   return zusatz ? { ort: treffer.o, zusatz } : null;
 }
+
+/**
+ * AP6 (Eric 09.10.2026, Anwendung von E72 e): Bei einem Treffer des
+ * Adressdienstes bleibt der EINGEGEBENE Ort stehen, wenn er nach der
+ * Ortsteil-Toleranz zum Ort des Dienstes passt („Mannheim-Neckarau" bei
+ * Dienst-Ort „Mannheim", gleicher Ort in anderer Schreibweise). Nur bei
+ * echter Abweichung gilt der Ort des Dienstes — wie bisher. Dieselbe
+ * Toleranz wie im Import (ortsteilAufteilen).
+ */
+export function ortNachTreffer(eingabe: string, dienstOrt: string | null | undefined): string {
+  const e = eingabe.trim();
+  if (!dienstOrt) return e;
+  if (!e) return dienstOrt;
+  if (normalisiereOrt(e) === normalisiereOrt(dienstOrt)) return e;
+  return ortsteilAufteilen(e, [dienstOrt]) ? e : dienstOrt;
+}
+
