@@ -141,7 +141,8 @@ async function main() {
   console.log(`GENANNT ${genannt.length} von ${GENANNT.length} vorhanden`);
   for (const g of genannt)
     console.log(
-      `  ${g.beleg_nr} ${g.typ} stufe=${g.stufe} gueltig_bis=${g.gueltig_bis ?? "–"} seed=${g.seed} quelle="${g.quelle ?? ""}" ← ${g.referenz}`,
+      // E73: die Quellenangabe ist Freitext (kann Personen nennen) — nur ob sie da ist.
+      `  ${g.beleg_nr} ${g.typ} stufe=${g.stufe} gueltig_bis=${g.gueltig_bis ?? "–"} seed=${g.seed} quelle=${g.quelle ? "ja" : "nein"} ← ${g.referenz}`,
     );
 
   await sql.end();

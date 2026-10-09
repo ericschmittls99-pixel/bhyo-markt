@@ -98,7 +98,7 @@ async function main() {
   // AP2.8 (0051): Typ biomasse_wird_frei, Index inbox_eintrag_wird_frei_uidx, Spalte stufe mit CHECK.
   const [st] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'stufe'`;
   const [sc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_stufe_check'`;
-  if (st!.n !== 1 || sc!.n !== 1) fehler.push(`AP2.8: Spalte stufe=${st!.n} CHECK stufe=${sc!.n} (Migration 0051)`);
+  if (st!.n !== 1 || sc!.n !== 1) fehler.push(`AP2.8: Spalte stufe=${st!.n} CHECK stufe=${sc!.n} (Migration 0052)`);
   const zaehler = [zaehlerPasst("indizes", idx.length, 13, modus), zaehlerPasst("typen", typen.length, 13, modus)].filter(Boolean);
   if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
     console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036/0043 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson / Import) ${zaehler.join(" · ")}`);
