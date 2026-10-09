@@ -2244,6 +2244,17 @@ Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
 „Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
 („Erwaehnungszeilen weg"), Probe 6c.
 
+**Doppeltes Absenden (Eric 09.10.2026, Befund Preview #201):** Das
+unkontrollierte Textfeld aus PR b behielt den Text nach dem Speichern, ein
+zweiter Klick hätte den Kommentar doppelt angelegt (in PR b per
+`form.reset()` behoben). PR c führt den Text als React-Zustand und leert ihn
+nach Erfolg (`setText("")`); der Speichern-Knopf ist während des Speicherns
+gesperrt (`disabled={pending}`, `useTransition`). **Vormerkung AP6:**
+jsdom/Testing Library für Komponententests mit Interaktion — die heutigen
+Komponententests sind statische Renders (`react-dom/server`) und können
+weder das Leeren des Feldes noch die Sperre während des Speicherns prüfen;
+Nachweis bis dahin nur auf der Preview.
+
 **PR d (Inbox-Aufbewahrung D14, 08.10.2026, Migration 0055; ursprünglich 0054, umnummeriert am 09.10.2026, neues Journal-`when`):** Parameter
 `inbox.aufbewahrung_erledigt_tage` = 14 und `inbox.aufbewahrung_gelesen_tage`
 = 60 (Startwerte, Verlauf E60, Gruppe „Inbox" in einstellungen.). Der
