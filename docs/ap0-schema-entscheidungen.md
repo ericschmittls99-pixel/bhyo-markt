@@ -2422,6 +2422,20 @@ bei Neuem", Abmeldung, Link-Ziel, Verhalten bei Graph-Fehlern, Erkennen des
 Secret-Ablaufs) mit Empfehlung je Punkt, und `docs/betrieb/m365-mail.md` als
 Anleitung für die IT samt Namen der Worker-Secrets.
 
+**Umgesetzt (Entwurf, 09.10.2026):** `apps/web/lib/mail/graph.ts`
+(Token per client_credentials, `sendMail` mit `saveToSentItems=false`,
+Ursachen als Codes: secret_abgelaufen AADSTS7000222, secret_ungueltig,
+app_unbekannt, zugriff_verweigert, postfach_unbekannt, gedrosselt mit
+Retry-After, netz) und `apps/web/lib/mail/index.ts` als einzige Schreibstelle
+`sendeMail` (Modus `protokoll` Standard: loggt und protokolliert, sendet
+nicht; `graph` sendet). Ereignisart `mail_gesendet` am Empfänger (Migration
+`ap29_mail_gesendet`), Text nur Art, Modus und Längen. Variablen
+`MAIL_MODUS`, `MAIL_ABSENDER` in `wrangler.jsonc`; Secrets `M365_TENANT_ID`,
+`M365_CLIENT_ID`, `M365_CLIENT_SECRET`. Anleitung `docs/betrieb/m365-mail.md`,
+Weggabelungen `docs/vorbereitung/ap29-roundup-weggabelungen.md`. Ein
+Fehlschlag hinterlässt kein Ereignis; der Aufrufer entscheidet über die
+Wiederholung.
+
 ## 49. E75 Unbefristete Angebote und Bedarfe (`zeitraum_bis` NULL), 09.10.2026
 
 **Entschieden (Eric 09.10.2026):** `zeitraum_bis NULL` bedeutet unbefristet,
@@ -2446,3 +2460,45 @@ offenem Ende nur gegen den Beginn. Alles Weitere wie in
 - **E75b Formular, Import, Anzeige:** Kästchen „unbefristet" im Formular,
   Import (Werte + Lauf-Standard), Anzeige Grid/Tabelle/Detail, Export,
   Vollständigkeit; Screenshots hell/dunkel.
+
+## 50. E76 Inbox-Roundup per Mail (AP2.9), 09.10.2026
+
+**Entschieden (Eric 09.10.2026)**, die acht Empfehlungen aus
+`docs/vorbereitung/ap29-roundup-weggabelungen.md` wie vorgeschlagen:
+1. Mo–Fr 07:07 Berlin (Cron 05:07/06:07 UTC, je Zeitumstellung greift einer).
+2. Kein Versand am Wochenende; der Montag deckt Fr–So ab, weil „seit dem
+   letzten erfolgreichen Roundup" gezählt wird.
+3. Nur Zähler je Typ (offen gesamt, davon neu seit letztem Roundup), keine
+   Inhalte, keine Namen Dritter; genau ein Link auf `/inbox`.
+4. „Nur bei Neuem": Versand nur, wenn seit dem letzten erfolgreichen Roundup
+   mindestens ein neuer offener Eintrag entstand. Altbestand allein löst
+   nichts aus.
+5. Abmeldung als Einstellung je Nutzer (`benutzer.roundup`, Standard an) in
+   *einstellungen.* für jede Rolle; **Ergänzung Eric:** die Fußzeile der Mail
+   verlinkt die Einstellung (`/einstellungen#roundup`). Kein Abmelde-Link,
+   der ohne Anmeldung wirkt.
+6. Graph-Fehler brechen den Job nicht ab (je Nutzer ein Ergebnis);
+   Drosselung einmal nach Retry-After wiederholen (gedeckelt 20 s); Störungen
+   als Admin-Hinweis in der Inbox (eigener Typ, kommt mit dem Umschalt-Schritt).
+7. „Letzter Roundup" (`benutzer.roundup_zuletzt_am`) nur bei Erfolg setzen;
+   kein Protokoll-Ereignis bei Fehlschlag.
+8. Secret-Ablauf reaktiv (AADSTS7000222 → `secret_abgelaufen`) und proaktiv
+   30 und 7 Tage vorher über eine Ablaufdatum-Variable (kommt mit dem
+   Umschalt-Schritt).
+
+**Ablauf (Eric):** #215 wird im Probemodus (`MAIL_MODUS=protokoll`)
+freigegeben, bevor die IT fertig ist. Nachweis in Production: der Job-Lauf
+protokolliert je Nutzer „würde senden: ja/nein" und die Zähler — im Log nur
+die Nutzer-ID, keine Adressen, keine Inhalte. Umschalten auf Versand erst
+nach Erics Meldung, als eigener kleiner Schritt mit Testversand an Eric.
+
+**Umgesetzt (Entwurf):** `apps/web/lib/jobs/roundup.ts` (Werktag Berlin,
+`wuerdeSenden`, `roundupText`, Ablauf gegen die Schnittstelle
+`RoundupZugriff`, `job_lauf`-Zeile `roundup` je Stichtag mit
+`schritte` empfaenger/wuerde_senden/gesendet/fehler/ursache_<code>),
+`worker.ts` (eigener Lauf um 07:07), Cron in `wrangler.jsonc`, Variable
+`APP_URL`, Aktion `benutzer.roundup_setzen` (jede Rolle, nur für sich
+selbst) mit Ereignis `geaendert`, Schalter `RoundupEinstellung` auf
+*einstellungen.*; Migration `0058_ap29_mail_roundup` (Enum `mail_gesendet`,
+Spalten `benutzer.roundup`, `benutzer.roundup_zuletzt_am`).
+

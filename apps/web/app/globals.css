@@ -5847,3 +5847,16 @@ table.st-tabelle tbody tr:focus-visible {
     background: transparent;
   }
 }
+
+/* AP2.9 (E76): Einstellung „Tages-Mail" als eigener Block vor der Benutzerverwaltung. */
+.einst-roundup {
+  margin: 0 0 1.75rem;
+  padding: 0 0 1.25rem;
+  border-bottom: 1px solid rgba(31, 46, 56, 0.12);
+}
+.einst-roundup h2 {
+  margin: 0 0 0.5rem;
+}
+[data-theme="dark"] .einst-roundup {
+  border-bottom-color: rgba(255, 255, 255, 0.14);
+}

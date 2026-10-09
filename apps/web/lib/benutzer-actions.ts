@@ -155,3 +155,29 @@ export async function aktivSetzen(email: string, aktiv: boolean): Promise<Benutz
   revalidatePath("/einstellungen");
   return { ok: true };
 }
+
+/**
+ * AP2.9 (E76): Roundup-Mail fuer den EIGENEN Zugang an- oder abschalten
+ * (Standard an). Jede Rolle darf das — nur fuer sich selbst: geschrieben
+ * wird ausschliesslich die Zeile des angemeldeten Nutzers (Objektregel).
+ */
+export async function roundupSetzen(an: boolean): Promise<BenutzerErgebnis> {
+  const wache = await rechtFuerAction("benutzer.roundup_setzen");
+  if ("fehler" in wache) return wache;
+  await withDb((db) =>
+    db.transaction(async (tx) => {
+      await tx.update(benutzer).set({ roundup: an, geaendertAm: new Date() }).where(eq(benutzer.id, wache.zugang.id));
+      await protokolliere(tx, {
+        art: "geaendert",
+        entitaet: "benutzer",
+        id: wache.zugang.id,
+        benutzerId: wache.zugang.id,
+        benutzerEmail: wache.email,
+        text: `Roundup-Mail ${an ? "eingeschaltet" : "abgeschaltet"}`,
+      });
+    }),
+  );
+  revalidatePath("/einstellungen");
+  return { ok: true };
+}
+

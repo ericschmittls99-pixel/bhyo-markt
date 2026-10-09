@@ -867,6 +867,8 @@ export const ereignisArt = pgEnum("ereignis_art", [
   "kommentar_erstellt",
   "kommentar_bearbeitet",
   "kommentar_geloescht",
+  // AP2.9 (E74): ausgehende Mail am Empfaenger protokolliert — Art und Laengen, nie Inhalt.
+  "mail_gesendet",
 ]);
 
 export const aenderung = pgTable(
@@ -1284,6 +1286,10 @@ export const benutzer = pgTable(
     rolle: benutzerRolle("rolle").notNull(),
     name: text("name"),
     aktiv: boolean("aktiv").notNull().default(true),
+    // AP2.9 (E76): taegliches Inbox-Roundup per Mail — Einstellung je Nutzer (Standard an)
+    // und der letzte ERFOLGREICHE Versand (nur dann gesetzt; Mass fuer „neu seit").
+    roundup: boolean("roundup").notNull().default(true),
+    roundupZuletztAm: timestamp("roundup_zuletzt_am", { withTimezone: true }),
     erstelltAm: timestamp("erstellt_am", { withTimezone: true })
       .notNull()
       .defaultNow(),

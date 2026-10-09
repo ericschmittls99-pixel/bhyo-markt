@@ -36,6 +36,8 @@ export const AKTIONEN = [
   "benutzer.anlegen",
   "benutzer.rolle_setzen",
   "benutzer.aktiv_setzen",
+  // AP2.9 (E76): eigene Roundup-Mail an/aus — jede Rolle, nur fuer sich selbst (Objektregel in der Aktion).
+  "benutzer.roundup_setzen",
   // Inbox (lib/inbox/actions.ts, AP2.2): nur der Empfaenger, Objektregel
   "inbox.gelesen",
   "inbox.ungelesen",
@@ -116,6 +118,7 @@ export const MATRIX: Record<Aktion, readonly Rolle[]> = {
   "benutzer.anlegen": VERWALTEN,
   "benutzer.rolle_setzen": VERWALTEN,
   "benutzer.aktiv_setzen": VERWALTEN,
+  "benutzer.roundup_setzen": ALLE,
   "inbox.gelesen": ALLE,
   "inbox.ungelesen": ALLE,
   "inbox.erledigen": ALLE,
