@@ -2499,6 +2499,6 @@ nach Erics Meldung, als eigener kleiner Schritt mit Testversand an Eric.
 `worker.ts` (eigener Lauf um 07:07), Cron in `wrangler.jsonc`, Variable
 `APP_URL`, Aktion `benutzer.roundup_setzen` (jede Rolle, nur für sich
 selbst) mit Ereignis `geaendert`, Schalter `RoundupEinstellung` auf
-*einstellungen.*; Migration `ap29_mail_roundup` (Enum `mail_gesendet`,
+*einstellungen.*; Migration `0058_ap29_mail_roundup` (Enum `mail_gesendet`,
 Spalten `benutzer.roundup`, `benutzer.roundup_zuletzt_am`).
 
