@@ -143,6 +143,9 @@ export function Kommentare({
     }
   }
 
+  // Text ist React-Zustand und wird nach Erfolg geleert; der Speichern-Knopf ist
+  // waehrend `pending` gesperrt. Beides zusammen verhindert das doppelte Anlegen,
+  // das PR b auf der Preview mit dem unkontrollierten Feld zeigte (§45).
   function absenden(zielId: "neu" | string, markerText: string, bestaetigt: boolean) {
     if (!bestaetigt && enthaeltKontaktdaten(markerText)) {
       setWarnung({ ziel: zielId, markerText });
