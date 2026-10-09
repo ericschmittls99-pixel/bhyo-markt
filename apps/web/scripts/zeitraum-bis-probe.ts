@@ -1,6 +1,6 @@
 /**
  * E75 (09.10.2026): `zeitraum_bis NULL` = unbefristet — Probe gegen die
- * Wegwerf-DB (Migration 0055/0056), alles in einer zurueckgerollten
+ * Wegwerf-DB (Migration 0056), alles in einer zurueckgerollten
  * Transaktion. Faelle: NULL wird angenommen (Biomasse und Output), Ende vor
  * Beginn wird vom CHECK abgewiesen (Rot-Fall), der Jahresfilter des
  * Registers findet den unbefristeten Strom in jedem Jahr ab Beginn und nicht
