@@ -40,13 +40,17 @@ export function Kommentare({
   const [offen, setOffen] = useState<string | null>(null);
   const [confirm, setConfirm] = useState<string | null>(null);
   const [fehler, setFehler] = useState<string | null>(null);
-  const [warnung, setWarnung] = useState<{ ziel: "neu" | string; fd: FormData } | null>(null);
+  const [warnung, setWarnung] = useState<{ ziel: "neu" | string; fd: FormData; form: HTMLFormElement | null } | null>(null);
   const [pending, start] = useTransition();
 
-  function absenden(ziel: "neu" | string, fd: FormData, bestaetigt: boolean) {
+  // Befund Preview 09.10.2026: das unkontrollierte Textfeld behielt den Text nach dem
+  // Speichern (router.refresh setzt keinen Client-Zustand zurueck) — eine zweite
+  // Absendung haette den Kommentar doppelt angelegt. Nach Erfolg wird das Formular
+  // des neuen Kommentars zurueckgesetzt; beim Bearbeiten schliesst sich das Feld.
+  function absenden(ziel: "neu" | string, fd: FormData, bestaetigt: boolean, form: HTMLFormElement | null) {
     const text = String(fd.get("text") ?? "");
     if (!bestaetigt && enthaeltKontaktdaten(text)) {
-      setWarnung({ ziel, fd });
+      setWarnung({ ziel, fd, form });
       return;
     }
     setWarnung(null);
@@ -58,6 +62,7 @@ export function Kommentare({
       }
       setFehler(null);
       setOffen(null);
+      if (ziel === "neu") form?.reset();
       router.refresh();
     });
   }
@@ -81,7 +86,7 @@ export function Kommentare({
         className="kom-formular"
         onSubmit={(e) => {
           e.preventDefault();
-          absenden(ziel, new FormData(e.currentTarget), false);
+          absenden(ziel, new FormData(e.currentTarget), false, e.currentTarget);
         }}
       >
         <textarea
@@ -99,7 +104,7 @@ export function Kommentare({
           <p className="kom-warnung" role="alert">
             <i className="ph ph-warning" aria-hidden />
             <span>{KONTAKTDATEN_WARNUNG}</span>
-            <button type="button" className="btn btn--sm" disabled={pending} onClick={() => absenden(ziel, warnung.fd, true)}>
+            <button type="button" className="btn btn--sm" disabled={pending} onClick={() => absenden(ziel, warnung.fd, true, warnung.form)}>
               Trotzdem speichern
             </button>
           </p>
