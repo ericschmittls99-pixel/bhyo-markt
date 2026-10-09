@@ -1,5 +1,5 @@
 {
-  "id": "5dabbc61-4a57-4e1a-b7bd-1aeb91fd88ca",
+  "id": "ff8144bb-3786-41fc-a10b-909875a034c6",
   "prevId": "b035da1d-a63a-4a9a-8368-780a26765533",
   "version": "7",
   "dialect": "postgresql",
@@ -711,19 +711,6 @@
           "notNull": true,
           "default": true
         },
-        "roundup": {
-          "name": "roundup",
-          "type": "boolean",
-          "primaryKey": false,
-          "notNull": true,
-          "default": true
-        },
-        "roundup_zuletzt_am": {
-          "name": "roundup_zuletzt_am",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
         "erstellt_am": {
           "name": "erstellt_am",
           "type": "timestamp with time zone",
@@ -1268,6 +1255,13 @@
           "type": "date",
           "primaryKey": false,
           "notNull": false
+        },
+        "zeitraum_unbefristet": {
+          "name": "zeitraum_unbefristet",
+          "type": "boolean",
+          "primaryKey": false,
+          "notNull": true,
+          "default": false
         },
         "created_at": {
           "name": "created_at",
@@ -4027,8 +4021,7 @@
         "kontaktdaten_uebersprungen",
         "kommentar_erstellt",
         "kommentar_bearbeitet",
-        "kommentar_geloescht",
-        "mail_gesendet"
+        "kommentar_geloescht"
       ]
     },
     "public.feedstock_cluster": {

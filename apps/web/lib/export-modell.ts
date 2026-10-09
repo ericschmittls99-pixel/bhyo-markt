@@ -254,7 +254,8 @@ export const EXPORT_SPALTEN: readonly ExportSpalte[] = [
   },
   // 4. Zeitraum
   { key: "zeitraum_von", gruppe: "zeitraum", kopf: "Zeitraum von", einstufung: KEINE_BELEGANGABE, wert: (s) => csvDatum(s.zeitraumVon) ?? NICHT_ERFASST },
-  { key: "zeitraum_bis", gruppe: "zeitraum", kopf: "Zeitraum bis", einstufung: KEINE_BELEGANGABE, wert: (s) => csvDatum(s.zeitraumBis) ?? NICHT_ERFASST },
+  // E75/E24: ein Beginn ohne Ende ist „unbefristet", keine leere Zelle.
+  { key: "zeitraum_bis", gruppe: "zeitraum", kopf: "Zeitraum bis", einstufung: KEINE_BELEGANGABE, wert: (s) => (s.zeitraumVon && !s.zeitraumBis ? "unbefristet" : (csvDatum(s.zeitraumBis) ?? NICHT_ERFASST)) },
   // 5. Mengen — je Einheit eine Spalte
   { key: "menge_atro", gruppe: "mengen", kopf: "Menge [t atro/a]", einstufung: KEINE_BELEGANGABE, wert: nurFeedstock((s) => zahlOderZustand(s.mengeAtro, "menge")) },
   {

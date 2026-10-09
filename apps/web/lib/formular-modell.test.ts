@@ -150,6 +150,7 @@ const eingabenOk: FormularEingaben = {
   preis: "",
   vonMonat: "2026-01",
   bisMonat: "2026-12",
+  unbefristet: false,
   begruendung: "Ersterfassung",
   belegTyp: "",
   belegQuellenangabe: "",
@@ -373,5 +374,22 @@ describe("validiereFormular: Standort-Koordinate", () => {
     expect(mit("95", "8.43").standort).toBeTruthy();
     expect(mit("49.32", "200").standort).toBeTruthy();
     expect(mit("abc", "8.43").standort).toBeTruthy();
+  });
+});
+
+describe("E75: unbefristet im Formular", () => {
+  it("ohne Bis-Monat ist unbefristet gueltig; ohne beides fehlt zeitraum_bis", () => {
+    expect(validiereFormular("biomasse", { ...eingabenOk, bisMonat: "", unbefristet: true })).toEqual({});
+    expect(validiereFormular("biomasse", { ...eingabenOk, bisMonat: "", unbefristet: false }).zeitraum_bis).toBeTruthy();
+  });
+  it("ein stehen gebliebener Bis-Monat vor dem Beginn stoert bei unbefristet nicht", () => {
+    expect(validiereFormular("biomasse", { ...eingabenOk, bisMonat: "2025-01", unbefristet: true })).toEqual({});
+    expect(validiereFormular("biomasse", { ...eingabenOk, bisMonat: "2025-01", unbefristet: false }).zeitraum_bis).toBe("Bis-Monat liegt vor dem Ab-Monat");
+  });
+  it("formularZeileZuWerte: NULL-Ende bei gesetztem Beginn wird zum Kaestchen", () => {
+    const w = formularZeileZuWerte("biomasse", { ...zeile, zeitraumVon: "2027-01-01", zeitraumBis: null });
+    expect(w.unbefristet).toBe(true);
+    expect(w.bisMonat).toBe("");
+    expect(formularZeileZuWerte("biomasse", zeile).unbefristet).toBe(false);
   });
 });

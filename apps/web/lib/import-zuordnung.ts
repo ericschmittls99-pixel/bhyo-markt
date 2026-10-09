@@ -13,6 +13,10 @@ import type { StromArt } from "@/lib/stroeme-modell";
  */
 
 export type ZielTyp = "text" | "zahl" | "monat" | "datum" | "einheit" | "code";
+
+/** E75: Wert von „Zeitraum bis" fuer ein offenes Ende (aus den Woertern unten); wird zu zeitraum_bis NULL. */
+export const UNBEFRISTET = "unbefristet";
+export const UNBEFRISTET_WOERTER: ReadonlySet<string> = new Set(["unbefristet", "offen", "unbegrenzt"]);
 export type WerteListe = "materialart" | "produkt" | "sektor" | "beleg_typ" | "menge_einheit" | "preis_bezug";
 
 export interface Zielfeld {
@@ -412,6 +416,8 @@ export function feldWert(def: Zielfeld, roh: string): WertErgebnis {
       return { wert: zahlText(z.wert) };
     }
     case "monat":
+      // E75: „Zeitraum bis" darf ausdruecklich offen sein — nur diese Woerter, nie eine leere Zelle.
+      if (def.key === "zeitraum_bis" && UNBEFRISTET_WOERTER.has(wert.trim().toLowerCase())) return { wert: UNBEFRISTET };
       return monatAusText(wert);
     case "datum":
       return datumAusText(wert, def.grenze ?? "anfang");

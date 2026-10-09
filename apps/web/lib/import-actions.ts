@@ -14,6 +14,7 @@ import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchlue
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { verwirfLauf } from "@/lib/jobs/import-aufraeumen";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
+import { formDataAusZeile } from "@/lib/import-zeile-formdata";
 import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung, zuordnungsFehler } from "@/lib/import-zuordnung";
 import { pruefeAdresse } from "@/lib/adresse-pruefung-server";
 import { plzFuerOrtStapel, pruefePlzOrtStapel } from "@/lib/plz-server";
@@ -835,7 +836,7 @@ export async function importPinsErmitteln(laufId: string): Promise<GenauePinsErg
 const MONAT = /^(0[1-9]|1[0-2])\/\d{4}$/;
 /** „MM/JJJJ" -> „JJJJ-MM" (Form von monatZuVon/monatZuBis). */
 const monatZuIso = (m: string) => `${m.slice(3)}-${m.slice(0, 2)}`;
-export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string, zeitraumVon = "", zeitraumBis = ""): Promise<BelegDatenErgebnis> {
+export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: string, gueltigBis: string, zeitraumVon = "", zeitraumBis = "", zeitraumUnbefristet = false): Promise<BelegDatenErgebnis> {
   const wache = await rechtFuerAction("import.ausfuehren");
   if ("fehler" in wache) return { fehler: wache.fehler };
   if (!/^[0-9a-f-]{36}$/.test(laufId)) return { fehler: "Ungültige Lauf-ID." };
@@ -854,7 +855,9 @@ export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: str
   if (zv && !MONAT.test(zv)) feldFehler.zeitraumVon = "Zeitraum von als MM/JJJJ.";
   if (zb && !MONAT.test(zb)) feldFehler.zeitraumBis = "Zeitraum bis als MM/JJJJ.";
   if (ohne > 0 && !zv) feldFehler.zeitraumVon = `Zeitraum von ist Pflicht: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum.`;
-  if (ohne > 0 && !zb) feldFehler.zeitraumBis = `Zeitraum bis ist Pflicht: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum (das Modell kennt kein „unbefristet").`;
+  // E75: statt eines Endes darf der Lauf ausdruecklich „unbefristet" sein — nie beides.
+  if (zeitraumUnbefristet && zb) feldFehler.zeitraumBis = `Entweder Zeitraum bis oder „unbefristet", nicht beides.`;
+  if (ohne > 0 && !zb && !zeitraumUnbefristet) feldFehler.zeitraumBis = `Zeitraum bis ist Pflicht: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum — Monat eintragen oder „unbefristet" wählen.`;
   if (zv && zb && MONAT.test(zv) && MONAT.test(zb) && monatZuIso(zb) < monatZuIso(zv)) feldFehler.zeitraumBis = "Zeitraum bis liegt vor Zeitraum von.";
   if (!g && istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp)) feldFehler.gueltigBis = "Gültig bis ist bei diesem Belegtyp Pflicht (E33).";
   if (Object.keys(feldFehler).length > 0) return { feldFehler };
@@ -863,7 +866,7 @@ export async function importBelegDatenSetzen(laufId: string, erhebungsdatum: str
       db.transaction(async (tx) => {
         await tx
           .update(importLauf)
-          .set({ belegErhebungsdatum: e, belegGueltigBis: g || null, zeitraumVon: zv ? monatZuVon(monatZuIso(zv)) : null, zeitraumBis: zb ? monatZuBis(monatZuIso(zb)) : null, updatedAt: new Date() })
+          .set({ belegErhebungsdatum: e, belegGueltigBis: g || null, zeitraumVon: zv ? monatZuVon(monatZuIso(zv)) : null, zeitraumBis: zb ? monatZuBis(monatZuIso(zb)) : null, zeitraumUnbefristet, updatedAt: new Date() })
           .where(eq(importLauf.id, lauf.id));
         await protokolliere(tx, {
           art: "geaendert",
@@ -915,20 +918,6 @@ function zeilenGrund(e: unknown): string {
 }
 
 /** FormData fuer den Formular-Baustein aus den Strom-Feldern der Zeile (akteur_* bleiben draussen, akteur_id kommt aufgeloest). */
-function formDataAusZeile(felder: Record<string, string>, akteurId: string, lauf?: { zeitraumVon: string | null; zeitraumBis: string | null; preisBezugStandard?: string }): FormData {
-  const fd = new FormData();
-  for (const [k, v] of Object.entries(felder)) {
-    const def = zielfeld(k);
-    if (def && def.gruppe === "strom") fd.set(k, v);
-  }
-  // E69: ohne eigene Spalte gilt der Preis-Bezug des Laufs — nur wenn ein Preis da ist.
-  if ((felder.preis_min || felder.preis_mittel || felder.preis_max) && !felder.preis_bezug) fd.set("preis_bezug", lauf?.preisBezugStandard ?? "fm");
-  // PR e: ohne eigenen Zeitraum gilt der des Laufs (Pflicht am Lauf, geprueft in importBelegDatenSetzen).
-  if (!felder.zeitraum_von && lauf?.zeitraumVon) fd.set("zeitraum_von", monatAusDatum(lauf.zeitraumVon));
-  if (!felder.zeitraum_bis && lauf?.zeitraumBis) fd.set("zeitraum_bis", monatAusDatum(lauf.zeitraumBis));
-  fd.set("akteur_id", akteurId);
-  return fd;
-}
 
 /**
  * Probelauf (PR b, E67): hoechstens 100 Zeilen je Request, in EINER
@@ -948,7 +937,7 @@ export async function importProbelauf(laufId: string, abZeilennummer: number): P
   if (!["aufgeloest", "probelauf", "ausgefuehrt"].includes(lauf.status)) return { fehler: `Der Lauf ist „${lauf.status}" — der Probelauf kommt nach dem Auflösen der Akteure.` };
   if (!lauf.belegErhebungsdatum) return { fehler: "Belegdaten fehlen: bitte Erhebungsdatum (und bei den oberen vier Belegtypen Gültig bis) setzen." };
   if (istBelegTyp(lauf.belegTyp) && brauchtGueltigBis(lauf.belegTyp) && !lauf.belegGueltigBis) return { fehler: "Gültig bis fehlt für den Belegtyp des Laufs (E33)." };
-  if (!lauf.zeitraumVon || !lauf.zeitraumBis) {
+  if (!lauf.zeitraumVon || (!lauf.zeitraumBis && !lauf.zeitraumUnbefristet)) {
     const ohne = zeilenOhneZeitraum(await withDb((db) => ladeImportZeilen(db, lauf.id)));
     if (ohne > 0) return { fehler: `Zeitraum des Laufs fehlt: ${ohne} Zeile(n) tragen keinen eigenen Zeitraum — bitte bei den Belegdaten setzen.` };
   }

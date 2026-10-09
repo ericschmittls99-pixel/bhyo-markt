@@ -143,3 +143,14 @@ describe("fmtRelativ (AP2.2 Inbox)", () => {
     expect(fmtRelativ("kaputt", jetzt)).toBe("–");
   });
 });
+
+describe("E75: fmtZeitraum — Beginn ohne Ende ist unbefristet", () => {
+  it("zeigt „ab MM/JJJJ, unbefristet“ statt „ab MM/JJJJ“", () => {
+    expect(fmtZeitraum("2027-01-01", null)).toBe("ab 01/2027, unbefristet");
+  });
+  it("befristet und nicht erfasst bleiben wie bisher", () => {
+    expect(fmtZeitraum("2027-01-01", "2028-12-31")).toBe("01/2027 bis 12/2028");
+    expect(fmtZeitraum(null, null)).toBe("nicht erfasst");
+    expect(fmtZeitraum(null, "2028-12-31")).toBe("bis 12/2028");
+  });
+});

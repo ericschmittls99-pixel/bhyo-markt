@@ -186,6 +186,8 @@ export function formatZeitspanne(von: string | null, bis: string | null): string
 
 /** Verfuegbarkeitszeitraum — derselbe Ursprung wie formatZeitspanne. */
 export function fmtZeitraum(von: string | null, bis: string | null): string {
+  // E75: Beginn ohne Ende ist unbefristet (NULL = unbefristet, kein „nicht erfasst").
+  if (von && !bis) return `ab ${fmtMonat(von)}, unbefristet`;
   return formatZeitspanne(von, bis);
 }
 
