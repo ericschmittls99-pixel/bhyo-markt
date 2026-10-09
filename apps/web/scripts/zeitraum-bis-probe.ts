@@ -35,7 +35,7 @@ async function main() {
       const A = "00000000-0000-4000-8000-00000000e750";
       await x(sql`insert into akteur (id, name, sektor, status, sitz_plz, sitz_ort) values (${A}, 'Probe Akteur E75', 'ohne_sektor', 'entwurf', '00000', 'Probe')`);
       const [mat] = await x<{ code: string }>(sql`select code from materialart order by code limit 1`);
-      const [prod] = await x<{ code: string }>(sql`select code from produkt order by code limit 1`);
+      const [prod] = await x<{ code: string }>(sql`select code from output_produkt order by code limit 1`);
       const SAISON = "[100,100,100,100,100,100,100,100,100,100,100,100]";
       const B1 = "00000000-0000-4000-8000-00000000e751";
       const O1 = "00000000-0000-4000-8000-00000000e752";
