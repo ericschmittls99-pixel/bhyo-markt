@@ -8,7 +8,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { parseImportDatei } from "./import-datei";
-import { IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, monatAusText, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
+import { IGNORIEREN, PERSON, bereinigteCsv, datumAusText, einheitFaktor, feldWert, monatAusText, zielfeld, pruefeVorlage, pruefeZuordnung, spaltenWerte, vorlageAnwenden, vorschlagZuordnung, werteVorschlag, zeileZuFelder, type Zuordnung } from "./import-zuordnung";
 
 const fixture = (() => {
   const b = readFileSync(join(__dirname, "..", "..", "..", "docs", "beispiele", "import-biomasse.csv"));
@@ -232,5 +232,20 @@ describe("Belegdaten je Zeile (Eric 06.10.2026)", () => {
     const z: Zuordnung = { spalten: vorschlagZuordnung("biomasse", spalten), werte: {} };
     expect(z.spalten).toEqual({ Betrieb: "akteur_name", Erhebungsdatum: "beleg_erhebungsdatum", "Gültig bis": "beleg_gueltig_bis" });
     expect(zeileZuFelder(spalten, ["Hof", "15.03.2026", "2027-03-15"], z).felder).toEqual({ akteur_name: "Hof", beleg_erhebungsdatum: "2026-03-15", beleg_gueltig_bis: "2027-03-15" });
+  });
+});
+
+describe("E75: „Zeitraum bis“ darf ausdruecklich offen sein", () => {
+  const bis = zielfeld("zeitraum_bis")!;
+  const von = zielfeld("zeitraum_von")!;
+  it("unbefristet / offen / unbegrenzt (Gross-/Kleinschreibung egal) → Wert „unbefristet“", () => {
+    expect(feldWert(bis, "unbefristet")).toEqual({ wert: "unbefristet" });
+    expect(feldWert(bis, " Offen ")).toEqual({ wert: "unbefristet" });
+    expect(feldWert(bis, "UNBEGRENZT")).toEqual({ wert: "unbefristet" });
+  });
+  it("leere Zelle bleibt leer (Lauf-Zeitraum), ein Monat bleibt ein Monat, „unbefristet“ im Beginn ist ein Fehler", () => {
+    expect(feldWert(bis, "")).toEqual({ wert: "" });
+    expect(feldWert(bis, "12/2027")).toEqual({ wert: "2027-12" });
+    expect("fehler" in feldWert(von, "unbefristet")).toBe(true);
   });
 });

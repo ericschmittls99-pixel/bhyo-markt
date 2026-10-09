@@ -191,7 +191,7 @@ vi.mock("@/lib/dubletten", () => ({
 }));
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: unknown) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importPinsErmitteln, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern, importAkteurSektorWaehlen, importDoppelzeileEntscheiden, importLaufVerwerfen } = await import("./import-actions");
+const { importAdressenAufloesen, importAkteurEntscheiden, importAkteureAufloesen, importAusfuehren, importZeileBearbeiten, importZeileUeberspringen, importZuruecknehmen, importPinsErmitteln, importBelegDatenSetzen, importDateiHochladen, importProbelauf, importLaufAnlegen, importVorlageSpeichern, importZuordnungSpeichern, importAkteurSektorWaehlen, importDoppelzeileEntscheiden, importLaufVerwerfen, formDataAusZeile } = await import("./import-actions");
 const { vorschlagZuordnung } = await import("./import-zuordnung");
 
 const BEISPIELE = join(__dirname, "..", "..", "..", "docs", "beispiele");
@@ -616,7 +616,7 @@ describe("importBelegDatenSetzen — Zeitraum des Laufs (PR e)", () => {
     rolle = "admin";
     dbSelects.push([lauf()], ohneZeitraum);
     const erg = await importBelegDatenSetzen(LAUF, "2026-10-06", "");
-    expect(erg.feldFehler).toMatchObject({ zeitraumVon: expect.stringMatching(/Pflicht: 1 Zeile/), zeitraumBis: expect.stringMatching(/kein „unbefristet/) });
+    expect(erg.feldFehler).toMatchObject({ zeitraumVon: expect.stringMatching(/Pflicht: 1 Zeile/), zeitraumBis: expect.stringMatching(/oder „unbefristet" wählen/) });
     expect(updates).toHaveLength(0);
   });
 
@@ -1129,5 +1129,26 @@ describe("PR g — E69 im Probelauf: Preis-Bezug aus der Zeile oder als Lauf-Sta
     const erg = await importZuordnungSpeichern(LAUF, { spalten: { ...vorschlagZuordnung("biomasse", SPALTEN), Hausnummer: "aschegehalt_pct" }, werte: { materialart_code: { Rindergülle: "guelle_rind", Maissilage: "maissilage", Festmist: "festmist" }, akteur_sektor: { Landwirtschaft: "landwirtschaft" } } }, { preisBezug: "atro" });
     expect(erg.ok).toBe(true);
     expect(updates[0]).toMatchObject({ status: "zugeordnet", preisBezugStandard: "atro" });
+  });
+});
+
+describe("E75: formDataAusZeile — unbefristet nur ausdruecklich", () => {
+  const lauf = { zeitraumVon: "2026-01-01", zeitraumBis: "2027-12-31", zeitraumUnbefristet: false };
+  it("Zelle „unbefristet“ wird zum Kaestchen, zeitraum_bis faellt weg", () => {
+    const fd = formDataAusZeile({ bezeichnung: "x", zeitraum_bis: "unbefristet" }, "a1", lauf);
+    expect(fd.get("unbefristet")).toBe("on");
+    expect(fd.get("zeitraum_bis")).toBeNull();
+  });
+  it("leere Zelle nimmt den Lauf-Zeitraum, nicht „unbefristet“", () => {
+    const fd = formDataAusZeile({ bezeichnung: "x" }, "a1", lauf);
+    expect(fd.get("zeitraum_bis")).toBe("12/2027");
+    expect(fd.get("unbefristet")).toBeNull();
+  });
+  it("leere Zelle mit Lauf-Standard „unbefristet“ wird zum Kaestchen; eigener Monat gewinnt", () => {
+    const offen = { ...lauf, zeitraumBis: null, zeitraumUnbefristet: true };
+    expect(formDataAusZeile({ bezeichnung: "x" }, "a1", offen).get("unbefristet")).toBe("on");
+    const eigen = formDataAusZeile({ bezeichnung: "x", zeitraum_bis: "06/2028" }, "a1", offen);
+    expect(eigen.get("zeitraum_bis")).toBe("06/2028");
+    expect(eigen.get("unbefristet")).toBeNull();
   });
 });

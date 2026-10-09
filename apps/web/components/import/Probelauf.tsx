@@ -20,6 +20,7 @@ export function Probelauf({
   gueltigBisPflicht,
   zeitraumVon,
   zeitraumBis,
+  zeitraumUnbefristet,
   zeilenOhneZeitraum,
   ersteZeile,
   zaehler,
@@ -32,6 +33,8 @@ export function Probelauf({
   /** PR e: Zeitraum des Laufs (MM/JJJJ) fuer Zeilen ohne eigenen; Pflicht, sobald solche Zeilen da sind. */
   zeitraumVon: string | null;
   zeitraumBis: string | null;
+  /** E75: Lauf-Standard „unbefristet" statt eines Endes. */
+  zeitraumUnbefristet: boolean;
   zeilenOhneZeitraum: number;
   ersteZeile: number | null;
   zaehler: Record<string, number> | null;
@@ -41,17 +44,18 @@ export function Probelauf({
   const [g, setG] = useState(gueltigBis ?? "");
   const [zv, setZv] = useState(zeitraumVon ?? "");
   const [zb, setZb] = useState(zeitraumBis ?? "");
+  const [zu, setZu] = useState(zeitraumUnbefristet);
   const zeitraumPflicht = zeilenOhneZeitraum > 0;
   const [belegMeldung, setBelegMeldung] = useState<string | null>(null);
   const [laeuft, starte] = useTransition();
   const [probelaufLaeuft, setProbelaufLaeuft] = useState(false);
   const [fortschritt, setFortschritt] = useState<string | null>(null);
   const [probelaufFehler, setProbelaufFehler] = useState<string | null>(null);
-  const belegdatenDa = !!erhebungsdatum && (!gueltigBisPflicht || !!gueltigBis) && (!zeitraumPflicht || (!!zeitraumVon && !!zeitraumBis));
+  const belegdatenDa = !!erhebungsdatum && (!gueltigBisPflicht || !!gueltigBis) && (!zeitraumPflicht || (!!zeitraumVon && (!!zeitraumBis || zeitraumUnbefristet)));
 
   function belegdatenSpeichern() {
     starte(async () => {
-      const erg = await importBelegDatenSetzen(laufId, e, g, zv, zb);
+      const erg = await importBelegDatenSetzen(laufId, e, g, zv, zu ? "" : zb, zu);
       if (erg.ok) {
         setBelegMeldung(null);
         router.refresh();
@@ -117,12 +121,19 @@ export function Probelauf({
               </span>
             </label>
             <label className="pf adr-kurz">
-              <span>Zeitraum bis (MM/JJJJ, Pflicht)</span>
+              <span>Zeitraum bis (MM/JJJJ{zu ? "" : ", Pflicht"})</span>
               <span className="pf-feld">
-                <input type="text" inputMode="numeric" placeholder="MM/JJJJ" value={zb} onChange={(ev) => setZb(ev.target.value)} required />
+                <input type="text" inputMode="numeric" placeholder="MM/JJJJ" value={zu ? "" : zb} onChange={(ev) => setZb(ev.target.value)} required={!zu} disabled={zu} />
               </span>
             </label>
-            <span className="c">{zeilenOhneZeitraum} Zeile(n) ohne eigenen Zeitraum — der Zeitraum des Laufs gilt für sie (kein „unbefristet“ im Modell).</span>
+            <label className="fp-toggle">
+              <input type="checkbox" checked={zu} onChange={(ev) => setZu(ev.target.checked)} />
+              <span className="fp-toggle-text">
+                <span>unbefristet</span>
+                <span className="c">Kein Ende — gilt für Zeilen ohne eigenes „Zeitraum bis". Nur ausdrücklich; eine leere Zelle bleibt Lauf-Zeitraum.</span>
+              </span>
+            </label>
+            <span className="c">{zeilenOhneZeitraum} Zeile(n) ohne eigenen Zeitraum — der Zeitraum des Laufs gilt für sie.</span>
           </>
         )}
         <button type="button" className="btn btn--ghost btn--sm" onClick={belegdatenSpeichern} disabled={laeuft || !e}>

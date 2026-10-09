@@ -321,3 +321,14 @@ describe("E40: Vergeben ab / bis / an", () => {
     expect(spalte("vergeben_ab").wert(mit([]))).toBe("keine");
   });
 });
+
+describe("E75/E24: Zeitraum bis im Export", () => {
+  const spalte = EXPORT_SPALTEN.find((sp) => sp.key === "zeitraum_bis")!;
+  it("unbefristet steht als Wort in der Zelle, nie leer", () => {
+    expect(spalte.wert(strom({ zeitraumVon: "2027-01-01", zeitraumBis: null }))).toBe("unbefristet");
+  });
+  it("befristet als Datum, ohne jeden Zeitraum „nicht erfasst“", () => {
+    expect(spalte.wert(strom({ zeitraumVon: "2027-01-01", zeitraumBis: "2028-12-31" }))).toBe("31.12.2028");
+    expect(spalte.wert(strom({ zeitraumVon: null, zeitraumBis: null }))).toBe("nicht erfasst");
+  });
+});

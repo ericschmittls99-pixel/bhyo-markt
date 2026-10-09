@@ -74,11 +74,14 @@ function MonatFeld({
   wert,
   onWert,
   ungueltig,
+  deaktiviert,
 }: {
   name: string;
   wert: string;
   onWert: (kanonisch: string) => void;
   ungueltig?: boolean;
+  /** E75: „unbefristet" sperrt den Bis-Monat. */
+  deaktiviert?: boolean;
 }) {
   const [text, setText] = useState(() => monatAnzeige(wert));
   return (
@@ -100,6 +103,7 @@ function MonatFeld({
         if (k) setText(monatAnzeige(k));
       }}
       aria-invalid={ungueltig ? true : undefined}
+      disabled={deaktiviert}
     />
   );
 }
@@ -149,6 +153,8 @@ export function FormularPanel({
   // sie reagiert; Zeilen und Reservierung als lokaler Zustand.
   const [vonMonat, setVonMonat] = useState(werte?.vonMonat ?? "");
   const [bisMonat, setBisMonat] = useState(werte?.bisMonat ?? "");
+  // E75: offenes Ende — das Kaestchen ersetzt den Bis-Monat.
+  const [unbefristet, setUnbefristet] = useState(werte?.unbefristet ?? false);
   const [reserviert, setReserviert] = useState(werte?.reserviertBhyo ?? false);
   const [vergaben, setVergaben] = useState<VergabeFormZeile[]>(
     () => werte?.vergaben ?? [],
@@ -231,12 +237,12 @@ export function FormularPanel({
   // (Kalendertag Europe/Berlin, wie der Server-Stichtag).
   const heute = heuteBerlin();
   const verfuegbarkeit =
-    vonMonat && bisMonat
+    vonMonat && (bisMonat || unbefristet)
       ? leiteVerfuegbarkeitAb(
           heute,
           {
             zeitraumVon: monatZuVon(vonMonat),
-            zeitraumBis: monatZuBis(bisMonat),
+            zeitraumBis: unbefristet ? null : monatZuBis(bisMonat),
             reserviertBhyo: reserviert,
           },
           vergabenZuWerten(vergaben),
@@ -453,7 +459,7 @@ export function FormularPanel({
               </label>
               <label className="pf">
                 <span>
-                  Verfügbar bis<em className="pf-pflicht" aria-hidden> *</em>
+                  Verfügbar bis{!unbefristet && <em className="pf-pflicht" aria-hidden> *</em>}
                 </span>
                 <span className="pf-feld">
                   <MonatFeld
@@ -461,9 +467,17 @@ export function FormularPanel({
                     wert={bisMonat}
                     onWert={setBisMonat}
                     ungueltig={!!f.zeitraum_bis}
+                    deaktiviert={unbefristet}
                   />
                 </span>
                 {f.zeitraum_bis && <span className="pf-fehler">{f.zeitraum_bis}</span>}
+              </label>
+              <label className="fp-toggle">
+                <input type="checkbox" name="unbefristet" checked={unbefristet} onChange={(e) => setUnbefristet(e.target.checked)} />
+                <span className="fp-toggle-text">
+                  <span>unbefristet</span>
+                  <span className="c">Kein Ende — der Strom zählt in jedem Jahr ab Beginn (E75).</span>
+                </span>
               </label>
             </div>
           </section>
