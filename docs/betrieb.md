@@ -466,3 +466,20 @@ den Läufen vom 08.10.2026 vor diesem PR):
 | Bereit-Push ohne DB-Änderung (#195, 37784134162) | 4 Jobs, 8,6 min (deploy 5,7 · typen 1,9 · wegwerf 0,9 · ziel 0,1) | 4 Jobs, 7,4 min (deploy 4,3 · typen 2,2 · wegwerf 0,8 · ziel 0,1; #206 bereit, 37809538530) — unverändert voller Lauf, Unterschied ist Laufzeitrauschen |
 | main-Merge ohne Migration (37790412652) | 6 Jobs, 5,3 min | 6 Jobs, 5,8 min (#206 gemergt, 37810547915) — main unverändert voller Lauf |
 | main-Merge mit Migration + migrate-production | 6 Jobs ≈ 5,9 min + 2 Jobs 0,9 min; Gate wartete bis zur Migration | nach der nächsten Migrations-Freigabe nachtragen |
+
+---
+
+## Runner-Image: ubuntu-24.04 gepinnt (Notiz, 09.10.2026)
+
+GitHub stellt `ubuntu-latest` zwischen dem 19.10. und 19.11.2026 schrittweise
+von Ubuntu 24.04 auf 26.04 um (Ankündigung:
+https://creatorstoolbox.com/blog/github-ubuntu-26-generally-available-and-latest-migration,
+abgerufen 09.10.2026). Für dieses Repo passiert dabei nichts: alle 15 Jobs
+in `.github/workflows/` stehen bereits auf `runs-on: ubuntu-24.04`,
+`ubuntu-latest` kommt nicht vor (geprüft 09.10.2026, `grep runs-on`). Das
+heute laufende Image laut Lauf-Log: `Image: ubuntu-24.04`, Version
+`20261002.596` (Lauf 37840801336). Wäre `ubuntu-latest` in Gebrauch, hätten
+ab dem 19.10. einzelne Läufe auf 26.04 gelandet — mit anderen
+Paketversionen (Node, pnpm, PostgreSQL-Client) und damit möglichen Rot-Läufen
+ohne Codeänderung. Umstieg auf `ubuntu-26.04` als eigener Betriebs-PR, wenn
+GitHub 24.04 abkündigt; dann zuerst ein Entwurf mit vollem Lauf.
