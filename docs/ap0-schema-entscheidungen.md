@@ -2368,3 +2368,52 @@ Anklicken eines bloßen Ortsnamens. Kein weiterer PR nötig.
 beim Angleichen neu nummeriert werden **und** ein neues `when` im Journal
 bekommen — der Drizzle-Migrator wendet nur Migrationen an, deren Zeitstempel
 jünger ist als die letzte angewendete.
+
+## 48. E74 Mail-Versand über Microsoft 365 (AP2.9), 09.10.2026
+
+**Entschieden (Eric 09.10.2026):** Versand über das bestehende Microsoft 365
+per Graph `sendMail`. Absender ist das bestehende Postfach `news@bhyo.de`
+(Konto in Entra vorhanden). Entra-App mit Anwendungsberechtigung `Mail.Send`,
+per `ApplicationAccessPolicy` (oder RBAC for Applications) auf `news@`
+beschränkt. Client-Credentials mit Secret, keine Redirect-URI. Tenant-ID,
+Client-ID und Secret trägt Eric als Worker-Secrets ein. Die Einrichtung in
+M365 übernimmt die bhyo-IT; Eric meldet, wenn sie fertig ist. Kein neuer
+Anbieter, keine DNS-Änderung. **Begründung:** Empfänger sind ausschließlich
+`@bhyo.de`-Postfächer. Der Nebenbefund „M365-DKIM fehlt" ist an die IT
+gegangen. Grundlage und Anbietervergleich: `docs/vorbereitung/ap29-mail.md`.
+
+**Folgen für den Bau (AP2.9, Entwurf parallel, ohne Secrets):** `lib/mail/`
+mit Graph-Adapter (Token per client_credentials, `sendMail` mit
+`saveToSentItems=false`), Absender als Konfiguration `MAIL_ABSENDER`
+(news@bhyo.de), eine Schreibstelle, Protokoll-Ereignis ohne Inhalt,
+Probemodus `MAIL_MODUS=protokoll` als Standard (nur loggen, nicht senden),
+Tests mit Mock, Logs ohne Token oder Secret (E73). Dazu ein Bericht zu den
+Roundup-Weggabelungen (Uhrzeit, Wochenende, welche Zähler, Definition „nur
+bei Neuem", Abmeldung, Link-Ziel, Verhalten bei Graph-Fehlern, Erkennen des
+Secret-Ablaufs) mit Empfehlung je Punkt, und `docs/betrieb/m365-mail.md` als
+Anleitung für die IT samt Namen der Worker-Secrets.
+
+## 49. E75 Unbefristete Angebote und Bedarfe (`zeitraum_bis` NULL), 09.10.2026
+
+**Entschieden (Eric 09.10.2026):** `zeitraum_bis NULL` bedeutet unbefristet,
+für `biomassestrom` und `output_bedarf` gleichermaßen; CHECK
+`zeitraum_bis IS NULL OR zeitraum_bis >= zeitraum_von`. Ein unbefristeter
+Datensatz zählt in jedem Jahr ab seinem Beginn (Jahresfilter im Register,
+Auswertung). Anzeige „ab MM/JJJJ, unbefristet". Export-Zelle „unbefristet"
+(E24: keine leere Zelle, die etwas anderes bedeuten könnte). Import nur
+ausdrücklich: die Werte „unbefristet", „offen" oder „unbegrenzt" in
+„Zeitraum bis" oder der Lauf-Standard „unbefristet"; eine leere Zelle bleibt
+Lauf-Zeitraum, keine stille Unbefristung. `validiereVergaben` prüft bei
+offenem Ende nur gegen den Beginn. Alles Weitere wie in
+`docs/vorbereitung/zeitraum-bis.md` Abschnitt 3 empfohlen.
+
+**Umsetzung in zwei PRs:**
+- **E75a Modell + Verfügbarkeit:** Migration (NOT NULL fallen lassen, CHECK
+  ergänzen, additiv mit erstem Verbraucher, E21). Zuerst `verfuegbarkeit.ts`,
+  `fenster.ts`, `vergabe-fenster.ts` mit Rot-Nachweis „verfügbar trotz
+  Vergabe" bei `bis = NULL` (der Fallback `vergebenBis ?? zeitraumBis` wird
+  NULL und blendet laufende Vergaben aus); dann Jahresfilter (`register.ts`)
+  und Auswertung. Wegwerf-DB-Probe für CHECK und Jahresfilter mit NULL.
+- **E75b Formular, Import, Anzeige:** Kästchen „unbefristet" im Formular,
+  Import (Werte + Lauf-Standard), Anzeige Grid/Tabelle/Detail, Export,
+  Vollständigkeit; Screenshots hell/dunkel.

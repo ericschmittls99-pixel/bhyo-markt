@@ -216,6 +216,18 @@ Weggabelung für Eric: (a) Brevo (neuer Anbieter, drei DNS-Einträge) oder
 (b) M365 Graph (kein neuer Anbieter, Entra-App bei bhyo-IT). Beide
 erfüllen DMARC p=reject, sobald DKIM eingerichtet ist.
 
+**Entschieden (E74, Eric 09.10.2026): Variante (b), Microsoft 365 per Graph
+`sendMail`.** Absender ist das bestehende Postfach `news@bhyo.de` (Konto in
+Entra vorhanden). Entra-App mit Anwendungsberechtigung `Mail.Send`, per
+`ApplicationAccessPolicy` (oder RBAC for Applications) auf `news@`
+beschränkt; Client-Credentials mit Secret, keine Redirect-URI. Tenant-ID,
+Client-ID und Secret trägt Eric als Worker-Secrets ein; die Einrichtung in
+M365 übernimmt die bhyo-IT, Eric meldet die Fertigstellung. Kein neuer
+Anbieter, keine DNS-Änderung. Begründung: Empfänger sind ausschließlich
+`@bhyo.de`-Postfächer, der Versand bleibt im eigenen Tenant. Der Nebenbefund
+M365-DKIM (Abschnitt 6) ist an die IT gegangen. Brevo bleibt oben als
+Vergleich stehen, falls später externe Empfänger dazukommen.
+
 ## 5. DNS-Einträge, die Eric setzen müsste (Muster, keine echten Werte)
 
 Variante Brevo:
@@ -249,11 +261,18 @@ gewählt wird.
 
 ## 7. Nächste Schritte (nach Entscheidung)
 
-1. Eric entscheidet Variante (a) oder (b); bei (a) Konto anlegen, API-Key
-   als Wrangler-Secret `MAIL_API_KEY`, DNS-Einträge setzen, Domain
-   verifizieren.
-2. AP2.9 baut `lib/mail/` mit einem Anbieter-Adapter (eine Schreibstelle,
-   Protokoll-Ereignis ohne Inhalte, E73-Maskierung), Testversand auf der
-   Preview an bhyo-Adressen, Bounce-Webhook-Route hinter Access-Bypass mit
-   Signaturprüfung.
-3. DMARC-Berichte einrichten, erste Woche auswerten.
+1. Entschieden: Variante (b), siehe E74 in Abschnitt 4. bhyo-IT richtet
+   Postfach-Prüfung, Entra-App, Admin-Zustimmung und Access-Policy ein
+   (Anleitung folgt in `docs/betrieb/m365-mail.md`); Eric trägt Tenant-ID,
+   Client-ID und Secret als Worker-Secrets ein.
+2. AP2.9 baut `lib/mail/` mit dem Graph-Adapter (Token per
+   client_credentials, `sendMail` mit `saveToSentItems=false`, Absender als
+   Konfiguration `MAIL_ABSENDER`), eine Schreibstelle, Protokoll-Ereignis
+   ohne Inhalte, Probemodus `MAIL_MODUS=protokoll` als Standard (nur loggen),
+   Tests mit Mock, Logs ohne Token (E73). Entwurf parallel, ohne Secrets.
+3. Roundup-Weggabelungen (Uhrzeit, Wochenende, Zähler, „nur bei Neuem",
+   Abmeldung, Link-Ziel, Graph-Fehler, Secret-Ablauf) als Punkt-4-Bericht
+   mit Empfehlung je Punkt; Eric macht daraus eine Vorlage.
+4. Keine Bounce-Webhooks bei Graph: Zustellfehler kommen als
+   Unzustellbarkeits-Mail ins Postfach `news@`; Umgang mit Graph-Fehlern
+   gehört zu den Weggabelungen in Schritt 3.

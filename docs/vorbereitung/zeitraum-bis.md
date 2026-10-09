@@ -4,6 +4,17 @@ Nur Bestandsaufnahme (Nachtauftrag 09.10.2026, Stand main `a23e009`), nichts
 gebaut, nichts entschieden. Frage: Wo wirkt `zeitraum_bis NOT NULL`, was
 bräche bei NULL, welche Weggabelungen gibt es, und was kostet der Umbau?
 
+**Entschieden (E75, Eric 09.10.2026):** `zeitraum_bis NULL` = unbefristet
+für `biomassestrom` und `output_bedarf`, CHECK `bis IS NULL OR bis >= von`;
+ein unbefristeter Datensatz zählt in jedem Jahr ab Beginn (Jahresfilter,
+Auswertung); Anzeige „ab MM/JJJJ, unbefristet"; Export-Zelle „unbefristet"
+(E24, keine leere Zelle); Import nur ausdrücklich („unbefristet", „offen",
+„unbegrenzt" in „Zeitraum bis" oder Lauf-Standard „unbefristet"), leere
+Zelle = Lauf-Zeitraum; `validiereVergaben` bei offenem Ende nur gegen den
+Beginn. Alles Weitere wie in Abschnitt 3 empfohlen. Umsetzung in zwei PRs
+(E75a Modell + Verfügbarkeit, E75b Formular, Import, Anzeige, Export,
+Vollständigkeit), siehe Entscheidungslog §49.
+
 ## 1. Wo `zeitraum_bis` heute wirkt
 
 Datenmodell (`packages/db/src/schema.ts`, Migration 0001):
