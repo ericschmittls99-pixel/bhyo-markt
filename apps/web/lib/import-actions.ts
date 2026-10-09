@@ -14,7 +14,8 @@ import { AKTEURE_JE_STAPEL, akteurGruppen, entscheidungAusTreffer, gruppenSchlue
 import { PROBELAUF_JE_STAPEL } from "@/lib/import-konstanten";
 import { verwirfLauf } from "@/lib/jobs/import-aufraeumen";
 import { importBelegKey, importRohKey, ladeImportLauf, ladeImportZeilen } from "@/lib/import-server";
-import { UNBEFRISTET, bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung, zuordnungsFehler } from "@/lib/import-zuordnung";
+import { formDataAusZeile } from "@/lib/import-zeile-formdata";
+import { bereinigteCsv, DOPPEL_VON, FEHLER_PREFIX, feldWert, findeDoppelzeilen, HINWEIS_PREFIX, PERSON, pruefeVorlage, pruefeZuordnung, zeileZuFelder, zielfeld, type Zuordnung, zuordnungsFehler } from "@/lib/import-zuordnung";
 import { pruefeAdresse } from "@/lib/adresse-pruefung-server";
 import { plzFuerOrtStapel, pruefePlzOrtStapel } from "@/lib/plz-server";
 import { PhotonNichtErreichbar, photonSuche } from "@/lib/photon-server";
@@ -917,27 +918,6 @@ function zeilenGrund(e: unknown): string {
 }
 
 /** FormData fuer den Formular-Baustein aus den Strom-Feldern der Zeile (akteur_* bleiben draussen, akteur_id kommt aufgeloest). */
-export function formDataAusZeile(felder: Record<string, string>, akteurId: string, lauf?: { zeitraumVon: string | null; zeitraumBis: string | null; zeitraumUnbefristet?: boolean; preisBezugStandard?: string }): FormData {
-  const fd = new FormData();
-  for (const [k, v] of Object.entries(felder)) {
-    const def = zielfeld(k);
-    if (def && def.gruppe === "strom") fd.set(k, v);
-  }
-  // E69: ohne eigene Spalte gilt der Preis-Bezug des Laufs — nur wenn ein Preis da ist.
-  if ((felder.preis_min || felder.preis_mittel || felder.preis_max) && !felder.preis_bezug) fd.set("preis_bezug", lauf?.preisBezugStandard ?? "fm");
-  // PR e: ohne eigenen Zeitraum gilt der des Laufs (Pflicht am Lauf, geprueft in importBelegDatenSetzen).
-  if (!felder.zeitraum_von && lauf?.zeitraumVon) fd.set("zeitraum_von", monatAusDatum(lauf.zeitraumVon));
-  // E75: „unbefristet" in der Zelle oder als Lauf-Standard wird zum Kaestchen; eine leere Zelle bleibt Lauf-Zeitraum.
-  if (felder.zeitraum_bis === UNBEFRISTET) {
-    fd.delete("zeitraum_bis");
-    fd.set("unbefristet", "on");
-  } else if (!felder.zeitraum_bis) {
-    if (lauf?.zeitraumBis) fd.set("zeitraum_bis", monatAusDatum(lauf.zeitraumBis));
-    else if (lauf?.zeitraumUnbefristet) fd.set("unbefristet", "on");
-  }
-  fd.set("akteur_id", akteurId);
-  return fd;
-}
 
 /**
  * Probelauf (PR b, E67): hoechstens 100 Zeilen je Request, in EINER
