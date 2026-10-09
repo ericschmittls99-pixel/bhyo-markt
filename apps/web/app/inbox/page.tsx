@@ -122,6 +122,10 @@ export default async function InboxPage({ searchParams }: { searchParams: Promis
           verfuegbarkeit={detail.verfuegbarkeit}
           vergaben={detail.vergaben}
           preisKorridor={detail.preisKorridor}
+          kommentare={detail.kommentare}
+          kommentarZugang={detail.kommentarZugang}
+          darfKommentieren={detail.darfKommentieren}
+          erwaehnbare={detail.erwaehnbare}
         />
       )}
     </main>

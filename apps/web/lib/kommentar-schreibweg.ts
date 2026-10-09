@@ -113,6 +113,8 @@ export async function kommentarErstellenInTx(tx: Tx, handelnder: Handelnder, bez
     benutzerId: handelnder.id,
     benutzerEmail: handelnder.email,
     text: `${bezugArt} ${bezugId}; ${erwaehnte.length} Erwähnung(en)`,
+    // PR c: die Zustellung (dieselbe Transaktion) bedient Erwaehnte und Verantwortliche.
+    erwaehnteIds: erwaehnte,
   });
   return { id, bezug, erwaehnte };
 }
@@ -184,6 +186,8 @@ export async function kommentarBearbeitenInTx(tx: Tx, handelnder: Handelnder, id
     benutzerId: handelnder.id,
     benutzerEmail: handelnder.email,
     text: `${bezugArt} ${bezugId}; ${neue.length} neue Erwähnung(en)`,
+    // PR c: nur die neu hinzugekommenen Erwaehnungen werden zugestellt (E71 Punkt 13).
+    erwaehnteIds: neue,
   });
   return { bezug, neueErwaehnte: neue };
 }

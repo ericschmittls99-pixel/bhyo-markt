@@ -2182,6 +2182,59 @@ Inbox-Aufbewahrung (D14).
 
 **Entschieden (Eric 08.10.2026):** (a) Migrationen so wie
 gebaut (AP2.8 jetzt 0052, PR a 0053, PR c 0054, PR d 0055 — Umnummerierung 08.10.2026, weil 0051 an E72 ging). (b) Textgrenze 2000 Zeichen; ein Marker
+**PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
+(SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
+`lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
+im Strom-Detail (über `lib/detail-daten.ts`, damit ströme. und inbox.
+dasselbe Panel zeigen) und im Akteur-Detail. Marker → aktueller Name
+(`kommentarSegmente`), deaktiviert/unbekannt → „ehemaliger Nutzer".
+Rechte zum Ausblenden aus derselben Matrix (`darf`), durchgesetzt bleibt
+serverseitig. Hinweis unter dem Feld und Kontaktdaten-Warnung (Muster aus
+dem Import, warnt, blockiert nicht) sind hier schon enthalten, weil sie am
+Eingabefeld hängen; die @-Auswahl und die Zustellung kommen mit PR c.
+Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
+`components/kommentare/Kommentare.test.tsx`, Segmente in
+`lib/kommentar-marker.test.ts`.
+
+**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0054; ursprünglich 0053, umnummeriert am 09.10.2026, neues Journal-`when`):** Enum
+`inbox_typ` + `kommentar`, `erwaehnung` (nur erweitert, E53); Spalte
+`inbox_eintrag.kommentar_id` (FK, CASCADE — greift nur, wenn ein verwaister
+Akteur mitsamt Kommentaren gelöscht wird) im genau-ein-CHECK, Index. Keine
+Bündelung: je Kommentar und Empfänger ein Eintrag (kein Upsert, kein
+Unique-Index). Zustellung in `lib/inbox/zustellung.ts`
+(`zustelleKommentar`, Register-Reihenfolge erwaehnung vor kommentar, D6):
+Erwähnte bekommen nur `erwaehnung`; `kommentar` geht an die
+**Verantwortlichen des Objekts** — Strom: Beteiligte laut Protokoll (E23),
+Sperrinhaber und Zugewiesene (E44); Akteur: Urheber seiner
+Protokollereignisse — plus bisherige Kommentatoren des Verlaufs; ohne Autor,
+Betrachter, Deaktivierte. Beim Bearbeiten nur `erwaehnung` für die neu
+Erwähnten (Register: `kommentar` nur bei `kommentar_erstellt`); Löschen
+stellt nichts zu. Der Schreibweg gibt die Erwähnten über
+`protokolliere({ erwaehnteIds })` mit — dieselbe Transaktion. Inbox-Zeile
+löst Strom bzw. Akteur aus dem Kommentar auf (`coalesce` in
+`lib/inbox/server.ts`), der Link springt zum Kommentar (`#kommentar-<id>`,
+hervorgehoben). @-Auswahl in der Komponente per Tastatur
+(`lib/kommentar-eingabe.ts`: im Feld „@Name", gespeichert der Marker; nur
+Tokens aus der Auswahl werden Marker, ein getippter „@Name" bleibt Text;
+gleicher Name → E-Mail im Token). Erwähnbare = `ladeZuweisbare`. Tests:
+`lib/inbox/zustellung.kommentar.test.ts`, `lib/inbox/register.test.ts`,
+`lib/kommentar-eingabe.test.ts`, Probe Fälle 9a–9d und 8 (Inbox-CASCADE),
+DB-Check `packages/db/src/inbox-check.ts` (14 Indizes, 15 Typen,
+Spalte/CHECK).
+
+**Entschieden (PR c, Eric 08.10.2026):** (e) Verantwortliche = Beteiligte
+im Sinne von E56 — Strom: Beteiligte laut Protokoll, Sperrinhaber und
+Zugewiesene; Akteur: Urheber seiner Protokollereignisse. Deaktivierte Nutzer
+erhalten nichts (Test „Deaktivierte nichts" in
+`lib/inbox/zustellung.kommentar.test.ts`). (f) Nummer 0053 wie gebaut. (g)
+Marker deaktivierter Nutzer bleiben gespeichert, die Anzeige zeigt
+„ehemaliger Nutzer" (Tests in `lib/kommentar-marker.test.ts` und
+`components/kommentare/Kommentare.test.tsx`). Inbox-Einträge zu einem
+gelöschten Kommentar bleiben und zeigen „Kommentar gelöscht" statt des
+Zustelltexts (`kommentarGeloescht` in der Zeile, Probe 6f).
+
+**Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
+gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
 auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
 weist den ganzen Kommentar mit Meldung ab, nichts wird gespeichert. (c)
 Zwei Strom-Spalten (`biomassestrom_id`, `output_bedarf_id`) neben
@@ -2190,6 +2243,17 @@ Weiches Löschen entfernt auch die Erwähnungszeilen — sie leiten sich aus dem
 Text ab; Inbox-Einträge zum gelöschten Kommentar bleiben und zeigen
 „Kommentar gelöscht" (PR c). Tests: `lib/kommentar-schreibweg.test.ts`
 („Erwaehnungszeilen weg"), Probe 6c.
+
+**Doppeltes Absenden (Eric 09.10.2026, Befund Preview #201):** Das
+unkontrollierte Textfeld aus PR b behielt den Text nach dem Speichern, ein
+zweiter Klick hätte den Kommentar doppelt angelegt (in PR b per
+`form.reset()` behoben). PR c führt den Text als React-Zustand und leert ihn
+nach Erfolg (`setText("")`); der Speichern-Knopf ist während des Speicherns
+gesperrt (`disabled={pending}`, `useTransition`). **Vormerkung AP6:**
+jsdom/Testing Library für Komponententests mit Interaktion — die heutigen
+Komponententests sind statische Renders (`react-dom/server`) und können
+weder das Leeren des Feldes noch die Sperre während des Speicherns prüfen;
+Nachweis bis dahin nur auf der Preview.
 
 ## 46. E73 Repo öffentlich während der Bauphase — Log-Hygiene, 08.10.2026
 
