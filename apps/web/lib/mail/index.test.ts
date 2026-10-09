@@ -28,7 +28,7 @@ describe("mailKonfigAus", () => {
 });
 
 describe("sendeMail", () => {
-  it("Probemodus: kein fetch, Ereignis mail_gesendet am Empfaenger ohne Betreff/Text, Log maskiert", async () => {
+  it("Probemodus: kein fetch, Ereignis mail_gesendet am Empfaenger ohne Betreff/Text, Log nur mit Nutzer-ID", async () => {
     protokolle.length = 0;
     const logs: string[] = [];
     const holen = vi.fn() as unknown as typeof fetch;
@@ -38,7 +38,7 @@ describe("sendeMail", () => {
     expect(protokolle).toHaveLength(1);
     expect(protokolle[0]).toMatchObject({ art: "mail_gesendet", entitaet: "benutzer", id: "u1", benutzerId: "u1" });
     expect(JSON.stringify(protokolle[0])).not.toMatch(/GEHEIM/);
-    expect(logs.join("\n")).toMatch(/MAIL protokoll art=roundup an=i\*\*\*@bhyo\.de/);
+    expect(logs.join("\n")).toMatch(/MAIL protokoll art=roundup an=u1 /);
     expect(logs.join("\n")).not.toMatch(/GEHEIM|ida\.ich/);
   });
   it("Modus graph: Token holen, senden, dann Ereignis; nichts von Secret oder Token im Log", async () => {

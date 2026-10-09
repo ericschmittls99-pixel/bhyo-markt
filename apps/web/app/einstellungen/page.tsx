@@ -1,9 +1,10 @@
 import { benutzer } from "@bhyo/db/schema";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 
 import Link from "next/link";
 
 import { BenutzerVerwaltung } from "@/components/einstellungen/BenutzerVerwaltung";
+import { RoundupEinstellung } from "@/components/einstellungen/RoundupEinstellung";
 import { ParameterVerwaltung } from "@/components/einstellungen/ParameterVerwaltung";
 import { ReferenzlistenVerwaltung } from "@/components/einstellungen/ReferenzlistenVerwaltung";
 import { heuteBerlin, kalendertag } from "@/lib/datum";
@@ -37,6 +38,11 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
   const reiter: Reiter = REITER.find(([w]) => w === reiterRoh)?.[0] ?? "nutzer";
   const zugang = await aktuellerZugang();
   const istAdmin = zugang.art === "erlaubt" && darf(zugang, "benutzer.anlegen");
+  // AP2.9 (E76): die eigene Roundup-Einstellung sieht jede Rolle.
+  const roundupAn =
+    zugang.art === "erlaubt"
+      ? ((await withDb((db) => db.select({ roundup: benutzer.roundup }).from(benutzer).where(eq(benutzer.id, zugang.id)).limit(1)))[0]?.roundup ?? true)
+      : true;
 
   if (!istAdmin) {
     return (
@@ -46,6 +52,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
           titel="einstellungen."
           beschreibung="Benutzer und Rechte verwalten Admins. Für Änderungen an deinem Zugang wende dich an eine Person mit Admin-Rolle."
         />
+        {zugang.art === "erlaubt" && <RoundupEinstellung an={roundupAn} />}
       </main>
     );
   }
@@ -81,6 +88,8 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
       ) : reiter === "referenzlisten" ? (
         <ReferenzlistenVerwaltung sektoren={sektoren} />
       ) : (
+      <>
+      <RoundupEinstellung an={roundupAn} />
       <BenutzerVerwaltung
         benutzer={liste.map((b) => ({
           id: b.id,
@@ -92,6 +101,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
         }))}
         ichSelbst={zugang.email}
       />
+      </>
       )}
     </main>
   );

@@ -9,7 +9,7 @@
  * aber nicht — so laeuft das Roundup auf Preview und Production trocken,
  * bis die Entra-App steht. MAIL_MODUS=graph sendet.
  *
- * E73: Logzeilen nennen den Empfaenger maskiert, nie Token oder Secret.
+ * E73: Logzeilen nennen den Empfaenger nur als Nutzer-ID, nie Adresse, Token oder Secret.
  */
 import { protokolliere, type Schreiber } from "@/lib/protokoll";
 
@@ -66,7 +66,8 @@ export async function sendeMail(
   holen: typeof fetch = fetch,
   log: (zeile: string) => void = console.log,
 ): Promise<MailErgebnis> {
-  const an = maskiereEmail(auftrag.empfaenger.email);
+  // Eric 09.10.2026: im Log nur die Nutzer-ID, nie eine Adresse.
+  const an = auftrag.empfaenger.id;
   if (konfig.modus === "graph") {
     if (!konfig.graph || !konfig.absender) {
       log(`MAIL graph art=${auftrag.art} an=${an} ergebnis=nicht_konfiguriert`);

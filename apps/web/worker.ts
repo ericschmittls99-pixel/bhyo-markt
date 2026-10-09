@@ -22,6 +22,8 @@ import { jobLauf } from "@bhyo/db/schema";
 import { and, eq, sql as dsql } from "drizzle-orm";
 import { JOB_VERIFIKATION } from "./lib/jobs/verifikation";
 import { JOB_STUNDE_BERLIN, istBerlinStunde } from "./lib/jobs/zeit";
+import { ROUNDUP_STUNDE_BERLIN, fuehreRoundupAus, roundupZugriff } from "./lib/jobs/roundup";
+import { mailKonfigAus } from "./lib/mail";
 import { kalendertag } from "./lib/datum";
 
 interface Umgebung {
@@ -29,6 +31,13 @@ interface Umgebung {
   ENVIRONMENT?: string;
   /** AP2.7 PR b: Roh-Uploads des Imports (import/…) aelter als 24 h loeschen (E67). */
   BELEGE?: BelegeBucket;
+  /** AP2.9 (E74/E76): Mail-Konfiguration und Basis-URL fuer Links im Roundup. */
+  MAIL_MODUS?: string;
+  MAIL_ABSENDER?: string;
+  M365_TENANT_ID?: string;
+  M365_CLIENT_ID?: string;
+  M365_CLIENT_SECRET?: string;
+  APP_URL?: string;
 }
 interface CronEreignis {
   scheduledTime: number;
@@ -78,10 +87,31 @@ async function lauf(env: Umgebung, jetzt: Date): Promise<void> {
   }
 }
 
+/** AP2.9 (E76): Roundup Mo–Fr 07:07 Berlin — eigener Lauf, eigene Verbindung, eigene job_lauf-Zeile. */
+async function roundupLauf(env: Umgebung, jetzt: Date): Promise<void> {
+  const cs = env.HYPERDRIVE?.connectionString;
+  if (!cs) {
+    console.error("JOB roundup: HYPERDRIVE-Bindung fehlt");
+    return;
+  }
+  const sql = createSql(cs);
+  const db = drizzle(sql, { schema });
+  try {
+    const ergebnis = await fuehreRoundupAus(roundupZugriff(db), jetzt, mailKonfigAus(env), env.APP_URL ?? "");
+    console.log(`JOB roundup ${env.ENVIRONMENT ?? "?"} ${JSON.stringify(ergebnis)}`);
+  } finally {
+    await sql.end().catch(() => {});
+  }
+}
+
 export default {
   fetch: handler.fetch,
   async scheduled(ereignis: CronEreignis, env: Umgebung, ctx: Kontext) {
     const jetzt = new Date(ereignis.scheduledTime);
+    if (istBerlinStunde(jetzt, ROUNDUP_STUNDE_BERLIN)) {
+      ctx.waitUntil(roundupLauf(env, jetzt));
+      return;
+    }
     if (!istBerlinStunde(jetzt, JOB_STUNDE_BERLIN)) {
       console.log(`JOB verifikation: ${jetzt.toISOString()} ist nicht ${JOB_STUNDE_BERLIN}:00 Berlin — nichts zu tun`);
       return;

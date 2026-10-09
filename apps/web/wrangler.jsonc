@@ -6,7 +6,9 @@
   // Cron 03:00 und 04:00 UTC — der Handler laeuft nur um 05:00 Berlin weiter
   // (lib/jobs/zeit.ts), also genau einmal taeglich, auch ueber die Zeitumstellung.
   // Inheritable: gilt ebenso fuer env.preview.
-  "triggers": { "crons": ["0 3 * * *", "0 4 * * *"] },
+  // 03:00/04:00 UTC: Tagesjob 05:00 Berlin (lib/jobs/zeit.ts). 05:07/06:07 UTC Mo–Fr:
+  // Roundup 07:07 Berlin (AP2.9, E76) — je Zeitumstellung greift nur einer der beiden.
+  "triggers": { "crons": ["0 3 * * *", "0 4 * * *", "7 5 * * 1-5", "7 6 * * 1-5"] },
   "compatibility_date": "2026-08-26",
   "compatibility_flags": ["nodejs_compat"],
   "assets": {
@@ -63,7 +65,9 @@
     // AP2.9 (E74): Mail-Versand ueber M365 Graph; Probemodus bis die Entra-App steht.
     // Secrets M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET als Wrangler-Secrets.
     "MAIL_MODUS": "protokoll",
-    "MAIL_ABSENDER": "news@bhyo.de"
+    "MAIL_ABSENDER": "news@bhyo.de",
+    // AP2.9 (E76): Basis-URL fuer Links im Roundup (Inbox, Abmelden).
+    "APP_URL": "https://bhyo-markt.bhyo.workers.dev"
   },
   // Zweite Umgebung für Preview-Deployments (Pull Requests).
   "env": {
@@ -93,7 +97,8 @@
         // AUD-Tag der Access-App "bhyo-markt-preview".
         "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd",
         "MAIL_MODUS": "protokoll",
-        "MAIL_ABSENDER": "news@bhyo.de"
+        "MAIL_ABSENDER": "news@bhyo.de",
+        "APP_URL": "https://bhyo-markt-preview.bhyo.workers.dev"
       }
     }
   }
