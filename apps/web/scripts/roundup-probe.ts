@@ -75,7 +75,7 @@ async function main() {
       pruefe("2 Log ohne Adresse, Betreff oder Text (nur Nutzer-IDs und Zaehler)", logs.every((l) => !/@/.test(l) && !/betreff=|text=|bhyo:/.test(l)), logs.length);
       const ja = nutzerZeilen.filter((l) => /wuerde_senden=ja/.test(l)).length;
       const [ereignisse] = (await tx.execute(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet'`)) as unknown as { n: number }[];
-      const [modus] = (await tx.execute(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and text like 'Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: %'`)) as unknown as { n: number }[];
+      const [modus] = (await tx.execute(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and text like '%Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: %'`)) as unknown as { n: number }[];
       const [markiert] = (await tx.execute(sql`select count(*)::int as n from benutzer where roundup_zuletzt_am = ${jetzt.toISOString()}::timestamptz`)) as unknown as { n: number }[];
       pruefe("3 wuerde senden = Ereignisse mail_gesendet = markierte Nutzer; jedes Ereignis nennt modus=protokoll und nicht gesendet", erg.lauf === "ok" && ja === erg.wuerdeSenden && ereignisse!.n === ja && markiert!.n === ja && modus!.n === ja, { ja, ereignisse: ereignisse!.n, mitModus: modus!.n, markiert: markiert!.n });
 
