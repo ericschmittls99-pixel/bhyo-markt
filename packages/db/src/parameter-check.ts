@@ -70,7 +70,9 @@ async function main() {
   const heute = await sql`select schluessel, parameter_wert(schluessel, current_date) as heute from parameter_definition order by schluessel`;
   console.log("STARTWERTE " + JSON.stringify(start.map((z) => `${z.schluessel}=${z.wert}`)));
   console.log("HEUTE " + JSON.stringify(heute.map((z) => `${z.schluessel}=${z.heute}`)));
-  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage", "akteur.verwaist_hinweis_monate", "kontaktperson.loeschpruefung_monate", "import.zeilen_aufbewahrung_tage", "import.lauf_inaktiv_tage", "hinweis.wird_frei_stufe_1", "hinweis.wird_frei_stufe_2", "hinweis.wird_frei_stufe_3", "hinweis.wird_frei_stufe_4"];
+  const ERWARTET = ["verifikationsfrist.gespraech", "verifikationsfrist.dokument", "verifikationsfrist.webrecherche", "verifikationsfrist.reservierung", "verifikation.vorlauf_tage", "akteur.verwaist_hinweis_monate", "kontaktperson.loeschpruefung_monate", "import.zeilen_aufbewahrung_tage", "import.lauf_inaktiv_tage", "hinweis.wird_frei_stufe_1", "hinweis.wird_frei_stufe_2", "hinweis.wird_frei_stufe_3", "hinweis.wird_frei_stufe_4",
+    // AP2.6 PR d (E71, D14): Aufbewahrung der Inbox-Eintraege (Migration 0054).
+    "inbox.aufbewahrung_erledigt_tage", "inbox.aufbewahrung_gelesen_tage"];
   const fehlendeStart = ERWARTET.filter((k) => !start.some((z) => z.schluessel === k));
   // Journal-Vergleich (Eric 01.10.2026): Startwerte exakt bei gleichem Journal, mindestens wenn die DB voraus ist.
   const journal = await journalModus(sql, url!);
@@ -92,6 +94,11 @@ async function main() {
   // AP2.7 PR c (E67): Import-Zeilen 30 Tage nach Abschluss des Laufs.
   const aufbewahrung = heute.find((z) => z.schluessel === "import.zeilen_aufbewahrung_tage");
   if (!aufbewahrung || Number(aufbewahrung.heute) !== 30) fehler.push(`import.zeilen_aufbewahrung_tage heute ${aufbewahrung?.heute} statt 30 (Startwert E67)`);
+  // AP2.6 PR d (Migration 0055): Aufbewahrung erledigt 14 Tage, gelesen 60 Tage (D14).
+  for (const [k, soll] of [["inbox.aufbewahrung_erledigt_tage", 14], ["inbox.aufbewahrung_gelesen_tage", 60]] as const) {
+    const z = heute.find((x) => x.schluessel === k);
+    if (!z || Number(z.heute) !== soll) fehler.push(`${k} heute ${z?.heute} statt ${soll} (Startwert D14)`);
+  }
   // AP2.8 (Migration 0052): Staffel der Wird-frei-Hinweise, Startwerte 180/60/30/0.
   for (const [k, soll] of [["hinweis.wird_frei_stufe_1", 180], ["hinweis.wird_frei_stufe_2", 60], ["hinweis.wird_frei_stufe_3", 30], ["hinweis.wird_frei_stufe_4", 0]] as const) {
     const z = heute.find((x) => x.schluessel === k);
