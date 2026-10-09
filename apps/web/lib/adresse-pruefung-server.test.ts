@@ -33,7 +33,8 @@ describe("pruefeAdresse: Ortsteil-Form (AP6)", () => {
   it("„68199 Mannheim-Neckarau“ mit Strasse -> Anfrage „Rheinstraße 1, 68199 Mannheim Neckarau“, Treffer wird uebernommen", async () => {
     const a = await pruefeAdresse(db, { strasse: "Rheinstraße", hausnummer: "1", plz: "68199", ort: "Mannheim-Neckarau" });
     expect(anfragen).toEqual(["Rheinstraße 1, 68199 Mannheim Neckarau"]);
-    expect(a.ergebnis.status).toBe("hausnummer");
+    expect(a.ergebnis.status).toBe("treffer");
+    expect("genauigkeit" in a.ergebnis ? a.ergebnis.genauigkeit : null).toBe("hausnummer");
   });
   it("Rot: ohne Ortsteil bleibt die Anfrage wie eingegeben", async () => {
     await pruefeAdresse(db, { strasse: "Rheinstraße", hausnummer: "1", plz: "68199", ort: "Mannheim" });
