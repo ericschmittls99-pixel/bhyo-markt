@@ -2196,7 +2196,7 @@ Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
 `components/kommentare/Kommentare.test.tsx`, Segmente in
 `lib/kommentar-marker.test.ts`.
 
-**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0053):** Enum
+**PR c (Erwähnungen + Inbox, 08.10.2026, Migration 0054; ursprünglich 0053, umnummeriert am 09.10.2026, neues Journal-`when`):** Enum
 `inbox_typ` + `kommentar`, `erwaehnung` (nur erweitert, E53); Spalte
 `inbox_eintrag.kommentar_id` (FK, CASCADE — greift nur, wenn ein verwaister
 Akteur mitsamt Kommentaren gelöscht wird) im genau-ein-CHECK, Index. Keine
