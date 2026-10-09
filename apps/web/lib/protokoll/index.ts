@@ -105,7 +105,7 @@ export const STANDARDTEXT: Record<Exclude<EreignisArt, "altbestand">, string> = 
   benutzer_aktiviert: "Zugang aktiviert",
   benutzer_deaktiviert: "Zugang deaktiviert",
   // AP2.9 (E74): ausgehende Mail am Empfaenger — Text nennt Art, Modus und Laengen, nie Inhalt.
-  mail_gesendet: "Mail gesendet",
+  mail_gesendet: "Mail gesendet oder protokolliert (Modus steht im Text)",
   region_angelegt: "Region angelegt",
   akteur_angelegt: "Akteur angelegt",
   projekt_angelegt: "Projekt gestartet",

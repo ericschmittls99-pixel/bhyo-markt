@@ -46,6 +46,13 @@ export function mailKonfigAus(env: { MAIL_MODUS?: string; MAIL_ABSENDER?: string
   return { modus, absender: env.MAIL_ABSENDER ?? "", graph };
 }
 
+/** Text des Ereignisses mail_gesendet — Wirkung und Modus ausdruecklich, nie Betreff oder Inhalt. */
+export function ereignisText(auftrag: Pick<MailAuftrag, "art" | "betreff" | "text">, modus: MailModus): string {
+  const was = auftrag.art === "roundup" ? "Tages-Mail" : "Mail";
+  const wirkung = modus === "graph" ? "gesendet" : "protokolliert (Probemodus, nicht gesendet)";
+  return `${was} ${wirkung}, modus=${modus}: ${auftrag.art}, Betreff ${auftrag.betreff.length} Zeichen, Text ${auftrag.text.length} Zeichen`;
+}
+
 /** E73: „eric.schmitt@bhyo.de" → „e***@bhyo.de"; unbrauchbare Werte werden ganz maskiert. */
 export function maskiereEmail(email: string): string {
   const at = email.indexOf("@");
@@ -90,8 +97,10 @@ export async function sendeMail(
     id: auftrag.empfaenger.id,
     benutzerId: auftrag.empfaenger.id,
     benutzerEmail: auftrag.empfaenger.email,
-    // Kein Betreff, kein Inhalt — nur Art, Modus und Laengen (E73).
-    text: `Mail ${konfig.modus === "graph" ? "gesendet" : "geprobt (nicht gesendet)"}: ${auftrag.art}, Betreff ${auftrag.betreff.length} Zeichen, Text ${auftrag.text.length} Zeichen`,
+    // Kein Betreff, kein Inhalt — nur Art, Modus und Laengen (E73). Das Protokoll ist
+    // unveraenderlich: der Modus steht ausdruecklich im Text (Eric 09.10.2026), damit ein
+    // Probemodus-Ereignis nie als echter Versand gelesen wird.
+    text: ereignisText(auftrag, konfig.modus),
   });
   log(`MAIL ${konfig.modus} art=${auftrag.art} an=${an} betreff_laenge=${auftrag.betreff.length} text_laenge=${auftrag.text.length} ergebnis=ok`);
   return { ok: true, modus: konfig.modus };

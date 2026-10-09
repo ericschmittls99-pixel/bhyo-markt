@@ -9,7 +9,7 @@ import { describe, expect, it, vi } from "vitest";
 const protokolle: Record<string, unknown>[] = [];
 vi.mock("@/lib/protokoll", () => ({ protokolliere: async (_tx: unknown, e: Record<string, unknown>) => { protokolle.push(e); return { id: "e1" }; } }));
 
-const { mailKonfigAus, maskiereEmail, sendeMail } = await import("./index");
+const { ereignisText, mailKonfigAus, maskiereEmail, sendeMail } = await import("./index");
 
 const tx = {} as never;
 const auftrag = { art: "roundup" as const, empfaenger: { id: "u1", email: "ida.ich@bhyo.de" }, betreff: "bhyo Roundup GEHEIM-BETREFF", text: "GEHEIM-TEXT Zeile 1" };
@@ -37,6 +37,8 @@ describe("sendeMail", () => {
     expect(holen).not.toHaveBeenCalled();
     expect(protokolle).toHaveLength(1);
     expect(protokolle[0]).toMatchObject({ art: "mail_gesendet", entitaet: "benutzer", id: "u1", benutzerId: "u1" });
+    // Eric 09.10.2026: das unveraenderliche Protokoll nennt den Modus ausdruecklich.
+    expect(protokolle[0]!.text).toBe("Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: roundup, Betreff 27 Zeichen, Text 19 Zeichen");
     expect(JSON.stringify(protokolle[0])).not.toMatch(/GEHEIM/);
     expect(logs.join("\n")).toMatch(/MAIL protokoll art=roundup an=u1 /);
     expect(logs.join("\n")).not.toMatch(/GEHEIM|ida\.ich/);
@@ -53,7 +55,7 @@ describe("sendeMail", () => {
     expect(erg).toEqual({ ok: true, modus: "graph" });
     expect(aufrufe).toHaveLength(2);
     expect(aufrufe[1]).toContain("/users/news%40bhyo.de/sendMail");
-    expect(protokolle[0]).toMatchObject({ art: "mail_gesendet", text: expect.stringContaining("gesendet: roundup") });
+    expect(protokolle[0]).toMatchObject({ art: "mail_gesendet", text: expect.stringMatching(/^Tages-Mail gesendet, modus=graph: roundup, /) });
     expect(logs.join("\n")).not.toMatch(/SECRET-123|TOKEN-xyz|GEHEIM/);
   });
   it("Modus graph ohne Secrets: nicht_konfiguriert, kein Aufruf, kein Ereignis", async () => {
@@ -72,3 +74,13 @@ describe("sendeMail", () => {
     expect(protokolle).toHaveLength(0);
   });
 });
+
+describe("ereignisText", () => {
+  it("Probemodus und Versand sind am Text unterscheidbar; kein Betreff, kein Inhalt", () => {
+    const a = { art: "roundup" as const, betreff: "GEHEIM", text: "GEHEIM-TEXT" };
+    expect(ereignisText(a, "protokoll")).toBe("Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: roundup, Betreff 6 Zeichen, Text 11 Zeichen");
+    expect(ereignisText(a, "graph")).toBe("Tages-Mail gesendet, modus=graph: roundup, Betreff 6 Zeichen, Text 11 Zeichen");
+    expect(ereignisText({ ...a, art: "probe" }, "graph")).toMatch(/^Mail gesendet, modus=graph: probe, /);
+  });
+});
+
