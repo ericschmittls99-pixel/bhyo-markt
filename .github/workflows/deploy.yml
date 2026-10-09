@@ -218,6 +218,18 @@ jobs:
       - name: konfliktmarker-check (versionierte Dateien)
         run: scripts/konfliktmarker-check.sh
 
+      # Betrieb (Eric 09.10.2026): "use server"-Dateien exportieren nur
+      # async-Funktionen — Next.js prueft das erst im Build (Turbopack), zwei
+      # Faelle fielen deshalb erst auf der Preview auf (use-server-Konstante →
+      # POST 500; sync-Export → Deploy rot, #214). Statisch auf dem Syntaxbaum,
+      # Rot-Nachweis in scripts/use-server-check.test.ts. Wie die anderen
+      # Waechter an VOLL gebunden (CI-Diaet): eine reine Doku-Aenderung kann
+      # keine "use server"-Datei anfassen.
+      - name: use-server-check (nur async-Exporte)
+        if: env.VOLL == 'true'
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/use-server-check.ts
+
   # E68 PR 1 (Eric 06.10.2026): DB-Tests der Entwuerfe gegen eine Wegwerf-
   # Postgres im Runner statt gegen die geteilte Preview. Alle Migrationen auf
   # eine leere PostGIS, dann die Staging-Fixture der PLZ-Kette, der echte
