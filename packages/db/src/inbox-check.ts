@@ -98,11 +98,11 @@ async function main() {
   // AP2.8 (0051): Typ biomasse_wird_frei, Index inbox_eintrag_wird_frei_uidx, Spalte stufe mit CHECK.
   const [st] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'stufe'`;
   const [sc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_stufe_check'`;
-  if (st!.n !== 1 || sc!.n !== 1) fehler.push(`AP2.8: Spalte stufe=${st!.n} CHECK stufe=${sc!.n} (Migration 0051)`);
-  // AP2.6 PR c (0053): Objektbezug Kommentar — Spalte kommentar_id (CASCADE), Index, Typen kommentar/erwaehnung, genau-ein-CHECK erweitert.
+  if (st!.n !== 1 || sc!.n !== 1) fehler.push(`AP2.8: Spalte stufe=${st!.n} CHECK stufe=${sc!.n} (Migration 0052)`);
+  // AP2.6 PR c (0054): Objektbezug Kommentar — Spalte kommentar_id (CASCADE), Index, Typen kommentar/erwaehnung, genau-ein-CHECK erweitert.
   const [ko] = await sql`select count(*)::int as n from information_schema.columns where table_name = 'inbox_eintrag' and column_name = 'kommentar_id'`;
   const [kc] = await sql`select count(*)::int as n from pg_constraint where conname = 'inbox_eintrag_genau_ein_strom_check' and pg_get_constraintdef(oid) like '%kommentar_id%'`;
-  if (ko!.n !== 1 || kc!.n !== 1) fehler.push(`AP2.6 PR c: Spalte kommentar_id=${ko!.n} CHECK mit kommentar_id=${kc!.n} (Migration 0053)`);
+  if (ko!.n !== 1 || kc!.n !== 1) fehler.push(`AP2.6 PR c: Spalte kommentar_id=${ko!.n} CHECK mit kommentar_id=${kc!.n} (Migration 0054)`);
   const zaehler = [zaehlerPasst("indizes", idx.length, 14, modus), zaehlerPasst("typen", typen.length, 15, modus)].filter(Boolean);
   if (t!.n !== 1 || e!.n !== 2 || zaehler.length || nullbar!.n !== 2 || bz!.n !== 1 || uc!.n !== 1 || as!.n !== 1 || ac!.n !== 1 || ak!.n !== 1 || kp!.n !== 1) {
     console.error(`INBOXCHECK FEHLER: Migration 0027/0028/0032/0033/0034/0035/0036/0043 fehlt (inbox_eintrag / Enums / Indizes / Typen / Hinweis-Spalten / Aufgabe / Akteur / Kontaktperson / Import) ${zaehler.join(" · ")}`);

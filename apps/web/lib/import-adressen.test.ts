@@ -5,7 +5,8 @@
 import { describe, expect, it } from "vitest";
 
 import type { Adresse } from "./geocode";
-import { adressGruppen, adressText, brauchtSitz, sitzAusLokal, sitzPatch, waehleSitz } from "./import-adressen";
+import { adressGruppen, adressText, brauchtPlzAusOrt, brauchtSitz, istPlzAusOrtBefund, istStandortBefund, kandidatenText, ortGruppen, plzAusOrt, sitzAusLokal, sitzPatch, standortBefund, standortGruppen, waehleSitz } from "./import-adressen";
+import type { PlzKandidat } from "./plz-server";
 
 const adresse = (teil: Partial<Adresse>): Adresse => ({ art: "adresse", strasse: "Dorfstraße", hausnummer: "3", plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32, ...teil });
 
@@ -74,5 +75,95 @@ describe("sitzAusLokal (E68 PR 3: lokale Zuordnung, Befunde als Satz)", () => {
   });
   it("ohne PLZ keine lokale Zuordnung", () => {
     expect(sitzAusLokal({ plz: "", ort: "Speyer" }, { plzBekannt: false, ortPasst: false, orte: [], pin: null })).toEqual({ offen: "Ohne PLZ keine Zuordnung — PLZ in der Zeile ergänzen." });
+  });
+});
+
+describe("Standort-Spalten (Zeile 39, Eric 08.10.2026): PLZ/Ort-Pruefung auch bei vorhandenem Akteur", () => {
+  const z = (id: string, felder: Record<string, string>) => ({ id, felder });
+  it("gruppiert Zeilen mit Standort · PLZ je (PLZ, Ort) — unabhaengig vom Akteur; ohne PLZ nichts", () => {
+    const g = standortGruppen([
+      z("a", { akteur_id: "x", plz: "68199", ort: "Mannheim-Neckarau" }),
+      z("b", { akteur_neu: "1", plz: "68199", ort: "mannheim neckarau" }),
+      z("c", { plz: "99999", ort: "Landau" }),
+      z("d", { ort: "Mosbach" }),
+      z("e", { akteur_sitz_plz: "68159", akteur_sitz_ort: "Heidelberg" }),
+    ]);
+    expect(g.map((x) => [x.plz, x.zeilenIds])).toEqual([
+      ["68199", ["a", "b"]],
+      ["99999", ["c"]],
+    ]);
+  });
+  it("Befund: unbekannte PLZ, Ort passt nicht (mit „Meinten Sie“), sonst null; Ortsteil-Toleranz kommt aus der Pruefung selbst", () => {
+    const pin = { lng: 8.5, lat: 49.5 };
+    expect(standortBefund({ plz: "99999", ort: "Landau" }, { plzBekannt: false, ortPasst: false, orte: [], pin: null })).toBe("PLZ 99999 ist unbekannt — bitte prüfen.");
+    expect(standortBefund({ plz: "68159", ort: "Heidelberg" }, { plzBekannt: true, ortPasst: false, orte: ["Mannheim"], pin })).toBe("Ort passt nicht zur PLZ 68159 — meinten Sie Mannheim?");
+    expect(standortBefund({ plz: "68199", ort: "Mannheim-Neckarau" }, { plzBekannt: true, ortPasst: true, orte: ["Mannheim"], pin })).toBeNull();
+    expect(standortBefund({ plz: "68199", ort: "" }, { plzBekannt: true, ortPasst: false, orte: ["Mannheim"], pin })).toBeNull();
+  });
+  it("istStandortBefund erkennt nur eigene Befunde — ein Formatfehler von feldWert wird nicht geraeumt", () => {
+    expect(istStandortBefund("PLZ 99999 ist unbekannt — bitte prüfen.")).toBe(true);
+    expect(istStandortBefund("Ort passt nicht zur PLZ 68159 — meinten Sie Mannheim?")).toBe(true);
+    expect(istStandortBefund("muss fünfstellig sein")).toBe(false);
+    expect(istStandortBefund(undefined)).toBe(false);
+  });
+});
+
+describe("PLZ aus Ort (E72, 2.7h, Eric 08.10.2026)", () => {
+  const z = (id: string, felder: Record<string, string>) => ({ id, felder });
+  const k = (plz: string, ort: string, ars: string, kreis: string | null = null, land: string | null = null): PlzKandidat => ({ plz, ort, ars, kreis, land });
+
+  it("braucht den Schritt nur ohne Sitz-PLZ, mit Ort und Name, ohne Gruppe und ohne eigenen Befund", () => {
+    expect(brauchtPlzAusOrt({ akteur_name: "Hofgut Kirchberg", akteur_sitz_ort: "Mosbach" })).toBe(true);
+    expect(brauchtPlzAusOrt({ akteur_name: "Hofgut Kirchberg", akteur_sitz_ort: "Mosbach", akteur_sitz_plz: "74821" })).toBe(false);
+    expect(brauchtPlzAusOrt({ akteur_name: "Hofgut Kirchberg", akteur_sitz_ort: " " })).toBe(false);
+    expect(brauchtPlzAusOrt({ akteur_sitz_ort: "Mosbach" })).toBe(false);
+    expect(brauchtPlzAusOrt({ akteur_name: "X", akteur_sitz_ort: "Mosbach", akteur_gruppe: "x|" })).toBe(false);
+    expect(brauchtPlzAusOrt({ akteur_name: "X", akteur_sitz_ort: "Freiburg", fehler_akteur_sitz_plz: "Ort „Freiburg\" ist ohne PLZ nicht eindeutig …" })).toBe(false);
+  });
+
+  it("gruppiert je Ort (Normalform), Reihenfolge des ersten Auftretens", () => {
+    const g = ortGruppen([
+      z("a", { akteur_name: "A", akteur_sitz_ort: "Mosbach" }),
+      z("b", { akteur_name: "B", akteur_sitz_ort: "MOSBACH " }),
+      z("c", { akteur_name: "C", akteur_sitz_ort: "Freiburg" }),
+      z("d", { akteur_name: "D", akteur_sitz_ort: "Freiburg", akteur_sitz_plz: "79098" }),
+    ]);
+    expect(g).toEqual([
+      { ort: "Mosbach", zeilenIds: ["a", "b"] },
+      { ort: "Freiburg", zeilenIds: ["c"] },
+    ]);
+  });
+
+  it("a) genau eine PLZ -> PLZ und Hinweis „PLZ aus Ort ergänzt“ (Zeile 18: Mosbach -> 74821)", () => {
+    expect(plzAusOrt("Mosbach", [k("74821", "Mosbach", "081255002045", "Neckar-Odenwald-Kreis", "Baden-Württemberg")])).toEqual({ plz: "74821", hinweis: "PLZ aus Ort ergänzt (Mosbach → 74821)" });
+  });
+
+  it("Rot b) mehrere gleichnamige Orte -> Befund mit Kandidaten je Ort mit Kreis und Land (Zeile 21: Freiburg)", () => {
+    const e = plzAusOrt("Freiburg", [
+      k("21729", "Freiburg (Elbe)", "033590014014", "Landkreis Stade", "Niedersachsen"),
+      k("79098", "Freiburg im Breisgau", "083110000000", "Stadtkreis Freiburg im Breisgau", "Baden-Württemberg"),
+      k("79100", "Freiburg im Breisgau", "083110000000", "Stadtkreis Freiburg im Breisgau", "Baden-Württemberg"),
+    ]);
+    expect(e).toEqual({
+      befund:
+        "Ort „Freiburg\" ist ohne PLZ nicht eindeutig (mehrere Orte dieses Namens) — Kandidaten: Freiburg (Elbe), Landkreis Stade, Niedersachsen: 21729; Freiburg im Breisgau, Stadtkreis Freiburg im Breisgau, Baden-Württemberg: 79098, 79100 — PLZ in der Zeile ergänzen.",
+    });
+    expect(istPlzAusOrtBefund((e as { befund: string }).befund)).toBe(true);
+  });
+
+  it("Rot b) ein Ort mit mehreren PLZ -> Befund „mehrere PLZ“, hoechstens zehn PLZ, dann „…“", () => {
+    const viele = Array.from({ length: 12 }, (_, i) => k(`681${String(i).padStart(2, "0")}`, "Mannheim", "082220000000", "Stadtkreis Mannheim", "Baden-Württemberg"));
+    const e = plzAusOrt("Mannheim", viele) as { befund: string };
+    expect(e.befund).toMatch(/^Ort „Mannheim" ist ohne PLZ nicht eindeutig \(mehrere PLZ\) — Kandidaten: Mannheim, Stadtkreis Mannheim, Baden-Württemberg: 68100, 68101, 68102, 68103, 68104, 68105, 68106, 68107, 68108, 68109 … — PLZ in der Zeile ergänzen\.$/);
+    // Grenze ueber Orte hinweg: zweiter Ort faellt ganz weg, „…“ bleibt genau einmal.
+    const text = kandidatenText([...viele.slice(0, 10), k("21729", "Freiburg (Elbe)", "033590014014", "Landkreis Stade", "Niedersachsen")]);
+    expect(text).toBe("Mannheim, Stadtkreis Mannheim, Baden-Württemberg: 68100, 68101, 68102, 68103, 68104, 68105, 68106, 68107, 68108, 68109 …");
+  });
+
+  it("Rot: unbekannter Ort -> Befund, Kreis/Land fehlen ohne VG250 ohne Erfindung", () => {
+    expect(plzAusOrt("Xyzzy", [])).toEqual({ befund: "Ort „Xyzzy\" ist nicht bekannt — PLZ in der Zeile ergänzen." });
+    expect(kandidatenText([k("11111", "Altstadt", "070000000001")])).toBe("Altstadt: 11111");
+    expect(istPlzAusOrtBefund("muss fünfstellig sein")).toBe(false);
+    expect(istPlzAusOrtBefund(undefined)).toBe(false);
   });
 });

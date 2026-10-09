@@ -1,6 +1,6 @@
 {
-  "id": "c1acf06d-9652-4a04-a294-0627942917b0",
-  "prevId": "4c774c5b-27b5-495a-b719-0b2f5f43907e",
+  "id": "d43bd1e2-3e14-4b8c-b97f-f4db7dcb0c85",
+  "prevId": "afd7883d-db3e-40d9-87a2-fd605957bb60",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -1686,12 +1686,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "kommentar_id": {
-          "name": "kommentar_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
-        },
         "ereignis_id": {
           "name": "ereignis_id",
           "type": "uuid",
@@ -1766,21 +1760,6 @@
         }
       },
       "indexes": {
-        "inbox_eintrag_kommentar_id_idx": {
-          "name": "inbox_eintrag_kommentar_id_idx",
-          "columns": [
-            {
-              "expression": "kommentar_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
         "inbox_eintrag_biomasse_offen_uidx": {
           "name": "inbox_eintrag_biomasse_offen_uidx",
           "columns": [
@@ -2232,19 +2211,6 @@
           "onDelete": "no action",
           "onUpdate": "no action"
         },
-        "inbox_eintrag_kommentar_id_kommentar_id_fk": {
-          "name": "inbox_eintrag_kommentar_id_kommentar_id_fk",
-          "tableFrom": "inbox_eintrag",
-          "tableTo": "kommentar",
-          "columnsFrom": [
-            "kommentar_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
         "inbox_eintrag_ereignis_id_aenderung_id_fk": {
           "name": "inbox_eintrag_ereignis_id_aenderung_id_fk",
           "tableFrom": "inbox_eintrag",
@@ -2265,7 +2231,7 @@
       "checkConstraints": {
         "inbox_eintrag_genau_ein_strom_check": {
           "name": "inbox_eintrag_genau_ein_strom_check",
-          "value": "num_nonnulls(\"inbox_eintrag\".\"biomassestrom_id\", \"inbox_eintrag\".\"output_bedarf_id\", \"inbox_eintrag\".\"akteur_id\", \"inbox_eintrag\".\"kontaktperson_id\", \"inbox_eintrag\".\"import_lauf_id\", \"inbox_eintrag\".\"kommentar_id\") = 1"
+          "value": "num_nonnulls(\"inbox_eintrag\".\"biomassestrom_id\", \"inbox_eintrag\".\"output_bedarf_id\", \"inbox_eintrag\".\"akteur_id\", \"inbox_eintrag\".\"kontaktperson_id\", \"inbox_eintrag\".\"import_lauf_id\") = 1"
         },
         "inbox_eintrag_anzahl_check": {
           "name": "inbox_eintrag_anzahl_check",
@@ -4036,9 +4002,7 @@
         "akteur_verwaist",
         "kontaktperson_loeschpruefung",
         "import_abgeschlossen",
-        "biomasse_wird_frei",
-        "kommentar",
-        "erwaehnung"
+        "biomasse_wird_frei"
       ]
     },
     "public.inbox_zustand": {

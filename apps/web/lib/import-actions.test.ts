@@ -113,10 +113,17 @@ vi.mock("@/lib/photon-server", async (orig) => {
 // E68 PR 3: lokale Zuordnung (Stapel) und genaue Pins (Dienst) als Attrappen.
 let plzAntwort: (plz: string, ort: string) => { plzBekannt: boolean; ortPasst: boolean; orte: string[]; pin: { lng: number; lat: number } | null } = () => ({ plzBekannt: true, ortPasst: true, orte: ["Speyer"], pin: { lng: 8.43, lat: 49.32 } });
 const plzStapel: number[] = [];
+// E72: PLZ-Kandidaten je Ort (eine Abfrage je Aufruf).
+let ortAntwort: (ort: string) => { plz: string; ort: string; ars: string; kreis: string | null; land: string | null }[] = () => [];
+const ortStapel: string[][] = [];
 vi.mock("@/lib/plz-server", () => ({
   pruefePlzOrtStapel: async (_db: unknown, e: { plz: string; ort: string }[]) => {
     plzStapel.push(e.length);
     return e.map((x) => plzAntwort(x.plz, x.ort));
+  },
+  plzFuerOrtStapel: async (_db: unknown, orte: string[]) => {
+    ortStapel.push(orte);
+    return orte.map((o) => ortAntwort(o));
   },
 }));
 let pruefAntwort: (plz: string) => unknown = () => ({ ergebnis: { status: "plz_gebiet" }, kreise: null, dauerMs: 1 });
@@ -199,7 +206,7 @@ const laufFelder = { art: "biomasse", beleg_typ: "betriebsdaten", standard_sekto
 
 const eingabe = { art: "biomasse", dateiname: "stroeme-2026.xlsx", dateiHash: "a".repeat(64), belegTyp: "betriebsdaten", standardSektor: "ohne_sektor" };
 
-beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; plzStapel.length = 0; pruefAufrufe.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; preisBezuege.length = 0; });
+beforeEach(() => { schreibversuche = 0; protokolle.length = 0; inserts.length = 0; updates.length = 0; deletes.length = 0; plzStapel.length = 0; pruefAufrufe.length = 0; uploads.length = 0; uploadInhalte.length = 0; geloescht.length = 0; dbSelects.length = 0; txSelects.length = 0; aehnlichAufrufe.length = 0; mengenAufrufe.length = 0; aehnlichAntwort = () => []; ortStapel.length = 0; ortAntwort = () => []; photonAufrufe.length = 0; photonAntwort = () => []; photonWeg = false; bausteinAufrufe.length = 0; belegDaten.length = 0; inboxZustellungen.length = 0; stromFehltAb = new Set(); r2Inhalt = null; preisBezuege.length = 0; });
 
 describe("importLaufAnlegen (import.ausfuehren)", () => {
   it("Rot: ein Bearbeiter wird abgewiesen, nichts wird geschrieben", async () => {
@@ -413,6 +420,48 @@ describe("importAkteureAufloesen / importAkteurEntscheiden (PR b)", () => {
     expect(updates[2]).toMatchObject({ status: "fehler" });
     expect(updates[3]).toMatchObject({ status: "aufgeloest" });
     expect(protokolle[0]).toMatchObject({ art: "status_gesetzt", entitaet: "import_lauf", importLaufId: LAUF, text: "Akteure aufgelöst: 2 Gruppen — 1 identisch, 1 Vorschlag, 0 neu; 1 Zeile(n) ohne Akteur-Name" });
+  });
+
+  it("E72: Zeile ohne PLZ, Ort eindeutig -> PLZ ergaenzt, Hinweis, Matcher sieht die PLZ (Zeile 18 Mosbach); nicht eindeutig -> Befund am Feld Sitz-PLZ, Zeile Fehler, Matcher ohne PLZ (Zeile 21 Freiburg)", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([
+      { id: "z1", zeilennummer: 18, status: "offen", fehlergrund: null, felder: { akteur_name: "Hofgut Kirchberg", akteur_sitz_ort: "Mosbach" } },
+      { id: "z2", zeilennummer: 21, status: "offen", fehlergrund: null, felder: { akteur_name: "Kompostwerk Breisgau", akteur_sitz_ort: "Freiburg" } },
+      { id: "z3", zeilennummer: 22, status: "offen", fehlergrund: null, felder: { akteur_name: "Biohof", akteur_sitz_plz: "67346", akteur_sitz_ort: "Speyer" } },
+    ]);
+    ortAntwort = (ort) =>
+      ort === "Mosbach"
+        ? [{ plz: "74821", ort: "Mosbach", ars: "081255002045", kreis: "Neckar-Odenwald-Kreis", land: "Baden-Württemberg" }]
+        : [
+            { plz: "21729", ort: "Freiburg (Elbe)", ars: "033590014014", kreis: "Landkreis Stade", land: "Niedersachsen" },
+            { plz: "79098", ort: "Freiburg im Breisgau", ars: "083110000000", kreis: "Stadtkreis Freiburg im Breisgau", land: "Baden-Württemberg" },
+          ];
+    aehnlichAntwort = () => [];
+    const erg = await importAkteureAufloesen(LAUF);
+    expect(erg).toMatchObject({ ok: true, bearbeitet: 3, offen: 0 });
+    // EINE Kandidaten-Abfrage mit beiden Orten (z3 hat eine PLZ).
+    expect(ortStapel).toEqual([["Mosbach", "Freiburg"]]);
+    // Der Matcher bekommt die ergaenzte PLZ fuer Mosbach, keine fuer Freiburg.
+    expect(aehnlichAufrufe).toEqual([{ name: "Hofgut Kirchberg", plz: "74821" }, { name: "Kompostwerk Breisgau", plz: null }, { name: "Biohof", plz: "67346" }]);
+    // Zeilen-Updates: PLZ+Hinweis (z1), Befund+Fehlerstatus (z2), dann drei Gruppen, Lauf.
+    expect(updates).toHaveLength(6);
+    expect(updates[1]).toMatchObject({ status: "fehler", fehlergrund: expect.stringMatching(/^Akteur · Sitz PLZ: Ort „Freiburg" ist ohne PLZ nicht eindeutig \(mehrere Orte dieses Namens\) — Kandidaten: Freiburg \(Elbe\), Landkreis Stade, Niedersachsen: 21729; Freiburg im Breisgau, Stadtkreis Freiburg im Breisgau, Baden-Württemberg: 79098 — PLZ in der Zeile ergänzen\.$/) });
+    expect(updates[0]).not.toHaveProperty("status");
+    expect(erg.zaehler).toMatchObject({ plz_aus_ort: 1, plz_aus_ort_offen: 1, akteure_gruppen: 3 });
+    expect(protokolle[0]).toMatchObject({ text: expect.stringMatching(/; PLZ aus Ort: 1 ergänzt, 1 Zeile\(n\) in der Nacharbeit$/) });
+  });
+
+  it("E72: Zeilen mit PLZ, Gruppe oder eigenem Befund fragen keine Kandidaten ab (keine Endlosschleife ueber Stapel)", async () => {
+    rolle = "pruefer";
+    dbSelects.push([laufZeile("zugeordnet")]);
+    txSelects.push([
+      { id: "z1", zeilennummer: 2, status: "fehler", fehlergrund: "x", felder: { akteur_name: "A", akteur_sitz_ort: "Freiburg", fehler_akteur_sitz_plz: "Ort „Freiburg\" ist nicht bekannt — PLZ in der Zeile ergänzen." } },
+      { id: "z2", zeilennummer: 3, status: "offen", fehlergrund: null, felder: { akteur_name: "B", akteur_sitz_ort: "Mosbach", akteur_gruppe: "b|", akteur_neu: "1" } },
+    ]);
+    aehnlichAntwort = () => [];
+    await importAkteureAufloesen(LAUF);
+    expect(ortStapel).toHaveLength(0);
   });
 
   it("Stapel: 250 Gruppen → erster Request 200 (Lauf bleibt zugeordnet), zweiter die restlichen 50 (Lauf aufgeloest)", async () => {
@@ -756,6 +805,42 @@ describe("Nacharbeit (PR c): importZeileBearbeiten / importZeileUeberspringen", 
     expect(sqlText).toContain("probelauf");
     expect(protokolle[0]).toMatchObject({ art: "geaendert", importLaufId: LAUF, text: "Nacharbeit Zeile 7: Felder materialart_code, menge_roh_fm, akteur_name — Akteur wird erneut aufgelöst" });
     expect(JSON.stringify(protokolle)).not.toContain("Hof A");
+  });
+
+  it("E72: Ort-Aenderung bei leerer PLZ loescht Aufloesung, eigenen PLZ-aus-Ort-Befund und Hinweis — ein Formatfehler bleibt; mit PLZ zaehlt nur die PLZ", async () => {
+    rolle = "pruefer";
+    const texte = (o: unknown, seen = new Set<object>()): string[] => {
+      if (!o || typeof o !== "object" || seen.has(o)) return [];
+      seen.add(o);
+      return Object.values(o as Record<string, unknown>).flatMap((v) => (typeof v === "string" ? [v] : texte(v, seen)));
+    };
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ felder: { akteur_name: "Kompostwerk Breisgau", akteur_sitz_ort: "Freiburg", akteur_gruppe: "kompostwerk breisgau|", akteur_neu: "1", fehler_akteur_sitz_plz: "Ort „Freiburg\" ist nicht bekannt — PLZ in der Zeile ergänzen.", materialart_code: "x", menge_roh_fm: "1" } })]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { akteur_sitz_ort: "Freiburg im Breisgau" })).toEqual({ ok: true });
+    let sqlText = texte(updates[0]!.felder).join(" ");
+    expect(sqlText).toContain("akteur_gruppe");
+    expect(sqlText).toContain("fehler_akteur_sitz_plz");
+    expect(sqlText).toContain("hinweis_akteur_sitz_plz");
+    expect(updates[0]).toMatchObject({ status: "offen", fehlergrund: null });
+    expect(protokolle[0]).toMatchObject({ text: "Nacharbeit Zeile 7: Felder akteur_sitz_ort — Akteur wird erneut aufgelöst" });
+    // Rot: ein Formatfehler am Feld Sitz-PLZ ist kein eigener Befund und bleibt stehen.
+    updates.length = 0;
+    protokolle.length = 0;
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile({ felder: { akteur_name: "X", akteur_sitz_ort: "Freiburg", akteur_gruppe: "x|", akteur_neu: "1", fehler_akteur_sitz_plz: "muss fünfstellig sein", materialart_code: "x", menge_roh_fm: "1" } })]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { akteur_sitz_ort: "Freiburg (Elbe)" })).toEqual({ ok: true });
+    sqlText = texte(updates[0]!.felder).join(" ");
+    expect(sqlText).toContain("akteur_gruppe");
+    expect(sqlText).not.toContain("fehler_akteur_sitz_plz");
+    expect(updates[0]).toMatchObject({ status: "fehler", fehlergrund: "Akteur · Sitz PLZ: muss fünfstellig sein" });
+    // Mit PLZ: eine Ort-Aenderung allein loest keine neue Aufloesung aus (Gruppe ist Name + PLZ).
+    updates.length = 0;
+    protokolle.length = 0;
+    dbSelects.push([lauf()]);
+    txSelects.push([zeile()]);
+    expect(await importZeileBearbeiten(LAUF, ZEILE, { akteur_sitz_ort: "Speyer" })).toEqual({ ok: true });
+    expect(texte(updates[0]!.felder).join(" ")).not.toContain("akteur_gruppe");
+    expect(protokolle[0]).toMatchObject({ text: "Nacharbeit Zeile 7: Felder akteur_sitz_ort" });
   });
 
   it("importierte Zeilen lassen sich nicht bearbeiten oder ueberspringen; Ueberspringen setzt uebersprungen", async () => {

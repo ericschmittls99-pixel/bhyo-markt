@@ -4,7 +4,7 @@
  * bleibt; auch gegen die Preview lauffaehig). Eigene Probedaten in EINER
  * zurueckgerollten Transaktion; erwartete Abweisungen laufen in Savepoints.
  *
- *  1. CHECK genau ein Bezug (Migration 0052): Strom ja, Akteur ja, beide nein,
+ *  1. CHECK genau ein Bezug (Migration 0053): Strom ja, Akteur ja, beide nein,
  *     keiner nein.
  *  2. CHECK Text: leer nein, 2001 Zeichen nein, geloescht ohne NULL-Text nein,
  *     NULL-Text ohne geloescht_am nein.
