@@ -2182,6 +2182,22 @@ Inbox-Aufbewahrung (D14).
 
 **Entschieden (Eric 08.10.2026):** (a) Migrationen so wie
 gebaut (AP2.8 jetzt 0052, PR a 0053, PR c 0054, PR d 0055 — Umnummerierung 08.10.2026, weil 0051 an E72 ging). (b) Textgrenze 2000 Zeichen; ein Marker
+**PR b (UI, 08.10.2026, keine Migration):** Loader `lib/kommentare.ts`
+(SELECT, Autor und Erwähnte zur Lesezeit aus `benutzer`), Anzeige-Modell
+`lib/kommentar-modell.ts`, Komponente `components/kommentare/Kommentare.tsx`
+im Strom-Detail (über `lib/detail-daten.ts`, damit ströme. und inbox.
+dasselbe Panel zeigen) und im Akteur-Detail. Marker → aktueller Name
+(`kommentarSegmente`), deaktiviert/unbekannt → „ehemaliger Nutzer".
+Rechte zum Ausblenden aus derselben Matrix (`darf`), durchgesetzt bleibt
+serverseitig. Hinweis unter dem Feld und Kontaktdaten-Warnung (Muster aus
+dem Import, warnt, blockiert nicht) sind hier schon enthalten, weil sie am
+Eingabefeld hängen; die @-Auswahl und die Zustellung kommen mit PR c.
+Gestaltung in `docs/design-system.md` („Kommentare"). Tests:
+`components/kommentare/Kommentare.test.tsx`, Segmente in
+`lib/kommentar-marker.test.ts`.
+
+**Entschieden (Eric 08.10.2026):** (a) Migrationen 0051–0054 so wie
+gebaut (AP2.8, PR a, PR c, PR d). (b) Textgrenze 2000 Zeichen; ein Marker
 auf einen nicht erwähnbaren Nutzer (fremde UUID, Betrachter, deaktiviert)
 weist den ganzen Kommentar mit Meldung ab, nichts wird gespeichert. (c)
 Zwei Strom-Spalten (`biomassestrom_id`, `output_bedarf_id`) neben

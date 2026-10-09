@@ -292,6 +292,9 @@ export async function RegisterInhalt({
             verfuegbarkeit={detail.verfuegbarkeit}
             vergaben={detail.vergaben}
             preisKorridor={detail.preisKorridor}
+            kommentare={detail.kommentare}
+            kommentarZugang={detail.kommentarZugang}
+            darfKommentieren={detail.darfKommentieren}
           />
         )
       )}

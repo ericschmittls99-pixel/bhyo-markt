@@ -1075,3 +1075,30 @@ mit den Aktionen gelesen/erledigen/verwerfen/alle erledigen; Text je Stufe
 („B-… wird frei ab …", „Unsere Vergabe von B-… endet am …", „B-… ist frei
 seit …"). Keine Karte.
 
+## Kommentare (AP2.6 PR b, E71, 08.10.2026)
+
+**Abschnitt „kommentare. (n)"** im Strom-Detail (vor der Änderungshistorie)
+und im Akteur-Detail (Spalte „sitz und standorte.", nach dem Verlauf):
+chronologisch, neuester unten, Zähler in der Überschrift (`kom-zaehler`,
+gedämpft). Ein Eintrag (`kom-eintrag`) ist Avatar (24 px, bestehendes
+Bauteil) plus Kopfzeile — Autor fett, Zeitpunkt „TT.MM.JJJJ, HH:MM Uhr",
+Pille `pill--muted` „bearbeitet" mit dem Bearbeitungszeitpunkt als Titel —
+und Text (`pre-wrap`). Kein Kasten je Kommentar, Führung über Weißraum
+(Haltung). Gelöschte Kommentare bleiben als kursive, gedämpfte Zeile
+„Kommentar gelöscht" ohne Text und ohne Aktionen; der Autor eines
+deaktivierten Kontos heißt „ehemaliger Nutzer". Erwähnungs-Marker werden
+als `@Name` (`kom-erwaehnung`, Akzentfarbe, fett) gezeigt, bei
+deaktivierten oder unbekannten Nutzern kursiv gedämpft „@ehemaliger
+Nutzer" — nie die UUID. **Aktionen** als Ghost-Knöpfe unter dem Text, nur
+wo die Matrix sie erlaubt (eigene: Bearbeiten, Löschen; admin: Löschen
+fremder); Löschen mit Inline-Bestätigung „Kommentar löschen? Der Eintrag
+bleibt als „Kommentar gelöscht" sichtbar." **Eingabe** (`kom-formular`, ab
+bearbeiter): Textfeld 3 Zeilen, Platzhalter „Kommentar schreiben …",
+darunter der Hinweis „Keine Kontaktdaten Dritter – dafür Kontaktpersonen
+nutzen." (Caption), Knopf „Kommentieren" (primär, klein). Schlägt das
+Kontaktdaten-Muster des Imports an (E-Mail/Telefon), erscheint statt des
+Speicherns eine Warnzeile (`kom-warnung`, versenkte Fläche, Icon
+`ph-warning`) mit „Trotzdem speichern" — warnt, blockiert nicht. Keine
+Ampelfarben, Light/Dark über die Tokens. Die @-Auswahl per Tastatur folgt in
+PR c.
+

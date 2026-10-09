@@ -5678,3 +5678,119 @@ table.st-tabelle tbody tr:focus-visible {
 .imp-hinweis .ph {
   vertical-align: -2px;
 }
+
+/* AP2.6 PR b (E71): Kommentare — Abschnitt im Strom- und Akteur-Detail.
+   Fuehrung ueber Weissraum und Avatar, keine Rahmen je Zeile; ein Kommentar
+   ist ein Eintrag, kein Kasten. Light/Dark ueber die Tokens. */
+.kom {
+  display: grid;
+  gap: 12px;
+}
+.kom-titel {
+  margin: 0;
+  font: var(--type-kicker);
+  color: var(--text-accent);
+}
+.ak-sec .kom-titel {
+  margin-top: 16px;
+}
+.kom-zaehler {
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+.kom-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 14px;
+}
+.kom-eintrag {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  gap: 10px;
+  align-items: start;
+}
+.kom-inhalt {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+.kom-kopf {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font: var(--type-body-sm);
+}
+.kom-autor {
+  font-weight: 600;
+}
+.kom-zeit {
+  font-variant-numeric: tabular-nums;
+}
+.kom-text {
+  margin: 0;
+  font: var(--type-body);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  text-wrap: pretty;
+}
+.kom-text--geloescht,
+.kom-eintrag--geloescht .kom-autor {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+.kom-erwaehnung {
+  font-weight: 600;
+  color: var(--text-accent);
+}
+.kom-erwaehnung--ehemalig {
+  color: var(--text-secondary);
+  font-weight: 400;
+  font-style: italic;
+}
+.kom-eintrag-aktionen {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 8px;
+  align-items: center;
+  margin-top: 2px;
+}
+.kom-formular {
+  display: grid;
+  gap: 6px;
+}
+.kom-feld {
+  width: 100%;
+  min-height: 72px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  background: var(--surface-card);
+  color: var(--text-primary);
+  font: var(--type-body);
+}
+.kom-feld:focus-visible {
+  outline: none;
+  box-shadow: var(--ring-focus);
+}
+.kom-hinweis {
+  font-size: 12px;
+}
+.kom-warnung {
+  margin: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--surface-sunken);
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+}
+.kom-aktionen {
+  margin-top: 0;
+}

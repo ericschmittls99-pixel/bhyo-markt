@@ -9,7 +9,9 @@ import { heuteBerlin } from "@/lib/datum";
 import { withDb } from "@/lib/db";
 import { offeneAnfrageVon } from "@/lib/inbox/server";
 import { preisKorridorEinzel, type PreisKorridorEinzel } from "@/lib/preiskorridor-einzel";
-import { darf, type Zugang } from "@/lib/rechte";
+import type { Kommentar } from "@/lib/kommentar-modell";
+import { ladeKommentare } from "@/lib/kommentare";
+import { darf, darfRolle, type Rolle, type Zugang } from "@/lib/rechte";
 import { ladeZuweisbare, sperrObjekt } from "@/lib/rechte/sperre-server";
 import { ladeAlleVergaben, ladeErsteAenderung, ladeHistorie, ladeStroeme } from "@/lib/stroeme";
 import type { SperrNutzer, Strom, StromArt } from "@/lib/stroeme-modell";
@@ -37,6 +39,10 @@ export interface DetailDaten {
   vergaben: VergabeDaten[];
   verfuegbarkeit: VerfuegbarkeitsErgebnis | null;
   preisKorridor: PreisKorridorEinzel | null;
+  /** AP2.6 PR b (E71): Kommentare des Stroms, chronologisch; Rechte zum Ausblenden aus der Matrix. */
+  kommentare: Kommentar[];
+  kommentarZugang: { id: string; rolle: Rolle } | null;
+  darfKommentieren: boolean;
 }
 
 /** Die Begruendung des Anlegens ist der aelteste Log-Eintrag ("email: text"). */
@@ -76,6 +82,7 @@ export async function detailDatenAus(
     sperrRechte.anfragen && zugang.art === "erlaubt"
       ? await withDb((db) => offeneAnfrageVon(db, zugang.id, strom.art, strom.id))
       : null;
+  const kommentare = await withDb((db) => ladeKommentare(db, { art: strom.art, id: strom.id }));
   return {
     strom,
     historie,
@@ -86,6 +93,9 @@ export async function detailDatenAus(
     vergaben,
     verfuegbarkeit: strom.verfuegbarkeit ?? null,
     preisKorridor: preisKorridorEinzel(strom, pool, { cluster: CLUSTER_LABEL }),
+    kommentare,
+    kommentarZugang: zugang.art === "erlaubt" ? { id: zugang.id, rolle: zugang.rolle } : null,
+    darfKommentieren: darfRolle(zugang, "kommentar.erstellen"),
   };
 }
 
