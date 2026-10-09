@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { Avatar, anzeigeName } from "@/components/Avatar";
 import { fmtDatumZeit } from "@/lib/format";
 import { enthaeltKontaktdaten } from "@/lib/import-zuordnung";
+import { ohneMarker } from "@/lib/kommentar-marker";
 import { kommentarBearbeiten, kommentarErstellen, kommentarLoeschen } from "@/lib/kommentar-actions";
 import {
   type Erwaehnbar,
@@ -147,7 +148,9 @@ export function Kommentare({
   // waehrend `pending` gesperrt. Beides zusammen verhindert das doppelte Anlegen,
   // das PR b auf der Preview mit dem unkontrollierten Feld zeigte (§45).
   function absenden(zielId: "neu" | string, markerText: string, bestaetigt: boolean) {
-    if (!bestaetigt && enthaeltKontaktdaten(markerText)) {
+    // Nur die Worte des Nutzers pruefen — Marker-UUIDs sind keine Telefonnummern.
+    if (!bestaetigt && enthaeltKontaktdaten(ohneMarker(markerText))) {
+      setFehler(null);
       setWarnung({ ziel: zielId, markerText });
       return;
     }
