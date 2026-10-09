@@ -122,7 +122,8 @@ describe("E42 Rechte-Matrix (Rollenstufe)", () => {
       if (darf({ rolle: "pruefer", id: ICH }, a, o)) expect(darf({ rolle: "admin", id: ICH }, a, o)).toBe(true);
       // Betrachter schreiben nichts Fachliches — ihre eigene Inbox duerfen sie bedienen (AP2.2);
       // Weitergeben (PR c) ist eine fachliche Handlung und beginnt bei bearbeiter.
-      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe(a.startsWith("inbox.") && a !== "inbox.weitergeben");
+      // AP2.9 (E76): die eigene Roundup-Mail ist wie die Inbox ein persoenlicher Arbeitsstand.
+      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe((a.startsWith("inbox.") && a !== "inbox.weitergeben") || a === "benutzer.roundup_setzen");
     }
   });
 
