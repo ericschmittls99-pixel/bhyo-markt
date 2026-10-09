@@ -43,15 +43,15 @@ function monatsKategorie(
   strom: FensterStrom,
   vergaben: VergabeDaten[],
 ): FensterKategorie | null {
-  if (!strom.zeitraumVon || !strom.zeitraumBis) return null;
+  // E75: zeitraumBis null = unbefristet — jeder Monat ab Beginn zaehlt.
+  if (!strom.zeitraumVon) return null;
   const m = monatsKey(jahr, monat);
-  if (m < strom.zeitraumVon.slice(0, 7) || m > strom.zeitraumBis.slice(0, 7))
-    return null;
-  const aktiv = vergaben.find(
-    (v) =>
-      m >= (v.vergebenVon ?? strom.zeitraumVon!).slice(0, 7) &&
-      m <= (v.vergebenBis ?? strom.zeitraumBis!).slice(0, 7),
-  );
+  if (m < strom.zeitraumVon.slice(0, 7)) return null;
+  if (strom.zeitraumBis != null && m > strom.zeitraumBis.slice(0, 7)) return null;
+  const aktiv = vergaben.find((v) => {
+    const ende = v.vergebenBis ?? strom.zeitraumBis;
+    return m >= (v.vergebenVon ?? strom.zeitraumVon!).slice(0, 7) && (ende == null || m <= ende.slice(0, 7));
+  });
   if (aktiv) return aktiv.anBhyo ? "vergeben_bhyo" : "vergeben_extern";
   return strom.reserviertBhyo ? "reserviert_bhyo" : "verfuegbar";
 }
@@ -88,10 +88,11 @@ export function fensterKategorien(
     if (jahre.some((jahr) => jahresAnteil(jahr, strom, vergaben, nur) > 0))
       k.add(kat);
   }
-  if (strom.zeitraumVon && strom.zeitraumBis && jahre.length) {
+  if (strom.zeitraumVon && jahre.length) {
     const lo = Math.min(...jahre);
     const hi = Math.max(...jahre);
-    if (Number(strom.zeitraumBis.slice(0, 4)) < lo) k.add("abgelaufen");
+    // E75: ohne Ende nie abgelaufen.
+    if (strom.zeitraumBis != null && Number(strom.zeitraumBis.slice(0, 4)) < lo) k.add("abgelaufen");
     if (Number(strom.zeitraumVon.slice(0, 4)) > hi)
       k.add("noch_nicht_verfuegbar");
   }

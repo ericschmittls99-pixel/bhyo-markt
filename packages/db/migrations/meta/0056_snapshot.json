@@ -1,5 +1,5 @@
 {
-  "id": "5264d955-03a9-41ff-a08c-b7c03e5aa909",
+  "id": "b035da1d-a63a-4a9a-8368-780a26765533",
   "prevId": "f8c9f0be-441b-41a1-9a6b-21f862d13c17",
   "version": "7",
   "dialect": "postgresql",
@@ -852,7 +852,7 @@
           "name": "zeitraum_bis",
           "type": "date",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "saisonalitaet": {
           "name": "saisonalitaet",
@@ -1053,6 +1053,10 @@
         "biomassestrom_sperre_check": {
           "name": "biomassestrom_sperre_check",
           "value": "(\"biomassestrom\".\"gesperrt_von\" is null) = (\"biomassestrom\".\"gesperrt_am\" is null)"
+        },
+        "biomassestrom_zeitraum_check": {
+          "name": "biomassestrom_zeitraum_check",
+          "value": "\"biomassestrom\".\"zeitraum_bis\" is null or \"biomassestrom\".\"zeitraum_bis\" >= \"biomassestrom\".\"zeitraum_von\""
         }
       },
       "isRLSEnabled": false
@@ -2922,7 +2926,7 @@
           "name": "zeitraum_bis",
           "type": "date",
           "primaryKey": false,
-          "notNull": true
+          "notNull": false
         },
         "saisonalitaet": {
           "name": "saisonalitaet",
@@ -3091,6 +3095,10 @@
         "output_bedarf_sperre_check": {
           "name": "output_bedarf_sperre_check",
           "value": "(\"output_bedarf\".\"gesperrt_von\" is null) = (\"output_bedarf\".\"gesperrt_am\" is null)"
+        },
+        "output_bedarf_zeitraum_check": {
+          "name": "output_bedarf_zeitraum_check",
+          "value": "\"output_bedarf\".\"zeitraum_bis\" is null or \"output_bedarf\".\"zeitraum_bis\" >= \"output_bedarf\".\"zeitraum_von\""
         }
       },
       "isRLSEnabled": false
@@ -4006,8 +4014,7 @@
         "kontaktdaten_uebersprungen",
         "kommentar_erstellt",
         "kommentar_bearbeitet",
-        "kommentar_geloescht",
-        "mail_gesendet"
+        "kommentar_geloescht"
       ]
     },
     "public.feedstock_cluster": {
