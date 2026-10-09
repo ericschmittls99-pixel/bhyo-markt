@@ -1,4 +1,4 @@
-import { normalisiereOrt } from "@bhyo/db/plz";
+import { normalisiereOrt, ortNormPraefixe } from "@bhyo/db/plz";
 
 import type { Adresse } from "./geocode";
 
@@ -112,9 +112,35 @@ export function entscheideAdresse(
   return { status: "dienst_fehlt", text: "Adresse nicht gefunden und kein PLZ-Gebiet vorhanden — Pin bitte von Hand setzen." };
 }
 
-/** Eine strukturierte Anfrage aus den Feldern (ein Klick, eine Anfrage). */
-export function suchtextAus(e: PruefEingabe): string {
+/** Eine strukturierte Anfrage aus den Feldern (ein Klick, eine Anfrage); `zusatz` (Ortsteil) haengt hinter dem Ort. */
+export function suchtextAus(e: PruefEingabe, zusatz = ""): string {
   const strasse = [e.strasse.trim(), e.hausnummer.trim()].filter(Boolean).join(" ");
-  const ort = [e.plz.trim(), e.ort.trim()].filter(Boolean).join(" ");
+  const ort = [e.plz.trim(), e.ort.trim(), zusatz.trim()].filter(Boolean).join(" ");
   return [strasse, ort].filter(Boolean).join(", ");
+}
+
+/**
+ * AP6 (Eric 08.10.2026, Vormerkung §47): Ist der eingegebene Ort in
+ * Ortsteil-Form („Mannheim-Neckarau", „Stuttgart Vaihingen" — E72 e laesst
+ * ihn lokal passieren), bekommt der Adressdienst den AMTLICHEN Ort der PLZ
+ * und den Ortsteil nur als Zusatz: mit Strasse fand der Dienst „Mannheim-
+ * Neckarau" bisher nicht. Reine Regel: der amtliche Ort ist der, dessen
+ * Normalform ein echtes Wortpraefix der Eingabe ist; der Zusatz sind die
+ * restlichen Woerter der Eingabe (Trenner „-", „/" und Leerzeichen). Kein
+ * Ortsteil (gleich oder Kurzform) -> null, die Eingabe bleibt wie sie ist.
+ */
+export function ortsteilAufteilen(ort: string, amtlicheOrte: readonly string[]): { ort: string; zusatz: string } | null {
+  const norm = normalisiereOrt(ort);
+  if (!norm) return null;
+  const praefixe = ortNormPraefixe(norm);
+  // Laengster passender amtlicher Ort gewinnt („bad homburg" vor „bad").
+  const treffer = amtlicheOrte
+    .map((o) => ({ o, n: normalisiereOrt(o) }))
+    .filter((x) => x.n && x.n !== norm && praefixe.includes(x.n))
+    .sort((a, b) => b.n.length - a.n.length)[0];
+  if (!treffer) return null;
+  const woerter = ort.trim().split(/[\s\-/]+/).filter(Boolean);
+  const anzahl = treffer.n.split(" ").length;
+  const zusatz = woerter.slice(anzahl).join(" ");
+  return zusatz ? { ort: treffer.o, zusatz } : null;
 }

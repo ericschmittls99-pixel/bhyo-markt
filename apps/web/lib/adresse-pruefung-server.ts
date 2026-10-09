@@ -1,6 +1,6 @@
 import { sql } from "drizzle-orm";
 
-import { entscheideAdresse, suchtextAus, type Kandidat, type PruefEingabe, type PruefErgebnis } from "./adresse-pruefung";
+import { entscheideAdresse, ortsteilAufteilen, suchtextAus, type Kandidat, type PruefEingabe, type PruefErgebnis } from "./adresse-pruefung";
 import type { AppDb } from "./db";
 import { nurAdressenUndOrte, type Adresse } from "./geocode";
 import { photonSuche } from "./photon-server";
@@ -56,8 +56,11 @@ export async function pruefeAdresse(db: AppDb, e: PruefEingabe): Promise<PruefAn
   let treffer: Adresse[] = [];
   let ausfall = false;
   const start = Date.now();
+  // AP6: Ortsteil-Form -> amtlicher Ort an den Dienst, Ortsteil als Zusatz (Eingabe bleibt unveraendert gespeichert).
+  const teil = ortsteilAufteilen(e.ort, lokal.orte);
+  const anfrage = teil ? suchtextAus({ ...e, plz, ort: teil.ort }, teil.zusatz) : suchtextAus({ ...e, plz });
   try {
-    treffer = nurAdressenUndOrte(await photonSuche(suchtextAus({ ...e, plz })));
+    treffer = nurAdressenUndOrte(await photonSuche(anfrage));
   } catch {
     ausfall = true;
   }
