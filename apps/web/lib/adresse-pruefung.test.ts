@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { entscheideAdresse, normalisiereStrasse, suchtextAus, type Kandidat } from "./adresse-pruefung";
+import { entscheideAdresse, normalisiereStrasse, ortsteilAufteilen, suchtextAus, type Kandidat } from "./adresse-pruefung";
 
 const eingabe = { strasse: "Iggelheimer Straße", hausnummer: "12", plz: "67346", ort: "Speyer" };
 const k = (t: Partial<Kandidat>): Kandidat => ({ art: "adresse", strasse: "Iggelheimer Straße", hausnummer: "12", plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32, imGebiet: true, ...t });
@@ -47,5 +47,24 @@ describe("entscheideAdresse (E68 PR 2)", () => {
   it("suchtextAus baut eine Anfrage aus den Feldern", () => {
     expect(suchtextAus(eingabe)).toBe("Iggelheimer Straße 12, 67346 Speyer");
     expect(suchtextAus({ strasse: "", hausnummer: "", plz: "67346", ort: "" })).toBe("67346");
+    expect(suchtextAus({ strasse: "Rheinstraße", hausnummer: "1", plz: "68199", ort: "Mannheim" }, "Neckarau")).toBe("Rheinstraße 1, 68199 Mannheim Neckarau");
+  });
+});
+
+describe("ortsteilAufteilen (AP6, Vormerkung §47): amtlicher Ort an den Dienst, Ortsteil als Zusatz", () => {
+  it("„Mannheim-Neckarau“ und „Stuttgart Vaihingen“ -> amtlicher Ort plus Zusatz", () => {
+    expect(ortsteilAufteilen("Mannheim-Neckarau", ["Mannheim"])).toEqual({ ort: "Mannheim", zusatz: "Neckarau" });
+    expect(ortsteilAufteilen("Stuttgart Vaihingen", ["Stuttgart"])).toEqual({ ort: "Stuttgart", zusatz: "Vaihingen" });
+    expect(ortsteilAufteilen("Bad Homburg v. d. Höhe / Ober-Erlenbach", ["Bad Homburg v. d. Höhe"])).toEqual({ ort: "Bad Homburg v. d. Höhe", zusatz: "Ober Erlenbach" });
+  });
+  it("Rot: gleicher Ort, Kurzform, Straßenname oder fremder Ort -> null (Eingabe bleibt)", () => {
+    expect(ortsteilAufteilen("Mannheim", ["Mannheim"])).toBeNull();
+    expect(ortsteilAufteilen("Ludwigshafen", ["Ludwigshafen am Rhein"])).toBeNull();
+    expect(ortsteilAufteilen("Mannheimer Str.", ["Mannheim"])).toBeNull();
+    expect(ortsteilAufteilen("Heidelberg-Rohrbach", ["Mannheim"])).toBeNull();
+    expect(ortsteilAufteilen("", ["Mannheim"])).toBeNull();
+  });
+  it("mehrere amtliche Orte: der laengste passende gewinnt", () => {
+    expect(ortsteilAufteilen("Bad Homburg Kirdorf", ["Bad", "Bad Homburg"])).toEqual({ ort: "Bad Homburg", zusatz: "Kirdorf" });
   });
 });
