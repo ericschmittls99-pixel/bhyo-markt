@@ -291,6 +291,10 @@ jobs:
       # Jahresfilter findet den unbefristeten Strom ab Beginn in jedem Jahr.
       - name: Zeitraum-Probe (E75 unbefristet, CHECK, Jahresfilter)
         run: pnpm --filter web exec tsx scripts/zeitraum-bis-probe.ts
+      # AP2.9 (E76): Roundup-Probelauf auch gegen die Wegwerf-DB (ohne Nutzer:
+      # 0 Empfaenger, Zeile und Idempotenz trotzdem geprueft).
+      - name: Roundup-Probe (E76, Wegwerf-DB)
+        run: pnpm --filter web exec tsx scripts/roundup-probe.ts
 
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
@@ -576,6 +580,15 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
         run: pnpm --filter web exec tsx scripts/job-probe.ts
+
+      # AP2.9 (E76): Roundup-Probelauf gegen die Preview-DB im Probemodus —
+      # je Nutzer „wuerde senden: ja/nein" und Zaehler, nur Nutzer-IDs im Log,
+      # job_lauf-Zeile, Idempotenz, Wochenende. Zurueckgerollt, nichts gesendet.
+      - name: Roundup-Probe (E76, Probemodus)
+        if: github.event_name == 'pull_request'
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL_PREVIEW }}
+        run: pnpm --filter web exec tsx scripts/roundup-probe.ts
 
       # E34: Beleg-Zusicherungen — sieben Enum-Werte, der Quellenangabe-CHECK
       # greift, und JEDER Schreibpfad auf beleg (Formular-Insert/-Update,
