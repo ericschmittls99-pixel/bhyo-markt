@@ -15,7 +15,7 @@ export function RoundupEinstellung({ an }: { an: boolean }) {
   const [pending, start] = useTransition();
   return (
     <section className="einst-roundup" id="roundup" aria-labelledby="roundup-titel">
-      <h2 id="roundup-titel">roundup.</h2>
+      <h2 id="roundup-titel">tages-mail.</h2>
       <label className="fp-toggle">
         <input
           type="checkbox"
@@ -34,7 +34,7 @@ export function RoundupEinstellung({ an }: { an: boolean }) {
           }}
         />
         <span className="fp-toggle-text">
-          <span>Tägliche Roundup-Mail</span>
+          <span>Tages-Mail aus der Inbox</span>
           <span className="c">An Werktagen um 07:07 Uhr, nur wenn seit dem letzten Roundup neue Hinweise in deiner Inbox liegen. Die Mail nennt Zähler je Typ und einen Link, keine Inhalte.</span>
         </span>
       </label>
