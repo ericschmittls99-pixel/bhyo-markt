@@ -23,6 +23,13 @@ export interface MailKonfig {
   absender: string;
   /** Nur im Modus graph noetig; fehlt etwas, wird nicht gesendet, sondern gemeldet. */
   graph: GraphKonfig | null;
+  /**
+   * AP2.9 Umschalten (E76 Nr. 8): Ablaufdatum des Entra-Secrets (JJJJ-MM-TT) als
+   * Worker-Variable M365_SECRET_ABLAUF — kein Secret, nur ein Datum. Der Roundup-Job
+   * meldet den Ablauf 30 und 7 Tage vorher an die Admins. null = nicht hinterlegt
+   * oder unbrauchbar (dann keine proaktive Meldung, nur die reaktive AADSTS7000222).
+   */
+  secretAblauf: string | null;
 }
 
 /** Fachliche Art der Mail — steht im Protokoll statt des Inhalts. */
@@ -40,10 +47,18 @@ export type MailErgebnis =
   | { ok: false; ursache: string; wiederholenNach: number | null };
 
 /** Rohe Umgebungswerte → Konfiguration; fehlende Graph-Werte machen den Modus nicht kaputt, sie verhindern nur den Versand. */
-export function mailKonfigAus(env: { MAIL_MODUS?: string; MAIL_ABSENDER?: string; M365_TENANT_ID?: string; M365_CLIENT_ID?: string; M365_CLIENT_SECRET?: string }): MailKonfig {
+export function mailKonfigAus(env: { MAIL_MODUS?: string; MAIL_ABSENDER?: string; M365_TENANT_ID?: string; M365_CLIENT_ID?: string; M365_CLIENT_SECRET?: string; M365_SECRET_ABLAUF?: string }): MailKonfig {
   const modus: MailModus = env.MAIL_MODUS === "graph" ? "graph" : "protokoll";
   const graph = env.M365_TENANT_ID && env.M365_CLIENT_ID && env.M365_CLIENT_SECRET ? { tenantId: env.M365_TENANT_ID, clientId: env.M365_CLIENT_ID, clientSecret: env.M365_CLIENT_SECRET } : null;
-  return { modus, absender: env.MAIL_ABSENDER ?? "", graph };
+  return { modus, absender: env.MAIL_ABSENDER ?? "", graph, secretAblauf: kalenderdatumOderNull(env.M365_SECRET_ABLAUF) };
+}
+
+/** Nur ein echtes Kalenderdatum JJJJ-MM-TT zaehlt — „2026-02-30" oder Freitext ergeben null, nie einen Fehler im Job. */
+export function kalenderdatumOderNull(wert: string | undefined): string | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec((wert ?? "").trim());
+  if (!m) return null;
+  const d = new Date(Date.UTC(Number(m[1]), Number(m[2]) - 1, Number(m[3])));
+  return d.toISOString().slice(0, 10) === m[0] ? m[0] : null;
 }
 
 /** Text des Ereignisses mail_gesendet — Wirkung und Modus ausdruecklich, nie Betreff oder Inhalt. */

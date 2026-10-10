@@ -77,6 +77,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       aufgabe: inboxEintrag.aufgabe,
       // AP2.8 (E70): Stufe des Wird-frei-Hinweises; an_bhyo der endenden Vergabe nur zur Anzeige abgeleitet (nie gespeichert).
       stufe: inboxEintrag.stufe,
+      // AP2.9 Umschalten: Ursache der Versand-Stoerung (Code) beim Typ mail_stoerung.
+      ursache: inboxEintrag.ursache,
       anBhyo: sql<boolean | null>`(select v.an_bhyo from vergabe_zeitraum v where v.biomassestrom_id = ${inboxEintrag.biomassestromId} and v.vergeben_bis = ${inboxEintrag.bezugsdatum} order by v.an_bhyo desc limit 1)`,
       biomassestromId: stromB,
       outputBedarfId: stromO,
@@ -145,6 +147,7 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
         kontaktpersonName: z.kontaktpersonName,
         stufe: z.stufe,
         anBhyo: z.anBhyo,
+        ursache: z.ursache,
         kommentarId: z.kommentarId,
         kommentarGeloescht: z.kommentarGeloescht ?? false,
               importDateiname: z.importDateiname ?? null,

@@ -133,8 +133,11 @@ export async function empfaengerFuer(tx: Schreiber, e: ZustellEreignis, typ: Inb
     case "kontaktperson_loeschpruefung":
     case "biomasse_wird_frei":
     case "import_abgeschlossen":
+    case "mail_stoerung":
+    case "mail_secret_laeuft_ab":
       // PR b / AP2.5: nicht ereignisgetrieben — der Job stellt zu (lib/inbox/hinweise.ts).
       // AP2.7 (E67): import_abgeschlossen stellt der Import selbst zu (PR c), je Lauf gebuendelt.
+      // AP2.9 Umschalten: die Mail-Hinweise stellt der Roundup-Job zu (lib/inbox/mail-hinweise.ts).
       return [];
     case "kommentar":
     case "erwaehnung":

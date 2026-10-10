@@ -29,6 +29,9 @@ export const JOB_HINWEIS_TYPEN = [
   "akteur_verwaist",
   "kontaktperson_loeschpruefung",
   "biomasse_wird_frei",
+  // AP2.9 Umschalten: Hinweise des Roundup-Jobs (lib/inbox/mail-hinweise.ts).
+  "mail_stoerung",
+  "mail_secret_laeuft_ab",
 ] as const satisfies readonly InboxTyp[];
 
 export const PARAMETER_ERLEDIGT = "inbox.aufbewahrung_erledigt_tage";

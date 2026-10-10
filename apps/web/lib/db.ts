@@ -46,6 +46,9 @@ interface AppBindings {
   M365_TENANT_ID?: string;
   M365_CLIENT_ID?: string;
   M365_CLIENT_SECRET?: string;
+  /** AP2.9 Umschalten: Ablaufdatum des Secrets (JJJJ-MM-TT, kein Secret) und die einzige Adresse fuer den Testversand. */
+  M365_SECRET_ABLAUF?: string;
+  MAIL_TEST_EMPFAENGER?: string;
 }
 
 /** Cloudflare-Bindings/Vars aus dem Worker-Kontext. Wirft ausserhalb des Workers. */

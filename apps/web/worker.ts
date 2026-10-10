@@ -37,6 +37,8 @@ interface Umgebung {
   M365_TENANT_ID?: string;
   M365_CLIENT_ID?: string;
   M365_CLIENT_SECRET?: string;
+  /** AP2.9 Umschalten (E76 Nr. 8): Ablaufdatum des Secrets, JJJJ-MM-TT — Variable, kein Secret. */
+  M365_SECRET_ABLAUF?: string;
   APP_URL?: string;
 }
 interface CronEreignis {

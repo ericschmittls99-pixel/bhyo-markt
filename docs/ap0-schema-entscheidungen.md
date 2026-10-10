@@ -2502,3 +2502,29 @@ selbst) mit Ereignis `geaendert`, Schalter `RoundupEinstellung` auf
 *einstellungen.*; Migration `0058_ap29_mail_roundup` (Enum `mail_gesendet`,
 Spalten `benutzer.roundup`, `benutzer.roundup_zuletzt_am`).
 
+**Umschalten vorbereiten (Entwurf, Eric 09./10.10.2026):** Bedingung für
+das spätere Umschalten auf Versand, als eigener PR davor:
+- Nr. 6 Störung: Inbox-Typ `mail_stoerung` an alle aktiven Admins, Ursache
+  als Code in `inbox_eintrag.ursache`, je Admin und Ursache höchstens ein
+  offener Eintrag (Index `inbox_eintrag_mail_stoerung_uidx`); abgeräumt,
+  sobald ein Lauf im Modus `graph` ohne Störung sendet. Dauerhafte Ursachen:
+  `secret_abgelaufen`, `secret_ungueltig`, `app_unbekannt`,
+  `zugriff_verweigert`, `postfach_unbekannt`, `nicht_konfiguriert`;
+  vorübergehende nur in `schritte`/Log.
+- Nr. 8 Secret-Ablauf: Variable `M365_SECRET_ABLAUF` (`JJJJ-MM-TT`), Typ
+  `mail_secret_laeuft_ab` mit Bezugsdatum = Ablaufdatum und Stufe 30/7, je
+  Admin, Datum und Stufe genau ein Eintrag über alle Zustände; ein neues
+  Datum räumt offene Hinweise ab.
+- Summen in `job_lauf.schritte` (Eric 10.10.2026, kein Log-Zugang nötig):
+  `modus` (Text), `empfaenger`, `abgemeldet`, `wuerde_senden`, `nichts_neu`,
+  `gesendet` (nur `graph`), `protokolliert`, `fehler`, `ursache_<code>`,
+  `stoerung_gemeldet/abgeraeumt`, `secret_zugestellt/abgeraeumt`. Die Zeilen
+  je Nutzer bleiben im Worker-Log. Regel: „gesendet" zählt nur `modus=graph`.
+- Testversand: Aktion `mail.testversand` (nur Admins) sendet eine Probe-Mail
+  an die EIGENE Adresse, und nur, wenn sie die hinterlegte Testadresse
+  `MAIL_TEST_EMPFAENGER` (Eric) ist — fail closed, keine fremden Postfächer.
+- Beide Mail-Typen ohne Objektbezug (CHECK `genau_ein_strom` lässt für sie
+  den leeren Bezug zu), ohne Urheber; Migration `0059_ap29_mail_hinweise`.
+Das Umschalten selbst (`MAIL_MODUS = graph`) bleibt ein eigener Schritt nach
+Erics Meldung; Checkliste in `docs/betrieb/m365-mail.md` Abschnitt 7.
+

@@ -49,7 +49,19 @@ export interface ZeilenDaten {
   kommentarId?: string | null;
   /** Eric 08.10.2026: der Kommentar ist inzwischen weich geloescht — die Zeile bleibt und sagt es. */
   kommentarGeloescht?: boolean | null;
+  /** AP2.9 Umschalten: Ursache (Code des Mail-Adapters) beim Typ mail_stoerung. */
+  ursache?: string | null;
 }
+
+/** AP2.9 Umschalten: Ursachen-Codes des Mail-Adapters in Worten — nur Codes, nie Fehlertexte (E73). */
+export const STOERUNG_TEXT: Record<string, string> = {
+  secret_abgelaufen: "das Entra-Secret ist abgelaufen",
+  secret_ungueltig: "das Entra-Secret ist ungültig",
+  app_unbekannt: "die Entra-App ist unbekannt (Tenant- oder Client-ID)",
+  zugriff_verweigert: "Graph verweigert den Zugriff (Zustimmung oder Access Policy)",
+  postfach_unbekannt: "das Absenderpostfach ist unbekannt",
+  nicht_konfiguriert: "Secrets oder Absender fehlen im Worker",
+};
 
 export interface TypDefinition {
   /** Ereignisarten, die diesen Typ ausloesen. */
@@ -154,6 +166,24 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
     text: (z) => (z.bezugsdatum ? wirdFreiText(objektText(z), { freiAb: z.bezugsdatum, anBhyo: z.anBhyo ?? false }, z.stufe ?? 0) : `${objektText(z)} wird frei`),
+  },
+  // AP2.9 Umschalten (E76 Nr. 6/8): Hinweise des Roundup-Jobs an die Admins zum Versand selbst —
+  // kein Objekt, kein Urheber; Logik in lib/inbox/mail-hinweise.ts.
+  mail_stoerung: {
+    arten: [],
+    empfaengerregel: "alle aktiven Admins",
+    buendelung: "je Admin und Ursache hoechstens ein offener Eintrag; erledigt, sobald ein Lauf im Modus graph wieder ohne Stoerung sendet",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `Tages-Mail gestört: ${STOERUNG_TEXT[z.ursache ?? ""] ?? z.ursache ?? "–"} – kein Versand, bis die Ursache behoben ist`,
+  },
+  mail_secret_laeuft_ab: {
+    arten: [],
+    empfaengerregel: "alle aktiven Admins",
+    buendelung: "je Admin, Ablaufdatum und Stufe (30/7 Tage) genau ein Eintrag ueber alle Zustaende; aendert sich das Datum (neues Secret), werden offene Hinweise abgeraeumt",
+    aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
+    reinerHinweis: true,
+    text: (z) => `Das Mail-Secret (Entra) läuft am ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} ab – ${z.stufe ?? 0}-Tage-Vorlauf: neues Secret anlegen und als Worker-Secret eintragen`,
   },
   verifikation_laeuft_ab: {
     arten: [],

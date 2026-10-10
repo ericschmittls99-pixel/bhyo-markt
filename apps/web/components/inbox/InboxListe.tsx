@@ -122,7 +122,10 @@ export function InboxListe({
           ? `/akteure/${z.akteur.id}${anker}`
           : z.importLauf
             ? `/import/${z.importLauf.id}`
-            : "/inbox";
+            : z.typ === "mail_stoerung" || z.typ === "mail_secret_laeuft_ab"
+              ? // AP2.9 Umschalten: die Mail-Hinweise fuehren zur Tages-Mail-Sektion (Testversand).
+                "/einstellungen#roundup"
+              : "/inbox";
     if (z.gelesen) {
       router.push(ziel, { scroll: false });
       return;

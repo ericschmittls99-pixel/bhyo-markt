@@ -20,7 +20,7 @@ import type { RoundupZugriff } from "./roundup";
 
 const { fuehreRoundupAus, istWerktagBerlin, roundupText, wuerdeSenden } = await import("./roundup");
 
-const konfig = { modus: "protokoll" as const, absender: "news@bhyo.de", graph: null };
+const konfig = { modus: "protokoll" as const, absender: "news@bhyo.de", graph: null, secretAblauf: null };
 // Donnerstag 09.10.2026 07:07 Berlin = 05:07 UTC (Sommerzeit)
 const DO = new Date("2026-10-09T05:07:00Z");
 
@@ -62,11 +62,31 @@ describe("wuerdeSenden / roundupText", () => {
   });
 });
 
-function attrappe(empfaenger: { id: string; email: string; seit: Date | null }[], zaehler: Record<string, { typ: string; offen: number; neu: number }[]>) {
+function attrappe(empfaenger: { id: string; email: string; seit: Date | null }[], zaehler: Record<string, { typ: string; offen: number; neu: number }[]>, abgemeldet = 0) {
   const laeufe: string[] = [];
   const beendet: unknown[] = [];
   const markiert: string[] = [];
+  /** Admin-Hinweise: offene Stoerungen je Ursache, Secret-Pruefungen (Datum, Stichtag). */
+  const stoerungen = new Set<string>();
+  const secretPruefungen: [string | null, string][] = [];
   const zugriff: RoundupZugriff = {
+    async zaehleAbgemeldet() {
+      return abgemeldet;
+    },
+    async meldeStoerung(ursache) {
+      if (stoerungen.has(ursache)) return 0;
+      stoerungen.add(ursache);
+      return 1;
+    },
+    async raeumeStoerungenAb() {
+      const n = stoerungen.size;
+      stoerungen.clear();
+      return n;
+    },
+    async pruefeSecretAblauf(ablauf, stichtag) {
+      secretPruefungen.push([ablauf, stichtag]);
+      return { zugestellt: ablauf ? 1 : 0, abgeraeumt: 0 };
+    },
     async beginneLauf(stichtag) {
       if (laeufe.includes(stichtag)) return null;
       laeufe.push(stichtag);
@@ -87,8 +107,10 @@ function attrappe(empfaenger: { id: string; email: string; seit: Date | null }[]
       return erg;
     },
   };
-  return { zugriff, laeufe, beendet, markiert };
+  return { zugriff, laeufe, beendet, markiert, stoerungen, secretPruefungen };
 }
+
+const SUMME_LEER = { stoerungen: { gemeldet: 0, abgeraeumt: 0 }, secret: { zugestellt: 0, abgeraeumt: 0 } };
 
 describe("fuehreRoundupAus", () => {
   it("Wochenende: kein Lauf, keine Zeile", async () => {
@@ -107,18 +129,28 @@ describe("fuehreRoundupAus", () => {
         { id: "u3", email: "ohne@bhyo.de", seit: null },
       ],
       { u1: [{ typ: "kommentar", offen: 2, neu: 2 }], u2: [{ typ: "aufgabe", offen: 3, neu: 0 }] },
+      2,
     );
     const erg = await fuehreRoundupAus(a.zugriff, DO, konfig, "https://x", undefined as never, (z) => logs.push(z));
-    expect(erg).toEqual({ lauf: "ok", stichtag: "2026-10-09", empfaenger: 3, wuerdeSenden: 1, gesendet: 1, fehler: 0, ursachen: {} });
+    // Probemodus: „gesendet" bleibt 0 (nur modus=graph zaehlt), die Probe-Zustellung heisst protokolliert.
+    expect(erg).toEqual({ lauf: "ok", stichtag: "2026-10-09", modus: "protokoll", empfaenger: 3, abgemeldet: 2, wuerdeSenden: 1, nichtsNeu: 2, gesendet: 0, protokolliert: 1, fehler: 0, ursachen: {}, ...SUMME_LEER });
     expect(gesendet.map((g) => g.id)).toEqual(["u1"]);
     expect(a.markiert).toEqual(["u1"]);
     expect(logs).toEqual([
       'ROUNDUP nutzer=u1 wuerde_senden=ja neu=2 offen=2 typen={"kommentar":{"offen":2,"neu":2}}',
       'ROUNDUP nutzer=u2 wuerde_senden=nein neu=0 offen=3 typen={"aufgabe":{"offen":3,"neu":0}}',
       "ROUNDUP nutzer=u3 wuerde_senden=nein neu=0 offen=0 typen={}",
+      "ROUNDUP summe modus=protokoll empfaenger=3 abgemeldet=2 wuerde_senden=1 nichts_neu=2 gesendet=0 protokolliert=1 fehler=0 stoerung_gemeldet=0 stoerung_abgeraeumt=0 secret_zugestellt=0 secret_abgeraeumt=0",
     ]);
     expect(logs.join("\n")).not.toMatch(/@bhyo\.de/);
-    expect(a.beendet[0]).toEqual({ ergebnis: "ok", anzahl: 1, schritte: { empfaenger: 3, wuerde_senden: 1, gesendet: 1, fehler: 0 } });
+    // Eric 10.10.2026: die Summen stehen in job_lauf.schritte — ohne Log-Zugang lesbar, mit Modus.
+    expect(a.beendet[0]).toEqual({
+      ergebnis: "ok",
+      anzahl: 0,
+      schritte: { modus: "protokoll", empfaenger: 3, abgemeldet: 2, wuerde_senden: 1, nichts_neu: 2, gesendet: 0, protokolliert: 1, fehler: 0, stoerung_gemeldet: 0, stoerung_abgeraeumt: 0, secret_zugestellt: 0, secret_abgeraeumt: 0 },
+    });
+    // Kein Ablaufdatum hinterlegt: die Secret-Pruefung laeuft trotzdem (raeumt nur ab).
+    expect(a.secretPruefungen).toEqual([[null, "2026-10-09"]]);
     expect(await fuehreRoundupAus(a.zugriff, DO, konfig, "https://x")).toEqual({ lauf: "uebersprungen", stichtag: "2026-10-09" });
   });
   it("Fehler je Nutzer brechen nicht ab; Drosselung wird einmal wiederholt; Ursachen gezaehlt; keine Markierung bei Fehlschlag", async () => {
@@ -136,9 +168,51 @@ describe("fuehreRoundupAus", () => {
       { u1: [{ typ: "kommentar", offen: 1, neu: 1 }], u2: [{ typ: "kommentar", offen: 1, neu: 1 }] },
     );
     const erg = await fuehreRoundupAus(a.zugriff, DO, { ...konfig, modus: "graph" }, "https://x", undefined as never, () => {});
-    expect(erg).toMatchObject({ lauf: "ok", wuerdeSenden: 2, gesendet: 1, fehler: 1, ursachen: { secret_abgelaufen: 1 } });
+    expect(erg).toMatchObject({ lauf: "ok", modus: "graph", wuerdeSenden: 2, gesendet: 1, protokolliert: 0, fehler: 1, ursachen: { secret_abgelaufen: 1 }, stoerungen: { gemeldet: 1, abgeraeumt: 0 } });
     expect(gesendet.map((g) => g.id)).toEqual(["u1", "u2", "u2"]);
     expect(a.markiert).toEqual(["u2"]);
-    expect(a.beendet[0]).toMatchObject({ schritte: { wuerde_senden: 2, gesendet: 1, fehler: 1, ursache_secret_abgelaufen: 1 } });
+    expect(a.beendet[0]).toMatchObject({ anzahl: 1, schritte: { modus: "graph", wuerde_senden: 2, gesendet: 1, fehler: 1, ursache_secret_abgelaufen: 1, stoerung_gemeldet: 1 } });
+    // Die dauerhafte Ursache ist als Admin-Hinweis gemeldet; eine voruebergehende (gedrosselt) nicht.
+    expect([...a.stoerungen]).toEqual(["secret_abgelaufen"]);
+  });
+  it("Stoerung einmal je offener Stoerung; ein spaeterer Lauf im Modus graph ohne Stoerung raeumt sie ab", async () => {
+    gesendet.length = 0;
+    const a = attrappe([{ id: "u1", email: "a@bhyo.de", seit: null }], { u1: [{ typ: "kommentar", offen: 1, neu: 1 }] });
+    const graph = { ...konfig, modus: "graph" as const };
+    antworten = [() => ({ ok: false, ursache: "zugriff_verweigert", wiederholenNach: null })];
+    const erster = await fuehreRoundupAus(a.zugriff, new Date("2026-10-08T05:07:00Z"), graph, "https://x", undefined as never, () => {});
+    expect(erster).toMatchObject({ lauf: "ok", gesendet: 0, fehler: 1, stoerungen: { gemeldet: 1, abgeraeumt: 0 } });
+    // Zweiter Tag, dieselbe Stoerung: kein zweiter Hinweis (Index), nichts abgeraeumt.
+    antworten = [() => ({ ok: false, ursache: "zugriff_verweigert", wiederholenNach: null })];
+    const zweiter = await fuehreRoundupAus(a.zugriff, DO, graph, "https://x", undefined as never, () => {});
+    expect(zweiter).toMatchObject({ lauf: "ok", stoerungen: { gemeldet: 0, abgeraeumt: 0 } });
+    expect([...a.stoerungen]).toEqual(["zugriff_verweigert"]);
+    // Dritter Tag: Versand klappt (graph) — Stoerung behoben, Hinweis abgeraeumt.
+    antworten = [() => ({ ok: true, modus: "graph" })];
+    const dritter = await fuehreRoundupAus(a.zugriff, new Date("2026-10-12T05:07:00Z"), graph, "https://x", undefined as never, () => {});
+    expect(dritter).toMatchObject({ lauf: "ok", gesendet: 1, stoerungen: { gemeldet: 0, abgeraeumt: 1 } });
+    expect(a.stoerungen.size).toBe(0);
+  });
+  it("Probemodus raeumt nie ab (kein echter Versand) und meldet nicht_konfiguriert als Stoerung im Modus graph", async () => {
+    gesendet.length = 0;
+    const a = attrappe([{ id: "u1", email: "a@bhyo.de", seit: null }], { u1: [{ typ: "kommentar", offen: 1, neu: 1 }] });
+    a.stoerungen.add("secret_abgelaufen");
+    antworten = [];
+    const probe = await fuehreRoundupAus(a.zugriff, DO, konfig, "https://x", undefined as never, () => {});
+    expect(probe).toMatchObject({ lauf: "ok", protokolliert: 1, gesendet: 0, stoerungen: { gemeldet: 0, abgeraeumt: 0 } });
+    expect(a.stoerungen.size).toBe(1);
+    antworten = [() => ({ ok: false, ursache: "nicht_konfiguriert", wiederholenNach: null })];
+    const graph = await fuehreRoundupAus(a.zugriff, new Date("2026-10-12T05:07:00Z"), { ...konfig, modus: "graph" }, "https://x", undefined as never, () => {});
+    expect(graph).toMatchObject({ lauf: "ok", fehler: 1, stoerungen: { gemeldet: 1, abgeraeumt: 0 } });
+    expect([...a.stoerungen].sort()).toEqual(["nicht_konfiguriert", "secret_abgelaufen"]);
+  });
+  it("Secret-Ablauf: das Datum aus der Konfiguration geht mit dem Stichtag an die Pruefung, Zaehler in schritte", async () => {
+    gesendet.length = 0;
+    antworten = [];
+    const a = attrappe([], {});
+    const erg = await fuehreRoundupAus(a.zugriff, DO, { ...konfig, secretAblauf: "2026-11-01" }, "https://x", undefined as never, () => {});
+    expect(a.secretPruefungen).toEqual([["2026-11-01", "2026-10-09"]]);
+    expect(erg).toMatchObject({ lauf: "ok", secret: { zugestellt: 1, abgeraeumt: 0 } });
+    expect(a.beendet[0]).toMatchObject({ schritte: { secret_zugestellt: 1, secret_abgeraeumt: 0 } });
   });
 });
