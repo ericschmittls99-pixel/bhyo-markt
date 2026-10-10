@@ -4,6 +4,7 @@
  * Stichtag, Markierung nur bei Erfolg, Drosselung einmal wiederholt, Log je
  * Nutzer nur mit ID. sendeMail ist gemockt (eigene Tests in lib/mail).
  */
+import { DrizzleQueryError } from "drizzle-orm/errors";
 import { describe, expect, it, vi } from "vitest";
 
 const gesendet: { id: string; betreff: string; text: string }[] = [];
@@ -205,6 +206,20 @@ describe("fuehreRoundupAus", () => {
     const graph = await fuehreRoundupAus(a.zugriff, new Date("2026-10-12T05:07:00Z"), { ...konfig, modus: "graph" }, "https://x", undefined as never, () => {});
     expect(graph).toMatchObject({ lauf: "ok", fehler: 1, stoerungen: { gemeldet: 1, abgeraeumt: 0 } });
     expect([...a.stoerungen].sort()).toEqual(["nicht_konfiguriert", "secret_abgelaufen"]);
+  });
+  it("E73: ein DB-Fehler mit Adresse in den params landet nur als Fehlerklasse in job_lauf.fehler", async () => {
+    gesendet.length = 0;
+    antworten = [];
+    const a = attrappe([{ id: "u1", email: "a@bhyo.de", seit: null }], {});
+    const pg = Object.assign(new Error('duplicate key value violates unique constraint "x" (eric.schmitt@bhyo.de)'), { name: "PostgresError", code: "23505" });
+    const drizzle = new DrizzleQueryError('insert into "aenderung" (…) values ($1, $2)', ["u1", "eric.schmitt@bhyo.de"], pg);
+    a.zugriff.zaehle = async () => {
+      throw drizzle;
+    };
+    await expect(fuehreRoundupAus(a.zugriff, DO, konfig, "https://x", undefined as never, () => {})).rejects.toBe(drizzle);
+    expect(drizzle.message).toContain("eric.schmitt@bhyo.de"); // die Simulation traegt die Adresse wirklich
+    expect(a.beendet[0]).toMatchObject({ ergebnis: "fehler", fehler: "db_fehler/PostgresError/23505" });
+    expect(JSON.stringify(a.beendet)).not.toMatch(/@/);
   });
   it("Secret-Ablauf: das Datum aus der Konfiguration geht mit dem Stichtag an die Pruefung, Zaehler in schritte", async () => {
     gesendet.length = 0;

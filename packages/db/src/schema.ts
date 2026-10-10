@@ -1352,7 +1352,11 @@ export const jobLauf = pgTable(
     ergebnis: text("ergebnis").notNull().default("laeuft"),
     /** Zugestellte Hinweise (ok) — null, solange der Lauf laeuft oder scheiterte. */
     anzahl: integer("anzahl"),
-    /** Fehlertext (ergebnis = fehler). */
+    /**
+     * Fehlerklasse und Code (ergebnis = fehler), z. B. db_fehler/PostgresError/23505 —
+     * nie e.message (E73, Eric 10.10.2026: Drizzle-Fehler nennen Parameter, darunter
+     * Adressen). Herkunft: packages/db/src/fehler.ts fehlerKlasse().
+     */
     fehler: text("fehler"),
     /** Abgeraeumte Job-Hinweise (Bedingung zum Stichtag nicht mehr gueltig), seit Migration 0041. */
     abgeraeumt: integer("abgeraeumt"),

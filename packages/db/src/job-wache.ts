@@ -14,6 +14,7 @@
  */
 import postgres from "postgres";
 
+import { istFehlerKlasse } from "./fehler";
 import { faelligerStichtag } from "./job-wache-stichtag";
 
 const url = process.env.DATABASE_URL;
@@ -32,15 +33,19 @@ async function main() {
   console.log(`JOBWACHE host=${ziel.hostname} db=${ziel.pathname.slice(1)} jetzt=${jetzt.toISOString()} stichtag=${stichtag} (${stichtagArg ? "vorgegeben" : faellig.grund})`);
   // Betrieb 06.10.2026: ausgeloest_am und schritte (ms je Schritt) zeigen, wo die Laufzeit bleibt.
   const laeufe = await sql`select job, stichtag::text as stichtag, ergebnis, anzahl, abgeraeumt, ausgeloest_am::text as ausgeloest_am,
-                                  gestartet_am::text as gestartet_am, beendet_am::text as beendet_am, schritte, fehler
+                                  gestartet_am::text as gestartet_am, beendet_am::text as beendet_am, schritte,
+                                  fehler, length(fehler) as fehler_laenge
                              from job_lauf where job = 'verifikation' order by stichtag desc limit 5`;
-  console.log("LETZTE_LAEUFE " + JSON.stringify(laeufe));
+  // E73 (Eric 10.10.2026): im oeffentlichen Log nur eine Fehlerklasse (db_fehler/…), nie ein
+  // Freitext — aeltere Zeilen koennten noch e.message mit Parametern tragen; davon nur die Laenge.
+  const sicher = laeufe.map(({ fehler, ...l }) => ({ ...l, fehler: istFehlerKlasse(fehler) ? fehler : null }));
+  console.log("LETZTE_LAEUFE " + JSON.stringify(sicher));
   const ok = laeufe.find((l) => l.stichtag === stichtag && l.ergebnis === "ok");
   await sql.end();
   if (!ok) {
     const heutiger = laeufe.find((l) => l.stichtag === stichtag);
     console.error(
-      `::error::JOB-WACHE ROT: fuer ${stichtag} ${heutiger ? `steht der Lauf auf „${heutiger.ergebnis}" (${heutiger.fehler ?? "ohne Fehlertext"})` : "gibt es keinen Lauf des Verifikations-Jobs"}.`,
+      `::error::JOB-WACHE ROT: fuer ${stichtag} ${heutiger ? `steht der Lauf auf „${heutiger.ergebnis}" (${istFehlerKlasse(heutiger.fehler) ? heutiger.fehler : heutiger.fehler_laenge ? `Freitext, ${heutiger.fehler_laenge} Zeichen, nicht gedruckt` : "ohne Fehlertext"})` : "gibt es keinen Lauf des Verifikations-Jobs"}.`,
     );
     process.exit(1);
   }

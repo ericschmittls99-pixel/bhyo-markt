@@ -31,6 +31,7 @@
  */
 import { and, eq, sql } from "drizzle-orm";
 
+import { fehlerKlasse } from "@bhyo/db/fehler";
 import { benutzer, inboxEintrag, jobLauf } from "@bhyo/db/schema";
 
 import { ZEITZONE, kalendertag } from "@/lib/datum";
@@ -287,8 +288,9 @@ export async function fuehreRoundupAus(
       secret,
     };
   } catch (e) {
-    const text = e instanceof Error ? e.message : String(e);
-    await zugriff.beendeLauf(laufId, { ergebnis: "fehler", anzahl: gesendet, schritte: { modus: konfig.modus, wuerde_senden: wuerde, gesendet, protokolliert, fehler }, fehler: text }).catch(() => {});
+    // E73 (Eric 10.10.2026): nie e.message in die Datenbank — ein Drizzle-Fehler nennt Query und
+    // Parameter (Adressen moeglich). Nur Fehlerklasse und Code (packages/db/src/fehler.ts).
+    await zugriff.beendeLauf(laufId, { ergebnis: "fehler", anzahl: gesendet, schritte: { modus: konfig.modus, wuerde_senden: wuerde, gesendet, protokolliert, fehler }, fehler: fehlerKlasse(e) }).catch(() => {});
     throw e;
   }
 }
