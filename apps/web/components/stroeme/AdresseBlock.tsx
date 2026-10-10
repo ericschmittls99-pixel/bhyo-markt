@@ -6,7 +6,7 @@ import type { Map as MlMap, Marker as MlMarker } from "maplibre-gl";
 
 import { OSM_STYLE } from "@/components/karte/KarteMap";
 import { uebernimmAusPin, type AdresseWerte, type PinModus } from "@/lib/adresse-aus-pin";
-import { GENAUIGKEIT_LABEL, type Genauigkeit, type PruefErgebnis } from "@/lib/adresse-pruefung";
+import { GENAUIGKEIT_LABEL, ortNachTreffer, type Genauigkeit, type PruefErgebnis } from "@/lib/adresse-pruefung";
 import { adresseLabel, type Adresse } from "@/lib/geocode";
 import { adresseLabelMitRegion } from "@/lib/region-label";
 
@@ -210,7 +210,8 @@ export function AdresseBlock({
       if (!res.ok || !data?.ergebnis) throw new Error(data?.error ?? String(res.status));
       const e = data.ergebnis;
       if (e.status === "treffer") {
-        uebernehmen({ ...e.adresse, strasse: e.adresse.strasse ?? w.strasse, hausnummer: e.adresse.hausnummer ?? w.hausnummer }, true, e.genauigkeit);
+        // AP6 (E72 e): der eingegebene Ort bleibt, wenn er als Ortsteil zum Dienst-Ort passt.
+        uebernehmen({ ...e.adresse, strasse: e.adresse.strasse ?? w.strasse, hausnummer: e.adresse.hausnummer ?? w.hausnummer, ort: ortNachTreffer(w.ort, e.adresse.ort) }, true, e.genauigkeit);
         setHinweis(e.text);
       } else if (e.status === "kandidaten") {
         setKandidaten(e.kandidaten);

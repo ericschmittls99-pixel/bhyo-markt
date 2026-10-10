@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { entscheideAdresse, normalisiereStrasse, ortsteilAufteilen, suchtextAus, type Kandidat } from "./adresse-pruefung";
+import { entscheideAdresse, normalisiereStrasse, ortNachTreffer, ortsteilAufteilen, suchtextAus, type Kandidat } from "./adresse-pruefung";
 
 const eingabe = { strasse: "Iggelheimer Straße", hausnummer: "12", plz: "67346", ort: "Speyer" };
 const k = (t: Partial<Kandidat>): Kandidat => ({ art: "adresse", strasse: "Iggelheimer Straße", hausnummer: "12", plz: "67346", ort: "Speyer", kreis: null, land: null, lng: 8.43, lat: 49.32, imGebiet: true, ...t });
@@ -68,3 +68,20 @@ describe("ortsteilAufteilen (AP6, Vormerkung §47): amtlicher Ort an den Dienst,
     expect(ortsteilAufteilen("Bad Homburg Kirdorf", ["Bad", "Bad Homburg"])).toEqual({ ort: "Bad Homburg", zusatz: "Kirdorf" });
   });
 });
+
+describe("ortNachTreffer (AP6, Eric 09.10.2026 — Anwendung von E72 e)", () => {
+  it("Ortsteil-Form passt zum Dienst-Ort → Eingabe bleibt", () => {
+    expect(ortNachTreffer("Mannheim-Neckarau", "Mannheim")).toBe("Mannheim-Neckarau");
+    expect(ortNachTreffer("Stuttgart Vaihingen", "Stuttgart")).toBe("Stuttgart Vaihingen");
+    expect(ortNachTreffer("mannheim", "Mannheim")).toBe("mannheim");
+  });
+  it("echte Abweichung → Ort des Dienstes, wie bisher", () => {
+    expect(ortNachTreffer("Ludwigshafen", "Mannheim")).toBe("Mannheim");
+    expect(ortNachTreffer("Neckarau", "Mannheim")).toBe("Mannheim");
+    expect(ortNachTreffer("", "Mannheim")).toBe("Mannheim");
+  });
+  it("ohne Dienst-Ort bleibt die Eingabe", () => {
+    expect(ortNachTreffer("Mannheim-Neckarau", null)).toBe("Mannheim-Neckarau");
+  });
+});
+
