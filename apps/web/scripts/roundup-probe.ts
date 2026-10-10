@@ -100,6 +100,11 @@ async function main() {
       pruefe("4 zweiter Lauf desselben Stichtags uebersprungen", zweiter.lauf === "uebersprungen", zweiter);
 
       // 7: Stoerungs-Hinweis an die Admins — einmal je offener Stoerung, Abraeumen erledigt alle.
+      // Vorzustand neutralisieren (in dieser zurueckgerollten Transaktion): offene Mail-Hinweise
+      // auf der Preview (z. B. fuer Screenshots angelegt) wuerden sonst die Zaehler verschieben
+      // (Befund Lauf 38053404114: st3=0, weil secret_abgelaufen schon offen war).
+      const vorher = { stoerungen: await raeumeStoerungenAb(tx as unknown as AppDb), secret: (await stelleSecretAblaufZu(tx as unknown as AppDb, null, stichtag)).abgeraeumt };
+      console.log(`  Vorzustand abgeraeumt (nur in der Probe-Transaktion): ${JSON.stringify(vorher)}`);
       const [admins] = (await tx.execute(sql`select count(*)::int as n from benutzer where aktiv and rolle = 'admin'`)) as unknown as { n: number }[];
       const st1 = await stelleStoerungZu(tx as unknown as AppDb, "zugriff_verweigert");
       const st2 = await stelleStoerungZu(tx as unknown as AppDb, "zugriff_verweigert");
