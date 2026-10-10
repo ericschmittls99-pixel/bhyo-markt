@@ -22,7 +22,8 @@ if ("fehler" in ziel) {
 }
 const verbindung = createSql(ziel.url, { max: 1 });
 const db = drizzle(verbindung, { schema }) as unknown as AppDb;
-try {
+
+async function main() {
   const heute = new Date();
   const stichtag = heute.toISOString().slice(0, 10);
   const in20 = new Date(heute);
@@ -31,6 +32,11 @@ try {
   const stoerung = await stelleStoerungZu(db, "secret_abgelaufen");
   const secret = await stelleSecretAblaufZu(db, ablauf, stichtag);
   console.log(`PREVIEW-MAIL-HINWEISE stoerung_zugestellt=${stoerung} secret_zugestellt=${secret.zugestellt} secret_abgeraeumt=${secret.abgeraeumt} ablauf=${ablauf} stichtag=${stichtag}`);
-} finally {
-  await verbindung.end();
 }
+
+main()
+  .catch((e) => {
+    console.error("PREVIEW-MAIL-HINWEISE FEHLER:", e instanceof Error ? e.message : e);
+    process.exitCode = 1;
+  })
+  .finally(() => verbindung.end());
