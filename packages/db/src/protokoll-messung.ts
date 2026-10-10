@@ -216,6 +216,25 @@ async function main() {
                     from l`
       : [{ laeufe: null, letzter_stichtag: null, letztes_ergebnis: null }];
     console.log("JOB_LAUF " + JSON.stringify(jl));
+    // AP2.9 (E76, Eric 10.10.2026): die juengste job_lauf-Zeile des Roundups —
+    // Summen des Laufs stehen in schritte (empfaenger, wuerde_senden, gesendet,
+    // fehler, ursache_<code>, modus); die Zeilen je Nutzer bleiben im Worker-Log.
+    // Nur SELECT; ohne Lauf (vor dem ersten Werktag) laeufe=0. Der Fehlertext
+    // (job_lauf.fehler) wird NICHT gedruckt — ein Drizzle-Fehler nennt Query und
+    // Parameter, darunter koennte eine Adresse stehen (E73, Bedingung Eric
+    // 10.10.2026: nur Summen und Modus); gedruckt wird nur seine Laenge.
+    const [rl] = m33!.job_lauf
+      ? await sql`with l as (select * from job_lauf where job = 'roundup' order by stichtag desc limit 1)
+                  select (select count(*)::int from job_lauf where job = 'roundup') as laeufe,
+                         l.stichtag::text as letzter_stichtag, l.ergebnis as letztes_ergebnis, l.anzahl as letzte_anzahl,
+                         length(l.fehler) as fehler_laenge,
+                         l.ausgeloest_am::text as ausgeloest_am,
+                         l.gestartet_am::text as gestartet_am, l.beendet_am::text as beendet_am,
+                         extract(epoch from (l.beendet_am - l.gestartet_am))::numeric(10,3) as dauer_s,
+                         l.schritte as letzte_schritte
+                    from l`
+      : [{ laeufe: null }];
+    console.log("JOB_LAUF_ROUNDUP " + JSON.stringify(rl ?? { laeufe: 0 }));
     const zustaende = await sql`
       select art, zustand, count(*)::int as n
         from strom_verifikation(current_date) group by 1, 2 order by 1, 2`;
