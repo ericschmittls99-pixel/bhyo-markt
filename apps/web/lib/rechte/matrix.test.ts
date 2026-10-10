@@ -39,6 +39,8 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "benutzer.aktiv_setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   // AP2.9 (E76): eigene Roundup-Mail — jede Rolle, nur fuer sich selbst.
   "benutzer.roundup_setzen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  // AP2.9 Umschalten: Testversand — nur Admins (Adressregel zusaetzlich in der Aktion).
+  "mail.testversand": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   // AP2.2: die Inbox gehoert der Person — jede Rolle, Objektregel „nur Empfaenger".
   "inbox.gelesen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   "inbox.ungelesen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },

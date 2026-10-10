@@ -5860,3 +5860,16 @@ table.st-tabelle tbody tr:focus-visible {
 [data-theme="dark"] .einst-roundup {
   border-bottom-color: rgba(255, 255, 255, 0.14);
 }
+/* AP2.9 Umschalten: Testversand-Knopf unter dem Schalter, Ergebnis als ruhige Zeile. */
+.einst-testversand {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem 0.75rem;
+  margin-top: 0.75rem;
+}
+.einst-testversand-ergebnis {
+  flex-basis: 100%;
+  margin: 0;
+  font-size: 0.875rem;
+}

@@ -11,8 +11,8 @@ import { heuteBerlin, kalendertag } from "@/lib/datum";
 import { ladeParameterUebersicht } from "@/lib/parameter-server";
 import { ladeSektorUebersicht } from "@/lib/sektor-server";
 import { EmptyState } from "@/components/shell/EmptyState";
-import { withDb } from "@/lib/db";
-import { darf } from "@/lib/rechte";
+import { getBindings, withDb } from "@/lib/db";
+import { darf, normalisiereEmail } from "@/lib/rechte";
 import { aktuellerZugang } from "@/lib/rechte/wache";
 
 export const dynamic = "force-dynamic";
@@ -32,6 +32,15 @@ const REITER = [
 ] as const;
 type Reiter = (typeof REITER)[number][0];
 
+async function testadresseIst(email: string): Promise<boolean> {
+  try {
+    const test = normalisiereEmail((await getBindings()).MAIL_TEST_EMPFAENGER ?? "");
+    return !!test && normalisiereEmail(email) === test;
+  } catch {
+    return false;
+  }
+}
+
 export default async function EinstellungenPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const sp = await searchParams;
   const reiterRoh = Array.isArray(sp.reiter) ? sp.reiter[0] : sp.reiter;
@@ -43,6 +52,11 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
     zugang.art === "erlaubt"
       ? ((await withDb((db) => db.select({ roundup: benutzer.roundup }).from(benutzer).where(eq(benutzer.id, zugang.id)).limit(1)))[0]?.roundup ?? true)
       : true;
+
+  // AP2.9 Umschalten: Testversand-Knopf nur fuer den Admin, der die hinterlegte Testadresse ist
+  // (MAIL_TEST_EMPFAENGER); die Aktion prueft dieselbe Regel noch einmal.
+  const testversand =
+    istAdmin && zugang.art === "erlaubt" && (await testadresseIst(zugang.email));
 
   if (!istAdmin) {
     return (
@@ -89,7 +103,7 @@ export default async function EinstellungenPage({ searchParams }: { searchParams
         <ReferenzlistenVerwaltung sektoren={sektoren} />
       ) : (
       <>
-      <RoundupEinstellung an={roundupAn} />
+      <RoundupEinstellung an={roundupAn} testversand={testversand} />
       <BenutzerVerwaltung
         benutzer={liste.map((b) => ({
           id: b.id,

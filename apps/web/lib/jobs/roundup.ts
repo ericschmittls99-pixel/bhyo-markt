@@ -14,18 +14,29 @@
  * laeuft alles bis auf den Versand; das Protokoll-Ereignis entsteht trotzdem.
  *
  * Graph-Fehler brechen den Lauf nicht ab: je Nutzer ein Ergebnis, Drosselung
- * wird einmal nach Retry-After (gedeckelt) wiederholt. Der Admin-Hinweis bei
- * Stoerung kommt mit dem Umschalt-Schritt (eigener Inbox-Typ).
+ * wird einmal nach Retry-After (gedeckelt) wiederholt.
+ *
+ * Umschalten vorbereiten (Eric 10.10.2026): dauerhafte Ursachen (Secret,
+ * Zustimmung, Postfach, nicht konfiguriert) werden als Admin-Hinweis
+ * mail_stoerung zugestellt, einmal je offener Stoerung; sendet ein spaeterer
+ * Lauf im Modus graph wieder, raeumt er sie ab. Der Secret-Ablauf wird 30 und
+ * 7 Tage vorher gemeldet (M365_SECRET_ABLAUF). Die Summen des Laufs stehen in
+ * job_lauf.schritte (modus, empfaenger, abgemeldet, wuerde_senden, nichts_neu,
+ * gesendet, protokolliert, fehler, ursache_<code>, stoerung_*, secret_*) —
+ * lesbar ueber den Leseweg, ohne Worker-Log. „gesendet" zaehlt NUR echte
+ * Zustellungen (modus=graph); im Probemodus heisst der Zaehler protokolliert.
  *
  * Datenbankzugriff steckt in `roundupZugriff`; der Ablauf selbst nimmt die
  * Schnittstelle herein und laesst sich ohne Datenbank testen.
  */
 import { and, eq, sql } from "drizzle-orm";
 
+import { fehlerKlasse } from "@bhyo/db/fehler";
 import { benutzer, inboxEintrag, jobLauf } from "@bhyo/db/schema";
 
 import { ZEITZONE, kalendertag } from "@/lib/datum";
 import type { AppDb } from "@/lib/db";
+import { istStoerung, raeumeStoerungenAb, stelleSecretAblaufZu, stelleStoerungZu, type StoerungUrsache } from "@/lib/inbox/mail-hinweise";
 import { sendeMail, type MailErgebnis, type MailKonfig } from "@/lib/mail";
 import type { Schreiber } from "@/lib/protokoll";
 
@@ -52,6 +63,8 @@ export const ROUNDUP_LABEL: readonly (readonly [string, string])[] = [
   ["freischaltung", "Freischaltungen"],
   ["zugriff_abgelehnt", "Abgelehnte Zugriffe"],
   ["import_abgeschlossen", "Abgeschlossene Importe"],
+  ["mail_stoerung", "Störungen der Tages-Mail"],
+  ["mail_secret_laeuft_ab", "Mail-Secret läuft ab"],
 ];
 
 const WOCHENTAG = new Intl.DateTimeFormat("en-US", { timeZone: ZEITZONE, weekday: "short" });
@@ -110,9 +123,15 @@ export function roundupText(zaehler: readonly TypZaehler[], basisUrl: string): {
 export interface RoundupZugriff {
   /** Lauf-Zeile anlegen; null, wenn es fuer den Stichtag schon einen Lauf gibt (Idempotenz). */
   beginneLauf(stichtag: string, jetzt: Date): Promise<string | null>;
-  beendeLauf(laufId: string, ergebnis: { ergebnis: "ok" | "fehler"; anzahl: number; schritte: Record<string, number>; fehler?: string }): Promise<void>;
+  beendeLauf(laufId: string, ergebnis: { ergebnis: "ok" | "fehler"; anzahl: number; schritte: Record<string, number | string>; fehler?: string }): Promise<void>;
   /** Aktive Nutzer mit Roundup an. */
   ladeEmpfaenger(): Promise<Empfaenger[]>;
+  /** Aktive Nutzer mit Roundup aus — nur als Zaehler fuer die Summen des Laufs. */
+  zaehleAbgemeldet(): Promise<number>;
+  /** Admin-Hinweise zum Versand (lib/inbox/mail-hinweise.ts): neu zugestellte bzw. abgeraeumte Eintraege. */
+  meldeStoerung(ursache: StoerungUrsache): Promise<number>;
+  raeumeStoerungenAb(): Promise<number>;
+  pruefeSecretAblauf(ablauf: string | null, stichtag: string): Promise<{ zugestellt: number; abgeraeumt: number }>;
   zaehle(nutzerId: string, seit: Date | null): Promise<TypZaehler[]>;
   /** Versand und Markierung in EINER Transaktion: markiert nur, wenn der Versand ok war. */
   sendeUndMarkiere(nutzerId: string, jetzt: Date, senden: (tx: Schreiber) => Promise<MailErgebnis>): Promise<MailErgebnis>;
@@ -131,6 +150,13 @@ export function roundupZugriff(db: AppDb): RoundupZugriff {
       const rows = await db.select({ id: benutzer.id, email: benutzer.email, seit: benutzer.roundupZuletztAm }).from(benutzer).where(and(eq(benutzer.aktiv, true), eq(benutzer.roundup, true))).orderBy(benutzer.email);
       return rows.map((r) => ({ id: r.id, email: r.email, seit: r.seit }));
     },
+    async zaehleAbgemeldet() {
+      const [r] = await db.select({ n: sql<number>`count(*)::int` }).from(benutzer).where(and(eq(benutzer.aktiv, true), eq(benutzer.roundup, false)));
+      return Number(r?.n ?? 0);
+    },
+    meldeStoerung: (ursache) => stelleStoerungZu(db, ursache),
+    raeumeStoerungenAb: () => raeumeStoerungenAb(db),
+    pruefeSecretAblauf: (ablauf, stichtag) => stelleSecretAblaufZu(db, ablauf, stichtag),
     async zaehle(nutzerId, seit) {
       const neu = seit ? sql<number>`count(*) filter (where ${inboxEintrag.erstelltAm} > ${seit})::int` : sql<number>`count(*)::int`;
       const rows = await db
@@ -153,7 +179,22 @@ export function roundupZugriff(db: AppDb): RoundupZugriff {
 export type RoundupErgebnis =
   | { lauf: "wochenende"; stichtag: string }
   | { lauf: "uebersprungen"; stichtag: string }
-  | { lauf: "ok"; stichtag: string; empfaenger: number; wuerdeSenden: number; gesendet: number; fehler: number; ursachen: Record<string, number> };
+  | {
+      lauf: "ok";
+      stichtag: string;
+      modus: MailKonfig["modus"];
+      empfaenger: number;
+      abgemeldet: number;
+      wuerdeSenden: number;
+      nichtsNeu: number;
+      /** Nur modus=graph (echte Zustellungen); im Probemodus zaehlt protokolliert. */
+      gesendet: number;
+      protokolliert: number;
+      fehler: number;
+      ursachen: Record<string, number>;
+      stoerungen: { gemeldet: number; abgeraeumt: number };
+      secret: { zugestellt: number; abgeraeumt: number };
+    };
 
 const warte = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -172,9 +213,14 @@ export async function fuehreRoundupAus(
 
   let wuerde = 0;
   let gesendet = 0;
+  let protokolliert = 0;
   let fehler = 0;
   const ursachen: Record<string, number> = {};
   try {
+    // E76 Nr. 8: proaktive Secret-Meldung an die Admins, unabhaengig vom Modus (das Datum
+    // ist hinterlegt, bevor umgeschaltet wird) — offene Hinweise auf ein altes Datum abraeumen.
+    const secret = await zugriff.pruefeSecretAblauf(konfig.secretAblauf, stichtag);
+    const abgemeldet = await zugriff.zaehleAbgemeldet();
     const empfaenger = await zugriff.ladeEmpfaenger();
     for (const e of empfaenger) {
       const zaehler = await zugriff.zaehle(e.id, e.seit);
@@ -192,19 +238,59 @@ export async function fuehreRoundupAus(
         await warte(Math.min(erg.wiederholenNach, DROSSEL_WARTEN_MAX_S) * 1000);
         erg = await zugriff.sendeUndMarkiere(e.id, jetzt, (tx) => sendeMail(tx, auftrag, konfig, holen, log));
       }
-      if (erg.ok) gesendet++;
-      else {
+      if (erg.ok) {
+        // Eric 09.10.2026: „gesendet" nur mit modus=graph — ein Probemodus-Ereignis ist kein Versand.
+        if (erg.modus === "graph") gesendet++;
+        else protokolliert++;
+      } else {
         fehler++;
         ursachen[erg.ursache] = (ursachen[erg.ursache] ?? 0) + 1;
       }
     }
-    // job_lauf.schritte ist Zahl je Schluessel: Ursachen als ursache_<code>; der Modus steht im Log.
-    const schritte: Record<string, number> = { empfaenger: empfaenger.length, wuerde_senden: wuerde, gesendet, fehler, ...Object.fromEntries(Object.entries(ursachen).map(([k, v]) => [`ursache_${k}`, v])) };
+    // E76 Nr. 6: dauerhafte Ursachen als Admin-Hinweis, einmal je offener Stoerung (Index);
+    // sendet der Lauf im Modus graph und ohne Stoerung, ist die Stoerung behoben.
+    const stoerungen = { gemeldet: 0, abgeraeumt: 0 };
+    const dauerhaft = Object.keys(ursachen).filter(istStoerung);
+    for (const u of dauerhaft) stoerungen.gemeldet += await zugriff.meldeStoerung(u);
+    if (dauerhaft.length === 0 && gesendet > 0) stoerungen.abgeraeumt = await zugriff.raeumeStoerungenAb();
+    log(`ROUNDUP summe modus=${konfig.modus} empfaenger=${empfaenger.length} abgemeldet=${abgemeldet} wuerde_senden=${wuerde} nichts_neu=${empfaenger.length - wuerde} gesendet=${gesendet} protokolliert=${protokolliert} fehler=${fehler} stoerung_gemeldet=${stoerungen.gemeldet} stoerung_abgeraeumt=${stoerungen.abgeraeumt} secret_zugestellt=${secret.zugestellt} secret_abgeraeumt=${secret.abgeraeumt}`);
+    // job_lauf.schritte: Zahlen je Schluessel plus der Modus als Text (Eric 10.10.2026: die Zeile
+    // muss ohne Log-Zugang lesbar sein); Ursachen als ursache_<code>.
+    const schritte: Record<string, number | string> = {
+      modus: konfig.modus,
+      empfaenger: empfaenger.length,
+      abgemeldet,
+      wuerde_senden: wuerde,
+      nichts_neu: empfaenger.length - wuerde,
+      gesendet,
+      protokolliert,
+      fehler,
+      ...Object.fromEntries(Object.entries(ursachen).map(([k, v]) => [`ursache_${k}`, v])),
+      stoerung_gemeldet: stoerungen.gemeldet,
+      stoerung_abgeraeumt: stoerungen.abgeraeumt,
+      secret_zugestellt: secret.zugestellt,
+      secret_abgeraeumt: secret.abgeraeumt,
+    };
     await zugriff.beendeLauf(laufId, { ergebnis: "ok", anzahl: gesendet, schritte });
-    return { lauf: "ok", stichtag, empfaenger: empfaenger.length, wuerdeSenden: wuerde, gesendet, fehler, ursachen };
+    return {
+      lauf: "ok",
+      stichtag,
+      modus: konfig.modus,
+      empfaenger: empfaenger.length,
+      abgemeldet,
+      wuerdeSenden: wuerde,
+      nichtsNeu: empfaenger.length - wuerde,
+      gesendet,
+      protokolliert,
+      fehler,
+      ursachen,
+      stoerungen,
+      secret,
+    };
   } catch (e) {
-    const text = e instanceof Error ? e.message : String(e);
-    await zugriff.beendeLauf(laufId, { ergebnis: "fehler", anzahl: gesendet, schritte: { wuerde_senden: wuerde, gesendet, fehler }, fehler: text }).catch(() => {});
+    // E73 (Eric 10.10.2026): nie e.message in die Datenbank — ein Drizzle-Fehler nennt Query und
+    // Parameter (Adressen moeglich). Nur Fehlerklasse und Code (packages/db/src/fehler.ts).
+    await zugriff.beendeLauf(laufId, { ergebnis: "fehler", anzahl: gesendet, schritte: { modus: konfig.modus, wuerde_senden: wuerde, gesendet, protokolliert, fehler }, fehler: fehlerKlasse(e) }).catch(() => {});
     throw e;
   }
 }

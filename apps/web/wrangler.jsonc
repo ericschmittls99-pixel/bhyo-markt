@@ -66,6 +66,12 @@
     // Secrets M365_TENANT_ID, M365_CLIENT_ID, M365_CLIENT_SECRET als Wrangler-Secrets.
     "MAIL_MODUS": "protokoll",
     "MAIL_ABSENDER": "news@bhyo.de",
+    // AP2.9 Umschalten: Testversand (Aktion mail.testversand) geht NUR an diese Adresse — und nur,
+    // wenn der angemeldete Admin sie selbst ist. Keine Mail an andere, kein Freitext-Empfaenger.
+    "MAIL_TEST_EMPFAENGER": "eric.schmitt@bhyo.de",
+    // AP2.9 Umschalten (E76 Nr. 8): Ablaufdatum des Entra-Secrets als JJJJ-MM-TT, traegt Eric mit dem
+    // Secret ein (kein Secret, nur ein Datum); der Roundup-Job meldet 30 und 7 Tage vorher.
+    // "M365_SECRET_ABLAUF": "2027-10-01",
     // AP2.9 (E76): Basis-URL fuer Links im Roundup (Inbox, Abmelden).
     "APP_URL": "https://bhyo-markt.bhyo.workers.dev"
   },
@@ -98,6 +104,7 @@
         "ACCESS_AUD": "133168fc7c07ed99b522187b5ff097291835f427d21b2e9af0ca8cbf4936befd",
         "MAIL_MODUS": "protokoll",
         "MAIL_ABSENDER": "news@bhyo.de",
+        "MAIL_TEST_EMPFAENGER": "eric.schmitt@bhyo.de",
         "APP_URL": "https://bhyo-markt-preview.bhyo.workers.dev"
       }
     }

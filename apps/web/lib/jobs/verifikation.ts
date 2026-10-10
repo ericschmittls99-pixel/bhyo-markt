@@ -9,6 +9,7 @@
  * Kein Zugriff auf Next, Header oder Cloudflare-Kontext: Der Aufrufer
  * (worker.ts) reicht die Datenbank und den Zeitpunkt herein.
  */
+import { fehlerKlasse } from "@bhyo/db/fehler";
 import { jobLauf } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 
@@ -54,10 +55,11 @@ export async function fuehreVerifikationsJobAus(db: AppDb, jetzt: Date): Promise
       .where(eq(jobLauf.id, lauf.id));
     return { lauf: "ok", stichtag, hinweise };
   } catch (e) {
-    const fehler = e instanceof Error ? e.message : String(e);
+    // E73 (Eric 10.10.2026): Fehlerklasse und Code statt e.message (Drizzle nennt Parameter).
+    const fehler = fehlerKlasse(e);
     await db
       .update(jobLauf)
-      .set({ ergebnis: "fehler", fehler: fehler.slice(0, 2000), beendetAm: new Date() })
+      .set({ ergebnis: "fehler", fehler, beendetAm: new Date() })
       .where(eq(jobLauf.id, lauf.id))
       .catch(() => {});
     return { lauf: "fehler", stichtag, fehler };

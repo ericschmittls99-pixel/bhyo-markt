@@ -941,6 +941,11 @@ export const inboxTyp = pgEnum("inbox_typ", [
   // Erwaehnung (@-Marker) — ereignisgetrieben, je Kommentar und Empfaenger ein Eintrag, keine Buendelung.
   "kommentar",
   "erwaehnung",
+  // AP2.9 Umschalten (E76 Nr. 6/8): Hinweise des Roundup-Jobs an die Admins, ohne Objektbezug —
+  // Stoerung des Versands (Ursache als Code in `ursache`, einmal je offener Stoerung) und
+  // Ablauf des Entra-Secrets (Bezugsdatum = Ablaufdatum aus M365_SECRET_ABLAUF, Stufe 30/7 Tage).
+  "mail_stoerung",
+  "mail_secret_laeuft_ab",
 ]);
 export const inboxZustand = pgEnum("inbox_zustand", ["offen", "erledigt", "verworfen"]);
 
@@ -1125,14 +1130,23 @@ export const inboxEintrag = pgTable(
      * inbox_eintrag_aufgabe_check; dieselbe Regel serverseitig in lib/inbox/aufgabe.ts).
      */
     aufgabe: text("aufgabe"),
+    /**
+     * AP2.9 Umschalten (E76 Nr. 6): Ursache der Versand-Stoerung als Code des
+     * Mail-Adapters (secret_abgelaufen, zugriff_verweigert, …) — nur beim Typ
+     * mail_stoerung, dort Pflicht (CHECK inbox_eintrag_ursache_check). Nie ein
+     * Fehlertext, nie eine Adresse (E73).
+     */
+    ursache: text("ursache"),
   },
   (t) => [
     // Genau EIN Objektbezug: Biomassestrom, Output-Bedarf, (PR a1) Akteur, (PR b) Kontaktperson
     // oder (AP2.7 PR c, Migration 0046) Import-Lauf — 0043 hatte die Spalte, aber nicht den CHECK
     // erweitert; der erste echte Abschluss eines Laufs scheiterte daran (Befund 06.10.2026).
+    // AP2.9 Umschalten: die Mail-Hinweise an die Admins haben KEIN Objekt (sie betreffen den Versand
+    // selbst) — fuer diese beiden Typen ist der Objektbezug leer.
     check(
       "inbox_eintrag_genau_ein_strom_check",
-      sql`num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}, ${t.kommentarId}) = 1`,
+      sql`(num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}, ${t.kommentarId}) = 1 and inbox_typ_text(${t.typ}) not in ('mail_stoerung', 'mail_secret_laeuft_ab')) or (num_nonnulls(${t.biomassestromId}, ${t.outputBedarfId}, ${t.akteurId}, ${t.kontaktpersonId}, ${t.importLaufId}, ${t.kommentarId}) = 0 and inbox_typ_text(${t.typ}) in ('mail_stoerung', 'mail_secret_laeuft_ab'))`,
     ),
     index("inbox_eintrag_kommentar_id_idx").on(t.kommentarId),
     check("inbox_eintrag_anzahl_check", sql`${t.anzahl} >= 1`),
@@ -1145,7 +1159,7 @@ export const inboxEintrag = pgTable(
     // Typ traegt beides (vorher NOT NULL auf beiden Spalten).
     check(
       "inbox_eintrag_urheber_check",
-      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist', 'kontaktperson_loeschpruefung', 'biomasse_wird_frei') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
+      sql`inbox_typ_text(${t.typ}) in ('verifikation_laeuft_ab', 'verifikation_abgelaufen', 'akteur_verwaist', 'kontaktperson_loeschpruefung', 'biomasse_wird_frei', 'mail_stoerung', 'mail_secret_laeuft_ab') or (${t.ausloeserId} is not null and ${t.ereignisId} is not null)`,
     ),
     uniqueIndex("inbox_eintrag_biomasse_offen_uidx")
       .on(t.empfaengerId, t.biomassestromId)
@@ -1178,7 +1192,21 @@ export const inboxEintrag = pgTable(
     // leere Bezugsdatum (Pruefdatum unbekannt) nur einmal zustellt — das kann
     // der Schema-Builder nicht ausdruecken; die SQL-Datei ist massgeblich.
     // AP2.8 (E70): Stufe nur beim Wird-frei-Hinweis, dort Pflicht.
-    check("inbox_eintrag_stufe_check", sql`(inbox_typ_text(${t.typ}) = 'biomasse_wird_frei') = (${t.stufe} is not null)`),
+    // AP2.9 Umschalten: ebenso beim Secret-Ablauf (Stufe = Vorlauf 30 oder 7 Tage).
+    check("inbox_eintrag_stufe_check", sql`(inbox_typ_text(${t.typ}) in ('biomasse_wird_frei', 'mail_secret_laeuft_ab')) = (${t.stufe} is not null)`),
+    // AP2.9 Umschalten (E76 Nr. 6): Ursache nur bei der Versand-Stoerung, dort Pflicht.
+    check("inbox_eintrag_ursache_check", sql`(inbox_typ_text(${t.typ}) = 'mail_stoerung') = (${t.ursache} is not null)`),
+    // AP2.9 Umschalten: Stoerung — je Admin und Ursache hoechstens EIN offener Eintrag („einmal je
+    // Stoerung"); behoben = vom Job erledigt, eine spaetere Stoerung derselben Ursache entsteht neu.
+    uniqueIndex("inbox_eintrag_mail_stoerung_uidx")
+      .on(t.empfaengerId, t.ursache)
+      .where(sql`${t.zustand} = 'offen' and inbox_typ_text(${t.typ}) = 'mail_stoerung'`),
+    // AP2.9 Umschalten (E76 Nr. 8): Secret-Ablauf — je Admin, Ablaufdatum (Bezugsdatum) und Stufe genau
+    // EIN Eintrag ueber alle Zustaende (wie wird_frei): ein erledigter Hinweis entsteht fuer denselben
+    // Schluessel nie neu; ein neues Secret hat ein neues Ablaufdatum.
+    uniqueIndex("inbox_eintrag_mail_secret_uidx")
+      .on(t.empfaengerId, t.bezugsdatum, t.stufe)
+      .where(sql`inbox_typ_text(${t.typ}) = 'mail_secret_laeuft_ab'`),
     // AP2.8 (E70): je Empfaenger, Strom, frei_ab (Bezugsdatum) und Stufe genau EIN Eintrag — ueber alle
     // Zustaende, damit ein erledigter Eintrag fuer denselben Schluessel nie neu entsteht (Regel 6).
     uniqueIndex("inbox_eintrag_wird_frei_uidx")
@@ -1324,7 +1352,11 @@ export const jobLauf = pgTable(
     ergebnis: text("ergebnis").notNull().default("laeuft"),
     /** Zugestellte Hinweise (ok) — null, solange der Lauf laeuft oder scheiterte. */
     anzahl: integer("anzahl"),
-    /** Fehlertext (ergebnis = fehler). */
+    /**
+     * Fehlerklasse und Code (ergebnis = fehler), z. B. db_fehler/PostgresError/23505 —
+     * nie e.message (E73, Eric 10.10.2026: Drizzle-Fehler nennen Parameter, darunter
+     * Adressen). Herkunft: packages/db/src/fehler.ts fehlerKlasse().
+     */
     fehler: text("fehler"),
     /** Abgeraeumte Job-Hinweise (Bedingung zum Stichtag nicht mehr gueltig), seit Migration 0041. */
     abgeraeumt: integer("abgeraeumt"),
@@ -1334,8 +1366,12 @@ export const jobLauf = pgTable(
      * ausgeloest_am ist der Verbindungsaufbau (Hyperdrive, Neon-Kaltstart).
      */
     ausgeloestAm: timestamp("ausgeloest_am", { withTimezone: true }),
-    /** Millisekunden je Schritt des Laufs ({ verbindung, zustellen, …, gesamt }), seit Migration 0042. */
-    schritte: jsonb("schritte").$type<Record<string, number>>(),
+    /**
+     * Millisekunden je Schritt des Laufs ({ verbindung, zustellen, …, gesamt }), seit Migration 0042.
+     * AP2.9 Umschalten (Eric 10.10.2026): beim Roundup die Summen des Laufs — Zahlen je Schluessel
+     * und der Modus als Text (`modus: protokoll | graph`), damit die Zeile ohne Log lesbar ist.
+     */
+    schritte: jsonb("schritte").$type<Record<string, number | string>>(),
   },
   (t) => [
     unique("job_lauf_job_stichtag_unique").on(t.job, t.stichtag),
