@@ -892,7 +892,6 @@ img.logo-dark {
   border-radius: var(--radius-menu);
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--shadow-menu);
   animation: shell-pop var(--duration-slow) var(--ease-spring);
@@ -1037,7 +1036,6 @@ img.logo-dark {
   border-radius: var(--radius-pill);
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   border: 1px solid var(--glass-edge);
   box-shadow: var(--shadow-menu);
   color: var(--text-primary);
@@ -2938,7 +2936,6 @@ a.zs-wert:hover {
   color: var(--pill-glass-fg);
   font: 500 12px/1 var(--font-sans);
   backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
   max-width: calc(100% - 56px);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -2964,7 +2961,6 @@ a.zs-wert:hover {
   border-radius: var(--radius-pill);
   background: var(--pill-glass-bg);
   backdrop-filter: blur(12px) saturate(140%);
-  -webkit-backdrop-filter: blur(12px) saturate(140%);
 }
 .st-card-ring svg {
   display: block;
@@ -3150,7 +3146,6 @@ table.st-tabelle tbody tr:focus-visible {
   z-index: var(--z-modal);
   background: var(--scrim);
   backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
   animation: shell-fade var(--duration-base) var(--ease-standard);
 }
 .ov {
@@ -3419,7 +3414,6 @@ table.st-tabelle tbody tr:focus-visible {
   z-index: calc(var(--z-modal) + 2);
   background: var(--scrim);
   backdrop-filter: blur(4px);
-  -webkit-backdrop-filter: blur(4px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -3623,7 +3617,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-card);
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-card);
   pointer-events: none;
   text-align: left;
@@ -3713,7 +3706,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-pill);
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-card);
   width: fit-content;
 }
@@ -3789,7 +3781,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: 14px;
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-card);
 }
 .km-controls-trenner {
@@ -3817,7 +3808,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: 20px;
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-menu);
   overflow: hidden;
   /* faehrt bei Doppelklick/Toggle animiert hoch/runter; beim Ziehen aus */
@@ -3866,7 +3856,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-card);
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-menu);
   font: var(--type-caption);
   color: var(--text-secondary);
@@ -3995,7 +3984,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: 20px;
   background: var(--glass-fill-strong);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
   box-shadow: var(--shadow-menu);
   animation: shell-pop var(--duration-slow) var(--ease-spring);
 }
@@ -4101,7 +4089,6 @@ table.st-tabelle tbody tr:focus-visible {
   border: 1px solid var(--glass-edge);
   box-shadow: var(--shadow-card);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
 }
 .aw-modul--b2 { grid-column: span 2; grid-row: span 2; }
 .aw-modul--h2 { grid-row: span 2; }
@@ -5962,7 +5949,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-md);
   background: var(--glass-fill-strong);
   backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
   border: 1px solid var(--border-subtle);
   box-shadow: var(--shadow-modal);
 }
