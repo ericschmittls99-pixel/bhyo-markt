@@ -60,10 +60,17 @@ const KONFIG = { umgebung: "preview", modus: "protokoll" as const, absender: "ne
 const JETZT = new Date("2099-01-05T06:07:00Z");
 const SAMSTAG = new Date("2099-01-03T06:07:00Z");
 const STICHTAG = "2099-01-05";
-/** Probe-Nutzer, nur in der zurueckgerollten Transaktion: A mit Neuem, B ohne, C abgemeldet. */
+/**
+ * Probe-Nutzer, nur in der zurueckgerollten Transaktion: A mit Neuem (nie ein
+ * Roundup), B ohne, C abgemeldet, D mit frueherem Roundup — ein alter und ein
+ * neuer Eintrag, damit der Zweig „neu seit roundup_zuletzt_am" der Zaehl-
+ * Abfrage auch auf der Wegwerf-DB laeuft (auf der Preview brach er am
+ * 12.10.2026 beim ersten echten Nutzer mit gesetztem Zeitpunkt, Lauf 38254504703).
+ */
 const NUTZER_A = "00000000-0000-4000-8000-00000000f0a1";
 const NUTZER_B = "00000000-0000-4000-8000-00000000f0b2";
 const NUTZER_C = "00000000-0000-4000-8000-00000000f0c3";
+const NUTZER_D = "00000000-0000-4000-8000-00000000f0d4";
 
 async function main() {
   const ziel = new URL(url!);
@@ -92,9 +99,15 @@ async function main() {
       await tx.execute(sql`insert into benutzer (id, email, name, rolle, aktiv, roundup, roundup_zuletzt_am) values
         (${NUTZER_A}, 'probe-roundup-a@probe.invalid', 'Probe Roundup A', 'betrachter', true, true, null),
         (${NUTZER_B}, 'probe-roundup-b@probe.invalid', 'Probe Roundup B', 'betrachter', true, true, null),
-        (${NUTZER_C}, 'probe-roundup-c@probe.invalid', 'Probe Roundup C', 'betrachter', true, false, null)`);
-      // Ein offener Eintrag ohne Objekt und ohne Urheber (Typ mail_stoerung, CHECKs) fuer A.
-      await tx.execute(sql`insert into inbox_eintrag (empfaenger_id, typ, ursache, anzahl, zustand) values (${NUTZER_A}, 'mail_stoerung'::inbox_typ, 'nicht_konfiguriert', 1, 'offen')`);
+        (${NUTZER_C}, 'probe-roundup-c@probe.invalid', 'Probe Roundup C', 'betrachter', true, false, null),
+        (${NUTZER_D}, 'probe-roundup-d@probe.invalid', 'Probe Roundup D', 'betrachter', true, true, now() - interval '1 day')`);
+      // Offene Eintraege ohne Objekt und ohne Urheber (Typ mail_stoerung, CHECKs): einer fuer A;
+      // fuer D einer vor und einer nach dem letzten Roundup (now() ist je Transaktion konstant,
+      // deshalb ausdrueckliche Zeitpunkte; der Index verlangt je Ursache einen offenen Eintrag).
+      await tx.execute(sql`insert into inbox_eintrag (empfaenger_id, typ, ursache, anzahl, zustand, erstellt_am) values
+        (${NUTZER_A}, 'mail_stoerung'::inbox_typ, 'nicht_konfiguriert', 1, 'offen', now()),
+        (${NUTZER_D}, 'mail_stoerung'::inbox_typ, 'nicht_konfiguriert', 1, 'offen', now() - interval '2 days'),
+        (${NUTZER_D}, 'mail_stoerung'::inbox_typ, 'zugriff_verweigert', 1, 'offen', now())`);
       const ereignisseSql = sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet'`;
       const modusSql = sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and text like '%Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: %'`;
       const grundlinie = { ereignisse: await zaehl(ereignisseSql), modus: await zaehl(modusSql), laeufe: await zaehl(sql`select count(*)::int as n from job_lauf where job = 'roundup' and stichtag >= '2099-01-01'`) };
@@ -122,10 +135,11 @@ async function main() {
       const zeileA = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_A} `)) ?? null;
       const zeileB = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_B} `)) ?? null;
       const zeileC = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_C} `)) ?? null;
+      const zeileD = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_D} `)) ?? null;
       pruefe(
-        "1 Probe-Nutzer: A wuerde senden (neu=1, offen=1), B nichts neu (neu=0, offen=0), C abgemeldet ohne Zeile",
-        /wuerde_senden=ja neu=1 offen=1 typen=\{"mail_stoerung":\{"offen":1,"neu":1\}\}$/.test(zeileA ?? "") && /wuerde_senden=nein neu=0 offen=0 /.test(zeileB ?? "") && zeileC === null,
-        { a: zeileA, b: zeileB, c: zeileC },
+        "1 Probe-Nutzer: A wuerde senden (neu=1, offen=1), B nichts neu (neu=0, offen=0), C abgemeldet ohne Zeile, D seit letztem Roundup (neu=1, offen=2)",
+        /wuerde_senden=ja neu=1 offen=1 typen=\{"mail_stoerung":\{"offen":1,"neu":1\}\}$/.test(zeileA ?? "") && /wuerde_senden=nein neu=0 offen=0 /.test(zeileB ?? "") && zeileC === null && /wuerde_senden=ja neu=1 offen=2 typen=\{"mail_stoerung":\{"offen":2,"neu":1\}\}$/.test(zeileD ?? ""),
+        { a: zeileA, b: zeileB, c: zeileC, d: zeileD },
       );
       pruefe("2 Log ohne Adresse, Betreff oder Text (nur Nutzer-IDs und Zaehler)", logs.every((l) => !/@/.test(l) && !/betreff=|text=|bhyo:/.test(l)), logs.length);
       const ja = nutzerZeilen.filter((l) => /wuerde_senden=ja/.test(l)).length;
@@ -192,6 +206,9 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("ROUNDUPPROBE FEHLER:", e instanceof Error ? e.message : e);
+  // Drizzle verpackt den Treiberfehler („Failed query") — die Ursache steht in cause (Code, Meldung).
+  const kette: string[] = [];
+  for (let f: unknown = e; f instanceof Error && kette.length < 5; f = f.cause) kette.push(`${f.name}: ${f.message}${"code" in f ? ` (code ${String((f as { code?: unknown }).code)})` : ""}`);
+  console.error("ROUNDUPPROBE FEHLER:", kette.length ? kette.join("\n  <- ") : e);
   process.exit(1);
 });
