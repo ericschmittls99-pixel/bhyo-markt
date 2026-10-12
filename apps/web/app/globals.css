@@ -3749,11 +3749,9 @@ table.st-tabelle tbody tr:focus-visible {
   height: 28px;
 }
 .km-leg-info-pop {
-  position: absolute;
-  bottom: calc(100% + 6px);
-  right: 0;
-  z-index: 130;
-  width: 260px;
+  position: fixed; /* Portal an document.body; right/bottom setzt LegendeHinweis aus der Knopflage */
+  z-index: var(--z-menu);
+  width: min(260px, calc(100vw - 32px));
   padding: 10px 12px;
   border: 1px solid var(--glass-edge);
   border-radius: var(--radius-card);
