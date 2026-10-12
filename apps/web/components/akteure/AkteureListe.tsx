@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useState } from "react";
 
+import { ChipLeiste } from "@/components/stroeme/ChipLeiste";
 import { FacettenChips, type FacettenChipDef } from "@/components/stroeme/FacettenChips";
+import { FilterEntfernen } from "@/components/stroeme/FilterEntfernen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { AKTEUR_ZUSTAND_LABEL, sitzText, zustaendeAus, type AkteurZeile } from "@/lib/akteure-modell";
 import { ruecksetzPatchAus } from "@/lib/filter-modell";
@@ -18,6 +20,7 @@ export function AkteureListe({
   zeilen,
   gesamt,
   facetten,
+  weitereFacetten,
   auswahl,
   irgendeinFilter,
   ruecksetzParams,
@@ -27,6 +30,8 @@ export function AkteureListe({
   zeilen: AkteurZeile[];
   gesamt: number;
   facetten: FacettenChipDef[];
+  /** E77 R2: die abgeleiteten Zustaende als Kaestchen unter „Weitere Filter". */
+  weitereFacetten: FacettenChipDef[];
   auswahl: Record<string, string[]>;
   irgendeinFilter: boolean;
   ruecksetzParams: readonly string[];
@@ -54,24 +59,22 @@ export function AkteureListe({
           {zeilen.length} von {gesamt} {gesamt === 1 ? "Akteur" : "Akteuren"}
           {irgendeinFilter ? " gefiltert" : ""}
         </span>
+        {irgendeinFilter && (
+          <FilterEntfernen
+            onClick={() => {
+              setSuche("");
+              setze(ruecksetzPatchAus(ruecksetzParams));
+            }}
+          />
+        )}
         <Link href="/akteure/dubletten" className="btn btn--ghost btn--sm">
           <i className="ph ph-copy" aria-hidden />
           mögliche Dubletten{dubletten ? ` (${dubletten})` : ""}
         </Link>
       </div>
-      <div className="st-chips ak-chips">
-        <FacettenChips
-          facetten={facetten}
-          auswahl={auswahl}
-          bereichKeys={[]}
-          bereich={{}}
-          mitReset={irgendeinFilter}
-          onReset={() => {
-            setSuche("");
-            setze(ruecksetzPatchAus(ruecksetzParams));
-          }}
-        />
-      </div>
+      <ChipLeiste className="st-chips ak-chips">
+        <FacettenChips facetten={facetten} weitereFacetten={weitereFacetten} auswahl={auswahl} bereichKeys={[]} bereich={{}} />
+      </ChipLeiste>
       {zeilen.length === 0 ? (
         <p className="ov-note ak-leer-text">Keine Akteure für diese Auswahl.</p>
       ) : (

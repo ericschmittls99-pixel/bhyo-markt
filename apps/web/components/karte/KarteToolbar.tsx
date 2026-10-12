@@ -7,6 +7,8 @@ import {
   FacettenChips,
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
+import { ChipLeiste } from "@/components/stroeme/ChipLeiste";
+import { FilterEntfernen } from "@/components/stroeme/FilterEntfernen";
 import { FuerMichSchalter } from "@/components/stroeme/FuerMichSchalter";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
@@ -199,6 +201,7 @@ export function KarteToolbar({
         </div>
         {zeigeFuerMich && <FuerMichSchalter aktiv={fuerMich} onWahl={(mich) => setze({ fuer: mich ? "mich" : null })} />}
 
+        {irgendeinFilter && <FilterEntfernen onClick={zuruecksetzen} />}
         <button
           type="button"
           className={`fchip${offen || facettenAnzahl ? " aktiv" : ""}`}
@@ -214,20 +217,19 @@ export function KarteToolbar({
       </div>
 
       {offen && (
-        <div id="karte-filter" className="km-toolbar km-filterleiste">
+        <ChipLeiste id="karte-filter" className="km-toolbar km-filterleiste">
           <FacettenChips
             facetten={facetten}
             auswahl={auswahl}
             bereichKeys={bereichKeys}
             bereich={bereich}
             // Rückmeldung 2 (28.09.2026): in karte. immer „+", damit die
-            // Filterleiste nicht in eine zweite Zeile umbricht.
+            // Filterleiste nicht in eine zweite Zeile umbricht; E77 R2:
+            // einzeilig mit horizontalem Scrollen (ChipLeiste).
             bereichKompakt
-            mitReset={irgendeinFilter}
-            onReset={zuruecksetzen}
             schliessSignal={schliessSignal}
           />
-        </div>
+        </ChipLeiste>
       )}
     </div>
   );

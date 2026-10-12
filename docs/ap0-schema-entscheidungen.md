@@ -2583,3 +2583,16 @@ Recenter), Toolbar-Bereich über die ganze Breite, Legende und Steuerung
 `popoverLage()` in `lib/karte-modell.ts` (flip/shift, Tests) und
 `bindePopoverLage` in `KarteMap`. Screenshots `docs/screenshots/e77/`.
 
+**Umgesetzt R2 (Filterleiste):** `ChipLeiste` (einzeilig, horizontales
+Scrollen, Verlaufskante links/rechts) in stroeme., karte., auswertung. und
+akteure.; die Chip-Popover hängen als Portal mit fester Lage am Body
+(`usePopoverLage` fixiert, sonst schnitte die scrollende Zeile sie ab);
+`FilterEntfernen` links neben dem Filter-Knopf (akteure.: rechts in der
+Kopfzeile), das Rücksetz-X in den Chips entfällt; ohne weitere Filter kein
+„Weitere Filter"-Knopf; akteure.: `akteur_zustand` als Kästchengruppe unter
+„Weitere Filter" (`darstellung: "kaestchen"`) mit unvollständig, ohne Beleg,
+verwaist, Dublettenverdacht (Paar aus `lib/dubletten.ts`), mit
+Kontaktpersonen (Zähler in der Abfrage); karte.: Filterleiste so breit wie
+nötig (Korrektur Eric), erste Toolbar-Zeile bricht ≤ 640 px um
+(Container-Query, 480-px-Befund aus R1).
+

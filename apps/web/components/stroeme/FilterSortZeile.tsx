@@ -6,6 +6,8 @@ import {
   FacettenChips,
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
+import { ChipLeiste } from "@/components/stroeme/ChipLeiste";
+import { FilterEntfernen } from "@/components/stroeme/FilterEntfernen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import { ExportMenue } from "@/components/ExportMenue";
@@ -96,9 +98,9 @@ export function FilterSortZeile({
   const chipsBreite = (kompaktBereich: boolean) =>
     facetten.reduce((n, f) => n + chipBreite(f.label, auswahl[f.key]?.length ?? 0), 0) +
     chipBreite(kompaktBereich ? "" : "Weitere Filter", bereichAnzahl) +
-    (irgendeinFilter ? 44 : 0) +
     facetten.length * 8;
   const rechtsBreite = (kompaktSort: boolean) =>
+    (irgendeinFilter ? 150 : 0) +
     chipBreite("Filter", filterAnzahl) +
     (kompaktSort ? 36 : chipBreite(sortLabel, 0) + 44) +
     168 + 16 + 12;
@@ -148,7 +150,7 @@ export function FilterSortZeile({
       {!offen && <span className="st-count">{countText}</span>}
 
       {offen && (
-        <div id="strom-filter" className="st-chips">
+        <ChipLeiste id="strom-filter" className="st-chips">
           <FacettenChips
             facetten={facetten}
             auswahl={auswahl}
@@ -157,17 +159,14 @@ export function FilterSortZeile({
             bereichKompakt={bereichKompakt}
             einheit={einheit}
             preisLabel={art === "biomasse" ? "Preiskorridor (Mittel)" : "Preis stofflich"}
-            mitReset={irgendeinFilter}
-            onReset={zuruecksetzen}
             schliessSignal={schliessSignal}
             onPopoverOffen={() => setSortSchliessen((s) => s + 1)}
           />
-        </div>
+        </ChipLeiste>
       )}
-
       <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
-
       <div className="st-filterzeile-rechts">
+        {irgendeinFilter && <FilterEntfernen onClick={zuruecksetzen} />}
         <button
           type="button"
           className={`fchip${offen || filterAnzahl ? " aktiv" : ""}`}

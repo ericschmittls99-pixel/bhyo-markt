@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { usePopoverLage } from "@/components/usePopoverLage";
@@ -33,10 +34,17 @@ export interface FacettenChipDef {
 
 /**
  * Facetten-Chips mit Glas-Popover (Suche, Checkbox-Menue, Auswahl aufheben)
- * plus "Weitere Filter"-Formular-Popover und Reset-X — aus FilterSortZeile
- * extrahiert (PR 6), geteilt zwischen stroeme. und karte. Die Werte leben im
- * Querystring (useUrlZustand); welche Bereichsfelder erscheinen, bestimmt
- * `bereichKeys` (stroeme.: 6, karte.: vonAb/erstellt).
+ * plus "Weitere Filter"-Formular-Popover — aus FilterSortZeile extrahiert
+ * (PR 6), geteilt zwischen stroeme., karte., auswertung. und akteure. Die
+ * Werte leben im Querystring (useUrlZustand); welche Bereichsfelder
+ * erscheinen, bestimmt `bereichKeys` (stroeme.: 6, karte.: vonAb/erstellt).
+ *
+ * E77 R2: Die Popover haengen als Portal am Body mit fester Lage (die
+ * Chip-Leiste scrollt horizontal und wuerde sie sonst abschneiden); „Filter
+ * entfernen" sitzt bei den Eltern neben dem Filter-Knopf (FilterEntfernen);
+ * ohne weitere Filter gibt es keinen „Weitere Filter"-Knopf; `weitereFacetten`
+ * sind Mehrfachauswahlen, die als Kaestchengruppe im Popover stehen statt
+ * als Chip (akteure.: die abgeleiteten Zustaende).
  */
 export function FacettenChips({
   facetten,
@@ -46,8 +54,7 @@ export function FacettenChips({
   bereichKompakt = false,
   einheit = "t/a",
   preisLabel = "Preis stofflich",
-  mitReset,
-  onReset,
+  weitereFacetten = [],
   schliessSignal = 0,
   onPopoverOffen,
 }: {
@@ -58,8 +65,8 @@ export function FacettenChips({
   bereichKompakt?: boolean;
   einheit?: string;
   preisLabel?: string;
-  mitReset: boolean;
-  onReset: () => void;
+  /** E77 R2: Facetten als Kaestchengruppe im Popover „Weitere Filter" (Werte wie bei Chips: Liste im Querystring). */
+  weitereFacetten?: FacettenChipDef[];
   /** Erhoeht der Parent den Zaehler, schliessen alle Popover (z. B. Sortmenue geoeffnet). */
   schliessSignal?: number;
   onPopoverOffen?: () => void;
@@ -69,10 +76,15 @@ export function FacettenChips({
   const [facettenSuche, setFacettenSuche] = useState("");
   const [bereichOffen, setBereichOffen] = useState(false);
   const sucheRef = useRef<HTMLInputElement>(null);
+  const ankerRefs = useRef<Record<string, HTMLElement | null>>({});
+  const bereichAnkerRef = useRef<HTMLButtonElement>(null);
   // Rückmeldung 1: Popover nie über den rechten Rand — gemeinsame Lage für
-  // ströme., auswertung. und karte. (lib/popover-lage.ts).
-  const facettenLage = usePopoverLage(offeneFacette);
-  const bereichLage = usePopoverLage(bereichOffen);
+  // ströme., auswertung., karte. und akteure. (lib/popover-lage.ts); E77 R2
+  // fixiert am Anker (Portal).
+  const facettenAnker = useCallback(() => (offeneFacette ? (ankerRefs.current[offeneFacette] ?? null) : null), [offeneFacette]);
+  const bereichAnker = useCallback(() => bereichAnkerRef.current, []);
+  const facettenLage = usePopoverLage(offeneFacette, { fixiert: true, anker: facettenAnker });
+  const bereichLage = usePopoverLage(bereichOffen, { fixiert: true, anker: bereichAnker });
 
   // Popover schliessen bei Klick ausserhalb / Escape / Parent-Signal.
   useEffect(() => {
@@ -106,7 +118,10 @@ export function FacettenChips({
     if (offeneFacette) sucheRef.current?.focus();
   }, [offeneFacette]);
 
-  const bereichAnzahl = bereichKeys.filter((k) => (bereich[k] ?? "") !== "").length;
+  const bereichAnzahl =
+    bereichKeys.filter((k) => (bereich[k] ?? "") !== "").length +
+    weitereFacetten.reduce((n, f) => n + (auswahl[f.key]?.length ?? 0), 0);
+  const mitWeiteren = bereichKeys.length > 0 || weitereFacetten.length > 0;
 
   function toggleWert(key: string, wert: string) {
     const sel = auswahl[key] ?? [];
@@ -170,6 +185,9 @@ export function FacettenChips({
         return (
           <div key={f.key} data-pop className="pop-anchor">
             <button
+              ref={(el) => {
+                ankerRefs.current[f.key] = el;
+              }}
               type="button"
               className={`fchip${aktiv || istOffen ? " aktiv" : ""}`}
               aria-haspopup="menu"
@@ -189,11 +207,12 @@ export function FacettenChips({
               {!h && sel.length > 0 && <span className="fchip-count">{sel.length}</span>}
               {h && h.anzahl > 1 && <span className="fchip-count">{h.anzahl}</span>}
             </button>
-            {istOffen && h && (
+            {istOffen && h && createPortal(
               <div
+                data-pop
                 role="dialog"
                 aria-label={f.label}
-                className="pop pop--links"
+                className="pop pop--links pop--fixiert"
                 ref={facettenLage.popRef}
                 style={{ width: 320, ...facettenLage.popStil }}
               >
@@ -226,13 +245,15 @@ export function FacettenChips({
                     )
                   }
                 />
-              </div>
+              </div>,
+              document.body,
             )}
-            {istOffen && !h && (
+            {istOffen && !h && createPortal(
               <div
+                data-pop
                 role="dialog"
                 aria-label={f.label}
-                className="pop pop--links"
+                className="pop pop--links pop--fixiert"
                 ref={facettenLage.popRef}
                 style={{ width: 280, ...facettenLage.popStil }}
               >
@@ -287,14 +308,17 @@ export function FacettenChips({
                   ))}
                   {optionen.length === 0 && <p className="menu-leer">keine treffer.</p>}
                 </div>
-              </div>
+              </div>,
+              document.body,
             )}
           </div>
         );
       })}
 
+      {mitWeiteren && (
       <div data-pop className="pop-anchor fc-weitere">
         <button
+          ref={bereichAnkerRef}
           type="button"
           className={`fchip${bereichAnzahl || bereichOffen ? " aktiv" : ""}`}
           aria-haspopup="dialog"
@@ -309,14 +333,29 @@ export function FacettenChips({
           {bereichKompakt ? <i className="ph-bold ph-plus" aria-hidden /> : "Weitere Filter"}
           {bereichAnzahl > 0 && <span className="fchip-count">{bereichAnzahl}</span>}
         </button>
-        {bereichOffen && (
+        {bereichOffen && createPortal(
           <div
+            data-pop
             role="dialog"
             aria-label="Weitere Filter"
-            className="pop pop--links pop--form"
+            className="pop pop--links pop--form pop--fixiert"
             ref={bereichLage.popRef}
             style={{ width: bereichKeys.length > 2 ? 400 : 320, ...bereichLage.popStil }}
           >
+            {weitereFacetten.map((f) => {
+              const sel = auswahl[f.key] ?? [];
+              return (
+                <fieldset className="pf pf--gruppe" key={f.key}>
+                  <legend>{f.label}</legend>
+                  {f.optionen.map((o) => (
+                    <label className="pf pf--zustand" key={o.wert}>
+                      <input type="checkbox" checked={sel.includes(o.wert)} onChange={() => toggleWert(f.key, o.wert)} />
+                      <span>{o.label}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              );
+            })}
             {bereichKeys.map((k) => {
               const feld = bereichFeld(k);
               // Der benannte Zustand ist ein Kaestchen, kein Textfeld —
@@ -375,19 +414,10 @@ export function FacettenChips({
                 </label>
               );
             })}
-          </div>
+          </div>,
+          document.body,
         )}
       </div>
-
-      {mitReset && (
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="Filter zurücksetzen"
-          onClick={onReset}
-        >
-          <i className="ph-bold ph-x" aria-hidden />
-        </button>
       )}
     </>
   );

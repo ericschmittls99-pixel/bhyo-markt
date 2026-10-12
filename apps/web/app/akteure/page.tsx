@@ -1,7 +1,7 @@
 import { AkteureListe } from "@/components/akteure/AkteureListe";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { ladeAkteure } from "@/lib/akteure";
-import { AKTEUR_ZUSTAENDE, AKTEUR_ZUSTAND_LABEL, filterAkteure, sortiereAkteure, type AkteureFilter } from "@/lib/akteure-modell";
+import { AKTEUR_WEITERE_FILTER, filterAkteure, sortiereAkteure, type AkteureFilter } from "@/lib/akteure-modell";
 import { withDb } from "@/lib/db";
 import { ladeDubletten } from "@/lib/dubletten";
 import { filterHinweis, filterLabel, leiste } from "@/lib/filter-modell";
@@ -32,7 +32,10 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
     );
   }
   const filter: AkteureFilter = { q: erster(sp.q), region: liste(sp.region), sektor: liste(sp.sektor), akteur: liste(sp.akteur), akteur_zustand: liste(sp.akteur_zustand) };
-  const [pool, regionen, dubletten] = await Promise.all([withDb((db) => ladeAkteure(db)), ladeRegionOptionen(), withDb((db) => ladeDubletten(db))]);
+  const [geladen, regionen, dubletten] = await Promise.all([withDb((db) => ladeAkteure(db)), ladeRegionOptionen(), withDb((db) => ladeDubletten(db))]);
+  // E77 R2: Dublettenverdacht aus demselben Ursprung wie die Dubletten-Seite (ohne „keine Dublette").
+  const verdacht = new Set(dubletten.flatMap((p) => [p.a.id, p.b.id]));
+  const pool = geladen.map((a) => ({ ...a, dublettenverdacht: verdacht.has(a.id) }));
   const gefiltert = sortiereAkteure(filterAkteure(pool, filter));
   // Optionen aus dem UNGEFILTERTEN Bestand (wie in stroeme.) — der Chip zeigt, was es gibt.
   const sektoren = new Map<string, string>();
@@ -40,18 +43,21 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
   const optionen = {
     region: regionen.map((r) => ({ wert: r.id, label: r.name })),
     akteur: [...sektoren.entries()].map(([wert, label]) => ({ wert, label })).sort((a, b) => a.label.localeCompare(b.label, "de")),
-    akteur_zustand: AKTEUR_ZUSTAENDE.map((z) => ({ wert: z, label: AKTEUR_ZUSTAND_LABEL[z] })),
+    akteur_zustand: [...AKTEUR_WEITERE_FILTER],
   };
   const lst = leiste("akteure", "alle", filter as unknown as Record<string, unknown>, optionen);
-  const facetten = [...lst.haupt, ...lst.weitere]
-    .filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie")
-    .map((e) => ({ key: e.def.params[0]!, label: filterLabel(e.def, "akteure"), hinweis: filterHinweis(e.def, "akteure"), optionen: e.optionen }));
+  const alleFacetten = [...lst.haupt, ...lst.weitere].filter((e) => e.def.typ === "facette" || e.def.typ === "hierarchie");
+  const chip = (e: (typeof alleFacetten)[number]) => ({ key: e.def.params[0]!, label: filterLabel(e.def, "akteure"), hinweis: filterHinweis(e.def, "akteure"), optionen: e.optionen });
+  const facetten = alleFacetten.filter((e) => e.def.darstellung !== "kaestchen").map(chip);
+  // E77 R2: die abgeleiteten Zustaende als Kaestchen unter „Weitere Filter".
+  const weitereFacetten = alleFacetten.filter((e) => e.def.darstellung === "kaestchen").map(chip);
   return (
     <main className="ak">
       <AkteureListe
         zeilen={gefiltert}
         gesamt={pool.length}
         facetten={facetten}
+        weitereFacetten={weitereFacetten}
         auswahl={lst.auswahl}
         irgendeinFilter={lst.irgendeinFilter || filter.q.trim() !== ""}
         ruecksetzParams={lst.ruecksetzParams}

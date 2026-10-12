@@ -12,9 +12,19 @@ import { popoverLage } from "@/lib/popover-lage";
  * wird neu gemessen. `schluessel` ist der geöffnete Zustand (z. B. Facetten-
  * Key); ändert er sich, wird neu gemessen.
  */
-export function usePopoverLage(schluessel: string | boolean | null) {
+export function usePopoverLage(
+  schluessel: string | boolean | null,
+  /**
+   * E77 R2: `fixiert` — das Popover haengt als Portal am Body (position:
+   * fixed), damit eine horizontal scrollende Chip-Leiste es nicht abschneidet;
+   * `anker` liefert dann das Ankerelement, Lage in Fensterkoordinaten, neu
+   * gemessen bei Scrollen und Fenstergroesse.
+   */
+  optionen: { fixiert?: boolean; anker?: () => HTMLElement | null } = {},
+) {
   const [el, setEl] = useState<HTMLDivElement | null>(null);
   const [stil, setStil] = useState<CSSProperties>({});
+  const { fixiert = false, anker: ankerFn } = optionen;
 
   useLayoutEffect(() => {
     if (!el || !schluessel) {
@@ -22,7 +32,7 @@ export function usePopoverLage(schluessel: string | boolean | null) {
       return;
     }
     const messen = () => {
-      const anker = el.parentElement?.getBoundingClientRect();
+      const anker = (fixiert ? ankerFn?.() : el.parentElement)?.getBoundingClientRect();
       if (!anker) return;
       // Natürliche Breite messen: ohne Deckel, sonst misst man den Deckel.
       const vorher = el.style.maxWidth;
@@ -35,17 +45,23 @@ export function usePopoverLage(schluessel: string | boolean | null) {
         popBreite,
         fensterBreite: document.documentElement.clientWidth,
       });
+      const fensterBreite = document.documentElement.clientWidth;
       setStil({
-        left: lage.seite === "links" ? 0 : "auto",
-        right: lage.seite === "rechts" ? 0 : "auto",
+        left: lage.seite === "links" ? (fixiert ? Math.round(anker.left) : 0) : "auto",
+        right: lage.seite === "rechts" ? (fixiert ? Math.round(fensterBreite - anker.right) : 0) : "auto",
+        top: fixiert ? Math.round(anker.bottom + 6) : undefined,
         maxWidth: lage.maxBreite,
         transform: lage.versatz ? `translateX(${Math.round(lage.versatz)}px)` : undefined,
       });
     };
     messen();
     window.addEventListener("resize", messen);
-    return () => window.removeEventListener("resize", messen);
-  }, [el, schluessel]);
+    if (fixiert) document.addEventListener("scroll", messen, { capture: true, passive: true });
+    return () => {
+      window.removeEventListener("resize", messen);
+      if (fixiert) document.removeEventListener("scroll", messen, { capture: true });
+    };
+  }, [el, schluessel, fixiert, ankerFn]);
 
   return { popRef: setEl, popStil: stil };
 }
