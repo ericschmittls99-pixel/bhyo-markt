@@ -2469,7 +2469,7 @@ button.leg-toggle.aus {
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin: 0 -24px -24px;
+  margin: 0 -24px 0;
   padding: 14px 24px;
   border-top: 1px solid var(--glass-edge);
   background: var(--glass-fill);
@@ -3242,6 +3242,12 @@ table.st-tabelle tbody tr:focus-visible {
   display: grid;
   gap: 24px;
   align-content: start;
+}
+/* E77 R3: im Formular endet der Body ohne unteren Innenabstand — sonst steht die
+   klebende Fusszeile 24 px ueber dem Rand (Preview-Messung 12.10.2026: der
+   Containing Block des sticky-Elements ist die Inhaltsbox des Formulars). */
+.ov-body.fp {
+  padding-bottom: 0;
 }
 .ov-sec {
   display: grid;
