@@ -235,6 +235,17 @@ async function main() {
                     from l`
       : [{ laeufe: null }];
     console.log("JOB_LAUF_ROUNDUP " + JSON.stringify(rl ?? { laeufe: 0 }));
+    // E73 Altbestand (Eric 10.10.2026): je Job die Zeilen mit Fehlertext, davon mit „@" und davon
+    // schon als Fehlerklasse (db_fehler/…, seit #219). Nur Zaehler, nie der Text. Alte Rohtexte
+    // bereinigt kein Skript — das entscheidet Eric.
+    const jf = m33!.job_lauf
+      ? await sql`select job, count(*)::int as mit_fehler,
+                         count(*) filter (where fehler like '%@%')::int as mit_at,
+                         count(*) filter (where fehler ~ '^(db_fehler|graph|fehler)/')::int as als_klasse,
+                         max(length(fehler))::int as max_laenge
+                    from job_lauf where fehler is not null group by job order by job`
+      : [];
+    console.log("JOB_LAUF_FEHLER " + JSON.stringify(jf));
     const zustaende = await sql`
       select art, zustand, count(*)::int as n
         from strom_verifikation(current_date) group by 1, 2 order by 1, 2`;
