@@ -10,6 +10,7 @@ import {
   gruppenGroesse,
   markerGroesse,
   maxMengeJe,
+  popoverLage,
   partGroesse,
   punkteInBbox,
   popoverZeilen,
@@ -384,5 +385,52 @@ describe("popoverZeilen", () => {
     expect(
       popoverZeilen({ titel: "Nur Titel", untertitel: "", ort: null, statusText: "" }),
     ).toEqual({ titel: "Nur Titel", zeilen: [] });
+  });
+});
+
+describe("popoverLage (E77 R1: flip/shift an allen vier Raendern)", () => {
+  const flaeche = { width: 1000, height: 600 };
+  const box = { width: 240, height: 90 };
+  const marker = (left: number, top: number) => ({ left, top, width: 40, height: 40 });
+  it("mittig: oben und zentriert, keine Verschiebung", () => {
+    expect(popoverLage(marker(480, 300), box, flaeche)).toEqual({ unten: false, dx: 0 });
+  });
+  it("oberer Rand: kippt nach unten (flip)", () => {
+    expect(popoverLage(marker(480, 20), box, flaeche).unten).toBe(true);
+  });
+  it("oberer Rand mit genau genug Platz bleibt oben", () => {
+    // top 106: 106 - 8 - 8 = 90 >= 90
+    expect(popoverLage(marker(480, 106), box, flaeche).unten).toBe(false);
+    expect(popoverLage(marker(480, 105), box, flaeche).unten).toBe(true);
+  });
+  it("unterer Rand: bleibt oben", () => {
+    expect(popoverLage(marker(480, 540), box, flaeche).unten).toBe(false);
+  });
+  it("linker Rand: nach rechts verschoben, Box beginnt beim Rand", () => {
+    const l = popoverLage(marker(0, 300), box, flaeche);
+    // zentriert waere 20 - 120 = -100; geklemmt auf 8 → dx 108
+    expect(l).toEqual({ unten: false, dx: 108 });
+  });
+  it("rechter Rand: nach links verschoben, Box endet beim Rand", () => {
+    const l = popoverLage(marker(960, 300), box, flaeche);
+    // zentriert 980 - 120 = 860; max 1000 - 8 - 240 = 752 → dx -108
+    expect(l).toEqual({ unten: false, dx: -108 });
+  });
+  it("Ecke oben links: unten UND nach rechts", () => {
+    expect(popoverLage(marker(0, 0), box, flaeche)).toEqual({ unten: true, dx: 108 });
+  });
+  it("Flaeche niedriger als die Box an beiden Seiten: Seite mit mehr Platz", () => {
+    const klein = { width: 400, height: 150 };
+    expect(popoverLage(marker(180, 10), box, klein).unten).toBe(true);
+    expect(popoverLage(marker(180, 100), box, klein).unten).toBe(false);
+  });
+  it("Toolbar ueberlagert die Karte oben: der sichtbare Rand zaehlt (flaeche.top)", () => {
+    // ohne top: 200 - 8 - 8 = 184 >= 90 → oben; mit Toolbar bis 130: 200 - 130 - 16 = 54 → unten
+    expect(popoverLage(marker(480, 200), box, flaeche).unten).toBe(false);
+    expect(popoverLage(marker(480, 200), box, { ...flaeche, top: 130 }).unten).toBe(true);
+  });
+  it("Box breiter als die Flaeche: beginnt am linken Rand", () => {
+    const l = popoverLage(marker(100, 300), box, { width: 200, height: 600 });
+    expect(l.dx).toBe(8 - (120 - 120));
   });
 });

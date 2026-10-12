@@ -2528,3 +2528,58 @@ das spätere Umschalten auf Versand, als eigener PR davor:
 Das Umschalten selbst (`MAIL_MODUS = graph`) bleibt ein eigener Schritt nach
 Erics Meldung; Checkliste in `docs/betrieb/m365-mail.md` Abschnitt 7.
 
+## 51. E77 Rückmeldungsrunde 12.10.2026 (R1–R7)
+
+**Entschieden (Eric 12.10.2026):** sieben Pakete, je Paket ein PR, einzeln
+über die Preview mit Screenshots hell/dunkel und Desktop/schmal, im
+Liquid-Glass-Stil der bestehenden Karten. Reihenfolge R1 → R7, vorher #222
+und #224 abschließen.
+
+- **R1 karte.:** Bedienelemente (+/−, Fokusregion, Recenter) nach rechts
+  unten; die Filterleiste läuft oben über die ganze Breite. Legende im
+  eingeklappten/kleinen Zustand höher, sodass sie nichts überdeckt und
+  nicht überdeckt wird. Legendentext („Größe ~ Menge …", „außerhalb",
+  „Ströme ohne Koordinate …") hinter einem i-Symbol (per Tastatur
+  erreichbar). Vorschau-Box eines Orbs kollisionsbewusst (flip/shift an
+  allen vier Rändern), nie über den Kartenrand hinaus.
+- **R2 Filterleiste (überall gleich, E32):** „Filter entfernen" links neben
+  dem Filter-Knopf; „Weitere Filter" bricht nie um — fehlt Platz, scrollt
+  die Leiste horizontal mit Verlaufskante. akteure.: weitere Filter
+  „unvollständig", „verwaist", „Dublettenverdacht", „mit Kontaktpersonen"
+  aus den abgeleiteten Zuständen (E23); ohne weitere Filter kein Knopf.
+- **R3 Formulare:** Leiste Abbrechen/Speichern im Bearbeitungsmodus des
+  zentralen Pop-ups klebt bis ganz unten, Glas mit Blur, Inhalt läuft
+  darunter. Beleg: „Datei wählen" einzeilig. Adress-Pille „Pin:
+  hausnummergenau / Straße / PLZ-Gebiet / manuell / ungeprüft" mit Tooltip;
+  jede Änderung an Straße, Hausnummer, PLZ oder Ort setzt „ungeprüft" bis
+  zur nächsten Prüfung (Test).
+- **R4 auswertung.:** Kachel Belegtypen ohne überlappende Beschriftungen,
+  innerhalb der Kachel (kürzen/umbrechen oder Legende statt Inline-Labels);
+  mit vielen und wenigen Typen prüfen.
+- **R5 inbox.:** Pop-up an der Glocke mit den letzten 5 offenen Einträgen
+  in Kurzform und Knopf „Zur Inbox"; Esc/Klick außerhalb, Fokus-Management.
+  Kompakte Zeilen: Kurztitel je Typ + Kennung (z. B. „Verifikation
+  abgelaufen · B-2026-014"), Akteur klein/grau, volle Info im Detail;
+  Kurztitel zentral im Inbox-Register. Gleiche Typen desselben Tages als
+  aufklappbare Gruppe mit Zähler, Aktionen auch für die Gruppe. Keine
+  Änderung an Zustellung oder Datenmodell.
+- **R6 Akteure als Sidebar:** Aufbau wie die Strom-Sidebar (Kopf, Stammdaten,
+  Kontaktpersonen, Ströme, Kommentare, Verlauf), Öffnen aus akteure. und
+  Verweisen, Deep-Link per URL-Parameter bleibt; die eigene Seite entfällt
+  oder leitet um.
+- **R7 Profil & Einstellungen:** Avatar-Menü „Profil & Einstellungen".
+  Tab „Profil" für jede Rolle (nur eigene Daten): Anzeigename änderbar
+  (E-Mail fest), Profilbild jpg/png/webp, im Browser quadratisch auf 256 px
+  verkleinert, Ablage in R2, max. 1 MB nach Verkleinerung, rund wie der
+  Avatar, Fallback Initialen, entfernbar; Schalter Tages-Mail. Danach Tabs
+  Nutzer, Referenzlisten, Parameter nur für Admins (bestehende Inhalte).
+  Rechte über `darf()`, protokolliert; Bild-Auslieferung nur an angemeldete
+  Nutzer; Migration additiv; kein Bild in Logs oder Export.
+
+**Umgesetzt R1 (karte.):** `KarteControls` unten rechts (+/−, Fokusregion,
+Recenter), Toolbar-Bereich über die ganze Breite, Legende und Steuerung
+60 px über dem Boden (Attributionszeile), Legendentext als `LegendeHinweis`
+(i-Knopf im Legendenkopf, aria-expanded, Esc, Klick außerhalb),
+`popoverLage()` in `lib/karte-modell.ts` (flip/shift, Tests) und
+`bindePopoverLage` in `KarteMap`. Screenshots `docs/screenshots/e77/`.
+

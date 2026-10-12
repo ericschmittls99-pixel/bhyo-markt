@@ -1,6 +1,7 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import {
   CLUSTER_FARBE,
@@ -31,6 +32,85 @@ const RING_LEGENDE: { zustand: RingZustand; label: string }[] = [
   { zustand: "unbelegt", label: "unbelegt" },
   { zustand: "ausserhalb", label: "außerhalb" },
 ];
+
+/**
+ * E77 R1: der Legendentext (Groesse ~ Menge, „ausserhalb", ohne Koordinate)
+ * sitzt hinter einem i-Knopf im Legendenkopf — auch eingeklappt erreichbar.
+ * Knopf schaltet (aria-expanded), Esc schliesst und gibt den Fokus zurueck,
+ * Klick ausserhalb schliesst. Das Popover haengt als Portal mit fester Lage
+ * am Knopf: die Legende schneidet (overflow hidden) und ihr Blur macht sie
+ * zum Containing Block, innen waere es abgeschnitten.
+ */
+function LegendeHinweis() {
+  const [offen, setOffen] = useState(false);
+  const [lage, setLage] = useState<{ right: number; bottom: number } | null>(null);
+  const id = useId();
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const popRef = useRef<HTMLDivElement>(null);
+  const knopfRef = useRef<HTMLButtonElement>(null);
+  useLayoutEffect(() => {
+    if (!offen) return;
+    const lege = () => {
+      const r = knopfRef.current?.getBoundingClientRect();
+      if (!r) return;
+      setLage({ right: Math.max(8, window.innerWidth - r.right), bottom: window.innerHeight - r.top + 6 });
+    };
+    lege();
+    window.addEventListener("resize", lege);
+    return () => window.removeEventListener("resize", lege);
+  }, [offen]);
+  useEffect(() => {
+    if (!offen) return;
+    const onDown = (e: MouseEvent) => {
+      const ziel = e.target as Node;
+      if (wrapRef.current?.contains(ziel) || popRef.current?.contains(ziel)) return;
+      setOffen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOffen(false);
+      knopfRef.current?.focus();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [offen]);
+  return (
+    <span className="km-leg-info" ref={wrapRef}>
+      <button
+        ref={knopfRef}
+        type="button"
+        className="icon-btn"
+        aria-label="Erklärung zur Legende"
+        aria-expanded={offen}
+        aria-controls={id}
+        onClick={() => setOffen((v) => !v)}
+      >
+        <i className="ph ph-info" aria-hidden />
+      </button>
+      {offen &&
+        lage &&
+        createPortal(
+          <div id={id} ref={popRef} className="km-leg-info-pop" role="note" style={{ right: lage.right, bottom: lage.bottom }}>
+            <p>Größe ~ Menge (t atro/a bzw. Bedarfsmenge).</p>
+          <p>
+            „außerhalb" heißt: die Koordinate liegt in keinem Verwaltungsgebiet — oft ein
+            Hinweis auf einen falsch gesetzten Pin.
+          </p>
+          <p>
+            Ströme <strong>ohne Koordinate</strong> haben keinen Pin und erscheinen deshalb
+            nicht auf der Karte.
+          </p>
+          </div>,
+          document.body,
+        )}
+    </span>
+  );
+}
 
 export function KarteLegende({
   punkte,
@@ -149,6 +229,7 @@ export function KarteLegende({
         <span className="km-legende-zahl">
           {punkte.length} von {gesamtStroeme} Strömen
         </span>
+        <LegendeHinweis />
         <button
           type="button"
           className="icon-btn"
@@ -233,13 +314,6 @@ export function KarteLegende({
                 );
               })}
             </div>
-            <p className="km-leg-hinweis">
-              Größe ~ Menge (t atro/a bzw. Bedarfsmenge). „außerhalb" heißt:
-              die Koordinate liegt in keinem Verwaltungsgebiet — oft ein
-              Hinweis auf einen falsch gesetzten Pin. Ströme{" "}
-              <strong>ohne Koordinate</strong> haben keinen Pin und
-              erscheinen deshalb nicht auf der Karte.
-            </p>
           </div>
 
           <div className="km-leg-grp">

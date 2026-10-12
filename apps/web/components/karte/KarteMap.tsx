@@ -28,6 +28,7 @@ import {
   partGroesse,
   ringStil,
   type KartePunkt,
+  popoverLage,
 } from "@/lib/karte-modell";
 
 // Keyless OSM-Raster-Style (Kopie aus components/Karte.tsx — die bleibt fuer
@@ -89,6 +90,40 @@ function machePopover(titel: string, zeilen: string[]): HTMLSpanElement {
     pop.appendChild(zeile);
   }
   return pop;
+}
+
+/**
+ * E77 R1: Vorschau-Box kollisionsbewusst legen — beim Betreten (Maus/Fokus)
+ * Marker- und Boxmasse relativ zur Kartenflaeche messen und flip/shift aus
+ * popoverLage() als Klasse und --dx setzen. Die Box ist bis dahin display:none;
+ * zum Messen kurz einblenden, falls :hover noch nicht greift.
+ */
+function bindePopoverLage(el: HTMLElement, flaeche: () => HTMLElement | null) {
+  const lege = () => {
+    const pop = el.querySelector<HTMLElement>(":scope > .km-pop");
+    const fl = flaeche();
+    if (!pop || !fl) return;
+    // Die Toolbar (Suche, Filterleiste) liegt oben ueber der Karte: ihr Unterrand ist der
+    // sichtbare obere Kartenrand.
+    const toolbar = fl.parentElement?.parentElement?.querySelector<HTMLElement>(".km-toolbar-bereich") ?? null;
+    const vorher = pop.style.display;
+    if (pop.offsetWidth === 0) pop.style.display = "flex";
+    const box = { width: pop.offsetWidth, height: pop.offsetHeight };
+    pop.style.display = vorher;
+    const fr = fl.getBoundingClientRect();
+    const mr = el.getBoundingClientRect();
+    const tb = toolbar?.getBoundingClientRect();
+    const sichtbarAb = tb ? Math.max(0, tb.bottom - fr.top) : 0;
+    const lage = popoverLage(
+      { left: mr.left - fr.left, top: mr.top - fr.top, width: mr.width, height: mr.height },
+      box,
+      { width: fr.width, height: fr.height, top: sichtbarAb },
+    );
+    pop.classList.toggle("km-pop--unten", lage.unten);
+    pop.style.setProperty("--dx", `${lage.dx}px`);
+  };
+  el.addEventListener("mouseenter", lege);
+  el.addEventListener("focus", lege);
 }
 
 const AGG_RADIUS = 80;
@@ -215,7 +250,19 @@ export function KarteMap({
       map.on("load", () => {
         console.info("karte: maplibre load");
         setReady(true);
+        attributionEinklappen();
       });
+      // E77 R1: auf schmaler Karte (<= 640 px) steht die zunaechst offene kompakte
+      // Attribution dreizeilig hinter Legende und Steuerung; MapLibre klappt sie erst bei
+      // der ersten Interaktion ein — wir klappen sie dort sofort ein, das (i) bleibt
+      // bedienbar. Auf breiter Karte bleibt der Quellenhinweis sichtbar (OSM/BKG-Lizenz).
+      function attributionEinklappen() {
+        const breite = containerRef.current?.clientWidth ?? 0;
+        if (breite > 640) return;
+        const attrib = containerRef.current?.querySelector(".maplibregl-ctrl-attrib");
+        if (attrib?.classList.contains("maplibregl-compact")) attrib.classList.remove("maplibregl-compact-show");
+      }
+      map.on("resize", attributionEinklappen);
       // Themenwechsel (data-theme) -> Kachel-Anmutung nachziehen.
       const themeBeobachter = new MutationObserver(() => {
         const m = mapRef.current;
@@ -374,6 +421,7 @@ export function KarteMap({
       el.className = "km-marker";
       el.style.width = `${W}px`;
       el.style.height = `${W}px`;
+      bindePopoverLage(el, () => containerRef.current);
       // Ueber den Regions-Labeln (Karten-Review: Label ueberlappte die Orbs).
       el.style.zIndex = "2";
       const orbEl = document.createElement("div");

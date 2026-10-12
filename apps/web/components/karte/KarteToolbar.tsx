@@ -233,7 +233,7 @@ export function KarteToolbar({
   );
 }
 
-/** Glas-Steuerspalte rechts oben: Zoom, Alles zeigen, Zeichnen-Modus. */
+/** Glas-Steuerspalte rechts unten (E77 R1): Zoom, Fokusregion zeichnen, Recenter. */
 export function KarteControls({
   onZoomIn,
   onZoomOut,
@@ -256,16 +256,6 @@ export function KarteControls({
         <button type="button" className="icon-btn" aria-label="Herauszoomen" onClick={onZoomOut}>
           <i className="ph-bold ph-minus" aria-hidden />
         </button>
-        <div className="km-controls-trenner" aria-hidden />
-        <button
-          type="button"
-          className="icon-btn"
-          aria-label="Alle sichtbaren Ströme zeigen"
-          title="Alle sichtbaren Ströme zeigen"
-          onClick={onFitAlle}
-        >
-          <i className="ph ph-corners-out" aria-hidden />
-        </button>
       </div>
       <div className="km-controls-box">
         <button
@@ -277,6 +267,16 @@ export function KarteControls({
           onClick={onZeichnen}
         >
           <i className="ph ph-selection-plus" aria-hidden />
+        </button>
+        <div className="km-controls-trenner" aria-hidden />
+        <button
+          type="button"
+          className="icon-btn"
+          aria-label="Alle sichtbaren Ströme zeigen"
+          title="Alle sichtbaren Ströme zeigen"
+          onClick={onFitAlle}
+        >
+          <i className="ph ph-corners-out" aria-hidden />
         </button>
       </div>
     </div>
