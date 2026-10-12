@@ -21,7 +21,7 @@ import type { RoundupZugriff } from "./roundup";
 
 const { fuehreRoundupAus, istWerktagBerlin, roundupText, wuerdeSenden } = await import("./roundup");
 
-const konfig = { modus: "protokoll" as const, absender: "news@bhyo.de", graph: null, secretAblauf: null };
+const konfig = { umgebung: "production", modus: "protokoll" as const, absender: "news@bhyo.de", graph: null, secretAblauf: null };
 // Donnerstag 09.10.2026 07:07 Berlin = 05:07 UTC (Sommerzeit)
 const DO = new Date("2026-10-09T05:07:00Z");
 

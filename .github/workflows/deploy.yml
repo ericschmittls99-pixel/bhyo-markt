@@ -596,6 +596,8 @@ jobs:
       # AP2.9 (E76): Roundup-Probelauf gegen die Preview-DB im Probemodus —
       # je Nutzer „wuerde senden: ja/nein" und Zaehler, nur Nutzer-IDs im Log,
       # job_lauf-Zeile, Idempotenz, Wochenende. Zurueckgerollt, nichts gesendet.
+      # Eigene Probe-Nutzer, Stichtage 2099, Zuwachs statt Absolutwert — der
+      # Preview-Cron schreibt werktags einen echten Lauf (docs/betrieb.md, 12.10.2026).
       - name: Roundup-Probe (E76, Probemodus)
         if: github.event_name == 'pull_request'
         env:
