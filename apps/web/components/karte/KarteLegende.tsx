@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import {
   CLUSTER_FARBE,
@@ -31,6 +31,65 @@ const RING_LEGENDE: { zustand: RingZustand; label: string }[] = [
   { zustand: "unbelegt", label: "unbelegt" },
   { zustand: "ausserhalb", label: "außerhalb" },
 ];
+
+/**
+ * E77 R1: der Legendentext (Groesse ~ Menge, „ausserhalb", ohne Koordinate)
+ * sitzt hinter einem i-Knopf im Legendenkopf — auch eingeklappt erreichbar.
+ * Knopf schaltet (aria-expanded), Esc schliesst und gibt den Fokus zurueck,
+ * Klick ausserhalb schliesst.
+ */
+function LegendeHinweis() {
+  const [offen, setOffen] = useState(false);
+  const id = useId();
+  const wrapRef = useRef<HTMLSpanElement>(null);
+  const knopfRef = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (!offen) return;
+    const onDown = (e: MouseEvent) => {
+      if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setOffen(false);
+    };
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      e.stopPropagation();
+      setOffen(false);
+      knopfRef.current?.focus();
+    };
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey, true);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey, true);
+    };
+  }, [offen]);
+  return (
+    <span className="km-leg-info" ref={wrapRef}>
+      <button
+        ref={knopfRef}
+        type="button"
+        className="icon-btn"
+        aria-label="Erklärung zur Legende"
+        aria-expanded={offen}
+        aria-controls={id}
+        onClick={() => setOffen((v) => !v)}
+      >
+        <i className="ph ph-info" aria-hidden />
+      </button>
+      {offen && (
+        <div id={id} className="km-leg-info-pop" role="note">
+          <p>Größe ~ Menge (t atro/a bzw. Bedarfsmenge).</p>
+          <p>
+            „außerhalb" heißt: die Koordinate liegt in keinem Verwaltungsgebiet — oft ein
+            Hinweis auf einen falsch gesetzten Pin.
+          </p>
+          <p>
+            Ströme <strong>ohne Koordinate</strong> haben keinen Pin und erscheinen deshalb
+            nicht auf der Karte.
+          </p>
+        </div>
+      )}
+    </span>
+  );
+}
 
 export function KarteLegende({
   punkte,
@@ -149,6 +208,7 @@ export function KarteLegende({
         <span className="km-legende-zahl">
           {punkte.length} von {gesamtStroeme} Strömen
         </span>
+        <LegendeHinweis />
         <button
           type="button"
           className="icon-btn"
@@ -233,13 +293,6 @@ export function KarteLegende({
                 );
               })}
             </div>
-            <p className="km-leg-hinweis">
-              Größe ~ Menge (t atro/a bzw. Bedarfsmenge). „außerhalb" heißt:
-              die Koordinate liegt in keinem Verwaltungsgebiet — oft ein
-              Hinweis auf einen falsch gesetzten Pin. Ströme{" "}
-              <strong>ohne Koordinate</strong> haben keinen Pin und
-              erscheinen deshalb nicht auf der Karte.
-            </p>
           </div>
 
           <div className="km-leg-grp">

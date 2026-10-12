@@ -3528,7 +3528,9 @@ table.st-tabelle tbody tr:focus-visible {
 .km-pop {
   position: absolute;
   bottom: calc(100% + 8px);
-  left: 50%;
+  /* E77 R1: --dx verschiebt die Box seitlich (shift), .km-pop--unten kippt sie (flip);
+     beides setzt KarteMap aus popoverLage(), damit sie nie ueber den Kartenrand ragt. */
+  left: calc(50% + var(--dx, 0px));
   transform: translateX(-50%) translateY(4px);
   z-index: 20;
   display: none;
@@ -3551,6 +3553,10 @@ table.st-tabelle tbody tr:focus-visible {
 .km-marker:focus-visible > .km-pop {
   display: flex;
   animation: km-pop-auf var(--duration-fast) var(--ease-standard);
+}
+.km-pop--unten {
+  bottom: auto;
+  top: calc(100% + 8px);
 }
 @keyframes km-pop-auf {
   from { opacity: 0; transform: translateX(-50%) translateY(8px); }
@@ -3613,10 +3619,10 @@ table.st-tabelle tbody tr:focus-visible {
   position: absolute;
   top: 16px;
   left: 16px;
+  right: 16px; /* E77 R1: die Steuerung sitzt unten rechts, oben gehoert die Breite der Leiste */
   z-index: 120; /* unter den Shell-Popovern (Inbox/Konto, --z-menu) */
   display: grid;
   gap: 8px;
-  max-width: calc(100% - 96px);
 }
 .km-toolbar {
   display: flex;
@@ -3634,6 +3640,7 @@ table.st-tabelle tbody tr:focus-visible {
 .km-filterleiste {
   border-radius: 20px;
   flex-wrap: wrap;
+  width: auto; /* E77 R1: laeuft ueber die ganze Breite */
 }
 .km-suche {
   position: relative;
@@ -3657,7 +3664,8 @@ table.st-tabelle tbody tr:focus-visible {
 }
 .km-controls {
   position: absolute;
-  top: 16px;
+  /* E77 R1: unten rechts, oberhalb der Attributionszeile (44 px) */
+  bottom: 60px;
   right: 16px;
   z-index: 120;
   display: grid;
@@ -3688,7 +3696,9 @@ table.st-tabelle tbody tr:focus-visible {
 /* karte.: Glas-Legende */
 .km-legende {
   position: absolute;
-  bottom: 16px;
+  /* E77 R1: oberhalb der Attributionszeile, damit die eingeklappte Legende
+     nichts ueberdeckt und nicht ueberdeckt wird */
+  bottom: 60px;
   left: 16px;
   z-index: 120;
   width: 288px;
@@ -3729,6 +3739,41 @@ table.st-tabelle tbody tr:focus-visible {
   align-items: center;
   gap: 8px;
   padding: 2px 10px 8px 16px;
+}
+.km-leg-info {
+  position: relative;
+  display: inline-flex;
+}
+.km-leg-info > .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+.km-leg-info-pop {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  right: 0;
+  z-index: 130;
+  width: 260px;
+  padding: 10px 12px;
+  border: 1px solid var(--glass-edge);
+  border-radius: var(--radius-card);
+  background: var(--glass-fill-strong);
+  backdrop-filter: var(--glass-backdrop);
+  -webkit-backdrop-filter: var(--glass-backdrop);
+  box-shadow: var(--shadow-menu);
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  animation: km-pop-info var(--duration-fast) var(--ease-standard);
+}
+.km-leg-info-pop p {
+  margin: 0 0 6px;
+}
+.km-leg-info-pop p:last-child {
+  margin-bottom: 0;
+}
+@keyframes km-pop-info {
+  from { opacity: 0; transform: translateY(4px); }
+  to { opacity: 1; transform: none; }
 }
 .km-legende-kopf h2 {
   margin: 0;
@@ -3825,12 +3870,6 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: 50%;
   background: transparent;
   box-sizing: border-box;
-}
-.km-leg-hinweis {
-  margin: 4px 0 0;
-  padding: 0 8px;
-  font: var(--type-caption);
-  color: var(--text-tertiary);
 }
 .km-legende.zu .km-legende-body {
   visibility: hidden;

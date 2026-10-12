@@ -394,3 +394,44 @@ export function geojsonOderNull(v: unknown, kontext: string): unknown | null {
   console.error(`Unerwartetes GeoJSON (${kontext}):`, v);
   return null;
 }
+
+export interface Rechteck {
+  left: number;
+  top: number;
+  width: number;
+  height: number;
+}
+export interface PopoverLage {
+  /** true: Box unter dem Marker, sonst darueber. */
+  unten: boolean;
+  /** Seitliche Verschiebung in px gegenueber der Zentrierung, damit die Box in der Flaeche bleibt. */
+  dx: number;
+}
+
+/**
+ * E77 R1: kollisionsbewusste Lage der Vorschau-Box eines Orbs. Bevorzugt
+ * ueber dem Marker; reicht der Platz nach oben nicht, kippt sie nach unten
+ * (flip); seitlich wird sie so verschoben (shift), dass sie an keinem der
+ * vier Raender ueber die Kartenflaeche hinausragt. Alle Masse in Pixeln
+ * relativ zur Kartenflaeche; `abstand` ist die Luecke zum Marker, `rand`
+ * der Mindestabstand zum Flaechenrand.
+ */
+export function popoverLage(
+  marker: Rechteck,
+  box: { width: number; height: number },
+  flaeche: { width: number; height: number },
+  abstand = 8,
+  rand = 8,
+): PopoverLage {
+  const platzOben = marker.top - abstand - rand;
+  const platzUnten = flaeche.height - (marker.top + marker.height) - abstand - rand;
+  const passtOben = platzOben >= box.height;
+  const passtUnten = platzUnten >= box.height;
+  // Passt es nirgends ganz, gewinnt die Seite mit mehr Platz.
+  const unten = passtOben ? false : passtUnten ? true : platzUnten > platzOben;
+  const zentriert = marker.left + marker.width / 2 - box.width / 2;
+  const minLeft = rand;
+  const maxLeft = Math.max(minLeft, flaeche.width - rand - box.width);
+  const geklemmt = Math.min(Math.max(zentriert, minLeft), maxLeft);
+  return { unten, dx: Math.round(geklemmt - zentriert) };
+}
