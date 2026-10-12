@@ -29,7 +29,7 @@ export const DB_ZEITBUDGET = {
 } as const;
 
 export function createSql(connectionString: string, overrides: postgres.Options<{}> = {}) {
-  return postgres(connectionString, {
+  const client = postgres(connectionString, {
     max: 5,
     fetch_types: false,
     connect_timeout: DB_ZEITBUDGET.connectTimeoutS,
@@ -41,6 +41,40 @@ export function createSql(connectionString: string, overrides: postgres.Options<
     },
     ...overrides,
   });
+  sichereDateParameter(client.options.serializers);
+  return client;
+}
+
+/**
+ * Postgres-OIDs der skalaren Zeittypen: date, time, timestamp, timestamptz.
+ * Arrays (1182, 1185, …) bleiben aussen vor — ein Date steht dort nie allein.
+ */
+const ZEIT_TYPEN = [1082, 1083, 1114, 1184] as const;
+
+/**
+ * Fehlerklasse „Date-Objekt im sql-Template" (Eric 12.10.2026; dritter Fall nach den
+ * Proben in #215/#223 und dem Roundup-Job, Lauf 38255670920): postgres-js leitet aus
+ * einem Date den Typ timestamptz ab und ruft den Serializer dieses Typs. Drizzle setzt
+ * in construct() die Serializer der Zeittypen auf die Identitaet, weil es Spaltenwerte
+ * selbst wandelt — ein Date OHNE Spaltenzuordnung erreicht den Puffer dann roh
+ * (ERR_INVALID_ARG_TYPE). Weil Drizzle die Serializer NACH createSql in dasselbe Objekt
+ * schreibt, haengt hier ein Setter an jedem Zeittyp: was immer spaeter zugewiesen wird,
+ * bekommt ein Date als ISO-Text vorgesetzt. Alles andere (Text, Drizzles eigene
+ * Wandlung) laeuft unveraendert durch. Nachweis: client.test.ts und
+ * date-parameter-check.ts (Wegwerf-DB, echter Bind).
+ */
+function sichereDateParameter(serializers: Record<number, (x: unknown) => unknown>) {
+  for (const oid of ZEIT_TYPEN) {
+    let aktuell = serializers[oid] ?? ((x: unknown) => x);
+    Object.defineProperty(serializers, oid, {
+      configurable: true,
+      enumerable: true,
+      get: () => (x: unknown) => (x instanceof Date ? x.toISOString() : aktuell(x)),
+      set: (fn: (x: unknown) => unknown) => {
+        aktuell = fn;
+      },
+    });
+  }
 }
 
 /** Drizzle-Instanz mit angebundenem Schema fuer den Anwendungscode. */
