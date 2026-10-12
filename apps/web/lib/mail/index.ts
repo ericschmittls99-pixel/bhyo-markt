@@ -9,6 +9,12 @@
  * aber nicht — so laeuft das Roundup auf Preview und Production trocken,
  * bis die Entra-App steht. MAIL_MODUS=graph sendet.
  *
+ * Preview sendet nie (Eric 12.10.2026): die Preview erbt die Cron-Trigger und
+ * laeuft das Roundup taeglich. Gesendet wird nur, wenn die Umgebung production
+ * ist — die kommt aus der festen Variable ENVIRONMENT der jeweiligen
+ * wrangler-Umgebung, nie aus einer URL. Ueberall sonst ist modus=graph ein
+ * Fehler (nicht_production, fail closed), unabhaengig von MAIL_MODUS.
+ *
  * E73: Logzeilen nennen den Empfaenger nur als Nutzer-ID, nie Adresse, Token oder Secret.
  */
 import { protokolliere, type Schreiber } from "@/lib/protokoll";
@@ -18,6 +24,8 @@ import { GraphFehler, holeGraphToken, sendeGraphMail, type GraphKonfig, type Mai
 export type MailModus = "protokoll" | "graph";
 
 export interface MailKonfig {
+  /** ENVIRONMENT der wrangler-Umgebung ("production", "preview"); nur "production" darf senden. */
+  umgebung: string;
   modus: MailModus;
   /** Absenderpostfach (E74: news@bhyo.de), als Worker-Variable MAIL_ABSENDER. */
   absender: string;
@@ -47,10 +55,10 @@ export type MailErgebnis =
   | { ok: false; ursache: string; wiederholenNach: number | null };
 
 /** Rohe Umgebungswerte → Konfiguration; fehlende Graph-Werte machen den Modus nicht kaputt, sie verhindern nur den Versand. */
-export function mailKonfigAus(env: { MAIL_MODUS?: string; MAIL_ABSENDER?: string; M365_TENANT_ID?: string; M365_CLIENT_ID?: string; M365_CLIENT_SECRET?: string; M365_SECRET_ABLAUF?: string }): MailKonfig {
+export function mailKonfigAus(env: { ENVIRONMENT?: string; MAIL_MODUS?: string; MAIL_ABSENDER?: string; M365_TENANT_ID?: string; M365_CLIENT_ID?: string; M365_CLIENT_SECRET?: string; M365_SECRET_ABLAUF?: string }): MailKonfig {
   const modus: MailModus = env.MAIL_MODUS === "graph" ? "graph" : "protokoll";
   const graph = env.M365_TENANT_ID && env.M365_CLIENT_ID && env.M365_CLIENT_SECRET ? { tenantId: env.M365_TENANT_ID, clientId: env.M365_CLIENT_ID, clientSecret: env.M365_CLIENT_SECRET } : null;
-  return { modus, absender: env.MAIL_ABSENDER ?? "", graph, secretAblauf: kalenderdatumOderNull(env.M365_SECRET_ABLAUF) };
+  return { umgebung: env.ENVIRONMENT ?? "", modus, absender: env.MAIL_ABSENDER ?? "", graph, secretAblauf: kalenderdatumOderNull(env.M365_SECRET_ABLAUF) };
 }
 
 /** Nur ein echtes Kalenderdatum JJJJ-MM-TT zaehlt — „2026-02-30" oder Freitext ergeben null, nie einen Fehler im Job. */
@@ -91,6 +99,11 @@ export async function sendeMail(
   // Eric 09.10.2026: im Log nur die Nutzer-ID, nie eine Adresse.
   const an = auftrag.empfaenger.id;
   if (konfig.modus === "graph") {
+    // Fail closed: ausserhalb von production kein Versand — vor jedem Netzaufruf, vor jedem Token.
+    if (konfig.umgebung !== "production") {
+      log(`MAIL graph art=${auftrag.art} an=${an} ergebnis=nicht_production`);
+      return { ok: false, ursache: "nicht_production", wiederholenNach: null };
+    }
     if (!konfig.graph || !konfig.absender) {
       log(`MAIL graph art=${auftrag.art} an=${an} ergebnis=nicht_konfiguriert`);
       return { ok: false, ursache: "nicht_konfiguriert", wiederholenNach: null };

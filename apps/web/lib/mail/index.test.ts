@@ -17,9 +17,9 @@ const graph = { tenantId: "t", clientId: "c", clientSecret: "s" };
 
 describe("mailKonfigAus", () => {
   it("Standard ist protokoll; graph nur mit allen drei Secrets", () => {
-    expect(mailKonfigAus({})).toEqual({ modus: "protokoll", absender: "", graph: null, secretAblauf: null });
+    expect(mailKonfigAus({})).toEqual({ umgebung: "", modus: "protokoll", absender: "", graph: null, secretAblauf: null });
     expect(mailKonfigAus({ MAIL_MODUS: "graph", MAIL_ABSENDER: "news@bhyo.de", M365_TENANT_ID: "t", M365_CLIENT_ID: "c" }).graph).toBeNull();
-    expect(mailKonfigAus({ MAIL_MODUS: "graph", MAIL_ABSENDER: "news@bhyo.de", M365_TENANT_ID: "t", M365_CLIENT_ID: "c", M365_CLIENT_SECRET: "s" })).toEqual({ modus: "graph", absender: "news@bhyo.de", graph, secretAblauf: null });
+    expect(mailKonfigAus({ MAIL_MODUS: "graph", MAIL_ABSENDER: "news@bhyo.de", M365_TENANT_ID: "t", M365_CLIENT_ID: "c", M365_CLIENT_SECRET: "s" })).toEqual({ umgebung: "", modus: "graph", absender: "news@bhyo.de", graph, secretAblauf: null });
   });
   it("Secret-Ablauf nur als echtes Kalenderdatum JJJJ-MM-TT, sonst null (nie ein Fehler im Job)", () => {
     expect(mailKonfigAus({ M365_SECRET_ABLAUF: "2027-10-01" }).secretAblauf).toBe("2027-10-01");
@@ -28,6 +28,10 @@ describe("mailKonfigAus", () => {
     expect(kalenderdatumOderNull("01.10.2027")).toBeNull();
     expect(kalenderdatumOderNull("")).toBeNull();
     expect(kalenderdatumOderNull(undefined)).toBeNull();
+  });
+  it("Umgebung kommt aus ENVIRONMENT der wrangler-Umgebung (nicht aus einer URL); MAIL_MODUS=graph bleibt sichtbar", () => {
+    expect(mailKonfigAus({ ENVIRONMENT: "preview", MAIL_MODUS: "graph" })).toMatchObject({ umgebung: "preview", modus: "graph" });
+    expect(mailKonfigAus({ ENVIRONMENT: "production" }).umgebung).toBe("production");
   });
   it("maskiereEmail laesst nur ersten Buchstaben und Domain", () => {
     expect(maskiereEmail("eric.schmitt@bhyo.de")).toBe("e***@bhyo.de");
@@ -40,7 +44,7 @@ describe("sendeMail", () => {
     protokolle.length = 0;
     const logs: string[] = [];
     const holen = vi.fn() as unknown as typeof fetch;
-    const erg = await sendeMail(tx, auftrag, { modus: "protokoll", absender: "news@bhyo.de", graph: null, secretAblauf: null }, holen, (z) => logs.push(z));
+    const erg = await sendeMail(tx, auftrag, { umgebung: "production", modus: "protokoll", absender: "news@bhyo.de", graph: null, secretAblauf: null }, holen, (z) => logs.push(z));
     expect(erg).toEqual({ ok: true, modus: "protokoll" });
     expect(holen).not.toHaveBeenCalled();
     expect(protokolle).toHaveLength(1);
@@ -59,7 +63,7 @@ describe("sendeMail", () => {
       aufrufe.push(String(url));
       return aufrufe.length === 1 ? new Response(JSON.stringify({ access_token: "TOKEN-xyz", expires_in: 10 }), { status: 200 }) : new Response(null, { status: 202 });
     }) as unknown as typeof fetch;
-    const erg = await sendeMail(tx, auftrag, { modus: "graph", absender: "news@bhyo.de", graph: { ...graph, clientSecret: "SECRET-123" }, secretAblauf: null }, holen, (z) => logs.push(z));
+    const erg = await sendeMail(tx, auftrag, { umgebung: "production", modus: "graph", absender: "news@bhyo.de", graph: { ...graph, clientSecret: "SECRET-123" }, secretAblauf: null }, holen, (z) => logs.push(z));
     expect(erg).toEqual({ ok: true, modus: "graph" });
     expect(aufrufe).toHaveLength(2);
     expect(aufrufe[1]).toContain("/users/news%40bhyo.de/sendMail");
@@ -69,7 +73,7 @@ describe("sendeMail", () => {
   it("Modus graph ohne Secrets: nicht_konfiguriert, kein Aufruf, kein Ereignis", async () => {
     protokolle.length = 0;
     const holen = vi.fn() as unknown as typeof fetch;
-    const erg = await sendeMail(tx, auftrag, { modus: "graph", absender: "news@bhyo.de", graph: null, secretAblauf: null }, holen, () => {});
+    const erg = await sendeMail(tx, auftrag, { umgebung: "production", modus: "graph", absender: "news@bhyo.de", graph: null, secretAblauf: null }, holen, () => {});
     expect(erg).toEqual({ ok: false, ursache: "nicht_konfiguriert", wiederholenNach: null });
     expect(holen).not.toHaveBeenCalled();
     expect(protokolle).toHaveLength(0);
@@ -77,9 +81,28 @@ describe("sendeMail", () => {
   it("Versandfehler (Secret abgelaufen) → Ergebnis mit Ursache, kein Ereignis", async () => {
     protokolle.length = 0;
     const holen = (async () => new Response(JSON.stringify({ error_codes: [7000222] }), { status: 401 })) as unknown as typeof fetch;
-    const erg = await sendeMail(tx, auftrag, { modus: "graph", absender: "news@bhyo.de", graph, secretAblauf: null }, holen, () => {});
+    const erg = await sendeMail(tx, auftrag, { umgebung: "production", modus: "graph", absender: "news@bhyo.de", graph, secretAblauf: null }, holen, () => {});
     expect(erg).toEqual({ ok: false, ursache: "secret_abgelaufen", wiederholenNach: null });
     expect(protokolle).toHaveLength(0);
+  });
+  it("Preview sendet nie (Eric 12.10.2026): modus=graph ausserhalb von production → nicht_production, kein Netzaufruf, kein Ereignis", async () => {
+    for (const umgebung of ["preview", "development", ""]) {
+      protokolle.length = 0;
+      const logs: string[] = [];
+      const holen = vi.fn() as unknown as typeof fetch;
+      const erg = await sendeMail(tx, auftrag, { umgebung, modus: "graph", absender: "news@bhyo.de", graph: { ...graph, clientSecret: "SECRET-123" }, secretAblauf: null }, holen, (z) => logs.push(z));
+      expect(erg).toEqual({ ok: false, ursache: "nicht_production", wiederholenNach: null });
+      expect(holen).not.toHaveBeenCalled();
+      expect(protokolle).toHaveLength(0);
+      expect(logs.join("\n")).toMatch(/MAIL graph art=roundup an=u1 ergebnis=nicht_production/);
+      expect(logs.join("\n")).not.toMatch(/SECRET-123|GEHEIM|ida\.ich/);
+    }
+  });
+  it("Probemodus ausserhalb von production protokolliert weiter (Preview laeuft trocken)", async () => {
+    protokolle.length = 0;
+    const erg = await sendeMail(tx, auftrag, { umgebung: "preview", modus: "protokoll", absender: "news@bhyo.de", graph: null, secretAblauf: null }, vi.fn() as unknown as typeof fetch, () => {});
+    expect(erg).toEqual({ ok: true, modus: "protokoll" });
+    expect(protokolle).toHaveLength(1);
   });
 });
 
