@@ -340,6 +340,21 @@ daraus folgt:
   maskiert Host und Datenbanknutzer der Verbindungs-URL als ersten Schritt
   nach der Installation („DB-Host im Log maskieren (E73)"); Skripte dürfen
   `host=` weiter drucken, die Maskierung ersetzt den Wert.
+- **Alte Logs löschen — nur bei echtem Geheimnis (Eric 12.10.2026).** Der
+  Datenbank-Host ist seit E73 bewusst öffentlich (er steht im Repo); ein
+  unmaskierter Host in einem alten Log ist kein Löschgrund. Gelöscht wird
+  ein Workflow-Log künftig nur, wenn es ein Passwort, den Nutzernamen der
+  DB-Rolle, ein Token, ein Secret oder Personendaten enthält (`gh api -X
+  DELETE repos/<repo>/actions/runs/<id>/logs`, Nachweis: die Log-API
+  antwortet mit 404). Alte Logs von lese-diagnose, backup und restore
+  werden nicht nachträglich durchsucht. Anlass: am 10.10.2026 wurden 21
+  Job-Wache-Logs mit unmaskiertem Host gelöscht — nach einer zu weiten
+  Formulierung korrekt, aber nicht nötig.
+- **`job_lauf.fehler` trägt eine Fehlerklasse, nie `e.message`** (E73,
+  Eric 10.10.2026, #219): `packages/db/src/fehler.ts` `fehlerKlasse()`
+  liefert z. B. `db_fehler/PostgresError/23505` — ein Drizzle-Fehler nennt
+  sonst Query und Parameter, darunter Adressen. Die Job-Wache druckt im
+  öffentlichen Log nur Fehlerklassen, von altem Freitext nur die Länge.
 - **Keine Secrets an Fork-PRs.** Alle Workflows laufen auf `push` (main),
   `pull_request` oder `workflow_dispatch`; `pull_request_target` wird nicht
   verwendet. Die Environments `production`, `production-lesend` und
