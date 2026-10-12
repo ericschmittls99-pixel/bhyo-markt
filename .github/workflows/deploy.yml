@@ -307,6 +307,10 @@ jobs:
       # 0 Empfaenger, Zeile und Idempotenz trotzdem geprueft).
       - name: Roundup-Probe (E76, Wegwerf-DB)
         run: pnpm --filter web exec tsx scripts/roundup-probe.ts
+      # Fehlerklasse „Date-Objekt im sql-Template" (12.10.2026): ein Date ohne
+      # Spaltenzuordnung muss ueber Drizzle als Parameter ankommen (createSql).
+      - name: Date-Parameter-Check (Drizzle sql-Template, echter Bind)
+        run: pnpm --filter @bhyo/db date-parameter-check
 
   schema-gate:
     needs: [typen-und-tests, ziel-wache]
