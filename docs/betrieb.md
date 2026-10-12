@@ -574,3 +574,26 @@ inklusive des Roundup-Falls `filter (where spalte > ${date})`. Dazu
 `packages/db/src/client.test.ts` („Date-Parameter im sql-Template"). Ein
 Entwurfs-PR überspringt `wegwerf-db`: das Update deshalb als „bereit" laufen
 lassen.
+
+## Freigabe gestapelter PRs: der angeglichene Head gilt mit (Regel Eric, 12.10.2026)
+
+Eine Freigabe für einen gestapelten PR gilt auch für den Head, den
+`scripts/freigabe.sh` in Schritt (f) nach dem Merge der Basis erzeugt (Merge
+von main, Umhängen der Basis), sofern
+
+1. die Patch-ID nachweislich identisch ist: PR-Diff gegen den **echten
+   Basis-Baum** (den Baum des Basis-Branches, auf dem der PR stand) vorher =
+   `git diff main...HEAD` nachher, beide mit `git patch-id --stable`, und
+2. alle Pflicht-Checks am neuen Head grün sind.
+
+Im Bericht stehen beide Heads und der Patch-ID-Vergleich. Bei jeder
+inhaltlichen Abweichung (Patch-ID ungleich, nicht nur mechanisch aufgelöste
+Konflikte): nicht mergen, neuen Head melden, Freigabe neu einholen.
+
+Befund 12.10.2026 (#226 auf #225): Schritt (f) rechnet „vorher" gegen den
+main-Baum. Liegen auf main bereits weitere Merges (#222, #224), die der
+Branch nicht hat, enthält dieses „vorher" deren Rücknahme und die Patch-ID
+weicht scheinbar ab — das Skript pusht dann zu Recht nicht, der Nachweis ist
+aber von Hand gegen den echten Basis-Baum zu führen (hier gleich:
+`5d956d20…` vorher und nachher). Das Skript sollte „vorher" gegen den Baum
+des alten Basis-Branches rechnen (Betriebs-PR, vorgemerkt).

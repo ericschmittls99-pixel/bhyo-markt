@@ -159,6 +159,13 @@ keine Mapping-Tabelle im Code.
 
 Zwei Deckkraft-Stufen, beide mit Blur `20px` + `saturate(160%)`:
 
+Im Quell-CSS steht **nur** `backdrop-filter` (unpräfixt). Keine manuelle
+`-webkit-backdrop-filter`-Zeile: der Minifier des Builds fasst beide als eine
+Eigenschaft zusammen und gab bis 12.10.2026 nur die -webkit-Form aus, die
+Chrome nicht anwendet — der Blur fehlte app-weit. Präfixe setzt der Build
+nach Zielbrowsern; `apps/web/scripts/css-glas-check.ts` prüft das gebaute CSS
+im Deploy-Job.
+
 - `--glass-fill` (Light `rgba(255,255,255,.72)` · Dark `rgba(31,46,56,.62)`):
   Karten und Module, die auf der Seitenfläche liegen.
 - `--glass-fill-strong` (Light **`.94`** · Dark **`.95`**): alles, was über
