@@ -250,7 +250,16 @@ export function KarteMap({
       map.on("load", () => {
         console.info("karte: maplibre load");
         setReady(true);
+        attributionEinklappen();
       });
+      // E77 R1: auf schmaler Karte (<= 640 px) oeffnet MapLibre die kompakte Attribution
+      // zunaechst dreizeilig (hinter Legende und Steuerung) und klappt sie erst bei der
+      // ersten Interaktion ein — wir klappen sofort ein, das (i) bleibt bedienbar.
+      function attributionEinklappen() {
+        const attrib = containerRef.current?.querySelector(".maplibregl-ctrl-attrib");
+        if (attrib?.classList.contains("maplibregl-compact")) attrib.classList.remove("maplibregl-compact-show");
+      }
+      map.on("resize", attributionEinklappen);
       // Themenwechsel (data-theme) -> Kachel-Anmutung nachziehen.
       const themeBeobachter = new MutationObserver(() => {
         const m = mapRef.current;
