@@ -424,6 +424,11 @@ describe("popoverLage (E77 R1: flip/shift an allen vier Raendern)", () => {
     expect(popoverLage(marker(180, 10), box, klein).unten).toBe(true);
     expect(popoverLage(marker(180, 100), box, klein).unten).toBe(false);
   });
+  it("Toolbar ueberlagert die Karte oben: der sichtbare Rand zaehlt (flaeche.top)", () => {
+    // ohne top: 200 - 8 - 8 = 184 >= 90 → oben; mit Toolbar bis 130: 200 - 130 - 16 = 54 → unten
+    expect(popoverLage(marker(480, 200), box, flaeche).unten).toBe(false);
+    expect(popoverLage(marker(480, 200), box, { ...flaeche, top: 130 }).unten).toBe(true);
+  });
   it("Box breiter als die Flaeche: beginnt am linken Rand", () => {
     const l = popoverLage(marker(100, 300), box, { width: 200, height: 600 });
     expect(l.dx).toBe(8 - (120 - 120));

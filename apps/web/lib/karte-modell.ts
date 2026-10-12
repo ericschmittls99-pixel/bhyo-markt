@@ -414,16 +414,18 @@ export interface PopoverLage {
  * (flip); seitlich wird sie so verschoben (shift), dass sie an keinem der
  * vier Raender ueber die Kartenflaeche hinausragt. Alle Masse in Pixeln
  * relativ zur Kartenflaeche; `abstand` ist die Luecke zum Marker, `rand`
- * der Mindestabstand zum Flaechenrand.
+ * der Mindestabstand zum Flaechenrand. `flaeche.top` (Standard 0) ist der
+ * obere Rand des SICHTBAREN Kartenteils — unter der Toolbar, die die Karte
+ * oben ueberlagert (sonst stuende die Box hinter der Filterleiste).
  */
 export function popoverLage(
   marker: Rechteck,
   box: { width: number; height: number },
-  flaeche: { width: number; height: number },
+  flaeche: { width: number; height: number; top?: number },
   abstand = 8,
   rand = 8,
 ): PopoverLage {
-  const platzOben = marker.top - abstand - rand;
+  const platzOben = marker.top - (flaeche.top ?? 0) - abstand - rand;
   const platzUnten = flaeche.height - (marker.top + marker.height) - abstand - rand;
   const passtOben = platzOben >= box.height;
   const passtUnten = platzUnten >= box.height;

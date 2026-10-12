@@ -103,16 +103,21 @@ function bindePopoverLage(el: HTMLElement, flaeche: () => HTMLElement | null) {
     const pop = el.querySelector<HTMLElement>(":scope > .km-pop");
     const fl = flaeche();
     if (!pop || !fl) return;
+    // Die Toolbar (Suche, Filterleiste) liegt oben ueber der Karte: ihr Unterrand ist der
+    // sichtbare obere Kartenrand.
+    const toolbar = fl.parentElement?.parentElement?.querySelector<HTMLElement>(".km-toolbar-bereich") ?? null;
     const vorher = pop.style.display;
     if (pop.offsetWidth === 0) pop.style.display = "flex";
     const box = { width: pop.offsetWidth, height: pop.offsetHeight };
     pop.style.display = vorher;
     const fr = fl.getBoundingClientRect();
     const mr = el.getBoundingClientRect();
+    const tb = toolbar?.getBoundingClientRect();
+    const sichtbarAb = tb ? Math.max(0, tb.bottom - fr.top) : 0;
     const lage = popoverLage(
       { left: mr.left - fr.left, top: mr.top - fr.top, width: mr.width, height: mr.height },
       box,
-      { width: fr.width, height: fr.height },
+      { width: fr.width, height: fr.height, top: sichtbarAb },
     );
     pop.classList.toggle("km-pop--unten", lage.unten);
     pop.style.setProperty("--dx", `${lage.dx}px`);
