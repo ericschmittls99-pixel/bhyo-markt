@@ -3785,6 +3785,7 @@ table.st-tabelle tbody tr:focus-visible {
   font: var(--type-caption);
   color: var(--text-tertiary);
   font-variant-numeric: tabular-nums;
+  white-space: nowrap; /* E77 R1: neben dem i-Knopf nicht umbrechen */
 }
 .km-legende-body {
   overflow-y: auto;
