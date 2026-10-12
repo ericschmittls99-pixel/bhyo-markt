@@ -6,6 +6,7 @@ const basis: AkteurZeile = {
   id: "a1", name: "Hof Müller", sektor: "landwirtschaft", sektorLabel: "Landwirtschaft",
   sitzStrasse: "Hauptstraße", sitzHausnummer: "1", sitzPlz: "74889", sitzOrt: "Sinsheim", sitzLng: 8.88, sitzLat: 49.25, sitzGenauigkeit: "unbekannt",
   kreisArs: "08226", kreisName: "Rhein-Neckar-Kreis", regionIds: ["r1"], stroeme: 2, mitBeleg: 1, verwaistSeit: null, erstelltAm: "2026-01-01",
+  kontaktpersonen: 0, dublettenverdacht: false,
 };
 
 // AP2.5 PR a1 (E66): abgeleitete Zustaende und der Filter der Akteurliste.
@@ -33,5 +34,28 @@ describe("Akteur-Zustaende (E66)", () => {
   it("Sitz als Text", () => {
     expect(sitzText(basis)).toBe("Hauptstraße 1, 74889 Sinsheim");
     expect(sitzText({ sitzStrasse: null, sitzHausnummer: null, sitzPlz: "74889", sitzOrt: "Sinsheim" })).toBe("74889 Sinsheim");
+  });
+});
+
+// E77 R2: „Weitere Filter" in akteure. — Dublettenverdacht und mit Kontaktpersonen neben den Zustaenden.
+describe("Weitere Filter akteure. (E77 R2)", () => {
+  const leer = { q: "", region: [], sektor: [], akteur: [], akteur_zustand: [] };
+  const pool: AkteurZeile[] = [
+    basis,
+    { ...basis, id: "d1", dublettenverdacht: true },
+    { ...basis, id: "k1", kontaktpersonen: 2 },
+    { ...basis, id: "v1", stroeme: 0, mitBeleg: 0 },
+  ];
+  it("dublette trifft nur den Akteur im Dubletten-Paar", () => {
+    expect(filterAkteure(pool, { ...leer, akteur_zustand: ["dublette"] }).map((a) => a.id)).toEqual(["d1"]);
+  });
+  it("mit_kontaktpersonen trifft nur Akteure mit mindestens einer Kontaktperson", () => {
+    expect(filterAkteure(pool, { ...leer, akteur_zustand: ["mit_kontaktpersonen"] }).map((a) => a.id)).toEqual(["k1"]);
+  });
+  it("mehrere Werte sind ODER-verknuepft, Zustaende bleiben dabei", () => {
+    expect(filterAkteure(pool, { ...leer, akteur_zustand: ["verwaist", "dublette"] }).map((a) => a.id)).toEqual(["d1", "v1"]);
+  });
+  it("Dublettenverdacht und Kontaktpersonen sind keine Zustands-Pillen", () => {
+    expect(zustaendeAus({ ...basis, dublettenverdacht: true, kontaktpersonen: 3 })).toEqual([]);
   });
 });

@@ -1767,17 +1767,81 @@ button.leg-toggle.aus {
 }
 .st-chips {
   /* Rueckmeldung 1 (28.09.2026): Die Chip-Zeile fuellt die Breite der
-     Toolbar, „Weitere Filter" (+) und das Ruecksetz-X sitzen an ihrem
-     rechten Rand — buendig mit „Feedstock anlegen" bzw. dem Export-Icon. */
+     Toolbar, „Weitere Filter" (+) sitzt an ihrem rechten Rand — buendig mit
+     „Feedstock anlegen" bzw. dem Export-Icon. E77 R2: einzeilig, scrollt
+     horizontal (ChipLeiste). */
   flex: 1 1 auto;
+  min-width: 0;
+}
+.chipleiste-scroll .fc-weitere {
+  margin-left: auto;
+}
+
+/* E77 R2: einzeilige Chip-Leiste mit horizontalem Scrollen und Verlaufskante
+   (components/stroeme/ChipLeiste.tsx). Die Kante nimmt die Flaeche dahinter
+   (--chipleiste-fade), auf dem Glas der karte.-Toolbar das Glas. */
+.chipleiste {
+  position: relative;
+  min-width: 0;
+  --chipleiste-fade: var(--surface-page);
+}
+.chipleiste-scroll {
   display: flex;
   align-items: center;
   gap: 8px;
-  flex-wrap: wrap;
-  min-width: 0;
+  flex-wrap: nowrap;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 2px 0; /* Fokusring der Chips */
+  scrollbar-width: none;
 }
-.st-chips .fc-weitere {
-  margin-left: auto;
+.chipleiste-scroll::-webkit-scrollbar {
+  display: none;
+}
+.chipleiste::before,
+.chipleiste::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 36px;
+  z-index: 1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity var(--duration-fast) var(--ease-standard);
+}
+.chipleiste::before {
+  left: 0;
+  background: linear-gradient(90deg, var(--chipleiste-fade), transparent);
+}
+.chipleiste::after {
+  right: 0;
+  background: linear-gradient(270deg, var(--chipleiste-fade), transparent);
+}
+.chipleiste[data-links]::before,
+.chipleiste[data-rechts]::after {
+  opacity: 1;
+}
+.filter-entfernen {
+  white-space: nowrap;
+}
+/* E77 R2: Kaestchengruppe im Popover „Weitere Filter" (akteure.: Zustaende). */
+.pf--gruppe {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.pf--gruppe legend {
+  padding: 0;
+  margin-bottom: 2px;
+  font: var(--type-kicker);
+  color: var(--text-accent);
+}
+.pop--fixiert {
+  position: fixed;
 }
 .st-inhalt {
   flex: 1;
@@ -3638,9 +3702,38 @@ table.st-tabelle tbody tr:focus-visible {
   width: fit-content;
 }
 .km-filterleiste {
+  /* E77 R2 (Eric 12.10.2026): so breit wie noetig, hoechstens die ganze
+     Breite; einzeilig, scrollt horizontal (ChipLeiste), Kante auf dem Glas. */
   border-radius: 20px;
-  flex-wrap: wrap;
-  width: auto; /* E77 R1: laeuft ueber die ganze Breite */
+  width: fit-content;
+  max-width: 100%;
+  --chipleiste-fade: var(--glass-fill-strong);
+}
+.km-filterleiste .chipleiste-scroll {
+  padding: 2px 4px;
+}
+.km-filterleiste::before,
+.km-filterleiste::after {
+  top: 1px;
+  bottom: 1px;
+  border-radius: 20px;
+}
+/* E77 R2 (480-px-Befund aus R1): die erste Toolbar-Zeile bricht auf schmaler
+   Karte um, statt rechts ueberzulaufen — Suche in die eigene Zeile. */
+.km-seite {
+  container-type: inline-size;
+}
+@container (max-width: 640px) {
+  .km-toolbar:not(.km-filterleiste) {
+    flex-wrap: wrap;
+    border-radius: 20px;
+  }
+  .km-suche {
+    flex: 1 1 100%;
+  }
+  .km-suche .search {
+    width: 100%;
+  }
 }
 .km-suche {
   position: relative;

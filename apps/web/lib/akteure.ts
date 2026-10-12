@@ -32,6 +32,7 @@ interface Roh {
   mit_beleg: number | string;
   verwaist_seit: string | null;
   erstellt_am: string;
+  kontaktpersonen?: number | string | null;
 }
 
 const num = (v: number | string | null): number | null => (v == null ? null : Number(v));
@@ -56,6 +57,9 @@ function zeileAus(r: Roh): AkteurZeile {
     mitBeleg: Number(r.mit_beleg),
     verwaistSeit: r.verwaist_seit,
     erstelltAm: r.erstellt_am,
+    kontaktpersonen: Number(r.kontaktpersonen ?? 0),
+    // Dublettenverdacht kommt aus lib/dubletten.ts (ein Ursprung); die Seite setzt ihn.
+    dublettenverdacht: false,
   };
 }
 
@@ -71,6 +75,8 @@ const ABFRAGE = sql`
     select entitaet_id, max(zeitpunkt) as zeitpunkt from aenderung
      where entitaet_typ = 'akteur' and art::text in ('akteur_angelegt', 'akteur_geaendert')
      group by entitaet_id
+  ), k as (
+    select akteur_id, count(*)::int as n from kontaktperson group by akteur_id
   )
   select a.id, a.name, a.sektor,
          case when sk.aktiv then sk.label else sk.label || ' (deaktiviert)' end as sektor_label,
@@ -80,6 +86,7 @@ const ABFRAGE = sql`
          -- „Sitz in Region": dieselbe raeumliche Ableitung wie beim Strom-Standort (lib/stroeme.ts).
          coalesce((select json_agg(r.id::text order by r.name) from region r where a.sitz_geom is not null and ST_Contains(r.gebiet, a.sitz_geom)), '[]'::json) as region_ids,
          coalesce(z.stroeme, 0) as stroeme, coalesce(z.mit_beleg, 0) as mit_beleg,
+         coalesce(k.n, 0) as kontaktpersonen,
          case when coalesce(z.stroeme, 0) = 0
               then (coalesce(p.zeitpunkt, a.created_at) at time zone 'Europe/Berlin')::date::text end as verwaist_seit,
          a.created_at::text as erstellt_am
@@ -87,6 +94,7 @@ const ABFRAGE = sql`
     left join sektor sk on sk.code = a.sektor
     left join z on z.akteur_id = a.id
     left join p on p.entitaet_id = a.id
+    left join k on k.akteur_id = a.id
     left join akteur_verwaltung v on v.akteur_id = a.id`;
 
 export async function ladeAkteure(db: Leser): Promise<AkteurZeile[]> {

@@ -4,6 +4,10 @@
  *   unvollstaendig  = Sitz ohne Adresse (keine Strasse) — E66: „Unvollständig heißt: keine Adresse"
  *   ohne_beleg      = Stroeme vorhanden, aber keiner mit Beleg
  *   verwaist        = kein Strom verweist auf den Akteur (E48)
+ * E77 R2: unter „Weitere Filter" ausserdem „Dublettenverdacht" (der Akteur
+ * steht in einem Paar von lib/dubletten.ts) und „mit Kontaktpersonen"
+ * (mindestens eine Kontaktperson) — abgeleitet, nie gespeichert (E23),
+ * keine Pillen in der Tabelle.
  * Filter und Facetten gehen durch das Filtermodell (E32, Ansicht „akteure").
  */
 import type { Genauigkeit } from "@/lib/adresse-pruefung";
@@ -18,6 +22,12 @@ export const AKTEUR_ZUSTAND_LABEL: Record<AkteurZustand, string> = {
   ohne_beleg: "ohne Beleg",
   verwaist: "verwaist",
 };
+/** E77 R2: Werte des Parameters akteur_zustand im Popover „Weitere Filter" (Zustaende plus zwei abgeleitete Merkmale). */
+export const AKTEUR_WEITERE_FILTER: readonly { wert: string; label: string }[] = [
+  ...AKTEUR_ZUSTAENDE.map((z) => ({ wert: z, label: AKTEUR_ZUSTAND_LABEL[z] })),
+  { wert: "dublette", label: "Dublettenverdacht" },
+  { wert: "mit_kontaktpersonen", label: "mit Kontaktpersonen" },
+];
 
 export interface AkteurZeile {
   id: string;
@@ -41,6 +51,10 @@ export interface AkteurZeile {
   /** JJJJ-MM-TT, seit wann der Akteur verwaist ist (Protokoll, sonst Anlage); null wenn nicht verwaist. */
   verwaistSeit: string | null;
   erstelltAm: string;
+  /** E77 R2: Zahl der Kontaktpersonen (Abfrage). */
+  kontaktpersonen: number;
+  /** E77 R2: steht in einem moeglichen Dubletten-Paar (lib/dubletten.ts, ohne „keine Dublette"). */
+  dublettenverdacht: boolean;
 }
 
 export function zustaendeAus(a: AkteurZeile): AkteurZustand[] {
@@ -74,7 +88,9 @@ export function filterAkteure(pool: AkteurZeile[], f: AkteureFilter): AkteurZeil
     if (f.akteur.length && !f.akteur.includes(a.id)) return false;
     if (f.akteur_zustand.length) {
       const z = zustaendeAus(a);
-      if (!f.akteur_zustand.some((w) => z.includes(w as AkteurZustand))) return false;
+      const passt = (w: string) =>
+        w === "dublette" ? a.dublettenverdacht : w === "mit_kontaktpersonen" ? a.kontaktpersonen > 0 : z.includes(w as AkteurZustand);
+      if (!f.akteur_zustand.some(passt)) return false;
     }
     return true;
   });

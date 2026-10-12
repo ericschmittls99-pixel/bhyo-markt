@@ -6,6 +6,8 @@ import {
   FacettenChips,
   type FacettenChipDef,
 } from "@/components/stroeme/FacettenChips";
+import { ChipLeiste } from "@/components/stroeme/ChipLeiste";
+import { FilterEntfernen } from "@/components/stroeme/FilterEntfernen";
 import { useUrlZustand } from "@/components/stroeme/useUrlZustand";
 import { LeistenHinweise } from "@/components/stroeme/LeistenHinweise";
 import type { Sicht } from "@/lib/auswertung-modell";
@@ -119,6 +121,7 @@ export function AuswertungToolbar({
         </div>
 
         <div className="st-toolbar-rechts">
+          {irgendeinFilter && <FilterEntfernen onClick={zuruecksetzen} />}
           <button
             type="button"
             className={`fchip${offen || filterAnzahl ? " aktiv" : ""}`}
@@ -145,19 +148,17 @@ export function AuswertungToolbar({
       <div className="st-filterzeile aw-filterzeile">
         {!offen && <span className="st-count">{countText}</span>}
         {offen && (
-          <div id="aw-filter" className="st-chips">
+          <ChipLeiste id="aw-filter" className="st-chips">
             <FacettenChips
               facetten={facetten}
               auswahl={auswahl}
               bereichKeys={bereichKeys}
               bereich={bereich}
               bereichKompakt
-              mitReset={irgendeinFilter}
-              onReset={zuruecksetzen}
               schliessSignal={schliessSignal}
               onPopoverOffen={() => setSortSchliessen((s) => s + 1)}
             />
-          </div>
+          </ChipLeiste>
         )}
         <LeistenHinweise zurueckgehalten={zurueckgehalten} hinweise={hinweise} />
       </div>

@@ -96,6 +96,12 @@ export interface FilterDef {
   /** Hauptfilter oder unter „weitere Filter" (zusammengeklappt). */
   gruppe: "haupt" | "weitere";
   /**
+   * E77 R2: Eine Facette, die nicht als Chip steht, sondern als
+   * Kaestchengruppe im Popover „Weitere Filter" (akteure.: die abgeleiteten
+   * Zustaende). Werte und Parameter wie bei jeder Facette.
+   */
+  darstellung?: "kaestchen";
+  /**
    * Nur bei `hierarchie`: die Ebenen von oben nach unten. Ihre `param`
    * entsprechen `params` in derselben Reihenfolge — eine zweite Liste waere
    * eine zweite Wahrheit.
@@ -220,13 +226,16 @@ export const FILTER: readonly FilterDef[] = [
     // AP2.5 PR a1 (E66): die benannten Zustaende eines Akteurs (E24) —
     // unvollstaendig (Sitz ohne Adresse oder Pin), ohne Beleg, verwaist. Nur in
     // akteure.; abgeleitet in lib/akteure-modell.ts, nie gespeichert (E23).
+    // E77 R2 (Eric 12.10.2026): als Kaestchen unter „Weitere Filter" —
+    // unvollstaendig, ohne Beleg, verwaist, Dublettenverdacht, mit Kontaktpersonen.
     key: "akteur_zustand",
     label: "Zustand",
     typ: "facette",
     params: ["akteur_zustand"],
     ansichten: ["akteure"],
     arten: BEIDE,
-    gruppe: "haupt",
+    gruppe: "weitere",
+    darstellung: "kaestchen",
   },
   {
     // F5 PR B: "stofflich" heisst, was sich als Masse messen laesst —
