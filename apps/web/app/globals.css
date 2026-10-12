@@ -2472,7 +2472,6 @@ button.leg-toggle.aus {
   border-top: 1px solid var(--glass-edge);
   background: var(--glass-fill);
   backdrop-filter: var(--glass-backdrop);
-  -webkit-backdrop-filter: var(--glass-backdrop);
 }
 .ov-fuss .pf-fehler {
   margin-right: auto;
