@@ -556,3 +556,21 @@ die Umgebung `production` ist. Die Umgebung kommt aus der festen Variable
 ihn in `job_lauf.schritte` als `ursache_nicht_production`, der Testversand
 meldet ihn als Fehler. Der Probemodus (`protokoll`) läuft auf der Preview
 weiter trocken. Test: `lib/mail/index.test.ts` („Preview sendet nie").
+
+## Date-Parameter im sql-Template: Wegwerf-Check vor jedem Treiber-Update (PR #224, 12.10.2026)
+
+Die Fehlerklasse „Date-Objekt im sql-Template" ist zentral in
+`packages/db/src/client.ts` abgestellt (`createSql` hängt Setter an die
+Serializer der Zeittypen, damit ein `Date` auch nach Drizzles
+Identitäts-Override als ISO-Text ankommt). Die Absicherung hängt am
+Zusammenspiel von postgres-js (Typableitung, Serializer) und drizzle-orm
+(`construct()` überschreibt die Serializer in dasselbe Objekt).
+
+**Regel:** Bei jedem Update von `drizzle-orm` oder `postgres` muss der Schritt
+„Date-Parameter-Check (Drizzle sql-Template, echter Bind)" im Job `wegwerf-db`
+(`packages/db/src/date-parameter-check.ts`) grün sein, bevor gemergt wird —
+der Check schickt ein Date ohne Spaltenzuordnung durch den echten Bind,
+inklusive des Roundup-Falls `filter (where spalte > ${date})`. Dazu
+`packages/db/src/client.test.ts` („Date-Parameter im sql-Template"). Ein
+Entwurfs-PR überspringt `wegwerf-db`: das Update deshalb als „bereit" laufen
+lassen.
