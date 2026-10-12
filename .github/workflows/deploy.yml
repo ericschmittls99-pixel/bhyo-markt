@@ -634,6 +634,11 @@ jobs:
           # sonst der gepushte Commit.
           COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: pnpm exec opennextjs-cloudflare build
+      # Glas-Blur im Build (12.10.2026): der Minifier liess von backdrop-filter nur die
+      # -webkit-Form uebrig, die Chrome nicht anwendet (apps/web/scripts/css-glas-check.ts).
+      - name: CSS-Glas-Check (backdrop-filter unpraefixt im Build)
+        working-directory: apps/web
+        run: pnpm exec tsx scripts/css-glas-check.ts .open-next/assets/_next/static
 
       # Push auf main -> Production (Top-Level-Umgebung).
       - name: Deploy Production
