@@ -252,10 +252,13 @@ export function KarteMap({
         setReady(true);
         attributionEinklappen();
       });
-      // E77 R1: auf schmaler Karte (<= 640 px) oeffnet MapLibre die kompakte Attribution
-      // zunaechst dreizeilig (hinter Legende und Steuerung) und klappt sie erst bei der
-      // ersten Interaktion ein — wir klappen sofort ein, das (i) bleibt bedienbar.
+      // E77 R1: auf schmaler Karte (<= 640 px) steht die zunaechst offene kompakte
+      // Attribution dreizeilig hinter Legende und Steuerung; MapLibre klappt sie erst bei
+      // der ersten Interaktion ein — wir klappen sie dort sofort ein, das (i) bleibt
+      // bedienbar. Auf breiter Karte bleibt der Quellenhinweis sichtbar (OSM/BKG-Lizenz).
       function attributionEinklappen() {
+        const breite = containerRef.current?.clientWidth ?? 0;
+        if (breite > 640) return;
         const attrib = containerRef.current?.querySelector(".maplibregl-ctrl-attrib");
         if (attrib?.classList.contains("maplibregl-compact")) attrib.classList.remove("maplibregl-compact-show");
       }
