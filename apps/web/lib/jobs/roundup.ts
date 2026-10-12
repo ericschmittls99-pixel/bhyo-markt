@@ -158,7 +158,11 @@ export function roundupZugriff(db: AppDb): RoundupZugriff {
     raeumeStoerungenAb: () => raeumeStoerungenAb(db),
     pruefeSecretAblauf: (ablauf, stichtag) => stelleSecretAblaufZu(db, ablauf, stichtag),
     async zaehle(nutzerId, seit) {
-      const neu = seit ? sql<number>`count(*) filter (where ${inboxEintrag.erstelltAm} > ${seit})::int` : sql<number>`count(*)::int`;
+      // Ein Date direkt im sql-Template geht ohne Spaltenzuordnung roh an den Treiber und bricht
+      // (Lauf 38255670920: ERR_INVALID_ARG_TYPE „Received an instance of Date") — deshalb wie
+      // ueberall im Repo als ISO-Text mit ausdruecklichem Cast. Erster Lauf (seit null) war davon
+      // nie betroffen; jeder Folgelauf mit markierten Nutzern haette den Job beendet.
+      const neu = seit ? sql<number>`count(*) filter (where ${inboxEintrag.erstelltAm} > ${seit.toISOString()}::timestamptz)::int` : sql<number>`count(*)::int`;
       const rows = await db
         .select({ typ: inboxEintrag.typ, offen: sql<number>`count(*)::int`, neu })
         .from(inboxEintrag)

@@ -518,3 +518,41 @@ mit Testdateien: Konstante, synchrone Funktion, Re-Export, Default ohne
 async; der Fall aus #214; Typ-Re-Export erlaubt; der echte Baum ist grün).
 Erster Fund beim Einbau: `export { Gesperrt }` in `lib/sperre-actions.ts`
 (Wert-Re-Export einer Fehlerklasse, ohne Verbraucher) — entfernt.
+
+## Proben gegen die geteilte Preview: nie vom Preview-Zustand abhängig (Leitregel, 12.10.2026)
+
+Die Preview-Datenbank ist geteilt und verändert sich laufend: Deploys aller
+PRs, Klicks für Screenshots, und seit AP2.9 die Cron-Jobs — der
+Preview-Worker erbt die Trigger aus `wrangler.jsonc` und schreibt werktags um
+07:07 Berlin einen echten Roundup-Lauf (Probemodus) für den Tages-Stichtag.
+Die Roundup-Probe nahm den Tages-Stichtag und bekam ab dem ersten Werktag
+„übersprungen" (Lauf 38248575725, PR #222 blockiert, ohne dass der PR etwas
+damit zu tun hatte).
+
+Leitregel für jede Probe, die im Deploy-Job gegen `DATABASE_URL_PREVIEW`
+läuft (`scripts/*-probe.ts`):
+
+- **Eigene Fixture-Daten** in der zurückgerollten Transaktion anlegen
+  (Nutzer, Einträge, Objekte) und die Zusicherungen auf diese Daten
+  filtern. Echte Preview-Daten werden nie zurückgesetzt oder verändert.
+- **Zukunfts-Stichtage**, die kein echter Lauf erreicht (Roundup:
+  Montag 2099-01-05, Samstag 2099-01-03 für den Wochenend-Fall), statt
+  „heute" oder „nächster Werktag".
+- **Zählungen als Zuwachs** gegenüber einer Grundlinie vor dem Probe-Lauf,
+  nie als Absolutwert über die ganze Tabelle.
+
+Nachweis des Umbaus der Roundup-Probe: grün auf der Preview NACH dem echten
+Lauf desselben Tages und im Wegwerf-Lauf (`wegwerf-db`, leere PostGIS).
+
+## Preview sendet nie (E74/E76, 12.10.2026)
+
+Weil die Preview die Cron-Trigger erbt, läuft dort täglich das Roundup. Der
+Mail-Adapter (`lib/mail/index.ts`, die eine Schreibstelle) sendet nur, wenn
+die Umgebung `production` ist. Die Umgebung kommt aus der festen Variable
+`ENVIRONMENT` der jeweiligen wrangler-Umgebung (`vars` in `wrangler.jsonc`:
+`production` bzw. `preview`), nie aus einer URL. Überall sonst ist
+`modus=graph` ein Fehler (`nicht_production`, fail closed), unabhängig von
+`MAIL_MODUS`: kein Token, kein Netzaufruf, kein Ereignis; der Roundup zählt
+ihn in `job_lauf.schritte` als `ursache_nicht_production`, der Testversand
+meldet ihn als Fehler. Der Probemodus (`protokoll`) läuft auf der Preview
+weiter trocken. Test: `lib/mail/index.test.ts` („Preview sendet nie").

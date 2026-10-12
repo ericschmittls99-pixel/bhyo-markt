@@ -2,19 +2,27 @@
  * AP2.9 (E76): Probelauf des Roundups gegen die Datenbank (Preview im
  * Deploy-CI je PR, Wegwerf-DB im Testlauf) — in EINER zurueckgerollten
  * Transaktion, nichts bleibt liegen, nichts wird gesendet (Modus protokoll).
+ *
+ * Unabhaengig vom Preview-Zustand (Eric 12.10.2026, docs/betrieb.md): eigene
+ * Probe-Nutzer und -Eintraege nur in der Transaktion, feste Stichtage 2099,
+ * Zaehlungen als Zuwachs gegenueber der Grundlinie vor dem Lauf. Echte Nutzer
+ * der Preview laufen mit, werden aber nie zurueckgesetzt.
  * Zusicherungen:
  *
  *  1. Der Lauf legt genau eine job_lauf-Zeile `roundup` fuer den Stichtag an
  *     und meldet je aktivem Nutzer mit Roundup an eine Zeile
- *     `ROUNDUP nutzer=<id> wuerde_senden=ja|nein neu=… offen=… typen={…}`.
+ *     `ROUNDUP nutzer=<id> wuerde_senden=ja|nein neu=… offen=… typen={…}`;
+ *     Probe-Nutzer A (ein offener Eintrag, nie ein Roundup) „ja", B „nein",
+ *     C (abgemeldet) ohne Zeile — beide Pfade werden durchlaufen.
  *  2. Im Log steht keine Adresse, kein Betreff, kein Text — nur Nutzer-IDs
  *     und Zaehler (E73, Eric 09.10.2026).
  *  3. „Wuerde senden" genau fuer die Nutzer mit mindestens einem neuen
  *     offenen Eintrag; fuer sie entsteht ein Ereignis mail_gesendet
- *     (Probemodus) und roundup_zuletzt_am wird gesetzt.
+ *     (Probemodus) und roundup_zuletzt_am wird gesetzt — als Zuwachs
+ *     gezaehlt, dazu A genau ein Ereignis und markiert, B keins.
  *  4. Der zweite Lauf desselben Stichtags ist uebersprungen (Idempotenz).
- *  5. Am Wochenende (Berliner Kalendertag) laeuft nichts und entsteht keine
- *     Zeile.
+ *  5. Am Wochenende (Berliner Kalendertag, Samstag 2099-01-03) laeuft nichts
+ *     und entsteht keine Zeile.
  *  6. Umschalten vorbereiten (Eric 10.10.2026): schritte traegt die Summen
  *     mit Modus (modus=protokoll, gesendet=0, protokolliert=wuerde senden,
  *     nichts_neu, abgemeldet) — „gesendet" zaehlt nur modus=graph.
@@ -29,7 +37,7 @@ import { sql } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/postgres-js";
 
 import type { AppDb } from "../lib/db";
-import { fuehreRoundupAus, istWerktagBerlin, roundupZugriff } from "../lib/jobs/roundup";
+import { fuehreRoundupAus, roundupZugriff } from "../lib/jobs/roundup";
 import { raeumeStoerungenAb, stelleSecretAblaufZu, stelleStoerungZu } from "../lib/inbox/mail-hinweise";
 
 const url = process.env.DATABASE_URL;
@@ -40,14 +48,29 @@ if (!url) {
 const verbindung = createSql(url, { max: 1 });
 const db = drizzle(verbindung, { schema });
 const ROLLBACK = "__rollback__";
-const KONFIG = { modus: "protokoll" as const, absender: "news@bhyo.de", graph: null, secretAblauf: null };
+const KONFIG = { umgebung: "preview", modus: "protokoll" as const, absender: "news@bhyo.de", graph: null, secretAblauf: null };
 
-/** Naechster Werktag ab jetzt, 07:07 UTC (Stunde ist fuer den Job egal, der Cron entscheidet). */
-function naechsterWerktag(ab: Date): Date {
-  const d = new Date(ab);
-  while (!istWerktagBerlin(d)) d.setUTCDate(d.getUTCDate() + 1);
-  return d;
-}
+/**
+ * Feste Stichtage weit in der Zukunft (Eric 12.10.2026): die Preview erbt die
+ * Cron-Trigger (wrangler.jsonc) und schreibt werktags um 07:07 Berlin einen
+ * echten Lauf fuer den Tages-Stichtag — mit dem Tagesdatum war Fall 1 danach
+ * „uebersprungen" (Lauf 38248575725). Einen Montag 2099 erreicht kein echter
+ * Lauf; der Samstag davor deckt den Wochenend-Fall. 06:07 UTC = 07:07 Berlin (CET).
+ */
+const JETZT = new Date("2099-01-05T06:07:00Z");
+const SAMSTAG = new Date("2099-01-03T06:07:00Z");
+const STICHTAG = "2099-01-05";
+/**
+ * Probe-Nutzer, nur in der zurueckgerollten Transaktion: A mit Neuem (nie ein
+ * Roundup), B ohne, C abgemeldet, D mit frueherem Roundup — ein alter und ein
+ * neuer Eintrag, damit der Zweig „neu seit roundup_zuletzt_am" der Zaehl-
+ * Abfrage auch auf der Wegwerf-DB laeuft (auf der Preview brach er am
+ * 12.10.2026 beim ersten echten Nutzer mit gesetztem Zeitpunkt, Lauf 38254504703).
+ */
+const NUTZER_A = "00000000-0000-4000-8000-00000000f0a1";
+const NUTZER_B = "00000000-0000-4000-8000-00000000f0b2";
+const NUTZER_C = "00000000-0000-4000-8000-00000000f0c3";
+const NUTZER_D = "00000000-0000-4000-8000-00000000f0d4";
 
 async function main() {
   const ziel = new URL(url!);
@@ -65,35 +88,73 @@ async function main() {
         logs.push(z);
         console.log(`  ${z}`);
       };
-      const jetzt = naechsterWerktag(new Date());
-      const stichtag = jetzt.toISOString().slice(0, 10);
+      const zaehl = async (q: ReturnType<typeof sql>) => Number(((await tx.execute(q)) as unknown as { n: number }[])[0]!.n);
+      const jetzt = JETZT;
+      const stichtag = STICHTAG;
 
-      // 5: Wochenende — Samstag nach dem Werktag.
-      const samstag = new Date(jetzt);
-      while (istWerktagBerlin(samstag)) samstag.setUTCDate(samstag.getUTCDate() + 1);
-      const we = await fuehreRoundupAus(zugriff, samstag, KONFIG, "https://probe.invalid", undefined, log);
-      pruefe("5 Wochenende: kein Lauf, keine Zeile", we.lauf === "wochenende", we);
+      // Eigene Fixture-Daten statt Preview-Zustand (docs/betrieb.md, Leitregel 12.10.2026):
+      // A hat einen offenen Eintrag und noch nie ein Roundup (alles Offene zaehlt als neu),
+      // B hat nichts, C ist abgemeldet. Echte Nutzer bleiben unangetastet; sie laufen mit,
+      // alle Zaehlungen sind Zuwachs gegenueber der Grundlinie bzw. auf A/B/C gefiltert.
+      await tx.execute(sql`insert into benutzer (id, email, name, rolle, aktiv, roundup, roundup_zuletzt_am) values
+        (${NUTZER_A}, 'probe-roundup-a@probe.invalid', 'Probe Roundup A', 'betrachter', true, true, null),
+        (${NUTZER_B}, 'probe-roundup-b@probe.invalid', 'Probe Roundup B', 'betrachter', true, true, null),
+        (${NUTZER_C}, 'probe-roundup-c@probe.invalid', 'Probe Roundup C', 'betrachter', true, false, null),
+        (${NUTZER_D}, 'probe-roundup-d@probe.invalid', 'Probe Roundup D', 'betrachter', true, true, now() - interval '1 day')`);
+      // Offene Eintraege ohne Objekt und ohne Urheber (Typ mail_stoerung, CHECKs): einer fuer A;
+      // fuer D einer vor und einer nach dem letzten Roundup (now() ist je Transaktion konstant,
+      // deshalb ausdrueckliche Zeitpunkte; der Index verlangt je Ursache einen offenen Eintrag).
+      await tx.execute(sql`insert into inbox_eintrag (empfaenger_id, typ, ursache, anzahl, zustand, erstellt_am) values
+        (${NUTZER_A}, 'mail_stoerung'::inbox_typ, 'nicht_konfiguriert', 1, 'offen', now()),
+        (${NUTZER_D}, 'mail_stoerung'::inbox_typ, 'nicht_konfiguriert', 1, 'offen', now() - interval '2 days'),
+        (${NUTZER_D}, 'mail_stoerung'::inbox_typ, 'zugriff_verweigert', 1, 'offen', now())`);
+      const ereignisseSql = sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet'`;
+      const modusSql = sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and text like '%Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: %'`;
+      const grundlinie = { ereignisse: await zaehl(ereignisseSql), modus: await zaehl(modusSql), laeufe: await zaehl(sql`select count(*)::int as n from job_lauf where job = 'roundup' and stichtag >= '2099-01-01'`) };
+      pruefe("0 Grundlinie: kein Lauf 2099 vorhanden", grundlinie.laeufe === 0, grundlinie);
+
+      // 5: Wochenende — Samstag vor dem Stichtag.
+      const we = await fuehreRoundupAus(zugriff, SAMSTAG, KONFIG, "https://probe.invalid", undefined, log);
+      const [weZeile] = (await tx.execute(sql`select 1 from job_lauf where job = 'roundup' and stichtag = '2099-01-03'`)) as unknown as unknown[];
+      pruefe("5 Wochenende: kein Lauf, keine Zeile", we.lauf === "wochenende" && we.stichtag === "2099-01-03" && !weZeile, we);
 
       // 1–3: erster Lauf am Werktag.
       const erg = await fuehreRoundupAus(zugriff, jetzt, KONFIG, "https://probe.invalid", undefined, log);
       const [zeile] = (await tx.execute(sql`select ergebnis, anzahl, schritte from job_lauf where job = 'roundup' and stichtag = ${stichtag}`)) as unknown as { ergebnis: string; anzahl: number; schritte: Record<string, number | string> }[];
-      pruefe("1 Lauf ok, genau eine job_lauf-Zeile roundup mit schritte", erg.lauf === "ok" && !!zeile && zeile.ergebnis === "ok", { erg, zeile });
-      // 6: Summen in schritte, ohne Log lesbar; im Probemodus gesendet=0.
+      pruefe("1 Lauf ok, genau eine job_lauf-Zeile roundup mit schritte", erg.lauf === "ok" && erg.stichtag === stichtag && !!zeile && zeile.ergebnis === "ok", { erg, zeile });
+      // 6: Summen in schritte, ohne Log lesbar; im Probemodus gesendet=0; abgemeldet zaehlt C mit.
       const s = zeile?.schritte ?? {};
-      const [abgemeldet] = (await tx.execute(sql`select count(*)::int as n from benutzer where aktiv and not roundup`)) as unknown as { n: number }[];
+      const abgemeldet = await zaehl(sql`select count(*)::int as n from benutzer where aktiv and not roundup`);
       pruefe(
-        "6 schritte: modus=protokoll, gesendet=0, protokolliert=wuerde_senden, nichts_neu=empfaenger-wuerde_senden, abgemeldet aus der Tabelle, anzahl=0",
-        erg.lauf === "ok" && s.modus === "protokoll" && s.gesendet === 0 && s.protokolliert === erg.wuerdeSenden && s.nichts_neu === erg.empfaenger - erg.wuerdeSenden && s.abgemeldet === abgemeldet!.n && zeile?.anzahl === 0,
-        { schritte: s, abgemeldet: abgemeldet!.n, anzahl: zeile?.anzahl },
+        "6 schritte: modus=protokoll, gesendet=0, protokolliert=wuerde_senden, nichts_neu=empfaenger-wuerde_senden, abgemeldet aus der Tabelle (mit C), anzahl=0",
+        erg.lauf === "ok" && s.modus === "protokoll" && s.gesendet === 0 && s.protokolliert === erg.wuerdeSenden && s.nichts_neu === erg.empfaenger - erg.wuerdeSenden && s.abgemeldet === abgemeldet && abgemeldet >= 1 && zeile?.anzahl === 0,
+        { schritte: s, abgemeldet, anzahl: zeile?.anzahl },
       );
       const nutzerZeilen = logs.filter((l) => l.startsWith("ROUNDUP nutzer="));
       pruefe("1 je Nutzer eine ROUNDUP-Zeile", erg.lauf === "ok" && nutzerZeilen.length === erg.empfaenger, { zeilen: nutzerZeilen.length, empfaenger: erg.lauf === "ok" ? erg.empfaenger : null });
+      const zeileA = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_A} `)) ?? null;
+      const zeileB = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_B} `)) ?? null;
+      const zeileC = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_C} `)) ?? null;
+      const zeileD = nutzerZeilen.find((l) => l.startsWith(`ROUNDUP nutzer=${NUTZER_D} `)) ?? null;
+      pruefe(
+        "1 Probe-Nutzer: A wuerde senden (neu=1, offen=1), B nichts neu (neu=0, offen=0), C abgemeldet ohne Zeile, D seit letztem Roundup (neu=1, offen=2)",
+        /wuerde_senden=ja neu=1 offen=1 typen=\{"mail_stoerung":\{"offen":1,"neu":1\}\}$/.test(zeileA ?? "") && /wuerde_senden=nein neu=0 offen=0 /.test(zeileB ?? "") && zeileC === null && /wuerde_senden=ja neu=1 offen=2 typen=\{"mail_stoerung":\{"offen":2,"neu":1\}\}$/.test(zeileD ?? ""),
+        { a: zeileA, b: zeileB, c: zeileC, d: zeileD },
+      );
       pruefe("2 Log ohne Adresse, Betreff oder Text (nur Nutzer-IDs und Zaehler)", logs.every((l) => !/@/.test(l) && !/betreff=|text=|bhyo:/.test(l)), logs.length);
       const ja = nutzerZeilen.filter((l) => /wuerde_senden=ja/.test(l)).length;
-      const [ereignisse] = (await tx.execute(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet'`)) as unknown as { n: number }[];
-      const [modus] = (await tx.execute(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and text like '%Tages-Mail protokolliert (Probemodus, nicht gesendet), modus=protokoll: %'`)) as unknown as { n: number }[];
-      const [markiert] = (await tx.execute(sql`select count(*)::int as n from benutzer where roundup_zuletzt_am = ${jetzt.toISOString()}::timestamptz`)) as unknown as { n: number }[];
-      pruefe("3 wuerde senden = Ereignisse mail_gesendet = markierte Nutzer; jedes Ereignis nennt modus=protokoll und nicht gesendet", erg.lauf === "ok" && ja === erg.wuerdeSenden && ereignisse!.n === ja && markiert!.n === ja && modus!.n === ja, { ja, ereignisse: ereignisse!.n, mitModus: modus!.n, markiert: markiert!.n });
+      const zuwachs = { ereignisse: (await zaehl(ereignisseSql)) - grundlinie.ereignisse, modus: (await zaehl(modusSql)) - grundlinie.modus };
+      const markiert = await zaehl(sql`select count(*)::int as n from benutzer where roundup_zuletzt_am = ${jetzt.toISOString()}::timestamptz`);
+      pruefe(
+        "3 wuerde senden = Zuwachs Ereignisse mail_gesendet = markierte Nutzer; jedes neue Ereignis nennt modus=protokoll und nicht gesendet",
+        erg.lauf === "ok" && ja === erg.wuerdeSenden && ja >= 1 && zuwachs.ereignisse === ja && markiert === ja && zuwachs.modus === ja,
+        { ja, zuwachs, markiert },
+      );
+      const ereignisseA = await zaehl(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and entitaet_typ::text = 'benutzer' and entitaet_id = ${NUTZER_A}`);
+      const ereignisseB = await zaehl(sql`select count(*)::int as n from aenderung where art::text = 'mail_gesendet' and entitaet_typ::text = 'benutzer' and entitaet_id = ${NUTZER_B}`);
+      const [markA] = (await tx.execute(sql`select roundup_zuletzt_am = ${jetzt.toISOString()}::timestamptz as m from benutzer where id = ${NUTZER_A}`)) as unknown as { m: boolean }[];
+      const [markB] = (await tx.execute(sql`select roundup_zuletzt_am is null as m from benutzer where id = ${NUTZER_B}`)) as unknown as { m: boolean }[];
+      pruefe("3 Probe-Nutzer: A genau ein Ereignis und markiert, B kein Ereignis und unmarkiert", ereignisseA === 1 && markA?.m === true && ereignisseB === 0 && markB?.m === true, { ereignisseA, markA: markA?.m, ereignisseB, markB: markB?.m });
 
       // 4: Idempotenz.
       const zweiter = await fuehreRoundupAus(zugriff, jetzt, KONFIG, "https://probe.invalid", undefined, log);
@@ -145,6 +206,9 @@ async function main() {
 }
 
 main().catch((e) => {
-  console.error("ROUNDUPPROBE FEHLER:", e instanceof Error ? e.message : e);
+  // Drizzle verpackt den Treiberfehler („Failed query") — die Ursache steht in cause (Code, Meldung).
+  const kette: string[] = [];
+  for (let f: unknown = e; f instanceof Error && kette.length < 5; f = f.cause) kette.push(`${f.name}: ${f.message}${"code" in f ? ` (code ${String((f as { code?: unknown }).code)})` : ""}`);
+  console.error("ROUNDUPPROBE FEHLER:", kette.length ? kette.join("\n  <- ") : e);
   process.exit(1);
 });
