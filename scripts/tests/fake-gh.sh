@@ -89,7 +89,9 @@ case "${POS[0]:-} ${POS[1]:-}" in
       blob=$(echo "abweichung" | git -C "$REMOTE" hash-object -w --stdin)
       tree=$( { git -C "$REMOTE" ls-tree "$head"; printf '100644 blob %s\tabweichung.txt\n' "$blob"; } | git -C "$REMOTE" mktree)
     else
-      tree=$(git -C "$REMOTE" rev-parse "$head^{tree}")
+      # Wie GitHub: der Squash traegt den Baum „main + Aenderungen des PR" — nicht
+      # den Baum des PR-Heads (12.10.2026: fremde Commits auf main bleiben erhalten).
+      tree=$(git -C "$REMOTE" merge-tree --write-tree "$main" "$head")
     fi
     squash=$(git -C "$REMOTE" commit-tree "$tree" -p "$main" -m "${O_SUBJECT:-squash}")
     git -C "$REMOTE" update-ref refs/heads/main "$squash"
