@@ -4394,10 +4394,27 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 2px 20px;
   align-content: start;
 }
-.aw-belegzeile { display: grid; grid-template-columns: minmax(0, 1fr) 72px 28px; align-items: center; height: 28px; padding: 0 8px; }
-.aw-belegzeile .aw-zeilenwert { text-align: right; }
+/* E77 R4 (Eric 12.10.2026): Wertspalte nach Inhalt („32 % · 46" ist 53 px breit,
+   vorher 28 px fest — der Text lief in die Nachbarspalte), die Beschriftung
+   kuerzt mit Auslassung (voller Name im Tooltip), nichts ragt aus der Kachel. */
+.aw-belegzeile { display: grid; grid-template-columns: minmax(0, 1fr) 64px auto; column-gap: 10px; align-items: center; height: 28px; padding: 0 8px; }
+.aw-belegzeile .lbl { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aw-belegzeile .aw-zeilenwert { text-align: right; white-space: nowrap; }
 @media (max-width: 620px) {
   .aw-belegtypen { grid-template-columns: minmax(0, 1fr); }
+  /* E77 R4: schmal wird die Zeile zweizeilig — Beschriftung oben in voller
+     Breite, Balken und Wert darunter; so bleibt der Name lesbar, auch wenn
+     neben der Seitenleiste nur ~230 px bleiben. */
+  .aw-belegzeile {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "lbl lbl" "bar wert";
+    row-gap: 2px;
+    height: auto;
+    padding: 4px 8px;
+  }
+  .aw-belegzeile .lbl { grid-area: lbl; }
+  .aw-belegzeile .aw-balken { grid-area: bar; }
+  .aw-belegzeile .aw-zeilenwert { grid-area: wert; }
 }
 
 /* Jahre: dynamische Achse (E16) — Saeulen fuellen die Breite, ab ~8 Balken
