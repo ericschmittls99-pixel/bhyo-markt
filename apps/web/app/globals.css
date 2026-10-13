@@ -2398,6 +2398,10 @@ button.leg-toggle.aus {
   gap: 8px;
   min-height: 36px;
 }
+.fp-datei .btn {
+  flex: none;
+  white-space: nowrap; /* E77 R3: „Datei wählen" einzeilig im Knopf */
+}
 .fp-datei-input {
   display: none;
 }
@@ -2453,16 +2457,21 @@ button.leg-toggle.aus {
   color: var(--text-tertiary);
 }
 .ov-fuss {
+  /* E77 R3 (Eric 12.10.2026): klebt bis ganz unten — der untere Innenabstand
+     des Bodys (24 px) wird aufgehoben, kein Spalt; Glas mit Blur, der Inhalt
+     laeuft sichtbar darunter durch. */
   position: sticky;
   bottom: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: flex-end;
   gap: 12px;
-  margin: 0 -24px;
+  margin: 0 -24px 0;
   padding: 14px 24px;
-  border-top: 1px solid var(--border-subtle);
-  background: var(--surface-card);
+  border-top: 1px solid var(--glass-edge);
+  background: var(--glass-fill);
+  backdrop-filter: var(--glass-backdrop);
 }
 .ov-fuss .pf-fehler {
   margin-right: auto;
@@ -3227,6 +3236,12 @@ table.st-tabelle tbody tr:focus-visible {
   display: grid;
   gap: 24px;
   align-content: start;
+}
+/* E77 R3: im Formular endet der Body ohne unteren Innenabstand — sonst steht die
+   klebende Fusszeile 24 px ueber dem Rand (Preview-Messung 12.10.2026: der
+   Containing Block des sticky-Elements ist die Inhaltsbox des Formulars). */
+.ov-body.fp {
+  padding-bottom: 0;
 }
 .ov-sec {
   display: grid;
@@ -4755,7 +4770,8 @@ table.st-tabelle tbody tr:focus-visible {
   gap: 8px;
   margin: 4px 0 8px;
 }
-.adr-genauigkeit { text-transform: lowercase; }
+/* E77 R3: „Pin: Straße / PLZ-Gebiet" bleibt in Schreibweise der Beschriftung. */
+.adr-genauigkeit { text-transform: none; cursor: help; }
 .adr-frei-zeile { display: flex; gap: 8px; align-items: center; }
 .adr-frei-zeile input { flex: 1; }
 .adr-kurz { max-width: 140px; }

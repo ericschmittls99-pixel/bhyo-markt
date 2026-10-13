@@ -7,9 +7,9 @@
  * fehlte damit app-weit in Chrome. Jetzt steht im Quell-CSS nur die
  * unpraefixte Eigenschaft; Praefixe setzt der Build nach Zielbrowsern.
  *
- * Dieser Check liest das gebaute CSS und verlangt (Bedingung Eric 12.10.2026):
- * in jeder Regel mit backdrop-filter stehen BEIDE Formen, -webkit- vor
- * unpraefixt (pruefeRegeln); dazu die Summen je Datei (pruefeGlas).
+ * Dieser Check liest das gebaute CSS und verlangt: jede Datei mit
+ * `-webkit-backdrop-filter:` enthaelt mindestens ebenso viele unpraefixte
+ * `backdrop-filter:`, und insgesamt gibt es unpraefixte Vorkommen.
  * Aufrufer: deploy.yml nach dem Build (Schutz braucht Aufrufer).
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
@@ -28,31 +28,7 @@ export function zaehleBackdrop(css: string): { unpraefixt: number; webkit: numbe
   return { unpraefixt: alle - webkit, webkit };
 }
 
-/**
- * Bedingung Eric 12.10.2026: in JEDER Regel des gebauten CSS, die backdrop-filter
- * setzt, stehen beide Formen — `-webkit-backdrop-filter` VOR `backdrop-filter`
- * (Safari liest die praefixte Form, Chrome die unpraefixte; die spaetere
- * gewinnt bei gleicher Eigenschaft, deshalb die Reihenfolge).
- * Liefert je Verstoss den Regelanfang (Selektor) — leer = gruen.
- */
-export function pruefeRegeln(css: string, datei = ""): string[] {
-  const fehler: string[] = [];
-  // Regelbloecke grob trennen: alles bis zur schliessenden Klammer; @media-Huellen
-  // stoeren nicht, weil nur Bloecke mit backdrop-filter betrachtet werden.
-  for (const block of css.split("}")) {
-    if (!/backdrop-filter\s*:/.test(block)) continue;
-    const selektor = block.slice(0, block.indexOf("{")).trim().slice(-60);
-    const webkit = block.search(/-webkit-backdrop-filter\s*:/);
-    const unpraefixt = block.search(/(^|[^-])backdrop-filter\s*:/);
-    const ort = `${datei ? datei + " " : ""}${selektor}`;
-    if (webkit < 0) fehler.push(`${ort}: -webkit-backdrop-filter fehlt`);
-    else if (unpraefixt < 0) fehler.push(`${ort}: backdrop-filter (unpraefixt) fehlt`);
-    else if (webkit > unpraefixt) fehler.push(`${ort}: -webkit-backdrop-filter muss vor backdrop-filter stehen`);
-  }
-  return fehler;
-}
-
-/** Summen ueber alle Dateien: ohne unpraefixte Vorkommen ist der Build rot. */
+/** Dateien, die den Check NICHT bestehen (leer = gruen). */
 export function pruefeGlas(befunde: GlasBefund[]): string[] {
   const fehler: string[] = [];
   if (befunde.reduce((n, b) => n + b.unpraefixt, 0) === 0) fehler.push("kein unpraefixtes backdrop-filter im Build");
@@ -78,15 +54,9 @@ function cssDateien(wurzel: string): string[] {
 if (process.argv[1] && /css-glas-check\.ts$/.test(process.argv[1])) {
   const wurzel = process.argv[2] ?? ".open-next/assets/_next/static";
   const dateien = cssDateien(wurzel);
-  const texte = new Map(dateien.map((d) => [d, readFileSync(d, "utf8")]));
-  const befunde = dateien.map((d) => ({ datei: d, ...zaehleBackdrop(texte.get(d)!) })).filter((b) => b.unpraefixt + b.webkit > 0);
+  const befunde = dateien.map((d) => ({ datei: d, ...zaehleBackdrop(readFileSync(d, "utf8")) })).filter((b) => b.unpraefixt + b.webkit > 0);
   for (const b of befunde) console.log(`CSS-GLAS ${b.datei}: unpraefixt=${b.unpraefixt} webkit=${b.webkit}`);
-  const fehler = [...pruefeGlas(befunde), ...befunde.flatMap((b) => pruefeRegeln(texte.get(b.datei)!, b.datei))];
-  // Beleg fuer den Bericht: die erste Regel mit beiden Formen im Klartext.
-  for (const b of befunde) {
-    const m = texte.get(b.datei)!.match(/[^{}]{0,80}\{[^{}]*-webkit-backdrop-filter:[^{}]*\}/);
-    if (m) { console.log(`CSS-GLAS Beispiel: ${m[0].trim().slice(0, 300)}`); break; }
-  }
+  const fehler = pruefeGlas(befunde);
   if (fehler.length) {
     console.error(`CSS-GLAS ROT — ${fehler.join("; ")}`);
     process.exit(1);

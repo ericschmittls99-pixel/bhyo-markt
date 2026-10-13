@@ -6,7 +6,7 @@ import type { Map as MlMap, Marker as MlMarker } from "maplibre-gl";
 
 import { OSM_STYLE } from "@/components/karte/KarteMap";
 import { uebernimmAusPin, type AdresseWerte, type PinModus } from "@/lib/adresse-aus-pin";
-import { GENAUIGKEIT_LABEL, ortNachTreffer, type Genauigkeit, type PruefErgebnis } from "@/lib/adresse-pruefung";
+import { GENAUIGKEIT_ERKLAERUNG, GENAUIGKEIT_LABEL, ortNachTreffer, type Genauigkeit, type PruefErgebnis } from "@/lib/adresse-pruefung";
 import { adresseLabel, type Adresse } from "@/lib/geocode";
 import { adresseLabelMitRegion } from "@/lib/region-label";
 
@@ -39,6 +39,7 @@ export function AdresseBlock({
   akteurId,
   fehler,
   hinweisOhnePin = "Ohne Pin erscheint der Strom nicht auf der Karte — Adresse suchen oder Pin in der Karte oben setzen.",
+  ladeMapLibre = () => import("maplibre-gl"),
 }: {
   initial?: Partial<AdresseWerte> | null;
   /** E68 PR 2: gespeicherte Genauigkeit; ohne Pin-Aenderung geht sie unveraendert zurueck. */
@@ -47,6 +48,8 @@ export function AdresseBlock({
   fehler?: string;
   /** AP2.5: Hinweis ohne Pin — Standort (Strom) oder Sitz (Akteur); derselbe Block, dieselbe Karte. */
   hinweisOhnePin?: string;
+  /** E77 R3: MapLibre wird injiziert — der Komponententest (jsdom) gibt eine Attrappe, die Anwendung den echten Import. */
+  ladeMapLibre?: () => Promise<typeof import("maplibre-gl")>;
 }) {
   const [w, setW] = useState<AdresseWerte>({
     strasse: initial?.strasse ?? "",
@@ -76,7 +79,13 @@ export function AdresseBlock({
   const wRef = useRef(w);
   wRef.current = w;
 
-  const feld = (k: keyof AdresseWerte, v: string) => setW((alt) => ({ ...alt, [k]: v }));
+  // E77 R3 (Eric 12.10.2026): jede Aenderung an Strasse, Hausnummer, PLZ oder Ort
+  // setzt die Pin-Pille auf „ungeprueft", bis die naechste Pruefung den Pin setzt.
+  const ADRESSFELDER: readonly (keyof AdresseWerte)[] = ["strasse", "hausnummer", "plz", "ort"];
+  const feld = (k: keyof AdresseWerte, v: string) => {
+    if (ADRESSFELDER.includes(k) && wRef.current[k] !== v) setGenauigkeit("unbekannt");
+    setW((alt) => ({ ...alt, [k]: v }));
+  };
 
   /** Pin auf der Karte setzen/bewegen und die Hidden-Felder fuellen. */
   function setzePin(lng: number, lat: number, zentrieren = false) {
@@ -167,7 +176,7 @@ export function AdresseBlock({
     let beendet = false;
     (async () => {
       if (!kartenDiv.current || mapRef.current) return;
-      const ml = await import("maplibre-gl");
+      const ml = await ladeMapLibre();
       if (beendet || !kartenDiv.current) return;
       mlRef.current = ml;
       const hatPin = w.lat !== "" && w.lng !== "";
@@ -344,7 +353,15 @@ export function AdresseBlock({
           <i className="ph ph-magnifying-glass" aria-hidden />
           {prueft ? "Prüft …" : "Adresse prüfen"}
         </button>
-        <span className={`pill pill--muted adr-genauigkeit adr-genauigkeit--${genauigkeit}`}>{GENAUIGKEIT_LABEL[genauigkeit]}.</span>
+        <span
+          className={`pill pill--muted adr-genauigkeit adr-genauigkeit--${genauigkeit}`}
+          title={GENAUIGKEIT_ERKLAERUNG[genauigkeit]}
+          aria-label={`Pin: ${GENAUIGKEIT_LABEL[genauigkeit]} — ${GENAUIGKEIT_ERKLAERUNG[genauigkeit]}`}
+          tabIndex={0}
+          data-testid="adr-pille"
+        >
+          Pin: {GENAUIGKEIT_LABEL[genauigkeit]}
+        </span>
         <button type="button" className="btn btn--ghost btn--sm" onClick={() => setFreiOffen((v) => !v)} disabled={prueft}>
           freie Suche
         </button>

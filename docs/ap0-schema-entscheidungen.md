@@ -2596,3 +2596,13 @@ Kontaktpersonen (Zähler in der Abfrage); karte.: Filterleiste so breit wie
 nötig (Korrektur Eric), erste Toolbar-Zeile bricht ≤ 640 px um
 (Container-Query, 480-px-Befund aus R1).
 
+**Umgesetzt R3 (Formulare):** Fußleiste Abbrechen/Speichern des
+Formular-Pop-ups (`.ov-fuss`) klebt ohne Spalt am unteren Rand (negativer
+unterer Rand gegen den Body-Innenabstand), Glas mit Blur, der Inhalt läuft
+darunter; „Datei wählen" einzeilig (`white-space: nowrap`); Pin-Pille im
+Adressblock „Pin: hausnummergenau / Straße / PLZ-Gebiet / manuell /
+ungeprüft" mit Tooltip-Erklärung (`GENAUIGKEIT_ERKLAERUNG`), jede Änderung
+an Straße, Hausnummer, PLZ oder Ort setzt „ungeprüft" (Hidden-Input
+`unbekannt`) bis zur nächsten Prüfung; Komponententest
+`AdresseBlock.verhalten.test.tsx` (jsdom, §45).
+

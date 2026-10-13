@@ -13,12 +13,22 @@ import type { Adresse } from "./geocode";
  */
 export type Genauigkeit = "hausnummer" | "strasse" | "plz_gebiet" | "manuell" | "unbekannt";
 
+/** E77 R3 (Eric 12.10.2026): Beschriftung der Pin-Pille — „Pin: hausnummergenau / Straße / PLZ-Gebiet / manuell / ungeprüft". */
 export const GENAUIGKEIT_LABEL: Record<Genauigkeit, string> = {
-  hausnummer: "hausnummer",
-  strasse: "straße",
-  plz_gebiet: "plz-gebiet",
+  hausnummer: "hausnummergenau",
+  strasse: "Straße",
+  plz_gebiet: "PLZ-Gebiet",
   manuell: "manuell",
-  unbekannt: "unbekannt",
+  unbekannt: "ungeprüft",
+};
+
+/** E77 R3: Erklaerung je Genauigkeit (Tooltip an der Pille). */
+export const GENAUIGKEIT_ERKLAERUNG: Record<Genauigkeit, string> = {
+  hausnummer: "Der Pin steht auf der geprüften Hausnummer.",
+  strasse: "Der Pin steht auf der geprüften Straße; die Hausnummer war nicht zu finden.",
+  plz_gebiet: "Der Pin steht auf einem Punkt im PLZ-Gebiet; Straße und Hausnummer waren nicht zu finden.",
+  manuell: "Der Pin wurde von Hand gesetzt oder verschoben; die Koordinate ist führend.",
+  unbekannt: "Die Adresse ist seit der letzten Änderung nicht geprüft — „Adresse prüfen“ setzt den Pin.",
 };
 
 export const GENAUIGKEITEN: readonly Genauigkeit[] = ["hausnummer", "strasse", "plz_gebiet", "manuell", "unbekannt"];
