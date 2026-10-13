@@ -614,6 +614,7 @@ export function AuswertungAnsicht({
             className={`${zeilenKlasse("aw-belegzeile", "belegtyp", bt.key)}${bt.null0 ? " stumm" : ""}`}
             aria-pressed={istAktiv("belegtyp", bt.key)}
             onClick={() => toggle("belegtyp", bt.key)}
+            title={`${bt.label}: ${bt.pct} % · ${bt.anzahl}`}
           >
             <span className="lbl">{bt.label}</span>
             <span className="aw-balken aw-balken--fein">

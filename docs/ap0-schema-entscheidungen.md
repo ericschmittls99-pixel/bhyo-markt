@@ -2606,3 +2606,9 @@ an Straße, Hausnummer, PLZ oder Ort setzt „ungeprüft" (Hidden-Input
 `unbekannt`) bis zur nächsten Prüfung; Komponententest
 `AdresseBlock.verhalten.test.tsx` (jsdom, §45).
 
+**Umgesetzt R4 (auswertung.):** Kachel belegtypen. — die Wertspalte
+(„32 % · 46", 53 px) war 28 px fest und lief in die Beschriftung der
+Nachbarspalte; jetzt Spalte nach Inhalt, Balken 64 px, die Beschriftung kürzt
+mit Auslassung (voller Name und Wert im Tooltip der Zeile), beides bleibt in
+der Kachel. Geprüft mit sieben Typen (Preview) und wenigen Typen (Outputs).
+
