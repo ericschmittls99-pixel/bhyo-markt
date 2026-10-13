@@ -39,8 +39,15 @@ export function AkteureListe({
   /** AP2.5 PR c: Zahl der moeglichen Dubletten (Link zur Liste). */
   dubletten: number;
 }) {
-  const { setze } = useUrlZustand();
+  const { setze, searchParams } = useUrlZustand();
   const [suche, setSuche] = useState(q);
+  // E77 R6: der Akteur oeffnet als Sidebar ueber der Liste — Filter und Suche bleiben in der URL.
+  const akteurHref = (id: string) => {
+    const p = new URLSearchParams(searchParams.toString());
+    p.set("akteur", id);
+    p.delete("reiter");
+    return `/akteure?${p.toString()}`;
+  };
   return (
     <>
       <div className="st-toolbar aw-kopfzeile ak-kopf">
@@ -95,7 +102,7 @@ export function AkteureListe({
               return (
                 <tr key={a.id}>
                   <td>
-                    <Link href={`/akteure/${a.id}`} className="ak-link">
+                    <Link href={akteurHref(a.id)} className="ak-link" scroll={false}>
                       <strong>{a.name}</strong>
                     </Link>
                   </td>
