@@ -106,6 +106,54 @@ export async function inboxVerwerfen(id: string): Promise<AktionErgebnis> {
   return setzeZustand(wache.zugang, "inbox.verwerfen", id, "verworfen");
 }
 
+/**
+ * E77 R5: Gruppenaktion — Erledigen oder Verwerfen fuer mehrere eigene Eintraege
+ * (gleicher Typ, gleicher Tag) in EINER Transaktion: jeder Eintrag geht einzeln
+ * durch die Objektstufe (nur der Empfaenger), ein fremder oder nicht mehr
+ * offener Eintrag bricht die ganze Gruppe ab. Hoechstens 200 auf einmal.
+ */
+async function setzeZustandMehrere(
+  zugang: Extract<Zugang, { art: "erlaubt" }>,
+  aktion: "inbox.erledigen" | "inbox.verwerfen",
+  ids: string[],
+  zustand: "erledigt" | "verworfen",
+): Promise<AktionErgebnis & { anzahl?: number }> {
+  const eindeutig = [...new Set(ids)];
+  if (eindeutig.length === 0) return { ok: false, fehler: "Keine Einträge ausgewählt." };
+  if (eindeutig.length > 200) return { ok: false, fehler: "Höchstens 200 Einträge auf einmal." };
+  try {
+    await withDb((db) =>
+      db.transaction(async (tx) => {
+        const jetzt = new Date();
+        for (const id of eindeutig) {
+          const e = await pruefeInboxEmpfaenger(tx, zugang, aktion, id);
+          if (e.zustand !== "offen") throw new Error("Ein Eintrag der Gruppe ist nicht mehr offen.");
+          await tx
+            .update(inboxEintrag)
+            .set({ zustand, zustandSeit: jetzt, gelesenAm: e.gelesen ? undefined : jetzt })
+            .where(and(eq(inboxEintrag.id, e.id), eq(inboxEintrag.zustand, "offen")));
+        }
+      }),
+    );
+  } catch (e) {
+    return fehler(e);
+  }
+  aktualisiere();
+  return { ok: true, anzahl: eindeutig.length };
+}
+
+export async function inboxErledigenMehrere(ids: string[]): Promise<AktionErgebnis & { anzahl?: number }> {
+  const wache = await rechtFuerAction("inbox.erledigen");
+  if ("fehler" in wache) return wache;
+  return setzeZustandMehrere(wache.zugang, "inbox.erledigen", ids, "erledigt");
+}
+
+export async function inboxVerwerfenMehrere(ids: string[]): Promise<AktionErgebnis & { anzahl?: number }> {
+  const wache = await rechtFuerAction("inbox.verwerfen");
+  if ("fehler" in wache) return wache;
+  return setzeZustandMehrere(wache.zugang, "inbox.verwerfen", ids, "verworfen");
+}
+
 /** „Alle erledigt": nur reine Hinweise, nur eigene, nur offene. */
 export async function inboxAlleErledigen(): Promise<AktionErgebnis & { anzahl?: number }> {
   const wache = await rechtFuerAction("inbox.alle_erledigen");

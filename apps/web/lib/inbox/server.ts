@@ -11,7 +11,7 @@ import type { Zugang } from "@/lib/rechte";
 import type { Tx } from "@/lib/rechte/sperre-server";
 import type { StromArt } from "@/lib/stroeme-modell";
 
-import { type InboxTyp, zeilenText } from "./register";
+import { type InboxTyp, kurzform, zeilenText } from "./register";
 
 export type Leser = Pick<AppDb, "select">;
 
@@ -46,6 +46,11 @@ export interface InboxZeile {
   notiz: string | null;
   /** Fertiger Zeilentext aus dem Register. */
   text: string;
+  /**
+   * E77 R5: Kurzform der Zeile — Kurztitel des Typs, Kennung des Objekts und
+   * der Akteur (klein/grau); der volle Text bleibt Tooltip und Detail.
+   */
+  kurz: { titel: string; kennung: string | null; akteur: string | null };
 }
 
 /** Ungelesene offene Eintraege — der Zaehler der Navigation. */
@@ -57,13 +62,17 @@ export async function zaehleUngelesen(db: Leser, nutzerId: string): Promise<numb
   return z?.n ?? 0;
 }
 
-/** Liste des Empfaengers: „offen" oder „erledigt" (dort auch Verworfene, gekennzeichnet). */
-export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" | "erledigt"): Promise<InboxZeile[]> {
+/**
+ * Liste des Empfaengers: „offen" oder „erledigt" (dort auch Verworfene, gekennzeichnet).
+ * E77 R5: `limit` fuer das Pop-up an der Glocke (die letzten n offenen) — dieselbe
+ * Abfrage, dieselbe Zeile, nur abgeschnitten.
+ */
+export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" | "erledigt", opt: { limit?: number } = {}): Promise<InboxZeile[]> {
   // AP2.6 PR c (E71): beim Objektbezug Kommentar kommen Strom bzw. Akteur aus dem Kommentar — dieselben Joins, eine Quelle.
   const stromB = sql<string | null>`coalesce(${inboxEintrag.biomassestromId}, ${kommentar.biomassestromId})`;
   const stromO = sql<string | null>`coalesce(${inboxEintrag.outputBedarfId}, ${kommentar.outputBedarfId})`;
   const akteurRef = sql<string | null>`coalesce(${inboxEintrag.akteurId}, ${kommentar.akteurId})`;
-  const zeilen = await db
+  const abfrage = db
     .select({
       id: inboxEintrag.id,
       typ: inboxEintrag.typ,
@@ -114,9 +123,31 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       ),
     )
     .orderBy(desc(inboxEintrag.aktualisiertAm));
+  const zeilen = opt.limit ? await abfrage.limit(opt.limit) : await abfrage;
   return zeilen.map((z) => {
     const ausloeser = z.ausloeserId && z.ausloeserEmail ? { id: z.ausloeserId, name: z.ausloeserName, email: z.ausloeserEmail } : null;
     const bezeichnung = z.bezeichnung ?? z.akteurName;
+    const zeilenDaten = {
+      ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
+      belegNr: z.belegNr,
+      bezeichnung,
+      anzahl: z.anzahl,
+      bezugsdatum: z.bezugsdatum,
+      aufgabe: z.aufgabe,
+      akteurName: z.hinweisAkteurName,
+      kontaktpersonName: z.kontaktpersonName,
+      stufe: z.stufe,
+      anBhyo: z.anBhyo,
+      ursache: z.ursache,
+      kommentarId: z.kommentarId,
+      kommentarGeloescht: z.kommentarGeloescht ?? false,
+      importDateiname: z.importDateiname ?? null,
+      importZaehler: (z.importZaehler as Record<string, number> | null) ?? null,
+    };
+    const kurz = kurzform(z.typ, zeilenDaten);
+    // Der Akteur als Nebenzeile: beim Strom sein Akteur, bei der Kontaktperson ihr Akteur;
+    // ist der Akteur selbst die Kennung (akteur_verwaist), entfaellt die Wiederholung.
+    const akteurNeben = z.akteurName ?? (z.kontaktpersonId ? z.hinweisAkteurName : null);
     return {
       id: z.id,
       typ: z.typ,
@@ -136,23 +167,8 @@ export async function ladeEintraege(db: Leser, nutzerId: string, sicht: "offen" 
       notiz: z.notiz,
       bezugsdatum: z.bezugsdatum,
       aufgabe: z.aufgabe,
-      text: zeilenText(z.typ, {
-        ausloeserName: ausloeser ? (ausloeser.name ?? ausloeser.email) : "",
-        belegNr: z.belegNr,
-        bezeichnung,
-        anzahl: z.anzahl,
-        bezugsdatum: z.bezugsdatum,
-        aufgabe: z.aufgabe,
-        akteurName: z.hinweisAkteurName,
-        kontaktpersonName: z.kontaktpersonName,
-        stufe: z.stufe,
-        anBhyo: z.anBhyo,
-        ursache: z.ursache,
-        kommentarId: z.kommentarId,
-        kommentarGeloescht: z.kommentarGeloescht ?? false,
-              importDateiname: z.importDateiname ?? null,
-        importZaehler: (z.importZaehler as Record<string, number> | null) ?? null,
-      }, z.id),
+      text: zeilenText(z.typ, zeilenDaten, z.id),
+      kurz: { ...kurz, akteur: akteurNeben && akteurNeben !== kurz.kennung ? akteurNeben : null },
     };
   });
 }

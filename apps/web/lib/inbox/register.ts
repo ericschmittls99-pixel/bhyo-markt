@@ -75,6 +75,11 @@ export interface TypDefinition {
   /** „Alle erledigt" gilt fuer reine Hinweise. */
   reinerHinweis: boolean;
   text: (z: ZeilenDaten) => string;
+  /**
+   * E77 R5: Kurztitel der kompakten Zeile („Verifikation abgelaufen · B-2026-014"),
+   * zentral hier — die Kennung haengt die Oberflaeche an (kurzform()).
+   */
+  kurztitel: string;
 }
 
 function objektText(z: ZeilenDaten): string {
@@ -97,6 +102,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Erwähnung",
     text: (z) => (z.kommentarGeloescht ? `Kommentar gelöscht – ${z.ausloeserName} hatte dich zu ${objektText(z)} erwähnt` : `${z.ausloeserName} hat dich in einem Kommentar zu ${objektText(z)} erwähnt`),
   },
   kommentar: {
@@ -106,6 +112,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — je Kommentar und Empfaenger ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Kommentar",
     text: (z) => (z.kommentarGeloescht ? `Kommentar gelöscht – ${z.ausloeserName} hatte ${objektText(z)} kommentiert` : `${z.ausloeserName} hat ${objektText(z)} kommentiert`),
   },
   // AP2.4 PR a (E62)
@@ -115,6 +122,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Pruefer und Strom, solange der Auftrag offen ist; erledigt bei allen, sobald jemand prueft, zurueckgibt oder verwirft",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.weitergeben"],
     reinerHinweis: false,
+    kurztitel: "Prüfauftrag",
     text: (z) => `${z.ausloeserName} bittet um Prüfung von ${objektText(z)}${z.anzahl > 1 ? ` (${z.anzahl}. Mal)` : ""}`,
   },
   pruefung_erledigt: {
@@ -124,6 +132,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — jede Pruefung ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Prüfung erledigt",
     text: (z) => `${z.ausloeserName} hat ${objektText(z)} geprüft`,
   },
   // AP2.5 PR b (E57): Loeschpruefung — Kontaktperson ohne Aktivitaet seit M Monaten,
@@ -134,6 +143,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Admin, Person und Bezugsdatum (letzte Aktivitaet) genau ein Eintrag, dauerhaft; erledigt, sobald es wieder Aktivitaet gibt",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Löschprüfung",
     text: (z) => `Löschprüfung: ${z.kontaktpersonName ?? "–"} (${z.akteurName ?? "–"}) ohne Aktivität seit ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"}`,
   },
   // AP2.5 PR a1 (E66): verwaister Akteur (kein Strom) seit N Monaten — Hinweis
@@ -144,6 +154,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Admin, Akteur und Bezugsdatum (seit wann verwaist) genau ein Eintrag, dauerhaft; erledigt, sobald der Akteur wieder einen Strom hat",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Akteur verwaist",
     text: (z) => `Akteur ${z.akteurName ?? "–"} ist seit ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} verwaist – kein Strom verweist auf ihn`,
   },
   // AP2.4 PR b (E63): zustandsbasierte Hinweise des taeglichen Jobs — kein
@@ -155,6 +166,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — jede Weitergabe ein Eintrag mit eigenem Text; erledigt, sobald der Strom geprueft/reverifiziert/verworfen ist oder der Empfaenger erledigt",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen"],
     reinerHinweis: false,
+    kurztitel: "Aufgabe",
     text: (z) => `${z.ausloeserName} bittet dich zu ${objektText(z)}: „${z.aufgabe ?? ""}"`,
   },
   // AP2.8 (E70): Angebot wird frei — zustandsbasierter Hinweis des Jobs je Stufe
@@ -165,6 +177,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Empfaenger, Strom, frei_ab und Stufe genau ein Eintrag ueber alle Zustaende; der Stufenwechsel raeumt die Vorstufe ab, hoechstens ein offener Eintrag je Strom; aendert sich frei_ab, werden alle alten abgeraeumt",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Wird frei",
     text: (z) => (z.bezugsdatum ? wirdFreiText(objektText(z), { freiAb: z.bezugsdatum, anBhyo: z.anBhyo ?? false }, z.stufe ?? 0) : `${objektText(z)} wird frei`),
   },
   // AP2.9 Umschalten (E76 Nr. 6/8): Hinweise des Roundup-Jobs an die Admins zum Versand selbst —
@@ -175,6 +188,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Admin und Ursache hoechstens ein offener Eintrag; erledigt, sobald ein Lauf im Modus graph wieder ohne Stoerung sendet",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Tages-Mail gestört",
     text: (z) => `Tages-Mail gestört: ${STOERUNG_TEXT[z.ursache ?? ""] ?? z.ursache ?? "–"} – kein Versand, bis die Ursache behoben ist`,
   },
   mail_secret_laeuft_ab: {
@@ -183,6 +197,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Admin, Ablaufdatum und Stufe (30/7 Tage) genau ein Eintrag ueber alle Zustaende; aendert sich das Datum (neues Secret), werden offene Hinweise abgeraeumt",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Mail-Secret läuft ab",
     text: (z) => `Das Mail-Secret (Entra) läuft am ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} ab – ${z.stufe ?? 0}-Tage-Vorlauf: neues Secret anlegen und als Worker-Secret eintragen`,
   },
   verifikation_laeuft_ab: {
@@ -192,6 +207,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Empfaenger, Strom und Bezugsdatum (verifiziert_bis) genau ein Eintrag, dauerhaft — ein zweiter Lauf erzeugt nichts",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren", "inbox.weitergeben"],
     reinerHinweis: false,
+    kurztitel: "Verifikation läuft ab",
     text: (z) => `Verifikation von ${objektText(z)} läuft am ${z.bezugsdatum ? fmtDatum(z.bezugsdatum) : "–"} ab`,
   },
   verifikation_abgelaufen: {
@@ -201,6 +217,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "wie verifikation_laeuft_ab; Pruefdatum unbekannt ohne Bezugsdatum, einmal je Empfaenger und Strom",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "strom.reverifizieren", "inbox.weitergeben"],
     reinerHinweis: false,
+    kurztitel: "Verifikation abgelaufen",
     text: (z) =>
       z.bezugsdatum
         ? `Verifikation von ${objektText(z)} ist seit ${fmtDatum(z.bezugsdatum)} abgelaufen`
@@ -213,6 +230,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Empfaenger und Strom, solange der Eintrag offen ist",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Änderung",
     text: (z) => `${z.ausloeserName} hat ${objektText(z)} geändert${z.anzahl > 1 ? ` (${z.anzahl} Änderungen)` : ""}`,
   },
   // PR c
@@ -223,6 +241,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Empfaenger, Strom und Anfragendem, solange offen (zwei Anfragende = zwei Eintraege)",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "strom.zuweisen", "inbox.ablehnen"],
     reinerHinweis: false,
+    kurztitel: "Zugriffsanfrage",
     text: (z) => `${z.ausloeserName} bittet um Zugriff auf ${objektText(z)}${z.anzahl > 1 ? ` (${z.anzahl}. Anfrage)` : ""}`,
   },
   freischaltung: {
@@ -231,6 +250,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — jede Zuweisung ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Zugriff erhalten",
     text: (z) => `${z.ausloeserName} hat dir Zugriff auf ${objektText(z)} gegeben`,
   },
   zugriff_abgelehnt: {
@@ -239,6 +259,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "keine — jede Ablehnung ein Eintrag",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Zugriff abgelehnt",
     text: (z) => `${z.ausloeserName} hat deine Zugriffsanfrage zu ${objektText(z)} abgelehnt`,
   },
   // AP2.7 PR a (E67): ein gebuendelter Eintrag je Lauf — Empfaenger und Zustellung im Import (PR c).
@@ -248,6 +269,7 @@ export const INBOX_TYPEN: Record<InboxTyp, TypDefinition> = {
     buendelung: "je Lauf und Empfaenger genau ein Eintrag (inbox_eintrag_import_uidx)",
     aktionen: ["inbox.gelesen", "inbox.ungelesen", "inbox.erledigen", "inbox.verwerfen", "inbox.alle_erledigen"],
     reinerHinweis: true,
+    kurztitel: "Import abgeschlossen",
     text: (z) => {
       const n = z.importZaehler ?? {};
       return `Import ${z.importDateiname ?? "–"} abgeschlossen: ${n.importiert ?? 0} neu, ${n.uebersprungen ?? 0} übersprungen, ${n.fehler ?? 0} in der Nacharbeit`;
@@ -268,6 +290,18 @@ export function zeilenText(typ: string, z: ZeilenDaten, eintragId?: string): str
   // nur auf der geteilten Preview vorkommen — und dann soll es in den Workers-Logs stehen.
   console.error(`INBOX unbekannter Typ ${typ} (Eintrag ${eintragId ?? "?"}) — Platzhalterzeile statt Text`);
   return `Hinweis eines neueren Stands (${typ}) — ${z.bezeichnung ?? z.belegNr ?? "ohne Objekt"}`;
+}
+
+/**
+ * E77 R5: Kurzform der Zeile — Kurztitel aus dem Register plus Kennung des
+ * Objekts (Beleg-Nr., sonst Bezeichnung, Kontaktperson, Akteur, Importdatei;
+ * die Mail-Hinweise haben kein Objekt). Der volle Text bleibt zeilenText()
+ * fuer Tooltip und Detail; der Platzhalter fuer unbekannte Typen gilt auch hier.
+ */
+export function kurzform(typ: string, z: ZeilenDaten): { titel: string; kennung: string | null } {
+  const def = (INBOX_TYPEN as Record<string, TypDefinition | undefined>)[typ];
+  const kennung = z.belegNr ?? z.bezeichnung ?? z.kontaktpersonName ?? z.akteurName ?? z.importDateiname ?? null;
+  return { titel: def?.kurztitel ?? `Hinweis eines neueren Stands (${typ})`, kennung };
 }
 
 /** Welche Typen entstehen aus einer Ereignisart, in Zustellreihenfolge? Leer = keine Zustellung. */

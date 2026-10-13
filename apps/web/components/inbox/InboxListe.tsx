@@ -4,11 +4,26 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 
 import { Avatar } from "@/components/Avatar";
-import { inboxAblehnen, inboxAlleErledigen, inboxErledigen, inboxGelesen, inboxUngelesen, inboxVerwerfen, inboxWeitergeben } from "@/lib/inbox/actions";
+import { fmtDatum } from "@/lib/format";
+import {
+  inboxAblehnen,
+  inboxAlleErledigen,
+  inboxErledigen,
+  inboxErledigenMehrere,
+  inboxGelesen,
+  inboxUngelesen,
+  inboxVerwerfen,
+  inboxVerwerfenMehrere,
+  inboxWeitergeben,
+} from "@/lib/inbox/actions";
 import { AUFGABE_MAX, AUFGABE_VORGABE } from "@/lib/inbox/aufgabe";
+import { gruppiere } from "@/lib/inbox/gruppen";
+import type { InboxZeile } from "@/lib/inbox/server";
+import { zielFuerZeile } from "@/lib/inbox/ziel";
 import { stromZuweisen } from "@/lib/sperre-actions";
 import { stromReverifizieren } from "@/lib/stroeme-actions";
-import type { InboxZeile } from "@/lib/inbox/server";
+
+import { InboxKurztext } from "./InboxKurztext";
 
 export type Zeile = InboxZeile & { zeit: string };
 
@@ -19,6 +34,10 @@ const ZUSTAND_LABEL = { erledigt: "erledigt", verworfen: "verworfen" } as const;
  * Detail-Panel auf dieser Seite (?detail=<strom>&sicht=…). Erledigt und
  * Verwerfen wirken sofort; „Als ungelesen markieren" sitzt im Menü. Die
  * tragende Prüfung (nur der Empfänger) sitzt in den Aktionen.
+ *
+ * E77 R5: Zeilen in Kurzform (Kurztitel · Kennung, Akteur klein/grau, voller
+ * Text als Tooltip); gleiche Typen desselben Tages als aufklappbare Gruppe
+ * mit Zähler — Erledigt/Verwerfen wirken dort auf die ganze Gruppe.
  */
 const HINWEIS_TYPEN: readonly string[] = ["verifikation_laeuft_ab", "verifikation_abgelaufen"];
 /** PR c (D5): Eintraege, die sich als Aufgabe weitergeben lassen — dieselbe Liste wie in lib/inbox/actions.ts. */
@@ -58,7 +77,10 @@ export function InboxListe({
   const [weiterAn, setWeiterAn] = useState("");
   const [weiterText, setWeiterText] = useState(AUFGABE_VORGABE);
   const listeRef = useRef<HTMLUListElement>(null);
+  // E77 R5: aufgeklappte Gruppen (Schluessel typ|tag); zu Beginn alle eingeklappt.
+  const [offeneGruppen, setOffeneGruppen] = useState<ReadonlySet<string>>(() => new Set());
   const moeglicheEmpfaenger = empfaenger.filter((e) => e.id !== ichId);
+  const eintraege = gruppiere(zeilen);
   const weiterTextOk = weiterText.trim().length > 0 && weiterText.trim().length <= AUFGABE_MAX;
 
   function weiterOeffnen(id: string) {
@@ -106,31 +128,192 @@ export function InboxListe({
   }
 
   function oeffnen(z: Zeile) {
-    // AP2.5: Hinweise zum Akteur oeffnen die Akteur-Seite; alles andere das Detail-Panel hier.
-    const p = new URLSearchParams(searchParams.toString());
-    if (z.strom) {
-      p.set("detail", z.strom.id);
-      p.set("sicht", z.strom.art === "output" ? "outputs" : "feedstock");
-    }
-    // AP2.6 PR c (E71): Kommentar und Erwaehnung springen zum Kommentar im Objekt (Anker #kommentar-<id>).
-    const anker = z.kommentar ? `#kommentar-${z.kommentar.id}` : "";
-    const ziel = z.strom
-      ? `/inbox?${p.toString()}${anker}`
-      : z.kontaktperson
-        ? `/akteure/${z.kontaktperson.akteurId}?reiter=kontaktpersonen`
-        : z.akteur
-          ? `/akteure/${z.akteur.id}${anker}`
-          : z.importLauf
-            ? `/import/${z.importLauf.id}`
-            : z.typ === "mail_stoerung" || z.typ === "mail_secret_laeuft_ab"
-              ? // AP2.9 Umschalten: die Mail-Hinweise fuehren zur Tages-Mail-Sektion (Testversand).
-                "/einstellungen#roundup"
-              : "/inbox";
+    // Ziel aus lib/inbox/ziel.ts — derselbe Ursprung wie im Pop-up an der Glocke.
+    const ziel = zielFuerZeile(z, searchParams);
     if (z.gelesen) {
       router.push(ziel, { scroll: false });
       return;
     }
     fuehreAus(() => inboxGelesen(z.id), () => router.push(ziel, { scroll: false }));
+  }
+
+  function gruppeUmschalten(schluessel: string) {
+    setOffeneGruppen((alt) => {
+      const neu = new Set(alt);
+      if (neu.has(schluessel)) neu.delete(schluessel);
+      else neu.add(schluessel);
+      return neu;
+    });
+  }
+
+  /** Eine Zeile — einzeln oder innerhalb einer aufgeklappten Gruppe. */
+  function zeileElement(z: Zeile) {
+    return (
+      <li key={z.id} className={`ib-zeile${!z.gelesen && z.zustand === "offen" ? " ib-ungelesen" : ""}`}>
+        <span className="ib-punkt" aria-label={!z.gelesen && z.zustand === "offen" ? "ungelesen" : undefined} />
+        {z.ausloeser ? (
+          <Avatar nutzer={z.ausloeser} groesse="s" />
+        ) : (
+          // PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen statt Avatar.
+          <span className="avatar avatar--s ib-system" aria-label="Täglicher Hinweis" title="Täglicher Hinweis">
+            <i className="ph ph-calendar-check" aria-hidden />
+          </span>
+        )}
+        <span className="ib-textblock">
+          <button type="button" className="ib-text ib-text--kurz" title={z.text} onClick={() => oeffnen(z)}>
+            <InboxKurztext z={z} />
+          </button>
+        </span>
+        {zustand === "erledigt" && z.zustand !== "offen" && (
+          <span className={`pill pill--muted ib-zustand ib-zustand--${z.zustand}`}>{ZUSTAND_LABEL[z.zustand]}</span>
+        )}
+        <time className="ib-zeit" dateTime={z.aktualisiertAm} title={z.aktualisiertAm}>
+          {z.zeit}
+        </time>
+        <span className="ib-aktionen">
+          <button type="button" className="icon-btn" aria-label="Öffnen" title="Öffnen" onClick={() => oeffnen(z)}>
+            <i className="ph ph-arrow-square-out" aria-hidden />
+          </button>
+          {/* PR c: Zugriffsanfrage — Zuweisen (dieselbe Aktion strom.zuweisen) oder Ablehnen. */}
+          {/* PR c (D5): Weitergeben als Aufgabe — ab bearbeiter, nie an sich selbst; Text nicht leer, max. 500 (Server und DB). */}
+          {z.zustand === "offen" && WEITERGEBBAR.includes(z.typ) && darfWeitergeben && moeglicheEmpfaenger.length > 0 && (
+            <span className="pop-anchor">
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                aria-haspopup="dialog"
+                aria-expanded={weiterOffen === z.id}
+                disabled={laeuft}
+                onClick={() => weiterOeffnen(z.id)}
+              >
+                <i className="ph ph-arrow-bend-up-right" aria-hidden />
+                Weitergeben
+              </button>
+              {weiterOffen === z.id && (
+                <div role="dialog" aria-label="Weitergeben" className="pop ov-anfrage ib-weiter">
+                  <label className="ov-anfrage-label" htmlFor={`weiter-an-${z.id}`}>
+                    An
+                  </label>
+                  <select id={`weiter-an-${z.id}`} className="ib-weiter-an" value={weiterAn} onChange={(ev) => setWeiterAn(ev.target.value)}>
+                    {moeglicheEmpfaenger.map((e) => (
+                      <option key={e.id} value={e.id}>
+                        {e.name ?? e.email}
+                      </option>
+                    ))}
+                  </select>
+                  <label className="ov-anfrage-label" htmlFor={`weiter-text-${z.id}`}>
+                    Aufgabe
+                  </label>
+                  <textarea
+                    id={`weiter-text-${z.id}`}
+                    className="ov-anfrage-notiz"
+                    rows={3}
+                    maxLength={AUFGABE_MAX}
+                    value={weiterText}
+                    onChange={(ev) => setWeiterText(ev.target.value)}
+                  />
+                  <div className="ov-anfrage-fuss">
+                    <span className="c">
+                      {weiterText.trim().length}/{AUFGABE_MAX}
+                    </span>
+                    <button type="button" className="btn btn--ghost btn--sm" onClick={() => setWeiterOffen(null)}>
+                      Abbrechen
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn--primary btn--sm"
+                      disabled={laeuft || !weiterTextOk || !weiterAn}
+                      onClick={() => fuehreAus(() => inboxWeitergeben(z.id, weiterAn, weiterText))}
+                    >
+                      Weitergeben
+                    </button>
+                  </div>
+                </div>
+              )}
+            </span>
+          )}
+          {/* PR b: Ablauf-Hinweis — „Erneut verifizieren" (nur Pruefer; serverseitig strom.reverifizieren). */}
+          {z.zustand === "offen" && z.strom && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
+            <button
+              type="button"
+              className="btn btn--primary btn--sm"
+              disabled={laeuft}
+              onClick={() => fuehreAus(() => stromReverifizieren(z.strom!.art, z.strom!.id))}
+            >
+              Erneut verifizieren
+            </button>
+          )}
+          {z.zustand === "offen" && z.typ === "zugriffsanfrage" && z.ausloeser && z.strom && (
+            <>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm"
+                disabled={laeuft}
+                onClick={() => fuehreAus(() => stromZuweisen(z.strom!.art, z.strom!.id, z.ausloeser!.id))}
+              >
+                Zuweisen
+              </button>
+              <button
+                type="button"
+                className="btn btn--ghost btn--sm"
+                disabled={laeuft}
+                onClick={() => fuehreAus(() => inboxAblehnen(z.id))}
+              >
+                Ablehnen
+              </button>
+            </>
+          )}
+          {z.zustand === "offen" && z.typ !== "zugriffsanfrage" && (
+            <>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Erledigt"
+                title="Erledigt"
+                onClick={() => fuehreAus(() => inboxErledigen(z.id))}
+              >
+                <i className="ph ph-check" aria-hidden />
+              </button>
+              <button
+                type="button"
+                className="icon-btn"
+                aria-label="Verwerfen"
+                title="Verwerfen"
+                onClick={() => fuehreAus(() => inboxVerwerfen(z.id))}
+              >
+                <i className="ph ph-x" aria-hidden />
+              </button>
+              <span className="pop-anchor">
+                <button
+                  type="button"
+                  className="icon-btn"
+                  aria-label="Weitere Aktionen"
+                  aria-haspopup="menu"
+                  aria-expanded={menue === z.id}
+                  onClick={() => setMenue((m) => (m === z.id ? null : z.id))}
+                >
+                  <i className="ph ph-dots-three" aria-hidden />
+                </button>
+                {menue === z.id && (
+                  <div role="menu" className="pop ib-menue">
+                    <button
+                      type="button"
+                      role="menuitem"
+                      className="pop-item"
+                      disabled={!z.gelesen}
+                      onClick={() => fuehreAus(() => inboxUngelesen(z.id))}
+                    >
+                      <i className="ph ph-envelope" aria-hidden />
+                      <span className="lbl">Als ungelesen markieren</span>
+                    </button>
+                  </div>
+                )}
+              </span>
+            </>
+          )}
+        </span>
+      </li>
+    );
   }
 
   return (
@@ -141,173 +324,80 @@ export function InboxListe({
         </p>
       )}
       <ul className="ib-liste" ref={listeRef} aria-busy={laeuft}>
-        {zeilen.map((z) => (
-          <li key={z.id} className={`ib-zeile${!z.gelesen && z.zustand === "offen" ? " ib-ungelesen" : ""}`}>
-            <span className="ib-punkt" aria-label={!z.gelesen && z.zustand === "offen" ? "ungelesen" : undefined} />
-            {z.ausloeser ? (
-              <Avatar nutzer={z.ausloeser} groesse="s" />
-            ) : (
-              // PR b: Hinweis des taeglichen Jobs — kein Urheber, Kalender-Zeichen statt Avatar.
-              <span className="avatar avatar--s ib-system" aria-label="Täglicher Hinweis" title="Täglicher Hinweis">
-                <i className="ph ph-calendar-check" aria-hidden />
-              </span>
-            )}
-            <span className="ib-textblock">
-              <button type="button" className="ib-text" onClick={() => oeffnen(z)}>
-                {z.text}
-              </button>
-              {z.typ === "zugriffsanfrage" && z.notiz && <span className="ib-notiz">„{z.notiz}"</span>}
-            </span>
-            {zustand === "erledigt" && z.zustand !== "offen" && (
-              <span className={`pill pill--muted ib-zustand ib-zustand--${z.zustand}`}>{ZUSTAND_LABEL[z.zustand]}</span>
-            )}
-            <time className="ib-zeit" dateTime={z.aktualisiertAm} title={z.aktualisiertAm}>
-              {z.zeit}
-            </time>
-            <span className="ib-aktionen">
-              <button type="button" className="icon-btn" aria-label="Öffnen" title="Öffnen" onClick={() => oeffnen(z)}>
-                <i className="ph ph-arrow-square-out" aria-hidden />
-              </button>
-              {/* PR c: Zugriffsanfrage — Zuweisen (dieselbe Aktion strom.zuweisen) oder Ablehnen. */}
-              {/* PR c (D5): Weitergeben als Aufgabe — ab bearbeiter, nie an sich selbst; Text nicht leer, max. 500 (Server und DB). */}
-              {z.zustand === "offen" && WEITERGEBBAR.includes(z.typ) && darfWeitergeben && moeglicheEmpfaenger.length > 0 && (
-                <span className="pop-anchor">
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    aria-haspopup="dialog"
-                    aria-expanded={weiterOffen === z.id}
-                    disabled={laeuft}
-                    onClick={() => weiterOeffnen(z.id)}
-                  >
-                    <i className="ph ph-arrow-bend-up-right" aria-hidden />
-                    Weitergeben
-                  </button>
-                  {weiterOffen === z.id && (
-                    <div role="dialog" aria-label="Weitergeben" className="pop ov-anfrage ib-weiter">
-                      <label className="ov-anfrage-label" htmlFor={`weiter-an-${z.id}`}>
-                        An
-                      </label>
-                      <select id={`weiter-an-${z.id}`} className="ib-weiter-an" value={weiterAn} onChange={(ev) => setWeiterAn(ev.target.value)}>
-                        {moeglicheEmpfaenger.map((e) => (
-                          <option key={e.id} value={e.id}>
-                            {e.name ?? e.email}
-                          </option>
-                        ))}
-                      </select>
-                      <label className="ov-anfrage-label" htmlFor={`weiter-text-${z.id}`}>
-                        Aufgabe
-                      </label>
-                      <textarea
-                        id={`weiter-text-${z.id}`}
-                        className="ov-anfrage-notiz"
-                        rows={3}
-                        maxLength={AUFGABE_MAX}
-                        value={weiterText}
-                        onChange={(ev) => setWeiterText(ev.target.value)}
-                      />
-                      <div className="ov-anfrage-fuss">
-                        <span className="c">
-                          {weiterText.trim().length}/{AUFGABE_MAX}
-                        </span>
-                        <button type="button" className="btn btn--ghost btn--sm" onClick={() => setWeiterOffen(null)}>
-                          Abbrechen
-                        </button>
-                        <button
-                          type="button"
-                          className="btn btn--primary btn--sm"
-                          disabled={laeuft || !weiterTextOk || !weiterAn}
-                          onClick={() => fuehreAus(() => inboxWeitergeben(z.id, weiterAn, weiterText))}
-                        >
-                          Weitergeben
-                        </button>
-                      </div>
-                    </div>
-                  )}
-                </span>
-              )}
-              {/* PR b: Ablauf-Hinweis — „Erneut verifizieren" (nur Pruefer; serverseitig strom.reverifizieren). */}
-              {z.zustand === "offen" && z.strom && HINWEIS_TYPEN.includes(z.typ) && darfReverifizieren && (
+        {eintraege.map((e) => {
+          if (e.art === "einzeln") return zeileElement(e.zeile);
+          const schluessel = `${e.typ}|${e.tag}`;
+          const offen = offeneGruppen.has(schluessel);
+          const ungelesen = e.zeilen.filter((z) => !z.gelesen && z.zustand === "offen").length;
+          // Gruppenaktionen nur in „Offen" und nie fuer Zugriffsanfragen (dieselbe Regel wie je Zeile).
+          const erledigbar = zustand === "offen" && e.typ !== "zugriffsanfrage";
+          const ids = e.zeilen.map((z) => z.id);
+          const listenId = `ib-gruppe-${e.typ}-${e.tag}`;
+          const juengste = e.zeilen[0]!;
+          return (
+            <li key={schluessel} className={`ib-gruppe${offen ? " ib-gruppe--offen" : ""}`}>
+              <div className={`ib-zeile ib-gruppenkopf${ungelesen > 0 ? " ib-ungelesen" : ""}`}>
+                <span className="ib-punkt" aria-label={ungelesen > 0 ? "ungelesen" : undefined} />
                 <button
                   type="button"
-                  className="btn btn--primary btn--sm"
-                  disabled={laeuft}
-                  onClick={() => fuehreAus(() => stromReverifizieren(z.strom!.art, z.strom!.id))}
+                  className="ib-gruppe-toggle"
+                  aria-expanded={offen}
+                  aria-controls={listenId}
+                  aria-label={offen ? "Gruppe einklappen" : "Gruppe aufklappen"}
+                  onClick={() => gruppeUmschalten(schluessel)}
                 >
-                  Erneut verifizieren
+                  <i className={`ph ph-caret-${offen ? "down" : "right"}`} aria-hidden />
                 </button>
+                <span className="ib-textblock">
+                  <button type="button" className="ib-text ib-text--kurz" onClick={() => gruppeUmschalten(schluessel)}>
+                    <span className="ib-kurz-zeile">
+                      <span className="ib-titel">{juengste.kurz.titel}</span>
+                      <span className="pill pill--muted ib-anzahl">{e.zeilen.length}</span>
+                    </span>
+                    <span className="ib-neben">
+                      {fmtDatum(e.tag)}
+                      {ungelesen > 0 ? ` · ${ungelesen} ungelesen` : ""}
+                    </span>
+                  </button>
+                </span>
+                <time className="ib-zeit" dateTime={juengste.aktualisiertAm} title={juengste.aktualisiertAm}>
+                  {juengste.zeit}
+                </time>
+                <span className="ib-aktionen">
+                  {erledigbar && (
+                    <>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Alle ${e.zeilen.length} erledigt`}
+                        title="Alle erledigt"
+                        disabled={laeuft}
+                        onClick={() => fuehreAus(() => inboxErledigenMehrere(ids))}
+                      >
+                        <i className="ph ph-checks" aria-hidden />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Alle ${e.zeilen.length} verwerfen`}
+                        title="Alle verwerfen"
+                        disabled={laeuft}
+                        onClick={() => fuehreAus(() => inboxVerwerfenMehrere(ids))}
+                      >
+                        <i className="ph ph-x" aria-hidden />
+                      </button>
+                    </>
+                  )}
+                </span>
+              </div>
+              {offen && (
+                <ul className="ib-liste ib-gruppe-liste" id={listenId}>
+                  {e.zeilen.map((z) => zeileElement(z))}
+                </ul>
               )}
-              {z.zustand === "offen" && z.typ === "zugriffsanfrage" && z.ausloeser && z.strom && (
-                <>
-                  <button
-                    type="button"
-                    className="btn btn--primary btn--sm"
-                    disabled={laeuft}
-                    onClick={() => fuehreAus(() => stromZuweisen(z.strom!.art, z.strom!.id, z.ausloeser!.id))}
-                  >
-                    Zuweisen
-                  </button>
-                  <button
-                    type="button"
-                    className="btn btn--ghost btn--sm"
-                    disabled={laeuft}
-                    onClick={() => fuehreAus(() => inboxAblehnen(z.id))}
-                  >
-                    Ablehnen
-                  </button>
-                </>
-              )}
-              {z.zustand === "offen" && z.typ !== "zugriffsanfrage" && (
-                <>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label="Erledigt"
-                    title="Erledigt"
-                    onClick={() => fuehreAus(() => inboxErledigen(z.id))}
-                  >
-                    <i className="ph ph-check" aria-hidden />
-                  </button>
-                  <button
-                    type="button"
-                    className="icon-btn"
-                    aria-label="Verwerfen"
-                    title="Verwerfen"
-                    onClick={() => fuehreAus(() => inboxVerwerfen(z.id))}
-                  >
-                    <i className="ph ph-x" aria-hidden />
-                  </button>
-                  <span className="pop-anchor">
-                    <button
-                      type="button"
-                      className="icon-btn"
-                      aria-label="Weitere Aktionen"
-                      aria-haspopup="menu"
-                      aria-expanded={menue === z.id}
-                      onClick={() => setMenue((m) => (m === z.id ? null : z.id))}
-                    >
-                      <i className="ph ph-dots-three" aria-hidden />
-                    </button>
-                    {menue === z.id && (
-                      <div role="menu" className="pop ib-menue">
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className="pop-item"
-                          disabled={!z.gelesen}
-                          onClick={() => fuehreAus(() => inboxUngelesen(z.id))}
-                        >
-                          <i className="ph ph-envelope" aria-hidden />
-                          <span className="lbl">Als ungelesen markieren</span>
-                        </button>
-                      </div>
-                    )}
-                  </span>
-                </>
-              )}
-            </span>
-          </li>
-        ))}
+            </li>
+          );
+        })}
       </ul>
     </div>
   );

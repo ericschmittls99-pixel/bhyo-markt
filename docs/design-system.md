@@ -818,6 +818,40 @@ Weitergeben, Erneut verifizieren, Erledigen, Verwerfen, Menü) rücken unter
 den Textblock (`grid-column: 3 / -1`, umbrechend), damit der Text nie auf
 0 px zusammenfällt (Befund 04.10.2026 bei 836 px Viewport).
 
+## Inbox in Kurzform, Gruppen und Pop-up an der Glocke (E77 R5, 13.10.2026)
+
+**Pop-up an der Glocke:** Das Tray-Icon der Kopfzeile (`.hdr-inbox`, mit
+Lime-Zähler) ist ein Knopf mit `aria-haspopup="dialog"` und öffnet ein
+Glas-Pop-up (`pop ib-pop`, 380 px, schmal `100vw − 32 px`) im Aufbau des
+Konto-Menüs: Kopf „inbox." mit Caption „n ungelesen", bis zu fünf Zeilen
+(`.ib-pop-zeile`: Ungelesen-Punkt, Kurzform, relative Zeit), Trennlinie,
+Primär-Button „Zur Inbox" in voller Breite. Zustände als Caption: „Lädt …",
+„Keine offenen Mitteilungen.", Fehlertext als `role="alert"`. Esc und Klick
+außerhalb schließen; der Fokus geht beim Öffnen auf die erste Zeile (vorher
+auf den Rahmen) und bei Esc zurück auf das Icon; Tab hinaus schließt.
+
+**Kurzform der Zeile** (`InboxKurztext`, in Liste und Pop-up derselbe
+Baustein): erste Zeile Kurztitel (`.ib-titel`, 500; ungelesen 600) · Kennung
+(`.ib-kennung`, `--text-secondary`), bei Bündeln die Pille `3×`
+(`pill--muted ib-anzahl`); zweite Zeile `.ib-neben` als Caption mit dem Akteur,
+bei Aufgabe und Zugriffsanfrage dazu das Zitat „…". Kurztitel je Typ stehen
+im Inbox-Register (`kurztitel`): Erwähnung, Kommentar, Prüfauftrag, Prüfung
+erledigt, Löschprüfung, Akteur verwaist, Aufgabe, Wird frei, Tages-Mail
+gestört, Mail-Secret läuft ab, Verifikation läuft ab, Verifikation abgelaufen,
+Änderung, Zugriffsanfrage, Zugriff erhalten, Zugriff abgelehnt, Import
+abgeschlossen. Der volle Satz bleibt als `title` der Zeile und im Detail.
+Die ganze Zeile ist nicht mehr fett — nur der Kurztitel hebt Ungelesenes.
+
+**Gruppen:** Gleiche Typen desselben Tages (Kalendertag Europe/Berlin) werden
+ab zwei Einträgen zu einer eingeklappten Gruppe (`li.ib-gruppe`): Kopfzeile im
+Zeilenraster mit Caret-Knopf (`.ib-gruppe-toggle`, 24 px rund, `aria-expanded`,
+`aria-controls`) an der Stelle des Avatars, Kurztitel mit Zähler-Pille,
+Caption „TT.MM.JJJJ · n ungelesen", Zeit des jüngsten Eintrags und rechts die
+Gruppenaktionen „Alle erledigt" (`ph-checks`) und „Alle verwerfen" (`ph-x`) —
+nur in „Offen" und nie für Zugriffsanfragen. Aufgeklappt (Kopf auf
+`--surface-hover`) stehen die Zeilen eingerückt (`.ib-gruppe-liste`, 20 px,
+schmal 8 px) mit ihren gewohnten Aktionen darunter.
+
 ## akteure. — Liste, Detail, Sitz (AP2.5 PR a1, E66, 01.10.2026)
 
 **Navigation:** Bereich **akteure.** (`ph-buildings`) zwischen planer. und
