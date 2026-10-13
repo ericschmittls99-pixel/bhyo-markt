@@ -644,3 +644,30 @@ Neue Zeilen folgen dem Stil der umgebenden Datei, **fremde Zeilen werden nie
 umformatiert**. Ein Diff, der nur Einrückung oder Umbrüche bestehender Zeilen
 ändert, gehört nicht in einen Fach-PR; wenn er nötig ist, kommt er allein in
 einen eigenen PR und sagt das im Titel.
+
+## freigabe.sh läuft aus einer Wegwerf-Kopie (Betriebs-PR, 13.10.2026)
+
+Anlass: Während die Freigabe von #234 lief, wurde im selben Checkout der
+Branch gewechselt und `scripts/freigabe.sh` für einen Betriebs-PR umgeschrieben.
+bash liest ein laufendes Skript nachträglich von der Platte; der Lauf endete in
+(e) mit „line 174: syntax error" — nach dem Merge, vor Jobs und Leseweg.
+
+**Regel:** `freigabe.sh` kopiert sich beim Start samt `merge-sicher.sh` in
+ein Wegwerf-Verzeichnis (`mktemp -d …/freigabe-kopie.XXXXXX`) und führt sich
+von dort aus (`exec`, Kennzeichen `FREIGABE_KOPIE`); das Verzeichnis wird am
+Ende entfernt (`trap … EXIT`). Änderungen im Checkout — Bearbeitung,
+Branchwechsel, Merge — erreichen einen laufenden Lauf nicht mehr. Trotzdem
+gilt weiter: während einer Freigabe keinen Branchwechsel im selben Checkout,
+denn die Wegwerf-Worktrees von (f) und `git fetch` arbeiten im Repo.
+
+**Wächter-Test** (`scripts/tests/freigabe-test.sh`, Szenario
+`skript_ueberschreiben=<pfad>` in `fake-gh.sh`): die Skripte werden je Fall in
+ein eigenes Verzeichnis kopiert; beim ersten `run list` nach dem Merge
+überschreibt die Attrappe diese Datei mit Syntaxmüll. Erwartet: Exit 0, FERTIG,
+(f) noch ausgeführt, kein Müll ausgeführt, Wegwerf-Kopie entfernt. Rot-Nachweis
+gegen die Skripte von main vor diesem PR: genau diese Prüfungen rot (das alte
+Skript liest den Müll und bricht ab).
+
+**Netzfehler-Muster ergänzt:** „failed to get jobs: stream error: stream ID n;
+CANCEL; received from peer" (HTTP/2-Abbruch durch GitHub, 13.10.2026 bei #235)
+zählt in `gh_wiederholt` wie connection reset / 502.

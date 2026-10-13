@@ -22,6 +22,10 @@
 #       netzfehler  = N   die ersten N Aufrufe von `run list`/`run view` nach
 #                     dem Merge scheitern mit „connection reset by peer"
 #                     (CI-Diaet: freigabe.sh wiederholt bis zu dreimal)
+#       skript_ueberschreiben = <pfad>  beim ersten `run list` nach dem Merge wird
+#                     diese Datei mit Syntaxmuell ueberschrieben — wie eine
+#                     Bearbeitung des Checkouts waehrend des Laufs (13.10.2026);
+#                     freigabe.sh laeuft aus seiner Kopie und merkt nichts
 #       jobs404     = N   die ersten N Aufrufe von `run watch` nach dem Merge
 #                     scheitern mit „failed to get jobs: HTTP 404" (13.10.2026:
 #                     die Jobs-API kennt den frischen Lauf noch nicht)
@@ -145,6 +149,11 @@ case "${POS[0]:-} ${POS[1]:-}" in
 
   "run list")
     netz_scheitert && exit 1
+    datei=$(szenario skript_ueberschreiben)
+    if [[ -n "$datei" && -f "$D/gemergt" && ! -f "$D/ueberschrieben" ]]; then
+      { echo "echo KAPUTT >&2"; for i in $(seq 1 400); do echo ") ) ) KAPUTT"; done; } > "$datei"
+      : > "$D/ueberschrieben"
+    fi
     jq --arg wf "$O_WORKFLOW" --arg c "$O_COMMIT" \
       '[.[] | select(($wf == "" or .workflow == $wf) and ($c == "" or .commit == $c))]' "$D/runs.json" | ausgabe ;;
 

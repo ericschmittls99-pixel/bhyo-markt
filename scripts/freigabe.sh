@@ -34,6 +34,23 @@
 # set -e: Jeder Fehlschlag bricht sofort ab, ohne Folgeschritte. Rot gezeigt:
 # ein Abbruch in (a) startet keine Migration (Lauf im PR dokumentiert).
 set -euo pipefail
+
+# Betriebs-PR 13.10.2026: bash liest ein laufendes Skript nachtraeglich von der
+# Platte — am 13.10.2026 brach die Freigabe von #234 in (e) mit einem
+# Syntaxfehler ab, weil freigabe.sh im selben Checkout bearbeitet wurde (Branch-
+# wechsel fuer einen Betriebs-PR). Deshalb kopiert sich das Skript beim Start
+# samt merge-sicher.sh in ein Wegwerf-Verzeichnis und fuehrt sich von dort aus
+# (exec); Aenderungen im Checkout erreichen einen laufenden Lauf nicht mehr.
+# FREIGABE_KOPIE traegt die Kopie (und verhindert die Endlosschleife), das
+# Verzeichnis wird am Ende entfernt.
+if [[ -z "${FREIGABE_KOPIE:-}" ]]; then
+  ursprung="$(cd "$(dirname "$0")" && pwd)"
+  kopie="$(mktemp -d "${TMPDIR:-/tmp}/freigabe-kopie.XXXXXX")"
+  cp "$ursprung/freigabe.sh" "$ursprung/merge-sicher.sh" "$kopie/"
+  FREIGABE_KOPIE="$kopie" exec bash "$kopie/freigabe.sh" "$@"
+fi
+trap 'rm -rf "$FREIGABE_KOPIE"' EXIT
+
 PR="${1:-}"; SHA="${2:-}"; BETREFF="${3:-}"
 if [[ -z "$PR" || -z "$SHA" || -z "$BETREFF" ]]; then
   echo "Nutzung: $0 <pr-nummer> <freigegebener-head-sha> \"<merge-betreff>\"" >&2
@@ -115,7 +132,8 @@ gh_wiederholt() { # <gh-argumente...>
     # Exit-Status der gh-Zuweisung, nicht des if-Blocks (der waere 0).
     ausgabe=$(gh "$@" 2>&1) && { printf '%s\n' "$ausgabe"; return 0; }
     rc=$?
-    if (( versuch < 3 )) && grep -qiE 'connection reset|i/o timeout|dial tcp|EOF|502|503|504|unexpected end|failed to get jobs: HTTP 404' <<<"$ausgabe"; then
+    # „stream error … CANCEL; received from peer": HTTP/2-Abbruch durch GitHub (13.10.2026, #235).
+    if (( versuch < 3 )) && grep -qiE 'connection reset|i/o timeout|dial tcp|EOF|502|503|504|unexpected end|stream error|failed to get jobs: HTTP 404' <<<"$ausgabe"; then
       echo "    Netzfehler bei gh $1 $2 (Versuch $versuch/3) — warte ${GH_PAUSE}s" >&2
       sleep "$GH_PAUSE"; continue
     fi
