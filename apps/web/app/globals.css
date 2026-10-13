@@ -4402,6 +4402,19 @@ table.st-tabelle tbody tr:focus-visible {
 .aw-belegzeile .aw-zeilenwert { text-align: right; white-space: nowrap; }
 @media (max-width: 620px) {
   .aw-belegtypen { grid-template-columns: minmax(0, 1fr); }
+  /* E77 R4: schmal wird die Zeile zweizeilig — Beschriftung oben in voller
+     Breite, Balken und Wert darunter; so bleibt der Name lesbar, auch wenn
+     neben der Seitenleiste nur ~230 px bleiben. */
+  .aw-belegzeile {
+    grid-template-columns: minmax(0, 1fr) auto;
+    grid-template-areas: "lbl lbl" "bar wert";
+    row-gap: 2px;
+    height: auto;
+    padding: 4px 8px;
+  }
+  .aw-belegzeile .lbl { grid-area: lbl; }
+  .aw-belegzeile .aw-balken { grid-area: bar; }
+  .aw-belegzeile .aw-zeilenwert { grid-area: wert; }
 }
 
 /* Jahre: dynamische Achse (E16) — Saeulen fuellen die Breite, ab ~8 Balken
