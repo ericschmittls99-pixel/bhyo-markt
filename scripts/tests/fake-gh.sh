@@ -22,6 +22,9 @@
 #       netzfehler  = N   die ersten N Aufrufe von `run list`/`run view` nach
 #                     dem Merge scheitern mit „connection reset by peer"
 #                     (CI-Diaet: freigabe.sh wiederholt bis zu dreimal)
+#       jobs404     = N   die ersten N Aufrufe von `run watch` nach dem Merge
+#                     scheitern mit „failed to get jobs: HTTP 404" (13.10.2026:
+#                     die Jobs-API kennt den frischen Lauf noch nicht)
 #   $FAKE_GH_DIR/calls.log   jeder Aufruf, eine Zeile — die Tests zaehlen darin
 #                             z. B. die Neustarts.
 set -euo pipefail
@@ -38,6 +41,18 @@ netz_scheitert() {
   (( n < soll )) || return 1
   echo $((n + 1)) > "$D/netz.zaehler"
   echo "failed to get run: Get \"https://api.github.com/\": read tcp 127.0.0.1:1->127.0.0.1:2: read: connection reset by peer" >&2
+  return 0
+}
+
+# Jobs-API noch leer simulieren: wie `gh run watch` am 13.10.2026 direkt nach
+# dem Merge; Zaehler in $D/jobs404.zaehler, nur nach dem Merge.
+jobs404_scheitert() { # <lauf-id>
+  local soll; soll=$(szenario jobs404); [[ -z "$soll" ]] && return 1
+  [[ -f "$D/gemergt" ]] || return 1
+  local n; n=$(cat "$D/jobs404.zaehler" 2>/dev/null || echo 0)
+  (( n < soll )) || return 1
+  echo $((n + 1)) > "$D/jobs404.zaehler"
+  echo "failed to get jobs: HTTP 404: Not Found (https://api.github.com/repos/test/bhyo/actions/runs/$1/jobs?per_page=100)" >&2
   return 0
 }
 
@@ -134,6 +149,7 @@ case "${POS[0]:-} ${POS[1]:-}" in
       '[.[] | select(($wf == "" or .workflow == $wf) and ($c == "" or .commit == $c))]' "$D/runs.json" | ausgabe ;;
 
   "run watch")
+    jobs404_scheitert "${POS[2]}" && exit 1
     c=$(jq -r ".[] | select(.databaseId == ${POS[2]}) | .conclusion" "$D/runs.json")
     [[ "$c" == "success" ]] ;;
 
