@@ -607,3 +607,40 @@ von mindestens 12 Zeichen**, die im aktuellen Head-SHA des PR vorkommen muss
 wird das Vorkommen geprüft (`case "$head" in *<Folge>*)`); fehlt die Folge,
 Abbruch ohne Merge. Im Bericht steht der volle Head in eigener Zeile. Die
 frühere Präfix-Regel (Kopf-Präfix ≥ 12) ist damit ersetzt.
+
+## Freigabe (e): „failed to get jobs: HTTP 404" direkt nach dem Merge (Betriebs-PR, 13.10.2026)
+
+Anlass: Bei der Freigabe von #232 (13.10.2026) fand (e) den Push-Lauf von
+main sofort (`run list`), `gh run watch` scheiterte aber mit
+„failed to get jobs: HTTP 404: Not Found (…/actions/runs/<id>/jobs)" — die
+Jobs-API kannte den frischen Lauf noch nicht. Das Skript meldete „Deploy rot"
+und brach nach dem Merge ab; Deploy und Leseweg waren grün und mussten von
+Hand abgewartet werden.
+
+**Regel:** Dieser Fehler zählt in (e) wie ein Netzfehler. `gh_wiederholt`
+wiederholt `run watch` bis zu dreimal mit Pause (`GH_PAUSE`, Vorgabe 20 s);
+erst der dritte Fehlschlag gilt als „Lauf rot". Die Erkennung ist auf den
+Wortlaut „failed to get jobs: HTTP 404" begrenzt — ein 404 an anderer Stelle
+(falsche Lauf-ID, gelöschter Lauf) wird nicht wiederholt.
+
+**Wächter-Test** (`scripts/tests/freigabe-test.sh`, Szenario `jobs404=N` in
+`fake-gh.sh`): zweimal 404 → zwei Wiederholungen gemeldet, kein Neustart,
+FERTIG; 404 bei allen drei Versuchen → Abbruch nach dem Merge („Deploy rot"),
+kein Neustart, main bleibt auf dem Squash. Rot-Nachweis gegen die Skripte von
+main vor diesem PR (`FREIGABE_SKRIPT_DIR`): genau diese Prüfungen rot.
+
+## Formatierer und Codemods nur mit Repo-Konfiguration (Regel Eric, 13.10.2026)
+
+Anlass: In PR #233 wurde `InboxListe.tsx` versehentlich mit `npx prettier`
+(Vorgabe 80 Zeichen) formatiert. Das Repo konfiguriert keinen Formatierer;
+der Diff wuchs um Hunderte fremder Zeilen und musste aus main wiederhergestellt
+werden.
+
+**Regel:** Ein Formatierer (prettier, eslint --fix, biome) oder ein Codemod
+läuft nur, wenn das Repo ihn konfiguriert hat (Konfigurationsdatei oder
+`package.json`-Eintrag im Repo) — nicht aus einer Werkzeug-Vorgabe oder einer
+globalen Installation heraus. Ohne Konfiguration wird gar nicht formatiert:
+Neue Zeilen folgen dem Stil der umgebenden Datei, **fremde Zeilen werden nie
+umformatiert**. Ein Diff, der nur Einrückung oder Umbrüche bestehender Zeilen
+ändert, gehört nicht in einen Fach-PR; wenn er nötig ist, kommt er allein in
+einen eigenen PR und sagt das im Titel.

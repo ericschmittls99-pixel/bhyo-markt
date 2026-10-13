@@ -22,7 +22,9 @@
 #      Leseweg ausgeben, Links drucken. Bricht GitHub den Lauf ab (Job
 #      „cancelled"), wird er EINMAL neu gestartet — wie in (a). Netzfehler
 #      bei den gh-Abfragen werden bis zu dreimal mit Pause wiederholt
-#      (zwei Abbrueche am 08.10.2026 nach dem Merge).
+#      (zwei Abbrueche am 08.10.2026 nach dem Merge); „failed to get jobs:
+#      HTTP 404" direkt nach dem Merge zaehlt dazu (13.10.2026, #232: die
+#      Jobs-API kannte den frischen main-Lauf noch nicht, (e) brach ab).
 #   f) Die in (a) umgehaengten gestapelten PRs angleichen: main (Squash)
 #      hineinmergen, Patch-ID des PR-Diffs vorher (gegen den Basis-Baum =
 #      main-Baum, belegt) und nachher (main...HEAD) vergleichen. Gleich →
@@ -103,7 +105,9 @@ echo "    main = $squash"
 # Netzfehler (connection reset, i/o timeout) sind kein Urteil ueber den Lauf:
 # bis zu drei Versuche mit Pause, erst dann gilt der Aufruf als gescheitert.
 # Fuer `gh run watch` ist ein Exit 1 auch „Lauf rot" — deshalb wird dort nur
-# wiederholt, wenn die Fehlermeldung nach Netz aussieht.
+# wiederholt, wenn die Fehlermeldung nach Netz aussieht. „failed to get jobs:
+# HTTP 404" gehoert dazu: direkt nach dem Merge existiert der Lauf schon
+# (run list fand ihn), die Jobs-API liefert aber noch 404 (13.10.2026, #232).
 GH_PAUSE="${GH_PAUSE:-20}"
 gh_wiederholt() { # <gh-argumente...>
   local versuch ausgabe rc
@@ -111,7 +115,7 @@ gh_wiederholt() { # <gh-argumente...>
     # Exit-Status der gh-Zuweisung, nicht des if-Blocks (der waere 0).
     ausgabe=$(gh "$@" 2>&1) && { printf '%s\n' "$ausgabe"; return 0; }
     rc=$?
-    if (( versuch < 3 )) && grep -qiE 'connection reset|i/o timeout|dial tcp|EOF|502|503|504|unexpected end' <<<"$ausgabe"; then
+    if (( versuch < 3 )) && grep -qiE 'connection reset|i/o timeout|dial tcp|EOF|502|503|504|unexpected end|failed to get jobs: HTTP 404' <<<"$ausgabe"; then
       echo "    Netzfehler bei gh $1 $2 (Versuch $versuch/3) — warte ${GH_PAUSE}s" >&2
       sleep "$GH_PAUSE"; continue
     fi
