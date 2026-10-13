@@ -15,7 +15,10 @@
 #       abgebrochenem Lauf (Job cancelled); ein roter Check startet nichts neu.
 #   CI-Diaet (Betriebs-PR 3, 08.10.2026):
 #       Netzfehler bei gh nach dem Merge werden bis zu dreimal wiederholt
-#       (GH_PAUSE=0 im Test); eine Migration im PR laesst (e) auf den
+#       (GH_PAUSE=0 im Test); „failed to get jobs: HTTP 404" bei `run watch`
+#       direkt nach dem Merge zaehlt als Netzfehler (13.10.2026): zweimal →
+#       wiederholt und FERTIG, dreimal → Abbruch nach dem Merge ohne
+#       Neustart; eine Migration im PR laesst (e) auf den
 #       Dispatch-Lauf warten, den migrate-production ausloest (der Push-Lauf
 #       bleibt erwartet rot); ein abgebrochener Lauf am Head wird nicht neu
 #       gestartet, wenn ein juengerer gruen ist; merge-sicher.sh wertet je
@@ -202,6 +205,26 @@ erwarte "zwei Wiederholungen gemeldet" [ "$(grep -c 'Netzfehler bei gh run list'
 erwarte "Attrappe hat genau zweimal gescheitert" [ "$(cat "$D/netz.zaehler")" -eq 2 ]
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(e) „failed to get jobs: HTTP 404“ direkt nach dem Merge: wie Netzfehler, zweimal wiederholt, dann FERTIG"
+printf 'deploy_main=gruen\njobs404=2\n' > "$D/szenario"
+freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "zwei Wiederholungen bei run watch gemeldet" [ "$(grep -c 'Netzfehler bei gh run watch' <<<"$AUSGABE")" -eq 2 ]
+erwarte "Attrappe hat genau zweimal 404 geliefert" [ "$(cat "$D/jobs404.zaehler")" -eq 2 ]
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(e) 404 der Jobs-API bleibt bei allen drei Versuchen: Abbruch nach dem Merge, kein Neustart, main gemergt"
+printf 'deploy_main=gruen\njobs404=9\n' > "$D/szenario"
+freigabe_laufen
+erwarte "Exit 1" [ "$RC" -eq 1 ]
+erwarte "zwei Wiederholungen gemeldet, dann Schluss" [ "$(grep -c 'Netzfehler bei gh run watch' <<<"$AUSGABE")" -eq 2 ]
+erwarte "Abbruch nach dem Merge gemeldet" grep -q '^ABBRUCH: Deploy rot' <<<"$AUSGABE"
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+erwarte "main steht auf dem Squash (Merge nicht rueckgaengig)" [ "$(remote_ref main)" != "$MAIN_VORHER" ]
 aufraeumen
 
 fall_aufbauen "(d/e) Migration im PR: migrate-production ausgeloest, Push-Lauf rot ist erwartet, Dispatch-Lauf traegt (e)"
