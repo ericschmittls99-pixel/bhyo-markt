@@ -28,8 +28,10 @@
 #       Code-PR; Muster nicht lesbar = Code-PR.
 #   (f) Gestapelte PRs: in (a) auf main umgehaengt, danach angeglichen NUR
 #       durch Merge des Squash (zwei Eltern: alter Head, Squash), Patch-ID
-#       gegen den Basis-Baum gleich → Push. Abweichende Patch-ID oder nicht
-#       belegbarer Basis-Baum → kein Push, Head bleibt.
+#       gegen den echten Basis-Baum (Eltern-Head) gleich → Push. Abweichende
+#       Patch-ID oder nicht belegbarer Basis-Baum → kein Push, Head bleibt.
+#       Fremde Merges auf main vor dem Eltern-Merge (12.10.2026, #226) duerfen
+#       die Patch-ID nicht verfaelschen.
 #
 # FREIGABE_SKRIPT_DIR zeigt auf die zu pruefenden Skripte (Vorgabe: scripts/).
 # Der Rot-Nachweis laeuft mit dem Stand von main vor #183.
@@ -54,8 +56,10 @@ erwarte() { # <beschreibung> <befehl...> — der Befehl ist die Behauptung
 # KIND, MAIN_VORHER. Zweites Argument: Commit auf dem Eltern-Branch NACH dem
 # Abzweig des Kinds — "konflikt" aendert dieselbe Zeile wie der erste
 # Eltern-Commit (Kind traegt sie noch), "neue_datei" legt eine Datei an, die
-# das Kind nicht kennt (Patch-ID weicht dann ab).
-fall_aufbauen() { # <name> [konflikt|neue_datei]
+# das Kind nicht kennt (Patch-ID weicht dann ab); "main_zusatz" legt NACH dem
+# Abzweig einen fremden Commit auf main an (wie #222/#224 vor #225) — der
+# Kind-Diff bleibt derselbe, die Patch-ID muss gleich bleiben.
+fall_aufbauen() { # <name> [konflikt|neue_datei|main_zusatz]
   T=$(mktemp -d); REMOTE="$T/remote.git"; KLON="$T/klon"; D="$T/gh"
   mkdir -p "$D"; : > "$D/calls.log"; : > "$D/szenario"; echo "$REMOTE" > "$D/remote"
   git init -q --bare -b main "$REMOTE"
@@ -82,6 +86,10 @@ fall_aufbauen() { # <name> [konflikt|neue_datei]
     neue_datei)
       git -C "$w" checkout -q eltern
       echo eltern2 > "$w/docs/eltern2.md"; git -C "$w" add -A; git -C "$w" commit -q -m "eltern 2"; git -C "$w" push -q origin eltern ;;
+    main_zusatz)
+      git -C "$w" checkout -q main
+      echo fremd > "$w/docs/fremd.md"; git -C "$w" add -A; git -C "$w" commit -q -m "fremder Merge auf main"; git -C "$w" push -q origin main
+      MAIN_VORHER=$(git -C "$w" rev-parse HEAD) ;;
   esac
   ELTERN=$(git -C "$w" rev-parse eltern)
   git clone -q "$REMOTE" "$KLON"
@@ -394,6 +402,23 @@ freigabe_laufen
 erwarte "Exit 0 (Meldung, kein Abbruch)" [ "$RC" -eq 0 ]
 erwarte "Kind-Head unveraendert" [ "$(remote_ref kind)" = "$KIND" ]
 erwarte "NICHT gepusht gemeldet, Head genannt" grep -q "^    #11 NICHT gepusht: Patch-ID weicht ab .* Head bleibt $KIND" <<<"$AUSGABE"
+aufraeumen
+
+# Befund 12.10.2026 (#226 auf #225): main traegt vor dem Eltern-Merge fremde
+# Merges, die das Kind nicht kennt. Der Kind-Diff gegen den Eltern-Head ist
+# unveraendert; das alte Skript rechnete gegen alter-main+Eltern-Head und sah
+# eine scheinbare Abweichung (kein Push). Jetzt: Patch-ID gleich, Push.
+fall_aufbauen "(f) fremder Commit auf main vor dem Eltern-Merge: Patch-ID gegen den Eltern-Head gleich, gepusht" main_zusatz
+echo "deploy_main=gruen" > "$D/szenario"
+vorher=$(git -C "$KLON" diff "origin/eltern" "origin/kind" | git patch-id --stable | cut -d' ' -f1)
+freigabe_laufen
+squash=$(squash_sha); neu=$(remote_ref kind)
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "Kind-Head hat sich bewegt (gepusht)" [ "$neu" != "$KIND" ]
+erwarte "Elter 2 = Squash-Commit" [ "$(git -C "$REMOTE" rev-parse "$neu^2")" = "$squash" ]
+erwarte "fremde Datei nach dem Merge im Kind" [ "$(git -C "$REMOTE" show "$neu:docs/fremd.md")" = "fremd" ]
+erwarte "Patch-ID vorher = nachher (eigene Messung)" [ "$vorher" = "$(git -C "$REMOTE" diff "$squash" "$neu" | git patch-id --stable | cut -d' ' -f1)" ]
+erwarte "Skript meldet dieselbe Patch-ID" grep -q "^    #11 angeglichen: Patch-ID gleich ($vorher)" <<<"$AUSGABE"
 aufraeumen
 
 fall_aufbauen "(f) Basis-Baum entspricht main nicht (Squash-Baum weicht ab): kein Push"

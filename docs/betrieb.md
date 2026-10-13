@@ -597,3 +597,13 @@ weicht scheinbar ab — das Skript pusht dann zu Recht nicht, der Nachweis ist
 aber von Hand gegen den echten Basis-Baum zu führen (hier gleich:
 `5d956d20…` vorher und nachher). Das Skript sollte „vorher" gegen den Baum
 des alten Basis-Branches rechnen (Betriebs-PR, vorgemerkt).
+
+## Freigabe-Kennung: zusammenhängende Teilfolge statt Präfix (Regel Eric 12.10.2026)
+
+Erics Kopien schneiden Kennungen an beiden Enden ab. Deshalb gilt für die
+Freigabe eines PR: Die genannte Kennung ist eine **zusammenhängende Teilfolge
+von mindestens 12 Zeichen**, die im aktuellen Head-SHA des PR vorkommen muss
+— an beliebiger Position, nicht nur am Anfang. Vor `scripts/freigabe.sh`
+wird das Vorkommen geprüft (`case "$head" in *<Folge>*)`); fehlt die Folge,
+Abbruch ohne Merge. Im Bericht steht der volle Head in eigener Zeile. Die
+frühere Präfix-Regel (Kopf-Präfix ≥ 12) ist damit ersetzt.

@@ -185,10 +185,15 @@ echo "FERTIG: PR #$PR gemergt ($squash), migriert=$([[ -n "$migrationen" ]] && e
 
 # (f) Gestapelte PRs angleichen — nach dem Squash konfliktieren sie auf GitHub,
 # weil Squash und Branch dieselben Zeilen aendern. Nachweis je PR: Patch-ID
-# des PR-Diffs gegen den Basis-Baum (= Baum des gemergten Heads auf dem
-# main-Stand vor dem Merge; muss dem neuen main-Baum entsprechen) vorher und
-# gegen main...HEAD nachher. Konflikte nur mechanisch (-X ours = Branch-Seite),
-# die Patch-ID belegt die Unversehrtheit. Alles in einem Wegwerf-Worktree.
+# des PR-Diffs gegen den ECHTEN Basis-Baum (= Baum des gemergten Eltern-Heads,
+# auf dem der Kind-PR stand) vorher und gegen main...HEAD nachher. Zusaetzlich
+# wird belegt, dass der Squash dem alten main plus Eltern-Head entspricht.
+# Befund 12.10.2026 (#226 auf #225): „vorher" wurde gegen den Baum alter-main+
+# Eltern-Head gerechnet; lagen auf main fremde Merges (#222, #224), die das Kind
+# nicht hatte, enthielt „vorher" deren Ruecknahme und die Patch-ID wich
+# scheinbar ab (Regel Eric 12.10.2026, docs/betrieb.md). Konflikte nur
+# mechanisch (-X ours = Branch-Seite), die Patch-ID belegt die Unversehrtheit.
+# Alles in einem Wegwerf-Worktree.
 if [[ -n "$gestapelt" ]]; then
   echo "==> (f) Gestapelte PRs angleichen (Patch-ID)"
   git fetch -q origin
@@ -201,7 +206,8 @@ if [[ -n "$gestapelt" ]]; then
     if [[ -n "$(git diff --stat "$basis" "$squash")" ]]; then
       echo "    #$kind: Basis-Baum entspricht main nicht — nicht angeglichen, von Hand pruefen"; continue
     fi
-    vorher=$(git diff "$basis" "$khead" | git patch-id --stable | cut -d' ' -f1)
+    # Echter Basis-Baum = Eltern-Head (nicht $basis: der traegt main-Merges, die das Kind nicht kennt).
+    vorher=$(git diff "$head" "$khead" | git patch-id --stable | cut -d' ' -f1)
     tmp=$(mktemp -d)
     git worktree add -q "$tmp" "$khead"
     if ! git -C "$tmp" merge --no-edit "$squash" >/dev/null 2>&1; then
