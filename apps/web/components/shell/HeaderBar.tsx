@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { InboxGlocke } from "@/components/inbox/InboxGlocke";
 import { updateUiCookie } from "@/lib/ui-state";
 import { ROLLE_LABEL, type Rolle } from "@/lib/rechte";
 
@@ -28,8 +28,9 @@ function initialen(email: string | null): string {
 
 /**
  * Kopfzeile laut V2-Mockup: Seitentitel links, rechts Inbox und Konto-Menue.
- * Die Inbox ist seit AP2.2 echt: das Tray-Icon fuehrt zu inbox. und traegt
- * den Zaehler der ungelesenen Eintraege (frueher ein Platzhalter-Popover).
+ * Die Inbox ist seit AP2.2 echt; seit E77 R5 oeffnet das Tray-Icon ein Pop-up
+ * mit den letzten fuenf offenen Mitteilungen (InboxGlocke) und traegt den
+ * Zaehler der ungelesenen Eintraege.
  * Das Konto-Menue traegt den Theme-Umschalter; Profil und Abmelden sind
  * Mockup-Platzhalter.
  */
@@ -92,15 +93,7 @@ export function HeaderBar({
     <header className="hdr">
       <h1>{titel}</h1>
       <div className="hdr-actions" ref={wrapRef}>
-        <Link
-          href="/inbox"
-          className="icon-btn hdr-inbox"
-          aria-label={ungelesen > 0 ? `Inbox, ${ungelesen} ungelesen` : "Inbox"}
-          title="inbox."
-        >
-          <i className={`${pathname.startsWith("/inbox") ? "ph-fill" : "ph"} ph-tray`} aria-hidden />
-          {ungelesen > 0 && <span className="hdr-badge">{ungelesen > 99 ? "99+" : ungelesen}</span>}
-        </Link>
+        <InboxGlocke ungelesen={ungelesen} />
 
         <div className="pop-anchor">
           <button

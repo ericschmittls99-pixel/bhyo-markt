@@ -34,6 +34,9 @@ export const AUSNAHMEN: ReadonlySet<string> = new Set([
   "lib/inbox/actions.ts · inboxErledigen()",
   "lib/inbox/actions.ts · inboxVerwerfen()",
   "lib/inbox/actions.ts · inboxAlleErledigen()",
+  // E77 R5: Gruppenaktionen — derselbe Lese-/Erledigt-Zustand, nur fuer mehrere eigene Eintraege.
+  "lib/inbox/actions.ts · inboxErledigenMehrere()",
+  "lib/inbox/actions.ts · inboxVerwerfenMehrere()",
 ]);
 
 /** Die Arten des Enums, aus packages/db/src/schema.ts SELBST gelesen. */

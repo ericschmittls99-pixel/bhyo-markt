@@ -9,7 +9,7 @@ import { AUSNAHMEN, findeLuecken } from "../scripts/protokoll-check";
 import { schreibpfade } from "../scripts/schreibpfade";
 
 describe("protokoll-check", () => {
-  it("die Ausnahmen sind genau die fuenf Inbox-Aktionen, jede ein vorhandener Schreibpfad — kein Platzhalter", () => {
+  it("die Ausnahmen sind genau die sieben Inbox-Aktionen (E77 R5: plus die Gruppenaktionen), jede ein vorhandener Schreibpfad — kein Platzhalter", () => {
     const pfade = new Set(schreibpfade(process.cwd()).map((p) => `${p.datei} · ${p.pfad}`));
     expect([...AUSNAHMEN].sort()).toEqual(
       [
@@ -18,6 +18,8 @@ describe("protokoll-check", () => {
         "lib/inbox/actions.ts · inboxErledigen()",
         "lib/inbox/actions.ts · inboxVerwerfen()",
         "lib/inbox/actions.ts · inboxAlleErledigen()",
+        "lib/inbox/actions.ts · inboxErledigenMehrere()",
+        "lib/inbox/actions.ts · inboxVerwerfenMehrere()",
       ].sort(),
     );
     for (const a of AUSNAHMEN) expect(pfade.has(a)).toBe(true);

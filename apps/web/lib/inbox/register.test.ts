@@ -129,3 +129,19 @@ describe("Register — Kommentare (AP2.6 PR c, E71)", () => {
   });
 });
 
+
+describe("E77 R5: kurzform", () => {
+  it("jeder Typ hat einen Kurztitel; die Kennung ist Beleg-Nr., sonst Bezeichnung, Kontaktperson, Akteur, Importdatei", async () => {
+    const { INBOX_TYPEN, kurzform } = await import("./register");
+    for (const [typ, def] of Object.entries(INBOX_TYPEN)) expect(def.kurztitel, typ).toMatch(/\S/);
+    const basis = { ausloeserName: "Bernd", belegNr: null, bezeichnung: null, anzahl: 1 };
+    expect(kurzform("verifikation_abgelaufen", { ...basis, belegNr: "B-2026-014", bezeichnung: "Stroh" })).toEqual({ titel: "Verifikation abgelaufen", kennung: "B-2026-014" });
+    expect(kurzform("aenderung_eintrag", { ...basis, bezeichnung: "Stroh" })).toEqual({ titel: "Änderung", kennung: "Stroh" });
+    expect(kurzform("kontaktperson_loeschpruefung", { ...basis, kontaktpersonName: "Maria Muster", akteurName: "Hof Meier" }).kennung).toBe("Maria Muster");
+    expect(kurzform("akteur_verwaist", { ...basis, akteurName: "Hof Meier" })).toEqual({ titel: "Akteur verwaist", kennung: "Hof Meier" });
+    expect(kurzform("import_abgeschlossen", { ...basis, importDateiname: "liste.xlsx" }).kennung).toBe("liste.xlsx");
+    expect(kurzform("mail_stoerung", basis)).toEqual({ titel: "Tages-Mail gestört", kennung: null });
+    // Unbekannter Typ (geteilte Preview mit spaeterer Migration): benannter Platzhalter, kein Absturz.
+    expect(kurzform("neuer_typ", basis).titel).toBe("Hinweis eines neueren Stands (neuer_typ)");
+  });
+});

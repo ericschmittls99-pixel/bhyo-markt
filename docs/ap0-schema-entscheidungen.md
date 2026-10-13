@@ -2612,3 +2612,19 @@ Nachbarspalte; jetzt Spalte nach Inhalt, Balken 64 px, die Beschriftung kürzt
 mit Auslassung (voller Name und Wert im Tooltip der Zeile), beides bleibt in
 der Kachel. Geprüft mit sieben Typen (Preview) und wenigen Typen (Outputs).
 
+**Umgesetzt R5 (inbox.):** Das Tray-Icon der Kopfzeile öffnet ein Glas-Pop-up
+(`InboxGlocke`) mit den letzten fünf offenen Mitteilungen in Kurzform und dem
+Knopf „Zur Inbox"; die Zeilen kommen erst beim Öffnen über `GET /api/inbox/kurz`
+(dieselbe Abfrage wie inbox., `ladeEintraege` mit `limit`), damit kein
+Seitenaufruf die Inbox-Abfrage bezahlt. Esc und Klick außerhalb schließen, der
+Fokus wandert ins Pop-up und bei Esc zurück auf das Icon. Kurztitel je Typ
+zentral im Register (`kurztitel`, `kurzform()`): „Verifikation abgelaufen ·
+B-2026-014", Kennung = Beleg-Nr., sonst Bezeichnung, Kontaktperson, Akteur,
+Importdatei; der Akteur steht klein/grau darunter, der volle Text bleibt
+Tooltip und Detail (`InboxKurztext`, ein Ursprung für Liste und Pop-up).
+Gleiche Typen desselben Tages (Europe/Berlin, `lib/inbox/gruppen.ts`) werden
+ab zwei Einträgen zur eingeklappten Gruppe mit Zähler und Ungelesen-Punkt;
+Erledigt/Verwerfen wirken dort auf die ganze Gruppe
+(`inboxErledigenMehrere`/`inboxVerwerfenMehrere`, eine Transaktion, jeder
+Eintrag durch die Objektstufe, höchstens 200). Das Ziel von „Öffnen" lebt in
+`lib/inbox/ziel.ts`. Keine Änderung an Zustellung oder Datenmodell.

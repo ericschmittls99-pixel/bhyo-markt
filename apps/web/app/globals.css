@@ -5531,18 +5531,11 @@ table.st-tabelle tbody tr:focus-visible {
   text-align: center;
 }
 
-/* PR c: Zugriffsanfrage — Notiz in der Zeile, Popover im Beleg-Kopf. */
+/* PR c: Zugriffsanfrage — Popover im Beleg-Kopf; die Notiz steht seit E77 R5 in der Nebenzeile (.ib-neben). */
 .ib-textblock {
   min-width: 0;
   display: grid;
   gap: 2px;
-}
-.ib-notiz {
-  font: var(--type-caption);
-  color: var(--text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
 }
 .ov-anfrage-stand {
   font-variant-numeric: tabular-nums;
@@ -6025,4 +6018,147 @@ table.st-tabelle tbody tr:focus-visible {
   flex-basis: 100%;
   margin: 0;
   font-size: 0.875rem;
+}
+
+/* ------------------------------------------------------------------------
+   E77 R5 (13.10.2026): Inbox in Kurzform, Gruppen und das Pop-up an der Glocke.
+   Kurztitel · Kennung in einer Zeile, darunter der Akteur klein/grau; der
+   volle Text ist Tooltip und Detail. Ungelesen hebt den Kurztitel (600), kein
+   Fettdruck der ganzen Zeile mehr.
+   ------------------------------------------------------------------------ */
+.ib-text--kurz {
+  display: grid;
+  gap: 2px;
+  white-space: normal;
+}
+.ib-kurz {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.ib-kurz-zeile,
+.ib-neben {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.ib-kurz-zeile {
+  display: block;
+}
+.ib-titel {
+  font-weight: 500;
+}
+.ib-ungelesen .ib-text,
+.ib-ungelesen .ib-pop-zeile {
+  font-weight: 400;
+}
+.ib-ungelesen .ib-titel {
+  font-weight: 600;
+}
+.ib-trenner,
+.ib-kennung {
+  color: var(--text-secondary);
+}
+.ib-anzahl {
+  margin-left: 6px;
+  vertical-align: 1px;
+  font-variant-numeric: tabular-nums;
+}
+.ib-neben {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+
+/* Gruppe: Kopfzeile im Zeilenraster (Caret statt Avatar), darunter die
+   aufgeklappten Zeilen eingerueckt. */
+.ib-gruppe {
+  display: grid;
+  gap: 4px;
+}
+.ib-gruppe-toggle {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: var(--surface-subtle);
+  color: var(--text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  cursor: pointer;
+}
+.ib-gruppe-toggle:hover {
+  background: var(--surface-hover);
+  color: var(--text-primary);
+}
+.ib-gruppe-toggle:focus-visible {
+  box-shadow: var(--ring-focus);
+  outline: none;
+}
+.ib-gruppe--offen > .ib-gruppenkopf {
+  background: var(--surface-hover);
+}
+.ib-gruppe-liste {
+  padding-left: 20px;
+}
+@media (max-width: 720px) {
+  .ib-gruppe-liste {
+    padding-left: 8px;
+  }
+}
+
+/* Pop-up an der Glocke: Glas wie das Konto-Menue, fuenf Zeilen in Kurzform,
+   darunter „Zur Inbox". Schmal nie breiter als das Fenster minus Rand. */
+.ib-pop {
+  width: min(380px, calc(100vw - 32px));
+}
+.ib-pop-zaehler {
+  font: var(--type-caption);
+  color: var(--text-secondary);
+  padding-right: 10px;
+  white-space: nowrap;
+}
+.ib-pop-hinweis {
+  margin: 0;
+  padding: 10px 12px 12px;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.ib-pop-liste {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 2px;
+}
+.ib-pop-zeile {
+  display: grid;
+  grid-template-columns: 8px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+  text-align: left;
+  color: var(--text-primary);
+  font: var(--type-body-sm);
+  cursor: pointer;
+  outline: none;
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+.ib-pop-zeile:hover {
+  background: var(--surface-hover);
+}
+.ib-pop-zeile:focus-visible {
+  box-shadow: var(--ring-focus-inset);
+}
+.ib-pop-zur {
+  width: calc(100% - 8px);
+  margin: 2px 4px 2px;
+  justify-content: center;
 }
