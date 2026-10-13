@@ -211,7 +211,7 @@ export function AkteurDetail({
   );
 }
 
-/** `?akteur=<id>` zeigt auf nichts (geloescht, nie da): die Sidebar sagt es, statt still zu fehlen. */
+/** `?detail=<id>` zeigt auf nichts (geloescht, nie da): die Sidebar sagt es, statt still zu fehlen. */
 export function AkteurNichtGefunden() {
   const { setze } = useUrlZustand();
   const schliessen = () => setze({ detail: null, reiter: null }, "push");
