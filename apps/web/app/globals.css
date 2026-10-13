@@ -5453,7 +5453,11 @@ table.st-tabelle tbody tr:focus-visible {
   }
   .ib-zeile .ib-aktionen {
     grid-column: 3 / -1;
-    justify-self: start;
+    /* E77 R5 (Befund 480 px, Seitenleiste offen, ~170 px Inhalt): mit `start`
+       nahm die Leiste ihre Max-Content-Breite und ragte 35 px ueber die Karte;
+       gestreckt und mit min-width 0 bricht sie innerhalb der Spalte um. */
+    justify-self: stretch;
+    min-width: 0;
     flex-wrap: wrap;
   }
   /* Das Weitergeben-Popover haengt rechtsbuendig am Knopf und ragte unter die
