@@ -44,7 +44,7 @@ export function AkteureListe({
   // E77 R6: der Akteur oeffnet als Sidebar ueber der Liste — Filter und Suche bleiben in der URL.
   const akteurHref = (id: string) => {
     const p = new URLSearchParams(searchParams.toString());
-    p.set("akteur", id);
+    p.set("detail", id);
     p.delete("reiter");
     return `/akteure?${p.toString()}`;
   };

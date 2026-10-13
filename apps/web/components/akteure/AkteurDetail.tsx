@@ -20,11 +20,11 @@ import { STATUS_LABEL } from "@/lib/status";
 /**
  * E77 R6: Der Akteur als Sidebar — dieselbe Huelle wie die Strom-Sidebar in
  * stroeme. (`ov ov--panel`, rechts, Esc und X schliessen ueber den
- * URL-Parameter `akteur`). Aufbau: Kopf (Name, Sektor- und Zustands-Pillen),
+ * URL-Parameter `detail` — `akteur` ist in akteure. die Facette Sektor / Akteur). Aufbau: Kopf (Name, Sektor- und Zustands-Pillen),
  * stammdaten. (Bearbeiten/Loeschen wie bisher), sitz und standorte. (Karte,
  * die beim Bearbeiten ruht — eine MapLibre-Instanz, Sitz-Erfassung d),
  * kontaktpersonen., belege und stroeme., kommentare., verlauf. Deep-Link:
- * `/akteure?akteur=<id>`, `&reiter=kontaktpersonen` rollt zum Abschnitt,
+ * `/akteure?detail=<id>`, `&reiter=kontaktpersonen` rollt zum Abschnitt,
  * `#kommentar-<id>` zum Kommentar (Kommentare-Baustein). Die eigene Seite
  * `/akteure/<id>` leitet hierher um.
  */
@@ -63,7 +63,7 @@ export function AkteurDetail({
   const { setze } = useUrlZustand();
   const [bearbeiten, setBearbeiten] = useState(false);
   const kontaktRef = useRef<HTMLElement>(null);
-  const schliessen = () => setze({ akteur: null, reiter: null }, "push");
+  const schliessen = () => setze({ detail: null, reiter: null }, "push");
 
   useEffect(() => {
     function onKey(ev: KeyboardEvent) {
@@ -214,7 +214,7 @@ export function AkteurDetail({
 /** `?akteur=<id>` zeigt auf nichts (geloescht, nie da): die Sidebar sagt es, statt still zu fehlen. */
 export function AkteurNichtGefunden() {
   const { setze } = useUrlZustand();
-  const schliessen = () => setze({ akteur: null, reiter: null }, "push");
+  const schliessen = () => setze({ detail: null, reiter: null }, "push");
   return (
     <div className="ov ov--panel">
       <section role="dialog" aria-label="Akteurdetails" className="ov-flaeche ak-panel">

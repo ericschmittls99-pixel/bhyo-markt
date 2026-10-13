@@ -2634,9 +2634,10 @@ wie die Strom-Sidebar (`ov ov--panel`, rechts, Esc und X schließen über den
 URL-Parameter): Kopf mit Name, Sektor- und Zustands-Pillen, dann stammdaten.
 (Bearbeiten/Löschen unverändert), sitz und standorte. (Karte ruht beim
 Bearbeiten, eine MapLibre-Instanz), kontaktpersonen., belege und ströme.,
-kommentare., verlauf. Geöffnet aus akteure. (`?akteur=<id>`, Filter und
+kommentare., verlauf. Geöffnet aus akteure. (`?detail=<id>` wie bei ströme. — `akteur` ist dort
+die Facette Sektor / Akteur —, Filter und
 Suche bleiben in der URL), aus Dubletten, Import und Inbox. Deep-Link bleibt:
-`/akteure?akteur=<id>`, `&reiter=kontaktpersonen` rollt zum Abschnitt,
+`/akteure?detail=<id>`, `&reiter=kontaktpersonen` rollt zum Abschnitt,
 `#kommentar-<id>` zum Kommentar; die alte Seite `/akteure/<id>` leitet mit
 Parametern um, die Kennung einer zusammengeführten Quelle wird über das
 Protokoll aufgelöst, Unbekanntes zeigt „Akteur nicht gefunden." in der

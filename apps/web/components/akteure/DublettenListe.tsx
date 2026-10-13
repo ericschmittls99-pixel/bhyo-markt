@@ -149,7 +149,7 @@ export function DublettenListe({
 function AkteurZelle({ a }: { a: DublettenAkteur }) {
   return (
     <td>
-      <Link href={`/akteure?akteur=${a.id}`} className="ak-link">
+      <Link href={`/akteure?detail=${a.id}`} className="ak-link">
         <strong>{a.name}</strong>
       </Link>
       <div className="param-schluessel">{a.sektorLabel}</div>

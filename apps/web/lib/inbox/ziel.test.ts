@@ -14,8 +14,8 @@ describe("E77 R5: zielFuerZeile", () => {
     );
   });
   it("Kontaktperson, Akteur, Import, Mail-Hinweise, sonst inbox.", () => {
-    expect(zielFuerZeile({ ...leer, kontaktperson: { id: "p", name: "P", akteurId: "a9" } })).toBe("/akteure?akteur=a9&reiter=kontaktpersonen");
-    expect(zielFuerZeile({ ...leer, typ: "erwaehnung", akteur: { id: "a1", name: "A" }, kommentar: { id: "k2" } })).toBe("/akteure?akteur=a1#kommentar-k2");
+    expect(zielFuerZeile({ ...leer, kontaktperson: { id: "p", name: "P", akteurId: "a9" } })).toBe("/akteure?detail=a9&reiter=kontaktpersonen");
+    expect(zielFuerZeile({ ...leer, typ: "erwaehnung", akteur: { id: "a1", name: "A" }, kommentar: { id: "k2" } })).toBe("/akteure?detail=a1#kommentar-k2");
     expect(zielFuerZeile({ ...leer, importLauf: { id: "i1", dateiname: "x.xlsx" } })).toBe("/import/i1");
     expect(zielFuerZeile({ ...leer, typ: "mail_stoerung" })).toBe("/einstellungen#roundup");
     expect(zielFuerZeile(leer)).toBe("/inbox");

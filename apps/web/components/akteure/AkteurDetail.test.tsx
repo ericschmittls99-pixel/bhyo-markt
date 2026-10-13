@@ -12,7 +12,7 @@ import { describe, expect, it, vi } from "vitest";
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: () => {}, push: () => {} }),
   usePathname: () => "/akteure",
-  useSearchParams: () => new URLSearchParams("akteur=a1"),
+  useSearchParams: () => new URLSearchParams("detail=a1"),
 }));
 vi.mock("@/components/akteure/AkteurKarte", () => ({ AkteurKarte: () => <div className="ak-karte" data-karte /> }));
 vi.mock("@/lib/akteur-actions", () => ({ akteurBearbeiten: async () => ({ ok: true }), akteurLoeschen: async () => ({ ok: true }) }));

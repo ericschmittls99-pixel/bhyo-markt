@@ -29,7 +29,8 @@ const erster = (v: string | string[] | undefined): string => (Array.isArray(v) ?
  * unvollstaendig, ohne Beleg, verwaist (abgeleitet, lib/akteure-modell.ts).
  * Angelegt wird ein Akteur nur im Beleg; hier wird gepflegt.
  *
- * E77 R6: `?akteur=<id>` oeffnet den Akteur als Sidebar ueber der Liste
+ * E77 R6: `?detail=<id>` (wie die Strom-Sidebar; `akteur` ist hier die Facette
+ * Sektor / Akteur) oeffnet den Akteur als Sidebar ueber der Liste
  * (AkteurDetail) — dieselbe Huelle wie die Strom-Sidebar in stroeme.;
  * `&reiter=kontaktpersonen` rollt zum Abschnitt (alte Links, Inbox). Die
  * Kennung einer zusammengefuehrten Quelle leitet ueber das Protokoll aufs Ziel.
@@ -59,7 +60,7 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
     akteur_zustand: [...AKTEUR_WEITERE_FILTER],
   };
   // E77 R6: Sidebar-Daten nur, wenn ein Akteur gewaehlt ist (dieselben Lader wie die fruehere Seite).
-  const akteurId = erster(sp.akteur);
+  const akteurId = erster(sp.detail);
   const reiter = erster(sp.reiter) === "kontaktpersonen" ? ("kontaktpersonen" as const) : null;
   let detail: Awaited<ReturnType<typeof ladeDetail>> | "fehlt" | null = null;
   if (akteurId) {
@@ -69,7 +70,7 @@ export default async function AkteurePage({ searchParams }: { searchParams: Prom
       if (ziel) {
         const p = new URLSearchParams();
         for (const [k, v] of Object.entries(sp)) for (const w of Array.isArray(v) ? v : v ? [v] : []) p.append(k, w);
-        p.set("akteur", ziel);
+        p.set("detail", ziel);
         redirect(`/akteure?${p.toString()}`);
       }
       detail = "fehlt";
