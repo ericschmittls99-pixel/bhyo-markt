@@ -6201,3 +6201,146 @@ table.st-tabelle tbody tr:focus-visible {
 .ak-panel .kom-titel {
   margin-top: 0;
 }
+
+/* ------------------------------------------------------------------------
+   E77 R7: Profil & Einstellungen — Avatar mit Bild (alle Groessen), Reiter
+   „Profil" mit Bildblock und Formular. Bild liegt rund ueber der Farbflaeche,
+   die Initialen bleiben darunter stehen (Fallback bis zum Laden, bei Fehler).
+   ------------------------------------------------------------------------ */
+.av { overflow: hidden; }
+.av--l { width: 40px; height: 40px; font-size: 14px; }
+.av--xl { width: 96px; height: 96px; font-size: 28px; }
+.av-bild {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.av .av-badge { z-index: 1; }
+.avatar-btn .av { box-shadow: none; }
+.profil {
+  display: grid;
+  gap: 20px;
+}
+.profil-bild {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 16px;
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+}
+.profil-bild .av--xl { box-shadow: 0 0 0 3px var(--surface-card); }
+.profil-bild-aktionen {
+  display: grid;
+  gap: 8px;
+  min-width: 0;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.profil-bild-knoepfe {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.profil-datei {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.profil-form {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px 16px;
+  align-items: start;
+}
+.profil-form .pf-feld input[readonly] {
+  color: var(--text-secondary);
+  cursor: default;
+}
+.profil-rolle {
+  display: grid;
+  gap: 6px;
+  justify-items: start;
+  padding-top: 4px;
+}
+.profil-rolle .c,
+.profil-bild-aktionen .c,
+.profil-form-fuss .c {
+  font: var(--type-caption);
+  color: var(--text-tertiary);
+}
+.profil-form-fuss {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 12px;
+}
+@media (max-width: 560px) {
+  .profil-bild {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+
+/* E77 R7: Zuschneide-Schritt (Eric 14.10.2026) — Modal mit runder Vorschau wie der Avatar. */
+.zuschnitt {
+  width: min(400px, 100%);
+}
+.zuschnitt-buehne {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+}
+/* Quadrat mit Kartenradius, NICHT rund: der Canvas dunkelt alles ausserhalb des
+   Kreises ab und zieht den Ring selbst — so sieht man, was wegfaellt. */
+.zuschnitt-vorschau {
+  display: block;
+  border-radius: var(--radius-card);
+  background: var(--surface-card);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+.zuschnitt-vorschau:active {
+  cursor: grabbing;
+}
+.zuschnitt-vorschau:focus-visible {
+  box-shadow: var(--ring-focus);
+}
+.zuschnitt-laden {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.zuschnitt-zoom {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.zuschnitt-zoom input[type="range"] {
+  width: 100%;
+  accent-color: var(--data-lime);
+}
+.zuschnitt-zoom-wert {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}

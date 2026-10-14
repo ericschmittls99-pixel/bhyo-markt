@@ -36,7 +36,7 @@ export function normalisiereEmail(roh: string): string {
 
 /** Zustand eines Zugangs — jeder Fall benannt, keiner implizit. */
 export type Zugang =
-  | { art: "erlaubt"; id: string; email: string; rolle: Rolle; name: string | null }
+  | { art: "erlaubt"; id: string; email: string; rolle: Rolle; name: string | null; bildVersion?: number | null }
   | { art: "nicht_angemeldet" }
   | { art: "unbekannt"; email: string }
   | { art: "deaktiviert"; email: string };
@@ -48,7 +48,7 @@ export type Zugang =
  */
 export function bestimmeZugang(
   email: string | null,
-  eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null } | null,
+  eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null; bildGeaendertAm?: Date | null } | null,
 ): Zugang {
   if (!email) return { art: "nicht_angemeldet" };
   const norm = normalisiereEmail(email);
@@ -56,5 +56,6 @@ export function bestimmeZugang(
   if (!eintrag.aktiv) return { art: "deaktiviert", email: norm };
   // AP2.1 PR b0: Die stabile Nutzer-ID reist im Zugang mit — fuer Sperren
   // und Zuweisungen (PR b). Entschieden wird weiter ueber die Rolle.
-  return { art: "erlaubt", id: eintrag.id, email: norm, rolle: eintrag.rolle, name: eintrag.name };
+  // E77 R7: Versionszaehler des Profilbilds (null = Initialen) reist fuer Kopfzeile und Avatare mit.
+  return { art: "erlaubt", id: eintrag.id, email: norm, rolle: eintrag.rolle, name: eintrag.name, bildVersion: eintrag.bildGeaendertAm?.getTime() ?? null };
 }

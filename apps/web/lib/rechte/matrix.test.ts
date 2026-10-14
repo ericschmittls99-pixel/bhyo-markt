@@ -39,6 +39,8 @@ const ERWARTUNG: Record<Aktion, Record<Rolle, boolean>> = {
   "benutzer.aktiv_setzen": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   // AP2.9 (E76): eigene Roundup-Mail — jede Rolle, nur fuer sich selbst.
   "benutzer.roundup_setzen": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
+  // E77 R7: eigenes Profil (Name, Bild) — jede Rolle, nur fuer sich selbst (Objektregel in der Aktion).
+  "profil.bearbeiten": { betrachter: true, bearbeiter: true, pruefer: true, admin: true },
   // AP2.9 Umschalten: Testversand — nur Admins (Adressregel zusaetzlich in der Aktion).
   "mail.testversand": { betrachter: false, bearbeiter: false, pruefer: false, admin: true },
   // AP2.2: die Inbox gehoert der Person — jede Rolle, Objektregel „nur Empfaenger".
@@ -125,7 +127,7 @@ describe("E42 Rechte-Matrix (Rollenstufe)", () => {
       // Betrachter schreiben nichts Fachliches — ihre eigene Inbox duerfen sie bedienen (AP2.2);
       // Weitergeben (PR c) ist eine fachliche Handlung und beginnt bei bearbeiter.
       // AP2.9 (E76): die eigene Roundup-Mail ist wie die Inbox ein persoenlicher Arbeitsstand.
-      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe((a.startsWith("inbox.") && a !== "inbox.weitergeben") || a === "benutzer.roundup_setzen");
+      expect(darf({ rolle: "betrachter", id: ICH }, a, o)).toBe((a.startsWith("inbox.") && a !== "inbox.weitergeben") || a === "benutzer.roundup_setzen" || a === "profil.bearbeiten");
     }
   });
 

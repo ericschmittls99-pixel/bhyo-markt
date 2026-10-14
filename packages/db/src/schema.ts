@@ -1318,6 +1318,10 @@ export const benutzer = pgTable(
     // und der letzte ERFOLGREICHE Versand (nur dann gesetzt; Mass fuer „neu seit").
     roundup: boolean("roundup").notNull().default(true),
     roundupZuletztAm: timestamp("roundup_zuletzt_am", { withTimezone: true }),
+    // E77 R7: Profilbild — R2-Key (Praefix profil/<umgebung>/<benutzer.id>/), NULL = Initialen;
+    // bild_geaendert_am dient als Versionszaehler der Bild-URL (Cache-Busting), nie als Beleg.
+    bildKey: text("bild_key"),
+    bildGeaendertAm: timestamp("bild_geaendert_am", { withTimezone: true }),
     erstelltAm: timestamp("erstellt_am", { withTimezone: true })
       .notNull()
       .defaultNow(),

@@ -4,7 +4,7 @@ import { benutzer } from "@bhyo/db/schema";
 import { eq } from "drizzle-orm";
 import { revalidatePath } from "next/cache";
 
-import { withDb } from "@/lib/db";
+import { getBelegeBucket, withDb } from "@/lib/db";
 import {
   pruefeAktivWechsel,
   pruefeNeuanlage,
@@ -13,6 +13,7 @@ import {
   type BenutzerZeile,
 } from "@/lib/benutzer-regeln";
 import { istEindeutigkeitsVerletzung } from "@/lib/db-fehler";
+import { BildLoeschenFehlgeschlagen, LOESCH_FEHLER, loescheBild } from "@/lib/profil-bild-ablage";
 import { normalisiereEmail, ROLLEN, type Rolle } from "@/lib/rechte";
 import { rechtFuerAction } from "@/lib/rechte/wache";
 import { protokolliere } from "@/lib/protokoll";
@@ -25,7 +26,7 @@ export interface BenutzerErgebnis {
 /** Aktueller Stand als Grundlage der Regelprüfung — immer frisch gelesen. */
 function ladeAlle(db: Parameters<Parameters<typeof withDb>[0]>[0]) {
   return db
-    .select({ id: benutzer.id, email: benutzer.email, rolle: benutzer.rolle, aktiv: benutzer.aktiv })
+    .select({ id: benutzer.id, email: benutzer.email, rolle: benutzer.rolle, aktiv: benutzer.aktiv, bildKey: benutzer.bildKey })
     .from(benutzer);
 }
 
@@ -120,7 +121,15 @@ export async function rolleSetzen(email: string, rolle: string): Promise<Benutze
   return { ok: true };
 }
 
-/** Kein Löschen, nur deaktivieren — wie bei den Referenzdaten (CLAUDE.md). */
+/**
+ * Kein Löschen, nur deaktivieren — wie bei den Referenzdaten (CLAUDE.md).
+ *
+ * Eric 14.10.2026: Die Deaktivierung löscht das Profilbild (R2-Objekt und
+ * Schlüssel) in derselben Transaktion — ein Personendatum bleibt nicht an
+ * einem Zugang hängen, der nicht mehr gilt. Lösch-Störung → Rollback und
+ * Fehlermeldung wie beim Entfernen; die Reaktivierung zeigt Initialen.
+ * Protokolliert wie bisher, ohne Bildinhalt.
+ */
 export async function aktivSetzen(email: string, aktiv: boolean): Promise<BenutzerErgebnis> {
   // Verwaltungsrecht am Eingang, sichtbar in der Aktion selbst — ein
   // Aufruf eine Ebene tiefer ist zur Laufzeit wirksam und beim Lesen
@@ -129,27 +138,35 @@ export async function aktivSetzen(email: string, aktiv: boolean): Promise<Benutz
   if ("fehler" in wache) return wache;
   const ziel = normalisiereEmail(email);
 
-  const fehler = await withDb(async (db) =>
-    db.transaction(async (tx) => {
-      const alle = (await ladeAlle(tx)) as (BenutzerZeile & { id: string })[];
-      const ablehnung = pruefeAktivWechsel(alle, ziel, aktiv);
-      if (ablehnung) return ablehnung.text;
-      const betroffen = alle.find((b) => b.email === ziel)!;
-      await tx
-        .update(benutzer)
-        .set({ aktiv, geaendertAm: new Date() })
-        .where(eq(benutzer.email, ziel));
-      await protokolliere(tx, {
-        art: aktiv ? "benutzer_aktiviert" : "benutzer_deaktiviert",
-        entitaet: "benutzer",
-        id: betroffen.id,
-        benutzerId: wache.zugang.id,
-        benutzerEmail: wache.email,
-        text: `Zugang von ${ziel} ${aktiv ? "aktiviert" : "deaktiviert"}`,
-      });
-      return null;
-    }),
-  );
+  let fehler: string | null;
+  try {
+    fehler = await withDb(async (db) =>
+      db.transaction(async (tx) => {
+        const alle = (await ladeAlle(tx)) as (BenutzerZeile & { id: string; bildKey: string | null })[];
+        const ablehnung = pruefeAktivWechsel(alle, ziel, aktiv);
+        if (ablehnung) return ablehnung.text;
+        const betroffen = alle.find((b) => b.email === ziel)!;
+        const bildWeg = !aktiv && betroffen.bildKey ? betroffen.bildKey : null;
+        await tx
+          .update(benutzer)
+          .set({ aktiv, geaendertAm: new Date(), ...(bildWeg ? { bildKey: null, bildGeaendertAm: null } : {}) })
+          .where(eq(benutzer.email, ziel));
+        await protokolliere(tx, {
+          art: aktiv ? "benutzer_aktiviert" : "benutzer_deaktiviert",
+          entitaet: "benutzer",
+          id: betroffen.id,
+          benutzerId: wache.zugang.id,
+          benutzerEmail: wache.email,
+          text: `Zugang von ${ziel} ${aktiv ? "aktiviert" : "deaktiviert"}${bildWeg ? ", Profilbild gelöscht" : ""}`,
+        });
+        if (bildWeg) await loescheBild(await getBelegeBucket(), bildWeg);
+        return null;
+      }),
+    );
+  } catch (e) {
+    if (e instanceof BildLoeschenFehlgeschlagen) return { ok: false, fehler: LOESCH_FEHLER };
+    throw e;
+  }
 
   if (fehler) return { ok: false, fehler };
   revalidatePath("/einstellungen");

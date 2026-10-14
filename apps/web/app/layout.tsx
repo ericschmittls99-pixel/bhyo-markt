@@ -11,6 +11,7 @@ import { withDb } from "@/lib/db";
 import { zaehleUngelesen } from "@/lib/inbox/server";
 import { listRegionen } from "@/lib/register";
 import { parseUiState, UI_COOKIE } from "@/lib/ui-state";
+import { profilbildUrl } from "@/lib/profil-bild";
 
 // Phosphor-Icons als selbst gebundelte Icon-Fonts (kein CDN zur Laufzeit).
 import "@phosphor-icons/web/regular";
@@ -65,7 +66,6 @@ export default async function RootLayout({
     );
   }
 
-  const email = zugang.art === "erlaubt" ? zugang.email : null;
   // Fokusregionen fuer das planer.-Akkordeon; ohne DB bleibt die Liste leer.
   const regionen = await listRegionen().catch(() => []);
   // AP2.2: Zaehler der Inbox (ungelesen) fuer Sidebar und Kopfzeile — beim
@@ -83,7 +83,11 @@ export default async function RootLayout({
           <div className="shell-main">
             <Suspense fallback={null}>
               <HeaderBar
-                email={email}
+                nutzer={
+                  zugang.art === "erlaubt"
+                    ? { id: zugang.id, name: zugang.name, email: zugang.email, bildUrl: profilbildUrl(zugang.id, zugang.bildVersion ?? null) }
+                    : null
+                }
                 rolle={zugang.art === "erlaubt" ? zugang.rolle : null}
                 initialTheme={theme}
                 ungelesen={ungelesen}

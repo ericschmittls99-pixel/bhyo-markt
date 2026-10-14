@@ -2644,3 +2644,32 @@ Protokoll aufgelöst, Unbekanntes zeigt „Akteur nicht gefunden." in der
 Sidebar. Die Auskunft-Seite bleibt eine Seite (Druck-Layout). `AkteurSpalten`
 entfällt; Revalidierung der Aktionen auf `/akteure`.
 
+
+**Umgesetzt R7 (Profil & Einstellungen):** Das Konto-Menü führt mit „Profil &
+Einstellungen" nach `/einstellungen`; der Avatar in der Kopfzeile ist derselbe
+Baustein wie überall (`components/Avatar`: Initialen aus Name/E-Mail, Farbe aus
+der ID, neu mit Bild als `av-bild` über der Farbfläche — die zweite
+Initialen-Funktion der Kopfzeile entfällt). Reiter „Profil" zuerst, für jede
+Rolle (`ProfilEinstellung`): Anzeigename (`benutzer.name`, bis 80 Zeichen,
+Leerraum zusammengezogen, leer = NULL), E-Mail nur lesbar, Rollen-Pille,
+Profilbild jpg/png/webp — im Browser mittig quadratisch auf 256 px verkleinert
+(`verkleinereProfilbild`, Canvas → WebP, sonst PNG), Server prüft Typ **an den
+Bytes** und ≤ 1 MB (`lib/profil-bild.ts`), Ablage im Beleg-Bucket unter
+`profil/<umgebung>/<benutzer.id>/<uuid>.<ext>`, Auslieferung nur über
+`GET /api/profil/bild/<id>` hinter der Wache (Key aus der Zeile, nie aus der
+URL; `Cache-Control: private`, Versionszähler `?v=<bild_geaendert_am>`),
+entfernbar (Datei wird gelöscht, Zeile auf NULL); darunter der Schalter der
+Tages-Mail (bisheriger Baustein). **Profilbild = Personendatum (Eric
+14.10.2026):** Entfernen, Ersetzen und die **Deaktivierung des Nutzers**
+(`aktivSetzen`, es gibt keinen Löschpfad) löschen das R2-Objekt und den
+Schlüssel in derselben Transaktion wie die Zeile; eine Lösch-Störung rollt
+die Zeile zurück und meldet einen Fehler (ein Ursprung:
+`lib/profil-bild-ablage.ts`). Die Reaktivierung zeigt wieder Initialen. Die
+Deaktivierung wird wie bisher protokolliert (`benutzer_deaktiviert`, Zusatz
+„Profilbild gelöscht"), nie der Bildinhalt. Nutzer · Referenzlisten · Parameter nur für
+Admins, Nicht-Admins sehen nur ihr Profil ohne Reiterleiste. Aktion
+`profil.bearbeiten` (alle Rollen, geschrieben wird ausschließlich die eigene
+Zeile), jede Änderung protokolliert (`geaendert`, Entität `benutzer`, nie das
+Bild). Migration 0060 additiv: `benutzer.bild_key text`,
+`benutzer.bild_geaendert_am timestamptz`. Nicht enthalten: Abmelden (bleibt
+Platzhalter bis zum Log-in-Paket), Bild in Export/Mail (bewusst nicht).

@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { anzeigeName, Avatar, type AvatarNutzer } from "@/components/Avatar";
 import { InboxGlocke } from "@/components/inbox/InboxGlocke";
 import { updateUiCookie } from "@/lib/ui-state";
 import { ROLLE_LABEL, type Rolle } from "@/lib/rechte";
@@ -18,29 +20,23 @@ const TITEL: [string, string][] = [
   ["/einstellungen", "einstellungen."],
 ];
 
-function initialen(email: string | null): string {
-  if (!email) return "?";
-  const name = email.split("@")[0] ?? "";
-  const teile = name.split(/[._-]+/).filter(Boolean);
-  const buchstaben = teile.slice(0, 2).map((t) => t[0]!.toUpperCase());
-  return buchstaben.join("") || name.slice(0, 2).toUpperCase() || "?";
-}
-
 /**
  * Kopfzeile laut V2-Mockup: Seitentitel links, rechts Inbox und Konto-Menue.
  * Die Inbox ist seit AP2.2 echt; seit E77 R5 oeffnet das Tray-Icon ein Pop-up
  * mit den letzten fuenf offenen Mitteilungen (InboxGlocke) und traegt den
  * Zaehler der ungelesenen Eintraege.
- * Das Konto-Menue traegt den Theme-Umschalter; Profil und Abmelden sind
- * Mockup-Platzhalter.
+ * E77 R7: Der Avatar ist derselbe Baustein wie ueberall (components/Avatar:
+ * Initialen aus Name/E-Mail, Farbe aus der ID, Profilbild wenn gesetzt); das
+ * Konto-Menue fuehrt zu „Profil & Einstellungen". Abmelden bleibt Platzhalter.
  */
 export function HeaderBar({
-  email,
+  nutzer,
   rolle,
   initialTheme,
   ungelesen = 0,
 }: {
-  email: string | null;
+  /** Angemeldete Person (null = nicht angemeldet). */
+  nutzer: AvatarNutzer | null;
   rolle: Rolle | null;
   initialTheme: "light" | "dark";
   /** AP2.2: ungelesene Inbox-Eintraege (Zaehler am Tray-Icon). */
@@ -87,7 +83,9 @@ export function HeaderBar({
   }
 
   const titel = TITEL.find(([pfad]) => pathname.startsWith(pfad))?.[1] ?? "";
-  const name = email ? (email.split("@")[0] ?? email) : "nicht angemeldet";
+  const anonym: AvatarNutzer = { id: "", name: null, email: "??" };
+  const person = nutzer ?? anonym;
+  const name = nutzer ? anzeigeName(nutzer) : "nicht angemeldet";
 
   return (
     <header className="hdr">
@@ -104,29 +102,25 @@ export function HeaderBar({
             aria-expanded={accountOpen}
             aria-label="Konto"
           >
-            <span className="avatar">{initialen(email)}</span>
+            <Avatar nutzer={person} groesse="m" title="Konto" />
           </button>
           {accountOpen && (
             <div role="dialog" aria-label="Konto" className="pop" style={{ width: 320 }}>
               <div className="pop-account-head">
-                <span className="avatar avatar--md">{initialen(email)}</span>
+                <Avatar nutzer={person} groesse="l" />
                 <span className="who">
                   <span className="name">{name}</span>
-                  <span className="mail">{email ?? "—"}</span>
+                  <span className="mail">{nutzer?.email ?? "—"}</span>
                   {/* F8/E30: Rollen-Pille wie in ap1i-delta-v2.md — jetzt mit
                       echter Rolle aus der Datenbank statt als Platzhalter. */}
                   {rolle && <span className="konf konf--rolle">{ROLLE_LABEL[rolle]}</span>}
                 </span>
               </div>
               <div className="pop-divider" />
-              <button
-                type="button"
-                className="pop-item"
-                onClick={() => zeigeToast("Das Profil folgt im nächsten Schritt.")}
-              >
-                <i className="ph ph-user" aria-hidden />
-                <span className="lbl">Profil</span>
-              </button>
+              <Link href="/einstellungen" className="pop-item" onClick={() => setAccountOpen(false)}>
+                <i className="ph ph-user-gear" aria-hidden />
+                <span className="lbl">Profil &amp; Einstellungen</span>
+              </Link>
               <button
                 type="button"
                 className="pop-item"
