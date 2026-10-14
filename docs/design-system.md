@@ -1211,11 +1211,11 @@ Abschnitt „tages-mail." (`#roundup`, Ziel der Mail-Fußzeile). Schmal
 
 **Zuschnitt (Eric 14.10.2026):** Nach der Dateiwahl öffnet sich das Modal
 „bildausschnitt wählen." (`.modal.zuschnitt`, 400 px, `role="dialog"`,
-Escape = Abbrechen): auf `--surface-sunken` eine runde Vorschau von 240 px
-(`canvas.zuschnitt-vorschau`, `border-radius: 50 %`, Ring aus
-`--surface-card` wie der Avatar xl; der Canvas zeichnet den Ausschnitt und
-dunkelt alles außerhalb des Kreises mit Navy 55 % ab, damit man sieht, was
-wegfällt). Bild per Ziehen (Pointer Events, Maus und Touch, `touch-action:
+Escape = Abbrechen): auf `--surface-sunken` eine quadratische Vorschau von 240 px mit
+Kartenradius (`canvas.zuschnitt-vorschau`): der Canvas zeichnet den
+Ausschnitt, dunkelt alles außerhalb des eingeschriebenen Kreises mit Navy
+55 % ab (so sieht man, was wegfällt) und zieht den 3-px-Ring des Avatars
+selbst (Weiß 90 %). Bild per Ziehen (Pointer Events, Maus und Touch, `touch-action:
 none`) verschieben; darunter der Zoom als nativer Range 1×–3× in Lime
 (`accent-color: --data-lime`) mit Wert rechts (`zuschnitt-zoom-wert`,
 Tabellenziffern). Der Canvas ist fokussierbar (`tabindex=0`, Fokusring

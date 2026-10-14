@@ -80,6 +80,12 @@ export function ProfilbildZuschnitt({
     ctx.arc(groesse / 2, groesse / 2, groesse / 2, 0, Math.PI * 2, true);
     ctx.fillStyle = "rgba(31, 46, 56, 0.55)";
     ctx.fill("evenodd");
+    // Ring wie beim Avatar xl (3 px Kartenflaeche), hier als Strich auf dem Canvas.
+    ctx.beginPath();
+    ctx.arc(groesse / 2, groesse / 2, groesse / 2 - 1.5, 0, Math.PI * 2);
+    ctx.lineWidth = 3;
+    ctx.strokeStyle = "rgba(255, 255, 255, 0.9)";
+    ctx.stroke();
     ctx.restore();
   }, [bitmap, zoom, mitte]);
 

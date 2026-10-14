@@ -6301,11 +6301,12 @@ table.st-tabelle tbody tr:focus-visible {
   border-radius: var(--radius-card);
   background: var(--surface-sunken);
 }
+/* Quadrat mit Kartenradius, NICHT rund: der Canvas dunkelt alles ausserhalb des
+   Kreises ab und zieht den Ring selbst — so sieht man, was wegfaellt. */
 .zuschnitt-vorschau {
   display: block;
-  border-radius: 50%;
+  border-radius: var(--radius-card);
   background: var(--surface-card);
-  box-shadow: 0 0 0 3px var(--surface-card);
   cursor: grab;
   touch-action: none;
   user-select: none;
@@ -6316,7 +6317,7 @@ table.st-tabelle tbody tr:focus-visible {
   cursor: grabbing;
 }
 .zuschnitt-vorschau:focus-visible {
-  box-shadow: 0 0 0 3px var(--surface-card), var(--ring-focus);
+  box-shadow: var(--ring-focus);
 }
 .zuschnitt-laden {
   position: absolute;
