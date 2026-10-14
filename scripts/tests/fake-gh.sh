@@ -20,8 +20,12 @@
 #       squash_baum = head | abweichend
 #                     abweichend: Squash-Baum ≠ Baum des PR-Heads (Basis-Beleg)
 #       netzfehler  = N   die ersten N Aufrufe von `run list`/`run view` nach
-#                     dem Merge scheitern mit „connection reset by peer"
-#                     (CI-Diaet: freigabe.sh wiederholt bis zu dreimal)
+#                     dem Merge scheitern voruebergehend (freigabe.sh
+#                     wiederholt bis zu fuenfmal, Betriebs-PR 14.10.2026)
+#       netzfehler_art = reset | timeout | http5xx | stream
+#                     Wortlaut des Fehlers (Vorgabe reset): „connection reset
+#                     by peer", „i/o timeout", „HTTP 502: Bad Gateway",
+#                     „stream error: stream ID n; CANCEL; received from peer"
 #       skript_ueberschreiben = <pfad>  beim ersten `run list` nach dem Merge wird
 #                     diese Datei mit Syntaxmuell ueberschrieben — wie eine
 #                     Bearbeitung des Checkouts waehrend des Laufs (13.10.2026);
@@ -44,7 +48,13 @@ netz_scheitert() {
   local n; n=$(cat "$D/netz.zaehler" 2>/dev/null || echo 0)
   (( n < soll )) || return 1
   echo $((n + 1)) > "$D/netz.zaehler"
-  echo "failed to get run: Get \"https://api.github.com/\": read tcp 127.0.0.1:1->127.0.0.1:2: read: connection reset by peer" >&2
+  # Wortlaute wie von gh beobachtet (08.10., 13.10. und 14.10.2026).
+  case "$(szenario netzfehler_art)" in
+    timeout) echo "failed to get run: Get \"https://api.github.com/repos/test/bhyo/actions/runs?per_page=5\": dial tcp 140.82.121.6:443: i/o timeout" >&2 ;;
+    http5xx) echo "failed to get run: HTTP 502: Bad Gateway (https://api.github.com/repos/test/bhyo/actions/runs?per_page=5)" >&2 ;;
+    stream)  echo "failed to get run: Get \"https://api.github.com/repos/test/bhyo/actions/runs?per_page=5\": stream error: stream ID 5; CANCEL; received from peer" >&2 ;;
+    *)       echo "failed to get run: Get \"https://api.github.com/\": read tcp 127.0.0.1:1->127.0.0.1:2: read: connection reset by peer" >&2 ;;
+  esac
   return 0
 }
 

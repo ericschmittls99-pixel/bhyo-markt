@@ -171,7 +171,9 @@ Aufgabe sie berührt: nachfragen statt eine plausible Regel zu erfinden.
   gleicht danach die gestapelten PRs an (Merge von main, Patch-ID vorher =
   nachher, sonst nur Meldung). Bis zum Merge bricht jeder Fehlschlag sofort
   ab, keine Folgeschritte; nach dem Merge bricht nichts mehr ab. Kein
-  Ergebnis ist kein Ergebnis.
+  Ergebnis ist kein Ergebnis. Erfolg eines Laufs ist allein die Zeile
+  `FERTIG`, nie der Exit-Code (vorübergehende gh-Fehler nach dem Merge
+  enden mit Exit 3 und „Deploy/Leseweg bitte von Hand prüfen").
 - Jeder PR deployt automatisch eine Preview; `/api/health` muss dort grün sein
 - Additive Migrationen kommen mit ihrem ersten Verbraucher in denselben PR
   (E21: das schema-gate sorgt dafür, dass die Migration vor dem Deploy läuft).
