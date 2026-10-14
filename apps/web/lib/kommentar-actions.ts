@@ -22,7 +22,8 @@ import type { AktionErgebnis } from "@/lib/stroeme-actions";
  * Oberflaeche (PR b) ruft diese drei Funktionen.
  */
 function aktualisiere(bezug: KommentarBezug) {
-  revalidatePath(bezug.art === "akteur" ? `/akteure/${bezug.id}` : "/register");
+  // E77 R6: Akteur-Kommentare stehen in der Sidebar unter /akteure.
+  revalidatePath(bezug.art === "akteur" ? "/akteure" : "/register");
 }
 
 function meldung(e: unknown, sonst: string): string {

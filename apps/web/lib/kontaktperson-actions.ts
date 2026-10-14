@@ -18,8 +18,9 @@ import type { AktionErgebnis } from "@/lib/stroeme-actions";
  * Kein Umhaengen: akteur_id wird nie geaendert (Server) — der Trigger in der
  * DB weist es ebenfalls ab.
  */
-function aktualisiere(akteurId: string) {
-  revalidatePath(`/akteure/${akteurId}`);
+function aktualisiere() {
+  // E77 R6: Kontaktpersonen stehen in der Akteur-Sidebar unter /akteure.
+  revalidatePath("/akteure");
 }
 
 export async function kontaktpersonAnlegen(akteurId: string, fd: FormData): Promise<AktionErgebnis & { id?: string }> {
@@ -46,7 +47,7 @@ export async function kontaktpersonAnlegen(akteurId: string, fd: FormData): Prom
   } catch (e) {
     return { ok: false, fehler: e instanceof Error ? e.message : "Anlegen fehlgeschlagen." };
   }
-  aktualisiere(akteurId);
+  aktualisiere();
   return { ok: true, id };
 }
 
@@ -79,7 +80,7 @@ export async function kontaktpersonBearbeiten(id: string, fd: FormData): Promise
   } catch (e) {
     return { ok: false, fehler: e instanceof Error ? e.message : "Speichern fehlgeschlagen." };
   }
-  aktualisiere(akteurId);
+  aktualisiere();
   return { ok: true };
 }
 
@@ -107,7 +108,7 @@ export async function kontaktpersonLoeschen(id: string): Promise<AktionErgebnis>
   } catch (e) {
     return { ok: false, fehler: e instanceof Error ? e.message : "Löschen fehlgeschlagen." };
   }
-  aktualisiere(akteurId);
+  aktualisiere();
   return { ok: true };
 }
 

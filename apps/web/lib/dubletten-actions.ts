@@ -215,7 +215,6 @@ export async function akteureZusammenfuehren(quelleId: string, zielId: string, e
   }
   revalidatePath("/akteure");
   revalidatePath("/akteure/dubletten");
-  revalidatePath(`/akteure/${zielId}`);
   revalidatePath("/register");
   return { ok: true, zielId, stroeme: stroemeGesamt, kontaktpersonen: personenGesamt };
 }

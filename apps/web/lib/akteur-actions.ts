@@ -59,8 +59,8 @@ export async function akteurBearbeiten(id: string, fd: FormData): Promise<Aktion
   } catch (e) {
     return { ok: false, fehler: e instanceof Error ? e.message : "Speichern fehlgeschlagen." };
   }
+  // E77 R6: der Akteur lebt als Sidebar unter /akteure (die alte Seite leitet nur um).
   revalidatePath("/akteure");
-  revalidatePath(`/akteure/${id}`);
   return { ok: true };
 }
 

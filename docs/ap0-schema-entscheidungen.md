@@ -2628,3 +2628,19 @@ Erledigt/Verwerfen wirken dort auf die ganze Gruppe
 (`inboxErledigenMehrere`/`inboxVerwerfenMehrere`, eine Transaktion, jeder
 Eintrag durch die Objektstufe, höchstens 200). Das Ziel von „Öffnen" lebt in
 `lib/inbox/ziel.ts`. Keine Änderung an Zustellung oder Datenmodell.
+
+**Umgesetzt R6 (Akteure als Sidebar):** `AkteurDetail` in derselben Hülle
+wie die Strom-Sidebar (`ov ov--panel`, rechts, Esc und X schließen über den
+URL-Parameter): Kopf mit Name, Sektor- und Zustands-Pillen, dann stammdaten.
+(Bearbeiten/Löschen unverändert), sitz und standorte. (Karte ruht beim
+Bearbeiten, eine MapLibre-Instanz), kontaktpersonen., belege und ströme.,
+kommentare., verlauf. Geöffnet aus akteure. (`?detail=<id>` wie bei ströme. — `akteur` ist dort
+die Facette Sektor / Akteur —, Filter und
+Suche bleiben in der URL), aus Dubletten, Import und Inbox. Deep-Link bleibt:
+`/akteure?detail=<id>`, `&reiter=kontaktpersonen` rollt zum Abschnitt,
+`#kommentar-<id>` zum Kommentar; die alte Seite `/akteure/<id>` leitet mit
+Parametern um, die Kennung einer zusammengeführten Quelle wird über das
+Protokoll aufgelöst, Unbekanntes zeigt „Akteur nicht gefunden." in der
+Sidebar. Die Auskunft-Seite bleibt eine Seite (Druck-Layout). `AkteurSpalten`
+entfällt; Revalidierung der Aktionen auf `/akteure`.
+

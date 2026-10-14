@@ -99,7 +99,7 @@ export function AkteureAufloesen({ laufId, status, gruppen, sektorLabels }: { la
                 <td>
                   {g.ergebnis === "identisch" && g.akteurId && (
                     <>
-                      <span className="pill pill--accent">identisch</span> <Link href={`/akteure/${g.akteurId}`}>vorhandener Akteur</Link>
+                      <span className="pill pill--accent">identisch</span> <Link href={`/akteure?detail=${g.akteurId}`}>vorhandener Akteur</Link>
                     </>
                   )}
                   {g.ergebnis === "vorschlag" && (
@@ -108,7 +108,7 @@ export function AkteureAufloesen({ laufId, status, gruppen, sektorLabels }: { la
                       {g.vorschlagId && (
                         <>
                           {" "}
-                          <Link href={`/akteure/${g.vorschlagId}`}>ansehen</Link>
+                          <Link href={`/akteure?detail=${g.vorschlagId}`}>ansehen</Link>
                         </>
                       )}
                     </>

@@ -17,8 +17,9 @@ export function zielFuerZeile(z: ZielZeile, bestehend: URLSearchParams = new URL
   // AP2.6 PR c (E71): Kommentar und Erwaehnung springen zum Kommentar im Objekt (Anker #kommentar-<id>).
   const anker = z.kommentar ? `#kommentar-${z.kommentar.id}` : "";
   if (z.strom) return `/inbox?${p.toString()}${anker}`;
-  if (z.kontaktperson) return `/akteure/${z.kontaktperson.akteurId}?reiter=kontaktpersonen`;
-  if (z.akteur) return `/akteure/${z.akteur.id}${anker}`;
+  // E77 R6: der Akteur ist eine Sidebar ueber akteure. (`?detail=`, wie bei stroeme.), der Reiter rollt zum Abschnitt.
+  if (z.kontaktperson) return `/akteure?detail=${z.kontaktperson.akteurId}&reiter=kontaktpersonen`;
+  if (z.akteur) return `/akteure?detail=${z.akteur.id}${anker}`;
   if (z.importLauf) return `/import/${z.importLauf.id}`;
   // AP2.9 Umschalten: die Mail-Hinweise fuehren zur Tages-Mail-Sektion (Testversand).
   if (z.typ === "mail_stoerung" || z.typ === "mail_secret_laeuft_ab") return "/einstellungen#roundup";

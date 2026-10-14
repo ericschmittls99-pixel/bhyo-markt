@@ -852,6 +852,28 @@ nur in „Offen" und nie für Zugriffsanfragen. Aufgeklappt (Kopf auf
 `--surface-hover`) stehen die Zeilen eingerückt (`.ib-gruppe-liste`, 20 px,
 schmal 8 px) mit ihren gewohnten Aktionen darunter.
 
+## Akteur als Sidebar (E77 R6, 13.10.2026)
+
+Der Akteur öffnet nicht mehr als eigene Seite, sondern als **Sidebar** über
+akteure. — dieselbe Hülle wie die Strom-Sidebar in stroeme. (`ov ov--panel`,
+520 px rechts, Rundung links, `ov-slide`; Esc und das X im Kopf schließen,
+beides über den URL-Parameter `detail` wie bei stroeme.; `akteur` ist in
+akteure. die Filter-Facette). **Kopf** (`ov-kopf`): rundes
+Gebäude-Zeichen (`ak-panel-icon`, `ph-buildings`, 44 px, `--surface-subtle`)
+an der Stelle des Orbs, Name als `h2`, darunter Sektor-Pille (`pill--accent`)
+und Zustands-Pillen (`pill--muted`), bei verwaist die Caption „seit
+TT.MM.JJJJ". **Body** (`ov-body`, `ov-sec` mit Kicker-Titeln) in dieser
+Reihenfolge: stammdaten. (kv-Anzeige, „Bearbeiten"/„Löschen (verwaist)" wie
+bisher), sitz und standorte. (Karte `ak-karte` 220 px, ruht beim Bearbeiten),
+kontaktpersonen. (mit Zähler; Tabelle, Formular und Auskunft wie bisher),
+belege und ströme. (mit Zähler; Tabelle scrollt waagerecht in
+`ak-panel-tabelle`, Link ins Strom-Detail), kommentare. (eigener Titel des
+Bausteins), verlauf. (`historie2`). Öffnen: Name in der Liste (`?detail=<id>`,
+Filter bleiben), Links aus Dubletten, Import und Inbox; `/akteure/<id>` leitet
+um. Nicht gefunden: dieselbe Hülle mit „Akteur nicht gefunden." und Schließen.
+Der frühere Zwei-Spalten-Aufbau (`ak-spalten`) entfällt; `ak-detail-kopf`
+bleibt für die Dubletten-Seite.
+
 ## akteure. — Liste, Detail, Sitz (AP2.5 PR a1, E66, 01.10.2026)
 
 **Navigation:** Bereich **akteure.** (`ph-buildings`) zwischen planer. und
