@@ -29,6 +29,9 @@
 #   (Folge) Das Doku-Muster kommt von der Basis des PR (API), nicht vom
 #       lokalen Checkout; ein PR, der die Musterdatei aendert, ist ein
 #       Code-PR; Muster nicht lesbar = Code-PR.
+#   (Kopie) freigabe.sh laeuft aus einer Wegwerf-Kopie (13.10.2026): wird die
+#       Skriptdatei waehrend des Laufs ueberschrieben, laeuft der Lauf
+#       unbeeinflusst bis FERTIG und (f); das Wegwerf-Verzeichnis ist danach weg.
 #   (f) Gestapelte PRs: in (a) auf main umgehaengt, danach angeglichen NUR
 #       durch Merge des Squash (zwei Eltern: alter Head, Squash), Patch-ID
 #       gegen den echten Basis-Baum (Eltern-Head) gleich → Push. Abweichende
@@ -122,10 +125,10 @@ basis_muster_setzen() {
 }
 pr_dateien_setzen() { jq ".\"10\".files = $1" "$D/prs.json" > "$D/prs.neu" && mv "$D/prs.neu" "$D/prs.json"; }
 
-freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE
+freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE. SKRIPTE_LAUF: anderes Skriptverzeichnis (Kopie-Fall)
   set +e
   mkdir -p "$T/bin" && ln -sf "$HIER/fake-gh.sh" "$T/bin/gh"
-  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE=0 "$SKRIPTE/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
+  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE=0 "${SKRIPTE_LAUF:-$SKRIPTE}/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
   RC=$?
   set -e
   sed 's/^/      | /' <<<"$AUSGABE"
@@ -225,6 +228,23 @@ erwarte "zwei Wiederholungen gemeldet, dann Schluss" [ "$(grep -c 'Netzfehler be
 erwarte "Abbruch nach dem Merge gemeldet" grep -q '^ABBRUCH: Deploy rot' <<<"$AUSGABE"
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "main steht auf dem Squash (Merge nicht rueckgaengig)" [ "$(remote_ref main)" != "$MAIN_VORHER" ]
+aufraeumen
+
+# ---------------------------------------------------------------- Kopie
+fall_aufbauen "(Kopie) Skriptdatei wird waehrend des Laufs ueberschrieben: Lauf laeuft aus der Kopie unbeeinflusst zu Ende"
+# Die Skripte werden je Fall in ein eigenes Verzeichnis kopiert — ueberschrieben
+# wird diese Kopie, nie das Repo. Die Attrappe ueberschreibt beim ersten
+# `run list` nach dem Merge, also mitten in (e), lange vor (f).
+mkdir -p "$T/skripte" && cp "$SKRIPTE/freigabe.sh" "$SKRIPTE/merge-sicher.sh" "$T/skripte/"
+printf 'deploy_main=gruen\nskript_ueberschreiben=%s\n' "$T/skripte/freigabe.sh" > "$D/szenario"
+SKRIPTE_LAUF="$T/skripte" freigabe_laufen
+unset SKRIPTE_LAUF
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "Datei wurde waehrend des Laufs ueberschrieben" grep -q 'KAPUTT' "$T/skripte/freigabe.sh"
+erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+erwarte "(f) danach noch ausgefuehrt: Kind angeglichen" grep -q '^    #11 angeglichen: Patch-ID gleich' <<<"$AUSGABE"
+erwarte "kein KAPUTT in der Ausgabe (Muell nie ausgefuehrt)" bash -c "! grep -q 'KAPUTT' <<<\"\$AUSGABE\""
+erwarte "Wegwerf-Kopie entfernt" bash -c "! ls -d \"\${TMPDIR:-/tmp}\"/freigabe-kopie.* >/dev/null 2>&1"
 aufraeumen
 
 fall_aufbauen "(d/e) Migration im PR: migrate-production ausgeloest, Push-Lauf rot ist erwartet, Dispatch-Lauf traegt (e)"
