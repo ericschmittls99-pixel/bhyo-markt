@@ -452,9 +452,17 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(workflow).toMatch(/- name: Tests — packages\/db/);
   });
 
-  it("freigabe.sh wiederholt Netzfehler bei gh bis zu dreimal mit Pause und wartet nach einer Migration auf den Dispatch-Lauf", () => {
-    expect(freigabe).toMatch(/gh_wiederholt\(\) \{[\s\S]*for versuch in 1 2 3; do/);
-    expect(freigabe).toMatch(/connection reset\|i\/o timeout/);
+  it("freigabe.sh wiederholt voruebergehende gh-Fehler einheitlich (fuenf Versuche, wachsende Pause, danach „von Hand pruefen“ mit Exit 3) und wartet nach einer Migration auf den Dispatch-Lauf", () => {
+    // Betriebs-PR 14.10.2026: ein Muster fuer alle Fehlerarten, fuenf Versuche, Pause GH_PAUSE x Versuch.
+    expect(freigabe).toMatch(/^GH_VERSUCHE=5$/m);
+    expect(freigabe).toMatch(/^GH_VORUEBERGEHEND='[^\n]*connection reset\|i\/o timeout[^\n]*HTTP 5\[0-9\]\[0-9\][^\n]*stream error\|failed to get jobs: HTTP 404'$/m);
+    expect(freigabe).toMatch(/gh_wiederholt\(\) \{[\s\S]*for versuch in \$\(seq 1 "\$GH_VERSUCHE"\); do[\s\S]*pause=\$\(\(GH_PAUSE \* versuch\)\)[\s\S]*return "\$GH_ERSCHOEPFT"/);
+    expect(freigabe).not.toMatch(/for versuch in 1 2 3; do/);
+    // Verbrauchte Versuche nach dem Merge: kein Urteil ueber den Lauf, Exit 3 und der Link zum Nachsehen.
+    expect(freigabe).toMatch(/von_hand\(\) \{[^\n]*\n\s+echo "ABBRUCH: Merge erfolgt, Deploy\/Leseweg bitte von Hand pruefen: \$1" >&2; exit 3/);
+    expect(freigabe).toMatch(/if \(\( rc == GH_ERSCHOEPFT \)\); then von_hand "\$LAUF"; fi/);
+    expect(freigabe).toMatch(/if \(\( rc == GH_ERSCHOEPFT \)\); then von_hand "\$URL\/commit\/\$squash\/checks"; fi/);
+    expect(freigabe).toMatch(/gh_wiederholt run rerun "\$dep" --failed >\/dev\/null \|\| von_hand "\$LAUF"/);
     expect(freigabe).toMatch(/if \[\[ -n "\$migrationen" \]\]; then\n(?:\s+#[^\n]*\n)*\s+echo "==> \(e\) Deploy von main \(Dispatch-Lauf nach der Migration\) und Leseweg"[\s\S]*lauf_am_commit deploy\.yml "\$squash" workflow_dispatch/);
     expect(freigabe).toMatch(/gh_wiederholt run watch "\$dep" --exit-status/);
     // Ein ueberholter, abgebrochener Lauf am Head wird nicht neu gestartet, wenn ein juengerer gruen ist.
@@ -465,6 +473,12 @@ describe("Betriebs-PR 3 (08.10.2026): CI-Diaet", () => {
     expect(fakeGh).toMatch(/netz_scheitert\(\)/);
     expect(fakeGh).toMatch(/migrate-production\.yml\)\n[\s\S]*event: \\"workflow_dispatch\\"/);
     expect(freigabeTest).toMatch(/netzfehler=2/);
+    // Betriebs-PR 14.10.2026: je Fehlerart ein Fall, Erschoepfung mit Commit- und mit Lauf-Link, Pausenfolge.
+    expect(fakeGh).toMatch(/case "\$\(szenario netzfehler_art\)" in\n\s+timeout\)[\s\S]*http5xx\)[\s\S]*stream\)/);
+    expect(freigabeTest).toMatch(/for art in timeout http5xx stream; do/);
+    for (const fall of ["wachsende Pause: GH_PAUSE=1 ergibt 1-2-3-4 s", "stream error bleibt bei allen fuenf Versuchen (noch kein Lauf bekannt): Exit 3", "404 der Jobs-API bleibt bei allen fuenf Versuchen: Exit 3", "roter Lauf nicht wiederholt"]) {
+      expect(freigabeTest, fall).toContain(fall);
+    }
     expect(freigabeTest).toMatch(/\(d\/e\) Migration im PR/);
     expect(freigabeTest).toMatch(/\(a\) abgebrochener Lauf am Head, juengerer gruen/);
     for (const fall of ["juengster Lauf von deploy cancelled", "wegwerf-db auf einem Code-PR uebersprungen", "Pflicht-Check deploy fehlt am Head", "reiner Doku-PR: Wegwerf-DB und Deploy uebersprungen sind erlaubt", "(Folge) Muster kommt von der Basis", "(Folge) PR aendert die Musterdatei selbst", "(Folge) Muster in der Basis nicht lesbar"]) {
