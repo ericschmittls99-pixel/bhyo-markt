@@ -671,3 +671,47 @@ Skript liest den Müll und bricht ab).
 **Netzfehler-Muster ergänzt:** „failed to get jobs: stream error: stream ID n;
 CANCEL; received from peer" (HTTP/2-Abbruch durch GitHub, 13.10.2026 bei #235)
 zählt in `gh_wiederholt` wie connection reset / 502.
+
+## Freigabe (e): vorübergehende gh-Fehler einheitlich, Erfolg ist allein FERTIG (Betriebs-PR, 14.10.2026)
+
+Anlass: Nach dem Merge brach Schritt (e) dreimal an Fehlern ab, die kein
+Urteil über den Lauf sind — „connection reset"/„i/o timeout" (08.10.2026),
+„failed to get jobs: HTTP 404" direkt nach dem Merge (13.10.2026, #232) und
+„stream error … CANCEL; received from peer" (13.10.2026, #235). Jedes Muster
+bekam bisher eine eigene Nachbesserung bei drei Versuchen mit fester Pause.
+
+**Regel (Schritt (e)):** Alle vorübergehenden gh-Fehler werden gleich
+behandelt — HTTP 5xx, „failed to get jobs: HTTP 404" direkt nach dem Merge,
+stream error, connection reset, Timeout (i/o timeout, Client.Timeout, context
+deadline exceeded). `gh_wiederholt` macht bis zu fünf Versuche mit wachsender
+Pause (`GH_PAUSE` × Versuch, Vorgabe 20 s: 20, 40, 60, 80 s, zusammen 200 s)
+und meldet jeden Versuch mit der ersten Zeile des gh-Fehlers. Sind die Versuche
+verbraucht, endet der Lauf mit **Exit 3** und der Zeile
+
+    ABBRUCH: Merge erfolgt, Deploy/Leseweg bitte von Hand prüfen: <Lauf-Link>
+
+Der Link zeigt den Deploy-Lauf; solange noch kein Lauf bekannt ist (Fehler
+schon beim Suchen des Laufs), die Checks des Squash-Commits
+(`…/commit/<squash>/checks`), in (d) die Seite des Migrations-Workflows. Ein
+roter Lauf bleibt „ABBRUCH: Deploy rot" mit Exit 1 und wird nicht wiederholt;
+die Erkennung läuft über den Wortlaut der gh-Fehlermeldung
+(`GH_VORUEBERGEHEND` in `freigabe.sh`). Die Wiederholung gilt auch für den
+Neustart (`run rerun`) und das Lesen der Jobs.
+
+**Regel (Erfolg eines Freigabe-Laufs):** Erfolg ist **nur die Zeile
+`FERTIG: PR #<nr> gemergt (…)`**, nie der Exit-Code allein. Gemessen am
+14.10.2026 mit bash 3.2: Ein Skript mit `trap … EXIT` (freigabe.sh seit
+13.10.2026) endet bei einem Syntaxfehler mitten im Lauf mit **Exit 0**, weil
+der Status des Traps zählt; ohne Trap wäre es Exit 2, ein Syntaxfehler in
+einer Befehlsersetzung Exit 1. Ein Bericht nennt deshalb die FERTIG-Zeile (oder
+ihr Fehlen) und die ABBRUCH-Zeile, nicht „Exit 0".
+
+**Wächter-Tests** (`scripts/tests/freigabe-test.sh`, Szenario
+`netzfehler=N` mit `netzfehler_art=reset|timeout|http5xx|stream` und
+`jobs404=N` in `fake-gh.sh`): je Fehlerart vier Fehlschläge → vier
+Wiederholungen, FERTIG; `GH_PAUSE=1` → Pausen 1-2-3-4 s in dieser Folge;
+stream error bei allen fünf Versuchen vor dem ersten gefundenen Lauf → Exit 3,
+Commit-Link, kein „Deploy rot", kein FERTIG, main auf dem Squash; 404 bei allen
+fünf Versuchen → Exit 3, Lauf-Link, kein Neustart; roter Lauf → keine
+Wiederholung, kein „von Hand prüfen". Rot-Nachweis gegen die Skripte von main
+vor diesem PR (`FREIGABE_SKRIPT_DIR`): siehe PR-Beschreibung.

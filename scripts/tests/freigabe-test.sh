@@ -13,12 +13,17 @@
 #
 #   (e) Push-Deploy von main: genau EIN Neustart, nur bei von GitHub
 #       abgebrochenem Lauf (Job cancelled); ein roter Check startet nichts neu.
-#   CI-Diaet (Betriebs-PR 3, 08.10.2026):
-#       Netzfehler bei gh nach dem Merge werden bis zu dreimal wiederholt
-#       (GH_PAUSE=0 im Test); „failed to get jobs: HTTP 404" bei `run watch`
-#       direkt nach dem Merge zaehlt als Netzfehler (13.10.2026): zweimal →
-#       wiederholt und FERTIG, dreimal → Abbruch nach dem Merge ohne
-#       Neustart; eine Migration im PR laesst (e) auf den
+#   CI-Diaet (Betriebs-PR 3, 08.10.2026) und voruebergehende gh-Fehler
+#   (Betriebs-PR 14.10.2026):
+#       Voruebergehende gh-Fehler nach dem Merge (connection reset, Timeout,
+#       HTTP 5xx, stream error, „failed to get jobs: HTTP 404" bei `run
+#       watch`) werden je Fehlerart gleich behandelt: bis zu fuenf Versuche,
+#       Pause GH_PAUSE x Versuch (im Test 0 s, einmal 1 s zum Messen der
+#       Folge 1-2-3-4 s); verbraucht → Exit 3 und „Merge erfolgt,
+#       Deploy/Leseweg bitte von Hand pruefen: <Link>" (Lauf-Link, oder die
+#       Checks des Squash-Commits, solange kein Lauf bekannt ist), kein
+#       „Deploy rot", kein Neustart, main bleibt auf dem Squash; ein roter
+#       Lauf wird nicht wiederholt; eine Migration im PR laesst (e) auf den
 #       Dispatch-Lauf warten, den migrate-production ausloest (der Push-Lauf
 #       bleibt erwartet rot); ein abgebrochener Lauf am Head wird nicht neu
 #       gestartet, wenn ein juengerer gruen ist; merge-sicher.sh wertet je
@@ -128,12 +133,17 @@ pr_dateien_setzen() { jq ".\"10\".files = $1" "$D/prs.json" > "$D/prs.neu" && mv
 freigabe_laufen() { # fuehrt freigabe.sh im Klon aus; RC und AUSGABE. SKRIPTE_LAUF: anderes Skriptverzeichnis (Kopie-Fall)
   set +e
   mkdir -p "$T/bin" && ln -sf "$HIER/fake-gh.sh" "$T/bin/gh"
-  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE=0 "${SKRIPTE_LAUF:-$SKRIPTE}/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
+  # TEST_GH_PAUSE: nur der Fall „wachsende Pause" setzt 1 s, sonst keine Pause.
+  AUSGABE=$(cd "$KLON" && PATH="$T/bin:$PATH" FAKE_GH_DIR="$D" GH_PAUSE="${TEST_GH_PAUSE:-0}" "${SKRIPTE_LAUF:-$SKRIPTE}/freigabe.sh" 10 "$ELTERN" "Eltern-Merge" 2>&1)
   RC=$?
   set -e
   sed 's/^/      | /' <<<"$AUSGABE"
 }
 neustarts() { grep -c '^run rerun ' "$D/calls.log" || true; }
+fehlt_in_ausgabe() { ! grep -q "$1" <<<"$AUSGABE"; }
+wiederholungen() { grep -c "voruebergehender gh-Fehler bei gh $1 .* — warte" <<<"$AUSGABE" || true; }
+# Der Link nach verbrauchten Versuchen — Lauf-Link oder Checks des Squash-Commits.
+von_hand_link() { sed -n 's/^ABBRUCH: Merge erfolgt, Deploy\/Leseweg bitte von Hand pruefen: //p' <<<"$AUSGABE"; }
 remote_ref() { git -C "$REMOTE" rev-parse "refs/heads/$1"; }
 squash_sha() { jq -r '."10".mergeCommit.oid' "$D/prs.json"; }
 aufraeumen() { rm -rf "$T"; }
@@ -174,6 +184,9 @@ freigabe_laufen
 erwarte "Exit 1" [ "$RC" -eq 1 ]
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "ABBRUCH Deploy rot gemeldet" grep -q '^ABBRUCH: Deploy rot' <<<"$AUSGABE"
+# Ein roter Lauf ist kein voruebergehender Fehler: keine Wiederholung, kein „von Hand pruefen".
+erwarte "roter Lauf nicht wiederholt" fehlt_in_ausgabe 'voruebergehender gh-Fehler'
+erwarte "kein „von Hand pruefen“ bei rotem Lauf" fehlt_in_ausgabe 'von Hand pruefen'
 aufraeumen
 
 fall_aufbauen "(a/b) roter Check am Head: nichts gemergt, nichts neu gestartet"
@@ -200,32 +213,72 @@ erwarte "main unveraendert" [ "$(remote_ref main)" = "$MAIN_VORHER" ]
 aufraeumen
 
 # ---------------------------------------------------------------- CI-Diaet
-fall_aufbauen "(e) Netzfehler bei gh nach dem Merge: zweimal wiederholt, dann FERTIG"
+fall_aufbauen "(e) connection reset bei gh nach dem Merge: zweimal wiederholt, dann FERTIG"
 printf 'deploy_main=gruen\nnetzfehler=2\n' > "$D/szenario"
 freigabe_laufen
 erwarte "Exit 0" [ "$RC" -eq 0 ]
-erwarte "zwei Wiederholungen gemeldet" [ "$(grep -c 'Netzfehler bei gh run list' <<<"$AUSGABE")" -eq 2 ]
+erwarte "zwei Wiederholungen gemeldet" [ "$(wiederholungen 'run list')" -eq 2 ]
 erwarte "Attrappe hat genau zweimal gescheitert" [ "$(cat "$D/netz.zaehler")" -eq 2 ]
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
 aufraeumen
 
-fall_aufbauen "(e) „failed to get jobs: HTTP 404“ direkt nach dem Merge: wie Netzfehler, zweimal wiederholt, dann FERTIG"
+# Betriebs-PR 14.10.2026: jede Fehlerart gleich — vier Fehlschlaege liegen
+# innerhalb der fuenf Versuche, der fuenfte Aufruf gelingt, FERTIG.
+for art in timeout http5xx stream; do
+  fall_aufbauen "(e) $art bei gh nach dem Merge: viermal wiederholt (fuenf Versuche), dann FERTIG"
+  printf 'deploy_main=gruen\nnetzfehler=4\nnetzfehler_art=%s\n' "$art" > "$D/szenario"
+  freigabe_laufen
+  erwarte "Exit 0" [ "$RC" -eq 0 ]
+  erwarte "vier Wiederholungen gemeldet" [ "$(wiederholungen 'run list')" -eq 4 ]
+  erwarte "Attrappe hat genau viermal gescheitert" [ "$(cat "$D/netz.zaehler")" -eq 4 ]
+  erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+  erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+  aufraeumen
+done
+
+fall_aufbauen "(e) wachsende Pause: GH_PAUSE=1 ergibt 1-2-3-4 s"
+printf 'deploy_main=gruen\nnetzfehler=4\n' > "$D/szenario"
+TEST_GH_PAUSE=1 freigabe_laufen
+erwarte "Exit 0" [ "$RC" -eq 0 ]
+erwarte "Pausen 1, 2, 3, 4 s in dieser Folge" [ "$(grep -o 'warte [0-9]*s' <<<"$AUSGABE" | tr '\n' ' ')" = "warte 1s warte 2s warte 3s warte 4s " ]
+erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
+aufraeumen
+
+fall_aufbauen "(e) stream error bleibt bei allen fuenf Versuchen (noch kein Lauf bekannt): Exit 3, von Hand pruefen mit Commit-Link, main gemergt"
+printf 'deploy_main=gruen\nnetzfehler=9\nnetzfehler_art=stream\n' > "$D/szenario"
+freigabe_laufen
+erwarte "Exit 3" [ "$RC" -eq 3 ]
+erwarte "vier Wiederholungen gemeldet, dann aufgegeben" [ "$(wiederholungen 'run list')" -eq 4 ]
+erwarte "aufgegeben gemeldet" grep -q 'voruebergehender gh-Fehler bei gh run list (Versuch 5/5: .*stream error.*) — aufgegeben' <<<"$AUSGABE"
+erwarte "Attrappe genau fuenfmal gefragt" [ "$(cat "$D/netz.zaehler")" -eq 5 ]
+erwarte "von Hand pruefen mit den Checks des Squash-Commits" [ "$(von_hand_link)" = "https://github.com/test/bhyo/commit/$(squash_sha)/checks" ]
+erwarte "kein „Deploy rot“" fehlt_in_ausgabe '^ABBRUCH: Deploy rot'
+erwarte "kein „nicht gefunden“" fehlt_in_ausgabe 'nicht gefunden'
+erwarte "kein FERTIG" fehlt_in_ausgabe '^FERTIG'
+erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
+erwarte "main steht auf dem Squash (Merge nicht rueckgaengig)" [ "$(remote_ref main)" != "$MAIN_VORHER" ]
+aufraeumen
+
+fall_aufbauen "(e) „failed to get jobs: HTTP 404“ direkt nach dem Merge: wie jeder voruebergehende Fehler, zweimal wiederholt, dann FERTIG"
 printf 'deploy_main=gruen\njobs404=2\n' > "$D/szenario"
 freigabe_laufen
 erwarte "Exit 0" [ "$RC" -eq 0 ]
-erwarte "zwei Wiederholungen bei run watch gemeldet" [ "$(grep -c 'Netzfehler bei gh run watch' <<<"$AUSGABE")" -eq 2 ]
+erwarte "zwei Wiederholungen bei run watch gemeldet" [ "$(wiederholungen 'run watch')" -eq 2 ]
 erwarte "Attrappe hat genau zweimal 404 geliefert" [ "$(cat "$D/jobs404.zaehler")" -eq 2 ]
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
 aufraeumen
 
-fall_aufbauen "(e) 404 der Jobs-API bleibt bei allen drei Versuchen: Abbruch nach dem Merge, kein Neustart, main gemergt"
+fall_aufbauen "(e) 404 der Jobs-API bleibt bei allen fuenf Versuchen: Exit 3, von Hand pruefen mit Lauf-Link, kein Neustart, main gemergt"
 printf 'deploy_main=gruen\njobs404=9\n' > "$D/szenario"
 freigabe_laufen
-erwarte "Exit 1" [ "$RC" -eq 1 ]
-erwarte "zwei Wiederholungen gemeldet, dann Schluss" [ "$(grep -c 'Netzfehler bei gh run watch' <<<"$AUSGABE")" -eq 2 ]
-erwarte "Abbruch nach dem Merge gemeldet" grep -q '^ABBRUCH: Deploy rot' <<<"$AUSGABE"
+erwarte "Exit 3" [ "$RC" -eq 3 ]
+erwarte "vier Wiederholungen gemeldet, dann aufgegeben" [ "$(wiederholungen 'run watch')" -eq 4 ]
+erwarte "Attrappe genau fuenfmal gefragt" [ "$(cat "$D/jobs404.zaehler")" -eq 5 ]
+erwarte "von Hand pruefen mit dem Lauf-Link" [ "$(von_hand_link)" = "https://github.com/test/bhyo/actions/runs/9001" ]
+erwarte "kein „Deploy rot“ (kein Urteil ueber den Lauf)" fehlt_in_ausgabe '^ABBRUCH: Deploy rot'
+erwarte "kein FERTIG" fehlt_in_ausgabe '^FERTIG'
 erwarte "kein Neustart" [ "$(neustarts)" -eq 0 ]
 erwarte "main steht auf dem Squash (Merge nicht rueckgaengig)" [ "$(remote_ref main)" != "$MAIN_VORHER" ]
 aufraeumen
@@ -243,7 +296,7 @@ erwarte "Exit 0" [ "$RC" -eq 0 ]
 erwarte "Datei wurde waehrend des Laufs ueberschrieben" grep -q 'KAPUTT' "$T/skripte/freigabe.sh"
 erwarte "FERTIG gemeldet" grep -q '^FERTIG: PR #10 gemergt' <<<"$AUSGABE"
 erwarte "(f) danach noch ausgefuehrt: Kind angeglichen" grep -q '^    #11 angeglichen: Patch-ID gleich' <<<"$AUSGABE"
-erwarte "kein KAPUTT in der Ausgabe (Muell nie ausgefuehrt)" bash -c "! grep -q 'KAPUTT' <<<\"\$AUSGABE\""
+erwarte "kein KAPUTT in der Ausgabe (Muell nie ausgefuehrt)" fehlt_in_ausgabe 'KAPUTT'
 erwarte "Wegwerf-Kopie entfernt" bash -c "! ls -d \"\${TMPDIR:-/tmp}\"/freigabe-kopie.* >/dev/null 2>&1"
 aufraeumen
 
