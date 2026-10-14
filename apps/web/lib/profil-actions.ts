@@ -6,25 +6,11 @@ import { revalidatePath } from "next/cache";
 
 import { getBelegeBucket, getEnvironment, withDb } from "@/lib/db";
 import { profilbildKey, profilbildUrl, pruefeAnzeigename, pruefeProfilbild } from "@/lib/profil-bild";
+// Loeschen in der Transaktion, Rollback bei Stoerung: ein Ursprung fuer
+// Entfernen, Ersetzen und Deaktivierung (Eric 14.10.2026).
+import { BildLoeschenFehlgeschlagen, LOESCH_FEHLER, loescheBild } from "@/lib/profil-bild-ablage";
 import { protokolliere } from "@/lib/protokoll";
 import { rechtFuerAction } from "@/lib/rechte/wache";
-
-/**
- * Eric 14.10.2026: Das Profilbild ist ein Personendatum — beim Entfernen und
- * beim Ersetzen wird die alte Datei SOFORT aus R2 geloescht, in derselben
- * Transaktion wie die Zeile. Schlaegt das Loeschen fehl, rollt die Zeile
- * zurueck und der Nutzer sieht einen Fehler statt einer herrenlosen Datei.
- */
-class BildLoeschenFehlgeschlagen extends Error {}
-const LOESCH_FEHLER = "Die alte Bilddatei konnte nicht gelöscht werden; nichts wurde geändert. Bitte noch einmal versuchen.";
-
-async function loescheBild(bucket: { delete: (key: string) => Promise<void> }, key: string): Promise<void> {
-  try {
-    await bucket.delete(key);
-  } catch (e) {
-    throw new BildLoeschenFehlgeschlagen(e instanceof Error ? e.message : String(e));
-  }
-}
 
 export interface ProfilErgebnis {
   ok: boolean;

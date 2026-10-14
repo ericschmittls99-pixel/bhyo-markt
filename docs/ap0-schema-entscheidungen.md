@@ -2659,7 +2659,14 @@ Bytes** und ≤ 1 MB (`lib/profil-bild.ts`), Ablage im Beleg-Bucket unter
 `GET /api/profil/bild/<id>` hinter der Wache (Key aus der Zeile, nie aus der
 URL; `Cache-Control: private`, Versionszähler `?v=<bild_geaendert_am>`),
 entfernbar (Datei wird gelöscht, Zeile auf NULL); darunter der Schalter der
-Tages-Mail (bisheriger Baustein). Nutzer · Referenzlisten · Parameter nur für
+Tages-Mail (bisheriger Baustein). **Profilbild = Personendatum (Eric
+14.10.2026):** Entfernen, Ersetzen und die **Deaktivierung des Nutzers**
+(`aktivSetzen`, es gibt keinen Löschpfad) löschen das R2-Objekt und den
+Schlüssel in derselben Transaktion wie die Zeile; eine Lösch-Störung rollt
+die Zeile zurück und meldet einen Fehler (ein Ursprung:
+`lib/profil-bild-ablage.ts`). Die Reaktivierung zeigt wieder Initialen. Die
+Deaktivierung wird wie bisher protokolliert (`benutzer_deaktiviert`, Zusatz
+„Profilbild gelöscht"), nie der Bildinhalt. Nutzer · Referenzlisten · Parameter nur für
 Admins, Nicht-Admins sehen nur ihr Profil ohne Reiterleiste. Aktion
 `profil.bearbeiten` (alle Rollen, geschrieben wird ausschließlich die eigene
 Zeile), jede Änderung protokolliert (`geaendert`, Entität `benutzer`, nie das

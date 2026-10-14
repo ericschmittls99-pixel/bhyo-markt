@@ -5,6 +5,11 @@
  * dass die Aktionen sie auch anwenden — und dass sie die Datenbank bei einer
  * Ablehnung nicht anfassen. Eine Regel, die nur in der Bibliothek stimmt und
  * in der Aktion nicht aufgerufen wird, schützt niemanden.
+ *
+ * Eric 14.10.2026: Die Deaktivierung löscht das Profilbild (R2-Objekt und
+ * Schlüssel) in derselben Transaktion, mit derselben Fehlerlogik wie das
+ * Entfernen: Lösch-Störung → Rollback, Fehlermeldung. Der Bucket ist dafür
+ * eine echte Ablage (Map), die Auslieferung läuft über die echte Route.
  */
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
@@ -16,7 +21,14 @@ import type { Rolle } from "./rechte/rollen";
 let angemeldet: string | null = null;
 let eintrag: { id: string; rolle: Rolle; aktiv: boolean; name: string | null } | null = null;
 /** Was in der Tabelle steht — Grundlage der Regelprüfung in der Aktion. */
-let tabelle: { id: string; email: string; rolle: Rolle; aktiv: boolean }[] = [];
+let tabelle: { id: string; email: string; rolle: Rolle; aktiv: boolean; bildKey?: string | null }[] = [];
+/** Bild-Schluessel der Zeile, die die Route (where id) liest — die Attrappe kennt nur eine. */
+let bildKeyZeile: string | null = null;
+/** Echte Ablage fuer Profilbilder: delete entfernt, get liest. */
+let ablage = new Map<string, { bytes: ArrayBuffer; typ?: string }>();
+/** Schluessel, dessen Loeschen fehlschlaegt (R2-Stoerung fuer genau dieses Objekt). */
+let loeschenWirftFuer: string | null = null;
+let r2: { op: string; key: string }[] = [];
 const ERIC_ID = "00000000-0000-4000-8000-0000000000e1";
 const NEU_ID = "00000000-0000-4000-8000-0000000000aa";
 /** Jede echte Schreiboperation landet hier; bei Ablehnung muss sie leer sein. */
@@ -32,7 +44,7 @@ function fakeDb() {
         // und ladeAlle (ohne where). Ein Promise-artiges Objekt bedient beide.
         const liste = Promise.resolve(tabelle);
         return Object.assign(liste, {
-          where: () => ({ limit: async () => (eintrag ? [eintrag] : []) }),
+          where: () => ({ limit: async () => (eintrag ? [{ ...eintrag, bildKey: bildKeyZeile }] : []) }),
         });
       },
     }),
@@ -54,7 +66,16 @@ function fakeDb() {
         });
       },
     }),
-    transaction: async (fn: (tx: unknown) => unknown) => fn(db),
+    // Rollback-Attrappe: wirft fn, verschwinden die Schreibvorgaenge der Transaktion wieder.
+    transaction: async (fn: (tx: unknown) => unknown) => {
+      const stand = schreibvorgaenge.length;
+      try {
+        return await fn(db);
+      } catch (e) {
+        schreibvorgaenge.length = stand;
+        throw e;
+      }
+    },
   };
   return db;
 }
@@ -62,10 +83,22 @@ function fakeDb() {
 vi.mock("@/lib/db", () => ({
   currentUserEmail: async () => angemeldet,
   withDb: async (fn: (db: unknown) => unknown) => fn(fakeDb()),
+  getBelegeBucket: async () => ({
+    delete: async (key: string) => {
+      if (key === loeschenWirftFuer) throw new Error("r2 weg");
+      r2.push({ op: "delete", key });
+      ablage.delete(key);
+    },
+    get: async (key: string) => {
+      const o = ablage.get(key);
+      return o ? { body: new Blob([o.bytes]).stream(), size: o.bytes.byteLength, httpMetadata: { contentType: o.typ } } : null;
+    },
+  }),
 }));
 vi.mock("next/cache", () => ({ revalidatePath: () => {} }));
 
 const { aktivSetzen, rolleSetzen, benutzerAnlegen } = await import("./benutzer-actions");
+const { GET: bildRoute } = await import("@/app/api/profil/bild/[id]/route");
 
 const ERIC = "eric.schmitt@bhyo.de";
 
@@ -84,6 +117,10 @@ beforeEach(() => {
   tabelle = [];
   schreibvorgaenge = [];
   insertFehler = null;
+  bildKeyZeile = null;
+  ablage = new Map();
+  loeschenWirftFuer = null;
+  r2 = [];
 });
 
 describe("Der letzte aktive Admin kann sich nicht aussperren", () => {
@@ -112,6 +149,68 @@ describe("Der letzte aktive Admin kann sich nicht aussperren", () => {
     expect(schreibvorgaenge[1]).toContain('"art":"benutzer_deaktiviert"');
     expect(schreibvorgaenge[1]).toContain(`"entitaetId":"${ERIC_ID}"`);
     expect(schreibvorgaenge[1]).toContain(`"benutzerId":"${ERIC_ID}"`);
+  });
+});
+
+describe("Deaktivierung löscht das Profilbild (Eric 14.10.2026)", () => {
+  const ALT = "profil/testumgebung/" + ERIC_ID + "/alt.webp";
+  /** Eric hat ein Bild; ein zweiter Admin ist da, damit die Deaktivierung erlaubt ist. */
+  function ericMitBild() {
+    alsAdmin([{ email: "zwei@bhyo.de", rolle: "admin", aktiv: true }]);
+    tabelle[0]!.bildKey = ALT;
+    bildKeyZeile = ALT;
+    ablage.set(ALT, { bytes: new Uint8Array([1, 2, 3]).buffer, typ: "image/webp" });
+  }
+  async function routeStatus(): Promise<number> {
+    const res = await bildRoute(new Request("http://test/api/profil/bild/" + ERIC_ID), { params: Promise.resolve({ id: ERIC_ID }) });
+    return res.status;
+  }
+
+  it("Deaktivieren: Objekt weg, Schlüssel NULL, Protokoll wie bisher ohne Bildinhalt, alter Schlüssel → 404", async () => {
+    ericMitBild();
+    expect(await routeStatus()).toBe(200);
+    await expect(aktivSetzen(ERIC, false)).resolves.toEqual({ ok: true });
+    expect(ablage.has(ALT)).toBe(false);
+    expect(r2).toEqual([{ op: "delete", key: ALT }]);
+    expect(schreibvorgaenge).toHaveLength(2);
+    expect(schreibvorgaenge[0]).toMatch(/^update /);
+    expect(schreibvorgaenge[0]).toContain('"aktiv":false');
+    expect(schreibvorgaenge[0]).toContain('"bildKey":null');
+    expect(schreibvorgaenge[0]).toContain('"bildGeaendertAm":null');
+    expect(schreibvorgaenge[1]).toContain('"art":"benutzer_deaktiviert"');
+    expect(schreibvorgaenge[1]).not.toContain(ALT);
+    // Zeile auf NULL → 404 ohne R2; eine veraltete Zeile mit dem alten Schluessel → 404 (Objekt fehlt).
+    bildKeyZeile = null;
+    expect(await routeStatus()).toBe(404);
+    bildKeyZeile = ALT;
+    expect(await routeStatus()).toBe(404);
+  });
+
+  it("Deaktivieren ohne Bild: Zeile nur aktiv=false, kein R2-Zugriff", async () => {
+    alsAdmin([{ email: "zwei@bhyo.de", rolle: "admin", aktiv: true }]);
+    await expect(aktivSetzen(ERIC, false)).resolves.toEqual({ ok: true });
+    expect(schreibvorgaenge[0]).not.toContain("bildKey");
+    expect(r2).toEqual([]);
+  });
+
+  it("Lösch-Störung: Fehlermeldung, Deaktivierung zurückgerollt, Objekt bleibt", async () => {
+    ericMitBild();
+    loeschenWirftFuer = ALT;
+    const ergebnis = await aktivSetzen(ERIC, false);
+    expect(ergebnis).toEqual({ ok: false, fehler: expect.stringContaining("nicht gelöscht") });
+    expect(schreibvorgaenge).toEqual([]);
+    expect(ablage.has(ALT)).toBe(true);
+  });
+
+  it("Reaktivieren: nur aktiv=true, Schlüssel bleibt NULL (Initialen), kein R2-Zugriff", async () => {
+    alsAdmin([{ email: "zwei@bhyo.de", rolle: "admin", aktiv: true }]);
+    tabelle[0]!.aktiv = false;
+    await expect(aktivSetzen(ERIC, true)).resolves.toEqual({ ok: true });
+    expect(schreibvorgaenge[0]).toContain('"aktiv":true');
+    expect(schreibvorgaenge[0]).not.toContain("bildKey");
+    expect(schreibvorgaenge[1]).toContain('"art":"benutzer_aktiviert"');
+    expect(r2).toEqual([]);
+    expect(await routeStatus()).toBe(404);
   });
 });
 
