@@ -3,8 +3,10 @@ import type { SperrNutzer } from "@/lib/stroeme-modell";
 /**
  * E44 (AP2.1 PR b): Avatar aus Initialen, Farbe deterministisch aus der
  * Nutzer-ID ueber Design-Tokens (--av-1 … --av-8, Light/Dark in globals.css),
- * Groessen s (24 px) und m (32 px). Kein Foto-Upload. Wiederverwendbar fuer
- * Inbox und Kommentare (AP2.2 ff.).
+ * Groessen s (24 px), m (32 px), l (40 px, Konto-Menue) und xl (96 px, Profil).
+ * E77 R7: traegt der Nutzer ein Profilbild (bildUrl), liegt es rund ueber der
+ * Farbflaeche; ohne Bild oder bis es geladen ist, stehen die Initialen —
+ * dieselbe Form an jeder Stelle (Kopfzeile, Listen, Kommentare, Profil).
  */
 export function initialen(n: { name: string | null; email: string }): string {
   const quelle = (n.name ?? "").trim();
@@ -29,14 +31,17 @@ export function anzeigeName(n: { name: string | null; email: string }): string {
   return n.name ?? n.email;
 }
 
+/** Nutzer fuer den Avatar: wie SperrNutzer, optional mit Bild-URL (E77 R7). */
+export type AvatarNutzer = SperrNutzer & { bildUrl?: string | null };
+
 export function Avatar({
   nutzer,
   groesse = "s",
   title,
   badge,
 }: {
-  nutzer: SperrNutzer;
-  groesse?: "s" | "m";
+  nutzer: AvatarNutzer;
+  groesse?: "s" | "m" | "l" | "xl";
   title?: string;
   /** Kleines Zeichen unten rechts, z. B. das Schloss des Sperrinhabers. */
   badge?: "schloss";
@@ -49,6 +54,7 @@ export function Avatar({
       role="img"
     >
       {initialen(nutzer)}
+      {nutzer.bildUrl && <img className="av-bild" src={nutzer.bildUrl} alt="" draggable={false} />}
       {badge === "schloss" && <i className="ph-fill ph-lock av-badge" aria-hidden />}
     </span>
   );

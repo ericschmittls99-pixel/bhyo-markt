@@ -1177,3 +1177,35 @@ in einem Kommentar zu <Objekt> erwähnt" mit Avatar des Autors, reine
 Hinweise; Öffnen springt zum Kommentar im Detail bzw. auf der Akteur-Seite,
 der Eintrag wird kurz mit der versenkten Fläche hervorgehoben
 (`kom-eintrag--ziel`).
+
+## Profil & Einstellungen (E77 R7, 14.10.2026)
+
+**Konto-Menü:** Der Avatar-Knopf der Kopfzeile zeigt denselben Avatar wie
+Listen und Kommentare (`components/Avatar`, Größe m = 32 px; im Menükopf
+l = 40 px): Initialen aus dem Namen (sonst E-Mail), Farbe aus der Nutzer-ID,
+und — wenn gesetzt — das Profilbild rund über der Farbfläche (`av-bild`,
+`object-fit: cover`; die Initialen bleiben darunter stehen, bis das Bild
+geladen ist). Der erste Menüpunkt heißt „Profil & Einstellungen"
+(`ph-user-gear`) und führt nach `/einstellungen`; Theme-Umschalter und
+„Abmelden" (Platzhalter) bleiben.
+
+**einstellungen.:** Reiter als Segment-Schalter wie bisher, jetzt
+Profil · Nutzer · Referenzlisten · Parameter — die letzten drei nur für
+Admins; wer kein Verwaltungsrecht hat, sieht sein Profil ohne Reiterleiste
+(kein Leerzustand mehr). Der Reiter „Profil" (`.profil`, Spalte `einst-inhalt`,
+880 px) beginnt mit dem Bildblock auf `--surface-sunken` (Radius 14): Avatar
+xl (96 px) links, rechts Ghost-Knöpfe „Bild wählen" bzw. „Bild ersetzen" /
+„Bild entfernen" (`ph-image`, `ph-x`), darunter die Caption „JPG, PNG oder
+WebP. Wird im Browser quadratisch auf 256 px verkleinert, höchstens 1 MB.
+Ohne Bild stehen deine Initialen." — der Datei-Dialog hängt an einem
+visuell versteckten `input[type=file]` mit `accept` auf die drei Typen.
+Fehler stehen als `pf-fehler` mit `role="alert"` unter den Knöpfen, der
+Zwischenstand „Wird gespeichert …" als `role="status"`. Darunter das Formular
+(`.profil-form`, zwei Spalten ab 220 px): Anzeigename (`pf`, max. 80), E-Mail
+nur lesbar (`readonly`, Sekundärtext — sie ist die Access-Identität), Rolle als
+`konf--rolle`-Pille mit der Caption „Die Rolle vergeben Admins.", Fußzeile mit
+Primär-Button „Speichern" (erst aktiv, wenn sich der Name geändert hat) und
+der Rückmeldung „Gespeichert." als Caption. Darunter unverändert der
+Abschnitt „tages-mail." (`#roundup`, Ziel der Mail-Fußzeile). Schmal
+(≤ 560 px) stapelt der Bildblock untereinander. Keine Ampelfarben, keine
+Vorschau-Zuschnitt-UI: der Ausschnitt ist immer das mittige Quadrat.

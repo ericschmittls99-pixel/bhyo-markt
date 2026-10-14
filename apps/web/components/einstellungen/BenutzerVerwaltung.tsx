@@ -12,6 +12,8 @@ export interface BenutzerAnzeige extends BenutzerZeile {
   id: string;
   name: string | null;
   erstelltAm: string;
+  /** E77 R7: Profilbild-URL mit Version, null = Initialen. */
+  bildUrl?: string | null;
 }
 
 /**
@@ -114,7 +116,7 @@ export function BenutzerVerwaltung({
               <tr key={b.email} className={b.aktiv ? undefined : "einst-inaktiv"}>
                 <td>
                   <span className="einst-avatar">
-                    <Avatar nutzer={{ id: b.id, name: b.name, email: b.email }} groesse="s" />
+                    <Avatar nutzer={{ id: b.id, name: b.name, email: b.email, bildUrl: b.bildUrl ?? null }} groesse="s" />
                     {b.email}
                   </span>
                   {b.email === ichSelbst && <span className="einst-du">du</span>}
