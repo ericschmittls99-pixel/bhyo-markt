@@ -3,17 +3,19 @@
 /**
  * E77 R7: Reiter „Profil" — nur die eigenen Daten, fuer jede Rolle.
  * Anzeigename aenderbar (E-Mail fest, sie ist die Access-Identitaet),
- * Profilbild jpg/png/webp: im Browser mittig quadratisch auf 256 px
- * verkleinert (Canvas), erst dann hochgeladen; der Server prueft Typ an den
- * Bytes und Groesse (<= 1 MB). Darunter der Schalter der Tages-Mail.
+ * Profilbild jpg/png/webp: erst der Zuschnitt (ProfilbildZuschnitt: ziehen,
+ * zoomen, runde Vorschau), dann im Browser auf 256 px verkleinert (Canvas) und
+ * hochgeladen; der Server prueft Typ an den Bytes und Groesse (<= 1 MB).
+ * Darunter der Schalter der Tages-Mail.
  * Die tragende Pruefung sitzt in den Aktionen (profil.bearbeiten).
  */
 import { useRef, useState, useTransition } from "react";
 
 import { Avatar } from "@/components/Avatar";
+import { ProfilbildZuschnitt } from "@/components/einstellungen/ProfilbildZuschnitt";
 import { RoundupEinstellung } from "@/components/einstellungen/RoundupEinstellung";
 import { anzeigenameSetzen, profilBildEntfernen, profilBildSetzen } from "@/lib/profil-actions";
-import { ANZEIGENAME_MAX, PROFILBILD_KANTE, PROFILBILD_MAX_BYTES, PROFILBILD_TYPEN, quadratAusschnitt } from "@/lib/profil-bild";
+import { ANZEIGENAME_MAX, type Ausschnitt, PROFILBILD_KANTE, PROFILBILD_MAX_BYTES, PROFILBILD_TYPEN, quadratAusschnitt } from "@/lib/profil-bild";
 import { ROLLE_LABEL, type Rolle } from "@/lib/rechte";
 
 export interface ProfilDaten {
@@ -26,20 +28,23 @@ export interface ProfilDaten {
   testversand?: boolean;
 }
 
+const TYP_FEHLER = "Nur JPG, PNG oder WebP sind erlaubt.";
+
 /**
  * Verkleinert eine Bilddatei im Browser auf ein Quadrat von PROFILBILD_KANTE
- * Pixeln (mittiger Ausschnitt). WebP, wenn der Browser es schreibt, sonst PNG.
- * Liefert die Datei fuer den Upload oder einen Fehlertext.
+ * Pixeln — den uebergebenen Ausschnitt (Zuschnitt), sonst das mittige Quadrat.
+ * WebP, wenn der Browser es schreibt, sonst PNG. Liefert die Datei fuer den
+ * Upload oder einen Fehlertext.
  */
-export async function verkleinereProfilbild(datei: File): Promise<File | { fehler: string }> {
-  if (!(PROFILBILD_TYPEN as readonly string[]).includes(datei.type)) return { fehler: "Nur JPG, PNG oder WebP sind erlaubt." };
+export async function verkleinereProfilbild(datei: File, ausschnitt?: Ausschnitt): Promise<File | { fehler: string }> {
+  if (!(PROFILBILD_TYPEN as readonly string[]).includes(datei.type)) return { fehler: TYP_FEHLER };
   let bitmap: ImageBitmap;
   try {
     bitmap = await createImageBitmap(datei);
   } catch {
     return { fehler: "Das Bild lässt sich nicht lesen." };
   }
-  const { x, y, kante } = quadratAusschnitt(bitmap.width, bitmap.height);
+  const { x, y, kante } = ausschnitt ?? quadratAusschnitt(bitmap.width, bitmap.height);
   const canvas = document.createElement("canvas");
   canvas.width = PROFILBILD_KANTE;
   canvas.height = PROFILBILD_KANTE;
@@ -63,16 +68,28 @@ export function ProfilEinstellung({ profil }: { profil: ProfilDaten }) {
   const [bildUrl, setBildUrl] = useState(profil.bildUrl);
   const [bildFehler, setBildFehler] = useState<string | null>(null);
   const [bildLaeuft, starteBild] = useTransition();
+  const [zuschnitt, setZuschnitt] = useState<File | null>(null);
   const dateiRef = useRef<HTMLInputElement>(null);
 
   const nutzer = { id: profil.id, name: gespeichert || null, email: profil.email, bildUrl };
   const nameGeaendert = name.trim() !== gespeichert.trim();
 
+  // Datei gewaehlt: Typ sofort pruefen, dann der Zuschnitt — gespeichert wird erst nach „Übernehmen".
   function bildWaehlen(datei: File | undefined) {
+    if (dateiRef.current) dateiRef.current.value = "";
     if (!datei) return;
     setBildFehler(null);
+    if (!(PROFILBILD_TYPEN as readonly string[]).includes(datei.type)) {
+      setBildFehler(TYP_FEHLER);
+      return;
+    }
+    setZuschnitt(datei);
+  }
+
+  function bildUebernehmen(datei: File, ausschnitt: Ausschnitt) {
+    setZuschnitt(null);
     starteBild(async () => {
-      const klein = await verkleinereProfilbild(datei);
+      const klein = await verkleinereProfilbild(datei, ausschnitt);
       if (!(klein instanceof File)) {
         setBildFehler(klein.fehler);
         return;
@@ -83,7 +100,6 @@ export function ProfilEinstellung({ profil }: { profil: ProfilDaten }) {
       if (!erg.ok) setBildFehler(erg.fehler ?? "Speichern fehlgeschlagen.");
       else setBildUrl(erg.bildUrl ?? null);
     });
-    if (dateiRef.current) dateiRef.current.value = "";
   }
 
   return (
@@ -130,7 +146,7 @@ export function ProfilEinstellung({ profil }: { profil: ProfilDaten }) {
                 </button>
               )}
             </div>
-            <span className="c">JPG, PNG oder WebP. Wird im Browser quadratisch auf {PROFILBILD_KANTE} px verkleinert, höchstens 1 MB. Ohne Bild stehen deine Initialen.</span>
+            <span className="c">JPG, PNG oder WebP. Du wählst den Ausschnitt; das Bild wird im Browser auf {PROFILBILD_KANTE} px verkleinert, höchstens 1 MB. Ohne Bild stehen deine Initialen.</span>
             {bildLaeuft && <span className="c" role="status">Wird gespeichert …</span>}
             {bildFehler && <p className="pf-fehler einst-fehler" role="alert">{bildFehler}</p>}
           </div>
@@ -197,6 +213,7 @@ export function ProfilEinstellung({ profil }: { profil: ProfilDaten }) {
       </section>
 
       <RoundupEinstellung an={profil.roundup} testversand={profil.testversand} />
+      {zuschnitt && <ProfilbildZuschnitt datei={zuschnitt} onUebernehmen={(a) => bildUebernehmen(zuschnitt, a)} onAbbrechen={() => setZuschnitt(null)} />}
     </div>
   );
 }

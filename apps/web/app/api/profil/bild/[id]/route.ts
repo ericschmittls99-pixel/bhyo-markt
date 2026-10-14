@@ -12,8 +12,10 @@ export const dynamic = "force-dynamic";
  * closed), fuer jeden Nutzer mit Zugang sichtbar (Avatare stehen app-weit). Der
  * R2-Key kommt AUS DER ZEILE, nie aus der URL: die Adresse nennt nur die
  * Nutzer-ID, ein Key laesst sich darueber nicht erraten oder durchprobieren.
- * Privat gecacht: die URL traegt die Version (bild_geaendert_am), ein neues
- * Bild bekommt eine neue URL, ein geteilter Cache sieht nie etwas.
+ * Nicht gecacht (no-store, wie die Belege): das Bild ist ein Personendatum
+ * und bleibt in keinem Browser- oder Zwischencache liegen; die URL traegt
+ * trotzdem die Version (bild_geaendert_am), damit ein neues Bild sofort
+ * ueberall erscheint (OFFEN-Punkt 2, konservative Wahl 14.10.2026).
  */
 export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> }) {
   const wache = await zugangFuerRoute();
@@ -32,7 +34,7 @@ export async function GET(_req: Request, ctx: { params: Promise<{ id: string }> 
 
   const headers = new Headers();
   headers.set("Content-Type", objekt.httpMetadata?.contentType ?? "application/octet-stream");
-  headers.set("Cache-Control", "private, max-age=86400");
+  headers.set("Cache-Control", "private, no-store");
   headers.set("X-Content-Type-Options", "nosniff");
   return new Response(objekt.body, { headers });
 }

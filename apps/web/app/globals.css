@@ -6287,3 +6287,59 @@ table.st-tabelle tbody tr:focus-visible {
     align-items: flex-start;
   }
 }
+
+/* E77 R7: Zuschneide-Schritt (Eric 14.10.2026) — Modal mit runder Vorschau wie der Avatar. */
+.zuschnitt {
+  width: min(400px, 100%);
+}
+.zuschnitt-buehne {
+  position: relative;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 12px;
+  border-radius: var(--radius-card);
+  background: var(--surface-sunken);
+}
+.zuschnitt-vorschau {
+  display: block;
+  border-radius: 50%;
+  background: var(--surface-card);
+  box-shadow: 0 0 0 3px var(--surface-card);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  outline: none;
+}
+.zuschnitt-vorschau:active {
+  cursor: grabbing;
+}
+.zuschnitt-vorschau:focus-visible {
+  box-shadow: 0 0 0 3px var(--surface-card), var(--ring-focus);
+}
+.zuschnitt-laden {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.zuschnitt-zoom {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 12px;
+  font: var(--type-caption);
+  color: var(--text-secondary);
+}
+.zuschnitt-zoom input[type="range"] {
+  width: 100%;
+  accent-color: var(--data-lime);
+}
+.zuschnitt-zoom-wert {
+  min-width: 3ch;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  color: var(--text-primary);
+}

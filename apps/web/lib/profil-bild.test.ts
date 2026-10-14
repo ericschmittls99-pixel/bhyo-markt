@@ -17,7 +17,10 @@ import {
   profilbildUrl,
   pruefeAnzeigename,
   pruefeProfilbild,
+  klemmeMitte,
+  klemmeZoom,
   quadratAusschnitt,
+  zuschnittAusschnitt,
 } from "./profil-bild";
 
 const JPEG = new Uint8Array([0xff, 0xd8, 0xff, 0xe0, 0, 0, 0, 0, 0, 0, 0, 0]);
@@ -32,6 +35,34 @@ describe("quadratAusschnitt", () => {
     expect(quadratAusschnitt(300, 500)).toEqual({ x: 0, y: 100, kante: 300 });
     expect(quadratAusschnitt(256, 256)).toEqual({ x: 0, y: 0, kante: 256 });
     expect(quadratAusschnitt(1, 1)).toEqual({ x: 0, y: 0, kante: 1 });
+  });
+});
+
+describe("zuschnittAusschnitt", () => {
+  it("Zoom 1 in der Mitte ist das mittige Quadrat", () => {
+    expect(zuschnittAusschnitt(400, 300, 1, 200, 150)).toEqual(quadratAusschnitt(400, 300));
+  });
+  it("Zoom 2 halbiert die Kante um die Mitte, volle Praezision", () => {
+    expect(zuschnittAusschnitt(400, 300, 2, 200, 150)).toEqual({ x: 125, y: 75, kante: 150 });
+    expect(zuschnittAusschnitt(401, 300, 3, 200.5, 150)).toEqual({ x: 150.5, y: 100, kante: 100 });
+  });
+  it("Mitte am Rand: Ausschnitt bleibt ganz im Bild", () => {
+    expect(zuschnittAusschnitt(400, 300, 2, 0, 0)).toEqual({ x: 0, y: 0, kante: 150 });
+    expect(zuschnittAusschnitt(400, 300, 2, 10_000, 10_000)).toEqual({ x: 250, y: 150, kante: 150 });
+    // Hochformat: horizontal gibt es bei Zoom 1 keinen Spielraum.
+    expect(zuschnittAusschnitt(300, 500, 1, 0, 400)).toEqual({ x: 0, y: 200, kante: 300 });
+  });
+  it("Zoom ausserhalb 1–3 wird eingeklemmt, Unsinn wird 1", () => {
+    expect(klemmeZoom(0.2)).toBe(1);
+    expect(klemmeZoom(7)).toBe(3);
+    expect(klemmeZoom(Number.NaN)).toBe(1);
+    expect(zuschnittAusschnitt(400, 300, 0.5, 200, 150)).toEqual(quadratAusschnitt(400, 300));
+    expect(zuschnittAusschnitt(400, 300, 99, 200, 150).kante).toBe(100);
+  });
+  it("klemmeMitte liefert die Mitte des eingeklemmten Ausschnitts", () => {
+    expect(klemmeMitte(400, 300, 2, 0, 0)).toEqual({ x: 75, y: 75 });
+    expect(klemmeMitte(400, 300, 2, 200, 150)).toEqual({ x: 200, y: 150 });
+    expect(klemmeMitte(400, 300, 1, 0, 0)).toEqual({ x: 150, y: 150 });
   });
 });
 

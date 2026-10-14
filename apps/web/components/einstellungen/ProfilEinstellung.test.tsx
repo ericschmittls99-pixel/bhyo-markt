@@ -6,6 +6,9 @@
  *   2. Avatar: ohne bildUrl nur Initialen; mit bildUrl ein <img> ueber den Initialen (Fallback bleibt).
  *   3. HeaderBar: Avatar aus demselben Baustein (Initialen aus dem Namen, nicht aus der E-Mail),
  *      Menuepunkt „Profil & Einstellungen" fuehrt nach /einstellungen.
+ *   4. Zuschnitt (Eric 14.10.2026): Dialog mit runder Vorschau (Canvas, fokussierbar, Tastenhinweis),
+ *      Zoom-Regler 1–3, „Übernehmen" (gesperrt bis das Bild geladen ist) und „Abbrechen";
+ *      im Profil ist der Dialog erst nach der Dateiwahl im Baum.
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -22,6 +25,7 @@ vi.mock("@/lib/ui-state", () => ({ updateUiCookie: () => {} }));
 vi.mock("@/components/inbox/InboxGlocke", () => ({ InboxGlocke: () => <span data-glocke /> }));
 
 const { ProfilEinstellung } = await import("./ProfilEinstellung");
+const { ProfilbildZuschnitt } = await import("./ProfilbildZuschnitt");
 const { Avatar } = await import("@/components/Avatar");
 const { HeaderBar } = await import("@/components/shell/HeaderBar");
 
@@ -41,6 +45,9 @@ describe("ProfilEinstellung", () => {
     expect(html).not.toContain("Bild entfernen");
     expect(html).not.toContain("av-bild");
     expect(html).toContain('id="roundup"');
+    expect(html).toContain("Du wählst den Ausschnitt");
+    // Zuschnitt erst nach der Dateiwahl.
+    expect(html).not.toContain('role="dialog"');
     // Speichern erst, wenn sich der Name geaendert hat.
     expect(html).toMatch(/<button type="submit"[^>]*disabled=""/);
   });
@@ -50,6 +57,22 @@ describe("ProfilEinstellung", () => {
     expect(html).toContain("Bild entfernen");
     expect(html).toContain('class="av av--xl av-c');
     expect(html).toContain('<img class="av-bild" src="/api/profil/bild/x?v=1" alt=""');
+  });
+});
+
+describe("ProfilbildZuschnitt", () => {
+  it("Dialog: runde Vorschau mit Tastatur, Zoom 1–3, Übernehmen gesperrt bis geladen, Abbrechen", () => {
+    const datei = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "bild.png", { type: "image/png" });
+    const html = renderToStaticMarkup(<ProfilbildZuschnitt datei={datei} onUebernehmen={() => {}} onAbbrechen={() => {}} />);
+    expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
+    expect(html).toContain("bildausschnitt wählen.");
+    expect(html).toMatch(/<canvas[^>]*class="zuschnitt-vorschau"[^>]*tabindex="0"/);
+    expect(html).toContain("Pfeiltasten verschieben, Plus und Minus zoomen");
+    expect(html).toMatch(/<input type="range" min="1" max="3" step="0.01"[^>]*value="1"/);
+    expect(html).toMatch(/<button type="button" class="btn btn--primary btn--sm" disabled=""[^>]*>[^<]*<i[^>]*><\/i>Übernehmen/);
+    expect(html).toContain("Abbrechen");
+    expect(html).toContain("Bild wird geladen");
   });
 });
 

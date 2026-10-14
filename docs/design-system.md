@@ -1207,5 +1207,22 @@ nur lesbar (`readonly`, Sekundärtext — sie ist die Access-Identität), Rolle 
 Primär-Button „Speichern" (erst aktiv, wenn sich der Name geändert hat) und
 der Rückmeldung „Gespeichert." als Caption. Darunter unverändert der
 Abschnitt „tages-mail." (`#roundup`, Ziel der Mail-Fußzeile). Schmal
-(≤ 560 px) stapelt der Bildblock untereinander. Keine Ampelfarben, keine
-Vorschau-Zuschnitt-UI: der Ausschnitt ist immer das mittige Quadrat.
+(≤ 560 px) stapelt der Bildblock untereinander. Keine Ampelfarben.
+
+**Zuschnitt (Eric 14.10.2026):** Nach der Dateiwahl öffnet sich das Modal
+„bildausschnitt wählen." (`.modal.zuschnitt`, 400 px, `role="dialog"`,
+Escape = Abbrechen): auf `--surface-sunken` eine runde Vorschau von 240 px
+(`canvas.zuschnitt-vorschau`, `border-radius: 50 %`, Ring aus
+`--surface-card` wie der Avatar xl; der Canvas zeichnet den Ausschnitt und
+dunkelt alles außerhalb des Kreises mit Navy 55 % ab, damit man sieht, was
+wegfällt). Bild per Ziehen (Pointer Events, Maus und Touch, `touch-action:
+none`) verschieben; darunter der Zoom als nativer Range 1×–3× in Lime
+(`accent-color: --data-lime`) mit Wert rechts (`zuschnitt-zoom-wert`,
+Tabellenziffern). Der Canvas ist fokussierbar (`tabindex=0`, Fokusring
+`--ring-focus`): Pfeiltasten verschieben um 8 Vorschau-Pixel, + und − zoomen
+um 0,1. Fußzeile `modal-aktionen` mit Ghost „Abbrechen" und Primär
+„Übernehmen" (gesperrt, bis das Bild dekodiert ist; der Zwischenstand „Bild
+wird geladen …" als `role="status"`). Erst nach „Übernehmen" wird der
+gewählte Ausschnitt im Browser auf 256 px verkleinert und hochgeladen; die
+Geometrie (Kante = kürzere Seite ÷ Zoom, Ausschnitt stets ganz im Bild) liegt
+in `lib/profil-bild` und ist getestet. Keine Bibliothek, nur Canvas.

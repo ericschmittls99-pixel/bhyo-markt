@@ -3,7 +3,7 @@
  * R2-Key aus der Zeile, nie aus der URL.
  *   1. Ohne Zugang (401/403 der Wache): weder Datenbank noch R2 werden gelesen.
  *   2. Ungueltige ID (kein UUID), Nutzer ohne Bild, Objekt fehlt: 404, kein Body-Stream.
- *   3. Mit Bild: genau der Key aus der Zeile wird geholt; Content-Type aus R2, Cache privat, nosniff.
+ *   3. Mit Bild: genau der Key aus der Zeile wird geholt; Content-Type aus R2, kein Cache (no-store), nosniff.
  */
 import { describe, expect, it, vi } from "vitest";
 
@@ -58,7 +58,7 @@ describe("GET /api/profil/bild/[id]", () => {
     expect(get).toHaveBeenCalledWith("profil/p/u/k.png");
   });
 
-  it("mit Bild: Key aus der Zeile, Typ aus R2, privat gecacht, nosniff", async () => {
+  it("mit Bild: Key aus der Zeile, Typ aus R2, no-store, nosniff", async () => {
     angemeldet();
     zeile.mockResolvedValueOnce([{ bildKey: "profil/p/u/k.webp" }]);
     get.mockResolvedValueOnce({ body: new Blob(["x"]).stream(), size: 1, httpMetadata: { contentType: "image/webp" } });
@@ -66,7 +66,7 @@ describe("GET /api/profil/bild/[id]", () => {
     expect(res.status).toBe(200);
     expect(get).toHaveBeenCalledWith("profil/p/u/k.webp");
     expect(res.headers.get("Content-Type")).toBe("image/webp");
-    expect(res.headers.get("Cache-Control")).toBe("private, max-age=86400");
+    expect(res.headers.get("Cache-Control")).toBe("private, no-store");
     expect(res.headers.get("X-Content-Type-Options")).toBe("nosniff");
     expect(await res.text()).toBe("x");
   });

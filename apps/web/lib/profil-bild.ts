@@ -14,10 +14,52 @@ export type ProfilbildTyp = (typeof PROFILBILD_TYPEN)[number];
 /** Hoechstlaenge des Anzeigenamens (Spalte benutzer.name ist text, die Grenze ist eine Anzeige-Grenze). */
 export const ANZEIGENAME_MAX = 80;
 
-/** Groesster mittiger quadratischer Ausschnitt eines Bildes (Breite × Hoehe). */
-export function quadratAusschnitt(breite: number, hoehe: number): { x: number; y: number; kante: number } {
-  const kante = Math.max(1, Math.min(Math.floor(breite), Math.floor(hoehe)));
-  return { x: Math.floor((breite - kante) / 2), y: Math.floor((hoehe - kante) / 2), kante };
+/** Quadratischer Ausschnitt in Quellpixeln: linke obere Ecke und Kantenlaenge. */
+export interface Ausschnitt {
+  x: number;
+  y: number;
+  kante: number;
+}
+
+/** Zoom des Zuschnitts: 1× zeigt die ganze kuerzere Seite, 3× ein Drittel davon. */
+export const ZOOM_MIN = 1;
+export const ZOOM_MAX = 3;
+/** Schrittweite der Tasten + und − (der Regler ist feiner). */
+export const ZOOM_SCHRITT = 0.1;
+
+function klemme(wert: number, min: number, max: number): number {
+  return Math.min(max, Math.max(min, wert));
+}
+
+export function klemmeZoom(zoom: number): number {
+  return klemme(Number.isFinite(zoom) ? zoom : ZOOM_MIN, ZOOM_MIN, ZOOM_MAX);
+}
+
+/**
+ * Zuschnitt (E77 R7, Eric 14.10.2026): Mitte des Ausschnitts in Quellpixeln und
+ * Zoom ergeben das Quellquadrat. Die Kante ist die kuerzere Seite durch den
+ * Zoom; der Ausschnitt liegt immer ganz im Bild — die Mitte wird so weit
+ * verschoben, dass kein Rand leer bleibt. Volle Praezision, keine Rundung:
+ * drawImage nimmt Bruchpixel, gerundet wird erst durch das Zeichnen.
+ */
+export function zuschnittAusschnitt(breite: number, hoehe: number, zoom: number, mitteX: number, mitteY: number): Ausschnitt {
+  const kante = Math.max(1, Math.min(breite, hoehe)) / klemmeZoom(zoom);
+  return {
+    x: klemme(mitteX - kante / 2, 0, Math.max(0, breite - kante)),
+    y: klemme(mitteY - kante / 2, 0, Math.max(0, hoehe - kante)),
+    kante,
+  };
+}
+
+/** Mitte so einklemmen, dass der Ausschnitt bei diesem Zoom ganz im Bild liegt (fuer Ziehen und Tasten). */
+export function klemmeMitte(breite: number, hoehe: number, zoom: number, mitteX: number, mitteY: number): { x: number; y: number } {
+  const { x, y, kante } = zuschnittAusschnitt(breite, hoehe, zoom, mitteX, mitteY);
+  return { x: x + kante / 2, y: y + kante / 2 };
+}
+
+/** Groesster mittiger quadratischer Ausschnitt eines Bildes (Breite × Hoehe) — Zuschnitt ohne Zoom und Verschiebung. */
+export function quadratAusschnitt(breite: number, hoehe: number): Ausschnitt {
+  return zuschnittAusschnitt(breite, hoehe, ZOOM_MIN, breite / 2, hoehe / 2);
 }
 
 /**
